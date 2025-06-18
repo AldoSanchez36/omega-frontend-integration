@@ -5,6 +5,7 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { authService } from "@/services/authService"
 
 interface User {
   _id: string
@@ -31,30 +32,75 @@ export default function UsersManagement() {
     const fetchUsuarios = async () => {
       try {
         setLoading(true)
-        // Intentar cargar usuarios reales, si falla usar datos mock
-        try {
-          const response = await fetch("http://localhost:4000/api/auth/users")
-          const data = await response.json()
-          setUsuarios(data.usuarios || [])
-        } catch (err) {
-          console.log("Backend no disponible, usando datos mock")
-          // Datos mock para desarrollo
+        setError(null)
+        
+        console.log("🔍 Intentando cargar usuarios desde el backend...")
+        
+        // Verificar que tenemos token
+        const token = authService.getToken()
+        if (!token) {
+          console.error("❌ No hay token de autenticación")
+          setError("No hay token de autenticación")
+          router.push("/login")
+          return
+        }
+        
+        console.log("🔑 Token encontrado:", token.substring(0, 20) + "...")
+        
+        // Hacer la petición al backend
+        const response = await fetch("http://localhost:4000/api/auth/users", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
+        
+        console.log("📡 Respuesta del servidor:", {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok
+        })
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            console.error("❌ Token inválido o expirado")
+            setError("Sesión expirada. Por favor, inicia sesión nuevamente.")
+            router.push("/login")
+            return
+          }
+          throw new Error(`Error HTTP: ${response.status} ${response.statusText}`)
+        }
+        
+        const data = await response.json()
+        console.log("📦 Datos recibidos:", data)
+        
+        // El backend puede devolver los usuarios directamente o en una propiedad
+        const usuariosData = Array.isArray(data) ? data : (data.usuarios || data.users || [])
+        
+        console.log("👥 Usuarios procesados:", usuariosData)
+        setUsuarios(usuariosData)
+        
+      } catch (err) {
+        console.error("❌ Error cargando usuarios:", err)
+        setError(`Error al cargar los usuarios: ${err instanceof Error ? err.message : 'Error desconocido'}`)
+        
+        // Fallback a datos mock solo si hay error de conexión
+        if (err instanceof Error && err.message.includes('fetch')) {
+          console.log("🔄 Usando datos mock como fallback")
           setUsuarios([
             { _id: "1", username: "admin", email: "admin@omega.com", puesto: "admin" },
             { _id: "2", username: "usuario1", email: "user1@omega.com", puesto: "user" },
             { _id: "3", username: "cliente1", email: "client1@omega.com", puesto: "client" },
           ])
         }
-      } catch (err) {
-        setError("Error al cargar los usuarios")
-        console.error(err)
       } finally {
         setLoading(false)
       }
     }
 
     fetchUsuarios()
-  }, [])
+  }, [router])
 
   const handleEdit = (user: User) => {
     setCurrentUser(user)
@@ -63,26 +109,48 @@ export default function UsersManagement() {
 
   const handleSave = async () => {
     try {
-      // Intentar guardar en backend, si falla actualizar localmente
-      try {
-        await fetch("http://localhost:4000/api/auth/update", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(currentUser),
-        })
-      } catch (err) {
-        console.log("Backend no disponible, actualizando localmente")
+      console.log("💾 Guardando usuario:", currentUser)
+      
+      const token = authService.getToken()
+      if (!token) {
+        setError("No hay token de autenticación")
+        return
       }
-
+      
+      // Intentar guardar en backend
+      const response = await fetch(`http://localhost:4000/api/auth/update/${currentUser._id}`, {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: currentUser.username,
+          email: currentUser.email,
+          puesto: currentUser.puesto
+        }),
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Error HTTP: ${response.status}`)
+      }
+      
+      const updatedUser = await response.json()
+      console.log("✅ Usuario actualizado:", updatedUser)
+      
       // Actualizar la lista de usuarios localmente
       setUsuarios((prev) => prev.map((user) => (user._id === currentUser._id ? currentUser : user)))
       setShowModal(false)
       alert("Usuario actualizado correctamente")
+      
     } catch (err) {
-      console.error("Error al guardar los cambios:", err)
-      alert("Error al guardar los cambios")
+      console.error("❌ Error al guardar:", err)
+      
+      // Fallback: actualizar localmente
+      console.log("🔄 Actualizando localmente como fallback")
+      setUsuarios((prev) => prev.map((user) => (user._id === currentUser._id ? currentUser : user)))
+      setShowModal(false)
+      alert("Usuario actualizado localmente (backend no disponible)")
     }
   }
 
@@ -138,12 +206,32 @@ export default function UsersManagement() {
                 </h1>
               </div>
               <div className="card-body">
-                {error && <div className="alert alert-danger">{error}</div>}
+                {error && (
+                  <div className="alert alert-danger">
+                    <strong>Error:</strong> {error}
+                    <br />
+                    <small>Verifica que el backend esté corriendo en http://localhost:4000</small>
+                  </div>
+                )}
+
+                {/* Debug Info */}
+                <div className="alert alert-info mb-3">
+                  <strong>🔍 Debug Info:</strong>
+                  <br />
+                  <small>
+                    • Usuarios cargados: {usuarios.length}
+                    <br />
+                    • Token disponible: {authService.getToken() ? "✅ Sí" : "❌ No"}
+                    <br />
+                    • Backend URL: http://localhost:4000/api/auth/users
+                  </small>
+                </div>
 
                 <div className="table-responsive">
                   <table className="table table-striped table-hover">
                     <thead className="table-dark">
                       <tr>
+                        <th>ID</th>
                         <th>Nombre de Usuario</th>
                         <th>Correo Electrónico</th>
                         <th>Puesto</th>
@@ -151,36 +239,50 @@ export default function UsersManagement() {
                       </tr>
                     </thead>
                     <tbody>
-                      {usuarios.map((usuario) => (
-                        <tr key={usuario._id}>
-                          <td>
-                            <strong>{usuario.username}</strong>
-                          </td>
-                          <td>{usuario.email}</td>
-                          <td>
-                            <span
-                              className={`badge ${
-                                usuario.puesto === "admin"
-                                  ? "bg-danger"
-                                  : usuario.puesto === "user"
-                                    ? "bg-primary"
-                                    : "bg-secondary"
-                              }`}
-                            >
-                              {usuario.puesto}
-                            </span>
-                          </td>
-                          <td>
-                            <button
-                              className="btn btn-sm btn-outline-primary"
-                              onClick={() => handleEdit(usuario)}
-                              title="Editar usuario"
-                            >
-                              <i className="material-icons">edit</i>
-                            </button>
+                      {usuarios.length > 0 ? (
+                        usuarios.map((usuario) => (
+                          <tr key={usuario._id}>
+                            <td>
+                              <code>{usuario._id}</code>
+                            </td>
+                            <td>
+                              <strong>{usuario.username}</strong>
+                            </td>
+                            <td>{usuario.email}</td>
+                            <td>
+                              <span
+                                className={`badge ${
+                                  usuario.puesto === "admin"
+                                    ? "bg-danger"
+                                    : usuario.puesto === "user"
+                                      ? "bg-primary"
+                                      : "bg-secondary"
+                                }`}
+                              >
+                                {usuario.puesto}
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                className="btn btn-sm btn-outline-primary"
+                                onClick={() => handleEdit(usuario)}
+                                title="Editar usuario"
+                              >
+                                <i className="material-icons">edit</i>
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="text-center py-4">
+                            <i className="material-icons text-muted" style={{ fontSize: "3rem" }}>
+                              people_outline
+                            </i>
+                            <p className="text-muted mt-2">No se encontraron usuarios</p>
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
