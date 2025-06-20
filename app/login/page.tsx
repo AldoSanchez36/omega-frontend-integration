@@ -1,32 +1,28 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useUser } from "@/context/UserContext"
+import { useLanguage } from "../../Elements/LanguageContext"
+import { LanguageProvider } from "../../Elements/LanguageContext"
+
 
 export default function Login() {
   const router = useRouter()
-  const { login, isAuthenticated, isLoading, error, clearError, isHydrated } = useUser()
+  const { login, isAuthenticated, isLoading, error, clearError } = useUser()
+  const { translations, changeLanguage, language } = useLanguage()
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   })
 
-  // Memoizar el callback de redirección
-  const handleRedirect = useCallback(() => {
-    if (isHydrated && isAuthenticated) {
-      console.log("🔄 Redirigiendo al dashboard...")
+  useEffect(() => {
+    if (isAuthenticated) {
       router.push("/dashboard")
     }
-  }, [isHydrated, isAuthenticated, router])
-
-  useEffect(() => {
-    handleRedirect()
-  }, [handleRedirect])
+  }, [isAuthenticated, router])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -40,32 +36,12 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.email.trim() || !formData.password.trim()) return
-
-    console.log("📝 Enviando formulario de login...")
-    console.log("📧 Email:", formData.email)
-    console.log("🔗 API URL:", process.env.NEXT_PUBLIC_API_URL)
-
     try {
-      console.log("🚀 Llamando a login()...")
       await login(formData.email, formData.password)
-      console.log("✅ Login exitoso, esperando redirección...")
-      // La redirección se maneja automáticamente por el useEffect
+      // Redirección automática por useEffect
     } catch (error) {
-      console.error("❌ Error en login:", error)
-      console.error("❌ Error completo:", JSON.stringify(error, null, 2))
       // El error se maneja en el contexto
     }
-  }
-
-  // Mostrar loading mientras se hidrata
-  if (!isHydrated) {
-    return (
-      <div className="d-flex justify-content-center align-items-center vh-100">
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Cargando...</span>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -81,77 +57,104 @@ export default function Login() {
           <div className="w-100" style={{ maxWidth: "400px" }}>
             <div className="card shadow">
               <div className="card-body p-5">
-                <h2 className="card-title text-center mb-4">Iniciar Sesión</h2>
+                <div className="login-container">
+                  <div className="login-card">
+                    <div className="login-header">
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', width: '70px', position: 'relative', left: '250px' }}>🌐&nbsp;
+                        <select
+                          onChange={e => changeLanguage(e.target.value)}
+                          value={language}
+                          style={{ padding: '4px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '14px' }}
+                        >
+                          <option value="en">En</option>
+                          <option value="es">Es</option>
+                        </select>
+                      </div>
+                      <h2>{translations.login}</h2>
+                      <p>{language === "es" ? "Accede a tu cuenta de Omega" : "Access your Omega account"}</p>
+                    </div>
 
-                {error && (
-                  <div className="alert alert-danger" role="alert">
-                    {error}
-                  </div>
-                )}
+                    {error && (
+                      <div className="alert alert-danger" role="alert">
+                        {error}
+                      </div>
+                    )}
 
-                <form onSubmit={handleSubmit}>
-                  <div className="mb-3">
-                    <label htmlFor="email" className="form-label">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      className="form-control"
-                      id="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      required
-                      disabled={isLoading}
-                      placeholder="Ingresa tu email"
-                    />
-                  </div>
+                    <form onSubmit={handleSubmit} className="login-form">
+                      <div className="form-group">
+                        <label htmlFor="email">{translations.email}</label>
+                        <input
+                          type="email"
+                          id="email"
+                          name="email"
+                          value={formData.email}
+                          onChange={handleChange}
+                          className="form-control"
+                          placeholder={translations.emailPlaceholder || "Ingresa tu email"}
+                          required
+                          disabled={isLoading}
+                        />
+                      </div>
 
-                  <div className="mb-4">
-                    <label htmlFor="password" className="form-label">
-                      Contraseña
-                    </label>
-                    <div className="position-relative">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        className="form-control"
-                        id="password"
-                        name="password"
-                        value={formData.password}
-                        onChange={handleChange}
-                        required
-                        disabled={isLoading}
-                        placeholder="Ingresa tu contraseña"
-                      />
+                      <div className="form-group">
+                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                          <label htmlFor="password" style={{ marginBottom: 0, marginRight: 8 }}>{translations.password}</label>
+                          <button
+                            type="button"
+                            className="password-toggle"
+                            onClick={() => setShowPassword(!showPassword)}
+                            disabled={isLoading}
+                            style={{ background: 'none', border: 'none', padding: 0, marginLeft: 4, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                            aria-label={showPassword ? (language === 'es' ? 'Ocultar contraseña' : 'Hide password') : (language === 'es' ? 'Mostrar contraseña' : 'Show password')}
+                          >
+                            <i className={`material-icons ${showPassword ? "text-primary" : "text-muted"}`}>
+                              {showPassword ? "visibility_off" : "visibility"}
+                            </i>
+                          </button>
+                        </div>
+                        <div className="password-input-container">
+                          <input
+                            type={showPassword ? "text" : "password"}
+                            id="password"
+                            name="password"
+                            value={formData.password}
+                            onChange={handleChange}
+                            className="form-control"
+                            placeholder={translations.passwordPlaceholder || "Ingresa tu contraseña"}
+                            required
+                            disabled={isLoading}
+                          />
+                        </div>
+                      </div>
+
                       <button
-                        type="button"
-                        className="btn btn-link position-absolute end-0 top-50 translate-middle-y"
-                        onClick={() => setShowPassword(!showPassword)}
-                        disabled={isLoading}
-                        style={{ textDecoration: "none" }}
+                        type="submit"
+                        className="btn btn-primary btn-block"
+                        disabled={isLoading || !formData.email.trim() || !formData.password.trim()}
                       >
-                        <i className="material-icons">{showPassword ? "visibility_off" : "visibility"}</i>
+                        {isLoading ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            {language === "es" ? "Iniciando sesión..." : "Logging in..."}
+                          </>
+                        ) : (
+                          translations.login
+                        )}
                       </button>
+                    </form>
+
+                    <div className="login-footer">
+                      <Link href="/forgot-password" className="forgot-password-link">
+                        {translations.forgotPassword || "¿Olvidaste tu contraseña?"}
+                      </Link>
+                      <p>
+                        {language === "es" ? "¿No tienes cuenta?" : "Don't have an account?"} {" "}
+                        <Link href="/register" className="register-link">
+                          {language === "es" ? "Regístrate aquí" : "Register here"}
+                        </Link>
+                      </p>
                     </div>
                   </div>
-
-                  <button type="submit" className="btn btn-primary w-100" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Iniciando sesión...
-                      </>
-                    ) : (
-                      "Iniciar Sesión"
-                    )}
-                  </button>
-                </form>
-
-                <div className="text-center mt-3">
-                  <p>
-                    ¿No tienes cuenta? <Link href="/register">Regístrate aquí</Link>
-                  </p>
-                  <Link href="/forgot-password">¿Olvidaste tu contraseña?</Link>
                 </div>
               </div>
             </div>

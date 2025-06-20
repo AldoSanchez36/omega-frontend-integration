@@ -1,225 +1,137 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
+import React, { useState } from "react"
+import axios from "axios"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { useUser } from "@/context/UserContext"
+import { useLanguage } from "../../Elements/LanguageContext"
+import "./RegisterScreen.css"
 
-export default function Register() {
-  const router = useRouter()
-  const { register, isAuthenticated, isLoading, error, clearError } = useUser()
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+export default function RegisterScreen() {
+  const { translations, changeLanguage, language } = useLanguage()
   const [formData, setFormData] = useState({
     username: "",
     email: "",
     password: "",
-    confirmPassword: "",
-    puesto: "user",
+    confirmPassword: ""
   })
+  const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState("")
+  const router = useRouter()
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      router.push("/dashboard")
-    }
-  }, [isAuthenticated, router])
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
-    if (error) clearError()
+    setFormData({
+      ...formData,
+      [name]: value
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (!formData.username.trim() || !formData.email.trim() || !formData.password.trim()) {
-      return
-    }
-
+    setError("")
     if (formData.password !== formData.confirmPassword) {
-      alert("Las contraseñas no coinciden")
+      setError(language === "es" ? "Las contraseñas no coinciden" : "Passwords do not match")
       return
     }
-
-    if (formData.password.length < 6) {
-      alert("La contraseña debe tener al menos 6 caracteres")
-      return
-    }
-
     try {
-      await register({
+      const response = await axios.post("http://localhost:4000/api/auth/register", {
         username: formData.username.trim(),
         email: formData.email.trim(),
         password: formData.password,
-        puesto: formData.puesto,
+        confirmPassword: formData.confirmPassword,
       })
-    } catch (error) {
-      console.error("Registration error:", error)
+      if (response.status === 201) {
+        alert(language === "es" ? "Usuario registrado exitosamente" : "User registered successfully")
+        router.push("/login")
+      }
+    } catch (error: any) {
+      if (error.response) {
+        setError(error.response.data.msg || (language === "es" ? "Error al registrar el usuario" : "Error registering user"))
+      } else {
+        setError(language === "es" ? "Error del servidor" : "Server error")
+      }
     }
   }
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-header">
-          <h2>Crear Cuenta</h2>
-          <p>Únete a Omega</p>
-        </div>
-
-        {error && (
-          <div className="alert alert-danger" role="alert">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <div className="mb-3">
-            <label htmlFor="username" className="form-label">
-              Nombre de Usuario
-            </label>
-            <input
-              type="text"
-              className="form-control"
-              id="username"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              placeholder="Ingresa tu nombre de usuario"
-              required
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="mb-3">
-            <label htmlFor="email" className="form-label">
-              Email
-            </label>
-            <input
-              type="email"
-              className="form-control"
-              id="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="Ingresa tu email"
-              required
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="mb-3">
-            <label htmlFor="puesto" className="form-label">
-              Rol
-            </label>
-            <select
-              className="form-control"
-              id="puesto"
-              name="puesto"
-              value={formData.puesto}
-              onChange={handleChange}
-              disabled={isLoading}
-            >
-              <option value="user">Usuario</option>
-              <option value="client">Cliente</option>
-              <option value="admin">Administrador</option>
-            </select>
-          </div>
-
-          <div className="mb-3">
-            <label htmlFor="password" className="form-label">
-              Contraseña
-            </label>
-            <div className="password-input-container">
-              <input
-                type={showPassword ? "text" : "password"}
-                className="form-control"
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="Ingresa tu contraseña"
-                required
-                disabled={isLoading}
-                minLength={6}
-              />
-              <button
-                type="button"
-                className="password-toggle"
-                onClick={() => setShowPassword(!showPassword)}
-                disabled={isLoading}
-              >
-                <i className={`material-icons ${showPassword ? "text-primary" : "text-muted"}`}>
-                  {showPassword ? "visibility_off" : "visibility"}
-                </i>
-              </button>
-            </div>
-          </div>
-
-          <div className="mb-4">
-            <label htmlFor="confirmPassword" className="form-label">
-              Confirmar Contraseña
-            </label>
-            <div className="password-input-container">
-              <input
-                type={showConfirmPassword ? "text" : "password"}
-                className="form-control"
-                id="confirmPassword"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                placeholder="Confirma tu contraseña"
-                required
-                disabled={isLoading}
-                minLength={6}
-              />
-              <button
-                type="button"
-                className="password-toggle"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                disabled={isLoading}
-              >
-                <i className={`material-icons ${showConfirmPassword ? "text-primary" : "text-muted"}`}>
-                  {showConfirmPassword ? "visibility_off" : "visibility"}
-                </i>
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            className="btn btn-primary w-100 mb-3"
-            disabled={
-              isLoading ||
-              !formData.username.trim() ||
-              !formData.email.trim() ||
-              !formData.password.trim() ||
-              formData.password !== formData.confirmPassword
-            }
+    <div className="register-container">
+      <form className="register-form" onSubmit={handleSubmit}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', width: '70px', position: 'relative', left: '250px' }}>🌐&nbsp;
+          <select
+            onChange={e => changeLanguage(e.target.value)}
+            value={language}
+            style={{ padding: '4px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '14px' }}
           >
-            {isLoading ? (
-              <>
-                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                Creando cuenta...
-              </>
-            ) : (
-              "Crear Cuenta"
-            )}
-          </button>
-        </form>
-
-        <div className="auth-footer">
-          <p>
-            ¿Ya tienes cuenta? <Link href="/login">Inicia sesión aquí</Link>
-          </p>
-          <Link href="/">Volver al inicio</Link>
+            <option value="en">En</option>
+            <option value="es">Es</option>
+          </select>
         </div>
-      </div>
+        <h1>{translations.register}</h1>
+        {error && <p className="error-message">{error}</p>}
+        <div className="form-group">
+          <label htmlFor="username">{translations.username}:</label>
+          <input
+            type="text"
+            id="username"
+            name="username"
+            value={formData.username}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor="email">{translations.email}:</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor="password">{translations.password}:
+            <span className="toggle-password material-icons"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{ position: 'relative', top: '7px', left: '2px', cursor: 'pointer' }}>
+              {showPassword ? 'visibility_off' : 'visibility'}
+            </span>
+          </label>
+          <div className="password-input-container">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              id="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              required
+            />
+          </div>
+        </div>
+        <div className="form-group">
+          <label htmlFor="confirmPassword">{translations.password}:</label>
+          <input
+            type={showPassword ? 'text' : 'password'}
+            id="confirmPassword"
+            name="confirmPassword"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        <button type="submit" className="register-button">
+          {translations.registerButton}
+        </button>
+        <br />
+        <button
+          className="back-button"
+          type="button"
+          onClick={() => router.push("/login")}
+        >
+          ← {translations.loginButton}
+        </button>
+      </form>
     </div>
   )
 }

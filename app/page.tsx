@@ -58,7 +58,7 @@ export default function Home() {
         <div className="container">
           <div className="row align-items-center">
             <div className="col-lg-6">
-              <h1 className="display-4 fw-bold mb-4">Sistema de Gestión Industrial Omega</h1>
+              <h1 className="display-4 fw-bold mb-4">Sistema de Gestión Organomex</h1>
               <p className="lead mb-4">
                 Plataforma completa para la gestión de plantas industriales, procesos, variables y generación de
                 reportes técnicos.

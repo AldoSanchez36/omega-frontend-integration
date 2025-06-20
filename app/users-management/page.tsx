@@ -1,172 +1,135 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
+import axios from "axios"
 import { authService } from "@/services/authService"
 
 interface User {
   _id: string
   username: string
   email: string
-  puesto: string
+  puesto?: string
+  role?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export default function UsersManagement() {
-  const [usuarios, setUsuarios] = useState<User[]>([])
-  const [error, setError] = useState<string | null>(null)
+  const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
-  const [showModal, setShowModal] = useState(false)
-  const [currentUser, setCurrentUser] = useState<User>({
-    _id: "",
-    username: "",
-    email: "",
-    puesto: "",
-  })
-
-  const router = useRouter()
+  const [error, setError] = useState<string | null>(null)
+  const [currentUserRole, setCurrentUserRole] = useState<string>('')
 
   useEffect(() => {
-    const fetchUsuarios = async () => {
+    const fetchUsers = async () => {
       try {
+        console.log("🔍 Iniciando petición al backend con axios...")
         setLoading(true)
         setError(null)
         
-        console.log("🔍 Intentando cargar usuarios desde el backend...")
-        
-        // Verificar que tenemos token
+        // Obtener token
         const token = authService.getToken()
         if (!token) {
           console.error("❌ No hay token de autenticación")
           setError("No hay token de autenticación")
-          router.push("/login")
+          setLoading(false)
           return
         }
         
         console.log("🔑 Token encontrado:", token.substring(0, 20) + "...")
         
-        // Hacer la petición al backend
-        const response = await fetch("http://localhost:4000/api/auth/users", {
-          method: "GET",
+        // Hacer la petición con axios
+        const response = await axios.get("http://localhost:4000/api/auth/users", {
           headers: {
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json",
           },
         })
         
-        console.log("📡 Respuesta del servidor:", {
-          status: response.status,
-          statusText: response.statusText,
-          ok: response.ok
-        })
+        console.log("📡 Respuesta del servidor:")
+        console.log("Status:", response.status)
+        console.log("Status Text:", response.statusText)
+        console.log("Headers:", response.headers)
         
-        if (!response.ok) {
-          if (response.status === 401) {
-            console.error("❌ Token inválido o expirado")
-            setError("Sesión expirada. Por favor, inicia sesión nuevamente.")
-            router.push("/login")
-            return
-          }
-          throw new Error(`Error HTTP: ${response.status} ${response.statusText}`)
+        console.log("📦 Datos recibidos:")
+        console.log(JSON.stringify(response.data, null, 2))
+        
+        // Procesar los datos recibidos
+        const usersData = Array.isArray(response.data) ? response.data : (response.data.users || response.data.usuarios || [])
+        setUsers(usersData)
+        
+        // Obtener el rol del usuario actual desde el token
+        try {
+          const tokenData = JSON.parse(atob(token.split('.')[1]))
+          setCurrentUserRole(tokenData.userType || tokenData.role || 'user')
+        } catch (e) {
+          console.error("Error decodificando token:", e)
+          setCurrentUserRole('user')
         }
         
-        const data = await response.json()
-        console.log("📦 Datos recibidos:", data)
-        
-        // El backend puede devolver los usuarios directamente o en una propiedad
-        const usuariosData = Array.isArray(data) ? data : (data.usuarios || data.users || [])
-        
-        console.log("👥 Usuarios procesados:", usuariosData)
-        setUsuarios(usuariosData)
-        
       } catch (err) {
-        console.error("❌ Error cargando usuarios:", err)
-        setError(`Error al cargar los usuarios: ${err instanceof Error ? err.message : 'Error desconocido'}`)
-        
-        // Fallback a datos mock solo si hay error de conexión
-        if (err instanceof Error && err.message.includes('fetch')) {
-          console.log("🔄 Usando datos mock como fallback")
-          setUsuarios([
-            { _id: "1", username: "admin", email: "admin@omega.com", puesto: "admin" },
-            { _id: "2", username: "usuario1", email: "user1@omega.com", puesto: "user" },
-            { _id: "3", username: "cliente1", email: "client1@omega.com", puesto: "client" },
-          ])
+        console.error("❌ Error en la petición:")
+        if (axios.isAxiosError(err)) {
+          console.error("Status:", err.response?.status)
+          console.error("Status Text:", err.response?.statusText)
+          console.error("Data:", err.response?.data)
+          console.error("Message:", err.message)
+          
+          if (err.response?.status === 401) {
+            setError("Sesión expirada. Por favor, inicia sesión nuevamente.")
+          } else {
+            setError(`Error del servidor: ${err.response?.status} - ${err.response?.statusText}`)
+          }
+        } else {
+          console.error("Error:", err)
+          setError("Error de conexión. Verifica que el backend esté corriendo.")
         }
       } finally {
         setLoading(false)
       }
     }
 
-    fetchUsuarios()
-  }, [router])
+    fetchUsers()
+  }, [])
 
-  const handleEdit = (user: User) => {
-    setCurrentUser(user)
-    setShowModal(true)
-  }
-
-  const handleSave = async () => {
-    try {
-      console.log("💾 Guardando usuario:", currentUser)
-      
-      const token = authService.getToken()
-      if (!token) {
-        setError("No hay token de autenticación")
-        return
-      }
-      
-      // Intentar guardar en backend
-      const response = await fetch(`http://localhost:4000/api/auth/update/${currentUser._id}`, {
-        method: "PATCH",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: currentUser.username,
-          email: currentUser.email,
-          puesto: currentUser.puesto
-        }),
-      })
-      
-      if (!response.ok) {
-        throw new Error(`Error HTTP: ${response.status}`)
-      }
-      
-      const updatedUser = await response.json()
-      console.log("✅ Usuario actualizado:", updatedUser)
-      
-      // Actualizar la lista de usuarios localmente
-      setUsuarios((prev) => prev.map((user) => (user._id === currentUser._id ? currentUser : user)))
-      setShowModal(false)
-      alert("Usuario actualizado correctamente")
-      
-    } catch (err) {
-      console.error("❌ Error al guardar:", err)
-      
-      // Fallback: actualizar localmente
-      console.log("🔄 Actualizando localmente como fallback")
-      setUsuarios((prev) => prev.map((user) => (user._id === currentUser._id ? currentUser : user)))
-      setShowModal(false)
-      alert("Usuario actualizado localmente (backend no disponible)")
+  const getRoleBadge = (role: string) => {
+    const roleMap: { [key: string]: { color: string; text: string } } = {
+      admin: { color: "bg-danger", text: "Administrador" },
+      user: { color: "bg-primary", text: "Usuario" },
+      client: { color: "bg-secondary", text: "Cliente" },
+      manager: { color: "bg-warning", text: "Gerente" }
     }
+    
+    const roleInfo = roleMap[role.toLowerCase()] || { color: "bg-info", text: role }
+    return (
+      <span className={`badge ${roleInfo.color} text-white`}>
+        {roleInfo.text}
+      </span>
+    )
   }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setCurrentUser({
-      ...currentUser,
-      [name]: value,
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "N/A"
+    return new Date(dateString).toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     })
   }
 
+  const isAdmin = currentUserRole === 'admin'
+
   if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center vh-100">
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Cargando usuarios...</span>
+      <div className="min-vh-100 bg-light d-flex align-items-center justify-content-center">
+        <div className="text-center">
+          <div className="spinner-border text-primary mb-3" role="status">
+            <span className="visually-hidden">Cargando...</span>
+          </div>
+          <h5>Cargando usuarios...</h5>
         </div>
       </div>
     )
@@ -174,203 +137,229 @@ export default function UsersManagement() {
 
   return (
     <div className="min-vh-100 bg-light">
-      {/* Navigation */}
-      <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
+      {/* Navigation Bar */}
+      {/* <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
         <div className="container">
-          <Link className="navbar-brand fw-bold" href="/">
+          <a className="navbar-brand fw-bold" href="/">
+            <span className="material-icons me-2">business</span>
             Omega
-          </Link>
-          <div className="navbar-nav ms-auto">
-            <Link className="nav-link" href="/dashboard">
-              Dashboard
-            </Link>
-            <Link className="nav-link" href="/reports">
-              Reportes
-            </Link>
-            <Link className="nav-link active" href="/users-management">
-              Usuarios
-            </Link>
+          </a>
+          
+          <button 
+            className="navbar-toggler" 
+            type="button" 
+            data-bs-toggle="collapse" 
+            data-bs-target="#navbarNav"
+          >
+            <span className="navbar-toggler-icon"></span>
+          </button>
+          
+          <div className="collapse navbar-collapse" id="navbarNav">
+            <ul className="navbar-nav me-auto">
+              <li className="nav-item">
+                <a className="nav-link" href="/dashboard">
+                  <span className="material-icons me-1">dashboard</span>
+                  Dashboard
+                </a>
+              </li>
+              {isAdmin && (
+                <li className="nav-item">
+                  <a className="nav-link" href="/dashboard-manager">
+                    <span className="material-icons me-1">admin_panel_settings</span>
+                    Admin Panel
+                  </a>
+                </li>
+              )}
+              <li className="nav-item">
+                <a className="nav-link" href="/reports">
+                  <span className="material-icons me-1">assessment</span>
+                  Reportes
+                </a>
+              </li>
+              <li className="nav-item">
+                <a className="nav-link active" href="/users-management">
+                  <span className="material-icons me-1">people</span>
+                  Usuarios
+                </a>
+              </li>
+              <li className="nav-item">
+                <a className="nav-link" href="/services">
+                  <span className="material-icons me-1">build</span>
+                  Servicios
+                </a>
+              </li>
+            </ul>
+            
+            <ul className="navbar-nav">
+              <li className="nav-item">
+                <a className="nav-link" href="/profile">
+                  <span className="material-icons me-1">account_circle</span>
+                  Perfil
+                </a>
+              </li>
+              <li className="nav-item">
+                <a className="nav-link" href="/logout">
+                  <span className="material-icons me-1">logout</span>
+                  Cerrar Sesión
+                </a>
+              </li>
+            </ul>
           </div>
         </div>
-      </nav>
+      </nav>/*}
+
+      {/* Header */}
+      <div className="bg-primary text-white py-4">
+        <div className="container">
+          <div className="row align-items-center">
+            <div className="col">
+              <h1 className="h3 mb-0">
+                <span className="material-icons me-2">people</span>
+                Gestión de Usuarios
+              </h1>
+              <p className="mb-0 opacity-75">Administra los usuarios del sistema</p>
+            </div>
+            <div className="col-auto">
+              <span className="badge bg-light text-primary">
+                {users.length} usuarios
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Main Content */}
       <div className="container py-4">
-        <div className="row">
-          <div className="col-12">
-            <div className="card shadow">
-              <div className="card-header bg-primary text-white">
-                <h1 className="h4 mb-0">
-                  <i className="material-icons me-2">people</i>
-                  Gestión de Usuarios
-                </h1>
+        {error && (
+          <div className="alert alert-danger alert-dismissible fade show" role="alert">
+            <span className="material-icons me-2">warning</span>
+            <strong>Error:</strong> {error}
+            <button type="button" className="btn-close" onClick={() => setError(null)}></button>
+          </div>
+        )}
+
+        <div className="card shadow-sm">
+          <div className="card-header bg-white">
+            <div className="row align-items-center">
+              <div className="col">
+                <h5 className="mb-0">Lista de Usuarios</h5>
               </div>
-              <div className="card-body">
-                {error && (
-                  <div className="alert alert-danger">
-                    <strong>Error:</strong> {error}
-                    <br />
-                    <small>Verifica que el backend esté corriendo en http://localhost:4000</small>
-                  </div>
-                )}
-
-                {/* Debug Info */}
-                <div className="alert alert-info mb-3">
-                  <strong>🔍 Debug Info:</strong>
-                  <br />
-                  <small>
-                    • Usuarios cargados: {usuarios.length}
-                    <br />
-                    • Token disponible: {authService.getToken() ? "✅ Sí" : "❌ No"}
-                    <br />
-                    • Backend URL: http://localhost:4000/api/auth/users
-                  </small>
-                </div>
-
-                <div className="table-responsive">
-                  <table className="table table-striped table-hover">
-                    <thead className="table-dark">
-                      <tr>
-                        <th>ID</th>
-                        <th>Nombre de Usuario</th>
-                        <th>Correo Electrónico</th>
-                        <th>Puesto</th>
-                        <th>Acciones</th>
+              <div className="col-auto">
+                <button 
+                  className="btn btn-outline-primary btn-sm"
+                  onClick={() => window.location.reload()}
+                >
+                  <span className="material-icons me-1">refresh</span>
+                  Actualizar
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="card-body p-0">
+            <div className="table-responsive">
+              <table className="table table-hover mb-0">
+                <thead className="table-light">
+                  <tr>
+                    <th className="border-0">Usuario</th>
+                    <th className="border-0">Correo</th>
+                    <th className="border-0">Rol</th>
+                    <th className="border-0">Fecha de Creación</th>
+                    <th className="border-0">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.length > 0 ? (
+                    users.map((user) => (
+                      <tr key={user._id}>
+                        <td>
+                          <div className="d-flex align-items-center">
+                            <div>
+                              <div className="fw-semibold">{user.username}</div>
+                              
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <a href={`mailto:${user.email}`} className="text-decoration-none">
+                            {user.email}
+                          </a>
+                        </td>
+                        <td>
+                          {getRoleBadge(user.puesto || user.role || 'user')}
+                        </td>
+                        <td>
+                          <small className="text-muted">
+                            {formatDate(user.createdAt || '')}
+                          </small>
+                        </td>
+                        <td>
+                          <div className="btn-group btn-group-sm">
+                            <button className="btn btn-outline-primary" title="Editar">
+                              <span className="material-icons">edit</span>
+                            </button>
+                            <button className="btn btn-outline-success" title="Guardar">
+                              <span className="material-icons">save</span>
+                            </button>
+                            <button className="btn btn-outline-danger" title="Eliminar">
+                              <span className="material-icons">delete</span>
+                            </button>
+                          </div>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {usuarios.length > 0 ? (
-                        usuarios.map((usuario) => (
-                          <tr key={usuario._id}>
-                            <td>
-                              <code>{usuario._id}</code>
-                            </td>
-                            <td>
-                              <strong>{usuario.username}</strong>
-                            </td>
-                            <td>{usuario.email}</td>
-                            <td>
-                              <span
-                                className={`badge ${
-                                  usuario.puesto === "admin"
-                                    ? "bg-danger"
-                                    : usuario.puesto === "user"
-                                      ? "bg-primary"
-                                      : "bg-secondary"
-                                }`}
-                              >
-                                {usuario.puesto}
-                              </span>
-                            </td>
-                            <td>
-                              <button
-                                className="btn btn-sm btn-outline-primary"
-                                onClick={() => handleEdit(usuario)}
-                                title="Editar usuario"
-                              >
-                                <i className="material-icons">edit</i>
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={5} className="text-center py-4">
-                            <i className="material-icons text-muted" style={{ fontSize: "3rem" }}>
-                              people_outline
-                            </i>
-                            <p className="text-muted mt-2">No se encontraron usuarios</p>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="text-center py-5">
+                        <div className="text-muted">
+                          <span className="material-icons display-1">people_outline</span>
+                          <h5 className="mt-3">No se encontraron usuarios</h5>
+                          <p>No hay usuarios registrados en el sistema.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
 
-                <div className="mt-3">
-                  <Link href="/dashboard" className="btn btn-secondary">
-                    <i className="material-icons me-2">home</i>
-                    Volver al Dashboard
-                  </Link>
+        {/* Debug Info */}
+        <div className="mt-4">
+          <div className="card border-info">
+            <div className="card-header bg-info text-white">
+              <h6 className="mb-0">
+                <span className="material-icons me-2">info</span>
+                Información de Debug
+              </h6>
+            </div>
+            <div className="card-body">
+              <div className="row">
+                <div className="col-md-3">
+                  <small className="text-muted">Total de usuarios:</small>
+                  <div className="fw-bold">{users.length}</div>
+                </div>
+                <div className="col-md-3">
+                  <small className="text-muted">Token disponible:</small>
+                  <div className="fw-bold text-success">
+                    {authService.getToken() ? "✅ Sí" : "❌ No"}
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <small className="text-muted">Tu rol:</small>
+                  <div className="fw-bold text-primary">
+                    {currentUserRole}
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <small className="text-muted">Estado:</small>
+                  <div className="fw-bold text-success">✅ Conectado</div>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Modal para edición */}
-      {showModal && (
-        <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Editar Usuario</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowModal(false)}
-                  aria-label="Close"
-                ></button>
-              </div>
-              <div className="modal-body">
-                <form>
-                  <div className="mb-3">
-                    <label htmlFor="username" className="form-label">
-                      Nombre de Usuario
-                    </label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="username"
-                      name="username"
-                      value={currentUser.username}
-                      onChange={handleChange}
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label htmlFor="email" className="form-label">
-                      Correo Electrónico
-                    </label>
-                    <input
-                      type="email"
-                      className="form-control"
-                      id="email"
-                      name="email"
-                      value={currentUser.email}
-                      onChange={handleChange}
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label htmlFor="puesto" className="form-label">
-                      Puesto
-                    </label>
-                    <select
-                      className="form-select"
-                      id="puesto"
-                      name="puesto"
-                      value={currentUser.puesto}
-                      onChange={handleChange}
-                    >
-                      <option value="user">User</option>
-                      <option value="client">Client</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  </div>
-                </form>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
-                  Cancelar
-                </button>
-                <button type="button" className="btn btn-primary" onClick={handleSave}>
-                  Guardar Cambios
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
