@@ -9,6 +9,30 @@ interface Plant {
   nombre: string
   creado_por: string
   created_at?: string
+  location?: string
+  description?: string
+  status?: string
+  systems?: System[]
+}
+
+interface System {
+  id: string
+  name: string
+  type: string
+  description: string
+  plantId: string
+  parameters: Parameter[]
+  status: string
+}
+
+interface Parameter {
+  id: string
+  name: string
+  unit: string
+  value: number
+  minValue: number
+  maxValue: number
+  systemId: string
 }
 
 interface Report {
@@ -19,6 +43,10 @@ interface Report {
   datos: any
   observaciones?: string
   created_at?: string
+  title?: string
+  plantName?: string
+  systemName?: string
+  status?: string
 }
 
 export default function Dashboard() {
@@ -54,13 +82,65 @@ export default function Dashboard() {
         // Simular carga de datos
         await new Promise((resolve) => setTimeout(resolve, 500))
 
-        const mockPlants = [
-          { id: "1", nombre: "Planta Norte", creado_por: mockUser.id, created_at: new Date().toISOString() },
-          { id: "2", nombre: "Planta Sur", creado_por: mockUser.id, created_at: new Date().toISOString() },
-          { id: "3", nombre: "Planta Central", creado_por: mockUser.id, created_at: new Date().toISOString() },
+        const mockPlants: Plant[] = [
+          { 
+            id: "1", 
+            nombre: "Planta Norte", 
+            creado_por: mockUser.id, 
+            created_at: new Date().toISOString(),
+            location: "Ciudad Norte",
+            description: "Planta de producción principal",
+            status: "active",
+            systems: [
+              {
+                id: "1",
+                name: "Sistema de Temperatura",
+                type: "temperature",
+                description: "Control de temperatura",
+                plantId: "1",
+                parameters: [
+                  { id: "1", name: "Temp Ambiente", unit: "°C", value: 25, minValue: 0, maxValue: 50, systemId: "1" },
+                  { id: "2", name: "Humedad", unit: "%", value: 60, minValue: 0, maxValue: 100, systemId: "1" },
+                ],
+                status: "online",
+              },
+            ]
+          },
+          { 
+            id: "2", 
+            nombre: "Planta Sur", 
+            creado_por: mockUser.id, 
+            created_at: new Date().toISOString(),
+            location: "Ciudad Sur",
+            description: "Planta de respaldo",
+            status: "active",
+            systems: [
+              {
+                id: "2",
+                name: "Sistema de Presión",
+                type: "pressure",
+                description: "Control de presión",
+                plantId: "2",
+                parameters: [
+                  { id: "3", name: "Presión Principal", unit: "PSI", value: 120, minValue: 0, maxValue: 200, systemId: "2" },
+                ],
+                status: "online",
+              },
+            ]
+          },
+          { 
+            id: "3", 
+            nombre: "Planta Central", 
+            creado_por: mockUser.id, 
+            created_at: new Date().toISOString(),
+            location: "Ciudad Central",
+            description: "Planta experimental",
+            status: "maintenance",
+            systems: []
+          },
         ]
 
-        const mockReports = [
+        const mockReports: Report[] = [
           {
             id: "1",
             usuario_id: mockUser.id,
@@ -69,6 +149,10 @@ export default function Dashboard() {
             datos: { temperatura: 25, presion: 1.2 },
             observaciones: "Reporte de prueba",
             created_at: new Date().toISOString(),
+            title: "Reporte Temperatura Enero",
+            plantName: "Planta Norte",
+            systemName: "Sistema de Temperatura",
+            status: "completed"
           },
           {
             id: "2",
@@ -78,6 +162,10 @@ export default function Dashboard() {
             datos: { temperatura: 30, presion: 1.5 },
             observaciones: "Segundo reporte",
             created_at: new Date(Date.now() - 86400000).toISOString(),
+            title: "Reporte Presión Enero",
+            plantName: "Planta Sur",
+            systemName: "Sistema de Presión",
+            status: "completed"
           },
         ]
 
@@ -99,55 +187,107 @@ export default function Dashboard() {
     router.push("/")
   }
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "active":
+      case "online":
+      case "completed":
+        return "bg-success"
+      case "maintenance":
+      case "pending":
+        return "bg-warning"
+      case "inactive":
+      case "offline":
+      case "error":
+        return "bg-danger"
+      default:
+        return "bg-secondary"
+    }
+  }
+
   return (
     <div className="min-vh-100 bg-light">
-      {/* Navigation */}
+      {/* Enhanced Navigation with User Dropdown */}
       <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
         <div className="container">
           <Link className="navbar-brand fw-bold" href="/">
+            <span className="material-icons me-2">business</span>
             Omega Dashboard
           </Link>
-          <div className="navbar-nav ms-auto">
-            <Link className="nav-link" href="/dashboard-test">
-              Dashboard Test
-            </Link>
-            <Link className="nav-link" href="/reports">
-              Reportes
-            </Link>
-            <Link className="nav-link" href="/plants">
-              Plantas
-            </Link>
-            <div className="nav-item dropdown">
-              <a
-                className="nav-link dropdown-toggle"
-                href="#"
-                role="button"
-                data-bs-toggle="dropdown"
-                aria-expanded="false"
-              >
-                {mockUser.username}
-              </a>
-              <ul className="dropdown-menu">
-                <li>
-                  <span className="dropdown-item-text">
-                    <small className="text-muted">{mockUser.puesto}</small>
-                  </span>
-                </li>
-                <li>
-                  <hr className="dropdown-divider" />
-                </li>
-                <li>
-                  <Link className="dropdown-item" href="/profile">
-                    Perfil
-                  </Link>
-                </li>
-                <li>
-                  <button className="dropdown-item" onClick={handleLogout}>
-                    Cerrar Sesión
-                  </button>
-                </li>
-              </ul>
-            </div>
+          <button
+            className="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#navbarNav"
+          >
+            <span className="navbar-toggler-icon"></span>
+          </button>
+          <div className="collapse navbar-collapse" id="navbarNav">
+            <ul className="navbar-nav me-auto">
+              <li className="nav-item">
+                <Link className="nav-link" href="/dashboard-test">
+                  <span className="material-icons me-1">dashboard</span>
+                  Dashboard Test
+                </Link>
+              </li>
+              <li className="nav-item">
+                <Link className="nav-link" href="/reports">
+                  <span className="material-icons me-1">assessment</span>
+                  Reportes
+                </Link>
+              </li>
+              <li className="nav-item">
+                <Link className="nav-link" href="/plants">
+                  <span className="material-icons me-1">factory</span>
+                  Plantas
+                </Link>
+              </li>
+            </ul>
+            {/* Enhanced User Dropdown */}
+            <ul className="navbar-nav">
+              <li className="nav-item dropdown">
+                <a
+                  className="nav-link dropdown-toggle d-flex align-items-center"
+                  href="#"
+                  role="button"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                >
+                  <span className="material-icons me-2">account_circle</span>
+                  {mockUser.username}
+                </a>
+                <ul className="dropdown-menu dropdown-menu-end">
+                  <li>
+                    <div className="dropdown-item-text">
+                      <div className="fw-bold">{mockUser.username}</div>
+                      <small className="text-muted">{mockUser.email}</small>
+                      <br />
+                      <small className="text-muted">{mockUser.puesto}</small>
+                    </div>
+                  </li>
+                  <li><hr className="dropdown-divider" /></li>
+                  <li>
+                    <Link className="dropdown-item" href="/profile">
+                      <span className="material-icons me-2">person</span>
+                      Perfil
+                    </Link>
+                  </li>
+                  <li>
+                    <Link className="dropdown-item" href="/settings">
+                      <span className="material-icons me-2">settings</span>
+                      Configuración
+                    </Link>
+                  </li>
+                  <li><hr className="dropdown-divider" /></li>
+                  <li>
+                    <button className="dropdown-item text-danger" onClick={handleLogout}>
+                      <span className="material-icons me-2">logout</span>
+                      Cerrar Sesión
+                    </button>
+                  </li>
+                </ul>
+              </li>
+            </ul>
           </div>
         </div>
       </nav>
@@ -157,7 +297,7 @@ export default function Dashboard() {
         {/* Status Banner */}
         <div className="alert alert-info" role="alert">
           <i className="material-icons me-2">info</i>
-          <strong>🔧 Dashboard Reparado:</strong> Sin contexto de usuario, funcionando con datos mock.
+          <strong>🔧 Dashboard Mejorado:</strong> Con navbar mejorado y gráficos de sistemas.
         </div>
 
         {/* Welcome Section */}
@@ -319,11 +459,11 @@ export default function Dashboard() {
                     <table className="table table-hover">
                       <thead>
                         <tr>
-                          <th>ID</th>
-                          <th>Fecha</th>
+                          <th>Título</th>
                           <th>Planta</th>
-                          <th>Proceso</th>
+                          <th>Sistema</th>
                           <th>Estado</th>
+                          <th>Fecha</th>
                           <th>Acciones</th>
                         </tr>
                       </thead>
@@ -331,18 +471,20 @@ export default function Dashboard() {
                         {reports.map((report) => (
                           <tr key={report.id}>
                             <td>
-                              <code>{report.id}</code>
+                              <strong>{report.title || `Reporte ${report.id}`}</strong>
+                            </td>
+                            <td>
+                              <span className="badge bg-primary">{report.plantName || report.planta_id}</span>
+                            </td>
+                            <td>
+                              <span className="badge bg-info">{report.systemName || report.proceso_id}</span>
+                            </td>
+                            <td>
+                              <span className={`badge ${getStatusColor(report.status || "completed")}`}>
+                                {report.status === "completed" ? "✅ Completado" : report.status || "Completado"}
+                              </span>
                             </td>
                             <td>{new Date(report.created_at || "").toLocaleDateString()}</td>
-                            <td>
-                              <span className="badge bg-primary">{report.planta_id}</span>
-                            </td>
-                            <td>
-                              <span className="badge bg-info">{report.proceso_id}</span>
-                            </td>
-                            <td>
-                              <span className="badge bg-success">✅ Completado</span>
-                            </td>
                             <td>
                               <div className="btn-group btn-group-sm">
                                 <button
@@ -384,6 +526,88 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* System Charts - New Section */}
+        <div className="row mb-4">
+          <div className="col-12">
+            <h5 className="mb-3">📈 Gráficos de Sistemas</h5>
+          </div>
+          {plants.slice(0, 4).map((plant) => (
+            <div key={plant.id} className="col-md-6 mb-4">
+              <div className="card">
+                <div className="card-header d-flex justify-content-between align-items-center">
+                  <h6 className="card-title mb-0">
+                    <i className="material-icons me-2">factory</i>
+                    Sistemas - {plant.nombre}
+                  </h6>
+                  <span className={`badge ${getStatusColor(plant.status || "active")}`}>
+                    {plant.status || "active"}
+                  </span>
+                </div>
+                <div className="card-body">
+                  {plant.systems && plant.systems.length > 0 ? (
+                    <div className="space-y-3">
+                      {plant.systems.slice(0, 4).map((system) => (
+                        <div key={system.id} className="border rounded p-3">
+                          <div className="d-flex justify-content-between align-items-center mb-2">
+                            <h6 className="mb-0">{system.name}</h6>
+                            <span className={`badge ${getStatusColor(system.status)}`}>
+                              {system.status}
+                            </span>
+                          </div>
+                          <div className="row">
+                            {system.parameters.map((param) => (
+                              <div key={param.id} className="col-6 mb-2">
+                                <div className="d-flex justify-content-between">
+                                  <small className="text-muted">{param.name}:</small>
+                                  <small className="fw-bold">
+                                    {param.value} {param.unit}
+                                  </small>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          {/* Mock chart placeholder */}
+                          <div className="mt-3 p-3 bg-light rounded text-center">
+                            <div className="d-flex align-items-center justify-center">
+                              <i className="material-icons me-2">show_chart</i>
+                              <span className="text-muted">Gráfico de {system.name}</span>
+                            </div>
+                            <div className="mt-2">
+                              {system.parameters.map((param) => (
+                                <div key={param.id} className="mb-2">
+                                  <div className="d-flex justify-content-between mb-1">
+                                    <small>{param.name}</small>
+                                    <small>{param.value} {param.unit}</small>
+                                  </div>
+                                  <div className="progress" style={{ height: "8px" }}>
+                                    <div 
+                                      className="progress-bar bg-primary" 
+                                      style={{ 
+                                        width: `${((param.value - param.minValue) / (param.maxValue - param.minValue)) * 100}%` 
+                                      }}
+                                    ></div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4">
+                      <i className="material-icons text-muted" style={{ fontSize: "3rem" }}>
+                        settings
+                      </i>
+                      <p className="text-muted mt-2">No hay sistemas configurados para esta planta</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
         {/* Debug Info */}
         <div className="row">
           <div className="col-12">
@@ -397,7 +621,8 @@ export default function Dashboard() {
                     <h6>Estado Actual:</h6>
                     <ul className="list-unstyled">
                       <li>✅ Dashboard cargado sin redirecciones</li>
-                      <li>✅ Sin contexto de usuario</li>
+                      <li>✅ Navbar mejorado con dropdown de usuario</li>
+                      <li>✅ Gráficos de sistemas agregados</li>
                       <li>✅ Datos mock funcionando</li>
                       <li>✅ Navegación funcional</li>
                     </ul>
