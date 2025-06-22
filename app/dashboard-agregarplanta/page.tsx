@@ -9,14 +9,27 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Navbar } from "@/components/navbar"
-import { DebugPanel } from "@/components/debug-panel"
-import { useDebugLogger } from "@/hooks/useDebugLogger"
-import type { Client, User } from "@/types"
+import { Navbar } from "@/components/Navbar"
+
+// Define types locally to resolve import issue
+interface Client {
+  id: string
+  name: string
+  email: string
+  company: string
+}
+
+type UserRole = "admin" | "user" | "client" | "guest";
+
+interface User {
+  id: string
+  name: string
+  email: string
+  role: UserRole
+}
 
 export default function AgregarPlanta() {
   const router = useRouter()
-  const { debugInfo, addDebugLog } = useDebugLogger()
 
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClient, setSelectedClient] = useState<string>("")
@@ -40,8 +53,6 @@ export default function AgregarPlanta() {
 
   useEffect(() => {
     const loadClients = async () => {
-      addDebugLog("info", "Cargando clientes disponibles")
-
       try {
         // Mock data - replace with real fetch call
         /*
@@ -72,16 +83,15 @@ export default function AgregarPlanta() {
         ]
 
         setClients(mockClients)
-        addDebugLog("success", `Cargados ${mockClients.length} clientes`)
       } catch (error) {
-        addDebugLog("error", `Error cargando clientes: ${error}`)
+        console.error(`Error cargando clientes: ${error}`)
       } finally {
         setLoading(false)
       }
     }
 
     loadClients()
-  }, [addDebugLog])
+  }, [])
 
   const handleInputChange = (field: string, value: string) => {
     setPlantData((prev) => ({
@@ -93,7 +103,6 @@ export default function AgregarPlanta() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
-    addDebugLog("info", "Iniciando creación de nueva planta")
 
     try {
       const plantPayload = {
@@ -120,14 +129,12 @@ export default function AgregarPlanta() {
       const result = await response.json()
       */
 
-      addDebugLog("success", `Planta "${plantData.name}" creada exitosamente`)
-
       // Simulate API delay
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       router.push("/dashboard")
     } catch (error) {
-      addDebugLog("error", `Error creando planta: ${error}`)
+      console.error(`Error creando planta: ${error}`)
     } finally {
       setSaving(false)
     }
@@ -138,7 +145,7 @@ export default function AgregarPlanta() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navbar user={mockUser} />
+        <Navbar role={mockUser.role} />
         <div className="flex items-center justify-center py-20">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
@@ -148,7 +155,7 @@ export default function AgregarPlanta() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar user={mockUser} />
+      <Navbar role={mockUser.role} />
 
       <div className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
@@ -297,16 +304,6 @@ export default function AgregarPlanta() {
             </CardContent>
           </Card>
         </form>
-
-        <DebugPanel
-          debugInfo={debugInfo}
-          currentState={{
-            selectedClient,
-            plantName: plantData.name,
-            formValid: isFormValid,
-            saving,
-          }}
-        />
       </div>
     </div>
   )

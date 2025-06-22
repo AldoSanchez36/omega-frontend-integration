@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, Fragment, useCallback, useMemo } from "react"
 import axios from "axios"
 import { authService } from "@/services/authService"
 
@@ -20,6 +20,10 @@ export default function UsersManagement() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentUserRole, setCurrentUserRole] = useState<string>('')
+
+  const [selectedUsuario, setSelectedUsuario] = useState<string>("")
+  const [selectedPlanta, setSelectedPlanta] = useState<string>("")
+  const [selectedSistema, setSelectedSistema] = useState<string>("")
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -95,15 +99,15 @@ export default function UsersManagement() {
 
   const getRoleBadge = (role: string) => {
     const roleMap: { [key: string]: { color: string; text: string } } = {
-      admin: { color: "bg-danger", text: "Administrador" },
-      user: { color: "bg-primary", text: "Usuario" },
-      client: { color: "bg-secondary", text: "Cliente" },
-      manager: { color: "bg-warning", text: "Gerente" }
+      admin: { color: "bg-red-600", text: "Administrador" },
+      user: { color: "bg-blue-600", text: "Usuario" },
+      client: { color: "bg-gray-600", text: "Cliente" },
+      manager: { color: "bg-yellow-400", text: "Gerente" }
     }
     
-    const roleInfo = roleMap[role.toLowerCase()] || { color: "bg-info", text: role }
+    const roleInfo = roleMap[role.toLowerCase()] || { color: "bg-teal-500", text: role }
     return (
-      <span className={`badge ${roleInfo.color} text-white`}>
+      <span className={`text-white text-sm px-2 py-1 rounded-full ${roleInfo.color}`}>
         {roleInfo.text}
       </span>
     )
@@ -122,240 +126,258 @@ export default function UsersManagement() {
 
   const isAdmin = currentUserRole === 'admin'
 
+  const Dropdown = ({ label = "Selecciona", options = [], onSelect }: {
+    label?: string,
+    options: string[],
+    onSelect?: (value: string) => void
+  }) => {
+    const [open, setOpen] = useState(false)
+
+    return (
+      <div className="relative inline-block text-left w-full">
+        <div>
+          <button
+            type="button"
+            className="inline-flex w-full justify-between gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+            aria-expanded={open}
+            aria-haspopup="true"
+            onClick={() => setOpen(!open)}
+          >
+            {label}
+            <svg
+              className="-mr-1 size-5 text-gray-400"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                fillRule="evenodd"
+                d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {open && (
+          <div
+            className="absolute z-10 mt-2 w-full origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black/5 focus:outline-none"
+            role="menu"
+            aria-orientation="vertical"
+          >
+            <div className="py-1">
+              {options.map((option, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    setOpen(false)
+                    onSelect?.(option)
+                  }}
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  role="menuitem"
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   if (loading) {
     return (
-      <div className="min-vh-100 bg-light d-flex align-items-center justify-content-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">Cargando...</span>
-          </div>
-          <h5>Cargando usuarios...</h5>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500 mx-auto mb-3"></div>
+          <h5 className="text-gray-700 text-lg">Cargando usuarios...</h5>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-vh-100 bg-light">
-      {/* Navigation Bar */}
-      {/* <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div className="container">
-          <a className="navbar-brand fw-bold" href="/">
-            <span className="material-icons me-2">business</span>
-            Omega
-          </a>
-          
-          <button 
-            className="navbar-toggler" 
-            type="button" 
-            data-bs-toggle="collapse" 
-            data-bs-target="#navbarNav"
-          >
-            <span className="navbar-toggler-icon"></span>
-          </button>
-          
-          <div className="collapse navbar-collapse" id="navbarNav">
-            <ul className="navbar-nav me-auto">
-              <li className="nav-item">
-                <a className="nav-link" href="/dashboard">
-                  <span className="material-icons me-1">dashboard</span>
-                  Dashboard
-                </a>
-              </li>
-              {isAdmin && (
-                <li className="nav-item">
-                  <a className="nav-link" href="/dashboard-manager">
-                    <span className="material-icons me-1">admin_panel_settings</span>
-                    Admin Panel
-                  </a>
-                </li>
-              )}
-              <li className="nav-item">
-                <a className="nav-link" href="/reports">
-                  <span className="material-icons me-1">assessment</span>
-                  Reportes
-                </a>
-              </li>
-              <li className="nav-item">
-                <a className="nav-link active" href="/users-management">
-                  <span className="material-icons me-1">people</span>
-                  Usuarios
-                </a>
-              </li>
-              <li className="nav-item">
-                <a className="nav-link" href="/services">
-                  <span className="material-icons me-1">build</span>
-                  Servicios
-                </a>
-              </li>
-            </ul>
-            
-            <ul className="navbar-nav">
-              <li className="nav-item">
-                <a className="nav-link" href="/profile">
-                  <span className="material-icons me-1">account_circle</span>
-                  Perfil
-                </a>
-              </li>
-              <li className="nav-item">
-                <a className="nav-link" href="/logout">
-                  <span className="material-icons me-1">logout</span>
-                  Cerrar Sesión
-                </a>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </nav>/*}
-
+    <div className="min-h-screen bg-gray-50 p-6">
       {/* Header */}
-      <div className="bg-primary text-white py-4">
-        <div className="container">
-          <div className="row align-items-center">
-            <div className="col">
-              <h1 className="h3 mb-0">
-                <span className="material-icons me-2">people</span>
-                Gestión de Usuarios
-              </h1>
-              <p className="mb-0 opacity-75">Administra los usuarios del sistema</p>
-            </div>
-            <div className="col-auto">
-              <span className="badge bg-light text-primary">
-                {users.length} usuarios
-              </span>
-            </div>
+      <div className="bg-blue-600 text-white py-6 rounded-lg shadow mb-6">
+        <div className="container mx-auto flex flex-col md:flex-row items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold flex items-center mb-1">
+              <span className="material-icons mr-2">people</span>
+              Gestión de Usuarios
+            </h1>
+            <p className="opacity-75">Administra los usuarios del sistema</p>
+          </div>
+          <div>
+            <span className="bg-gray-200 text-blue-700 text-sm px-3 py-1 rounded-full">
+              {users.length} usuarios
+            </span>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="container py-4">
+      <div className="container mx-auto">
+        {/* Filtros jerárquicos (Cliente/Usuario, Planta, Sistema) - NUEVO DISEÑO */}
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-1">Selección Jerárquica</h2>
+          <p className="text-sm text-gray-500 mb-4">Seleccione Usuario, Planta y Sistema para gestionar parámetros.</p>
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <label htmlFor="usuario" className="text-sm font-semibold text-gray-700 min-w-[70px]">Usuario</label>
+              <div className="w-full max-w-sm">
+                <Dropdown
+                  label={selectedUsuario || "Seleccione un usuario"}
+                  options={["Usuario A", "Usuario B"]}
+                  onSelect={setSelectedUsuario}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <label htmlFor="planta" className="text-sm font-semibold text-gray-700 min-w-[70px]">Planta</label>
+              <div className="w-full max-w-sm">
+                <Dropdown
+                  label={selectedPlanta || "Seleccione una planta"}
+                  options={["Planta A", "Planta B"]}
+                  onSelect={setSelectedPlanta}
+                />
+              </div>
+              <button className="ml-2 bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 transition">
+                Crear Planta
+              </button>
+            </div>
+            <div className="flex items-center gap-4">
+              <label htmlFor="sistema" className="text-sm font-semibold text-gray-700 min-w-[70px]">Sistema</label>
+              <div className="w-full max-w-sm">
+                <Dropdown
+                  label={selectedSistema || "Seleccione un sistema"}
+                  options={["Sistema A", "Sistema B"]}
+                  onSelect={setSelectedSistema}
+                />
+              </div>
+              <button className="ml-2 bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600 transition">
+                Cargar procesos
+              </button>
+            </div>
+          </div>
+        </div>
         {error && (
-          <div className="alert alert-danger alert-dismissible fade show" role="alert">
-            <span className="material-icons me-2">warning</span>
-            <strong>Error:</strong> {error}
-            <button type="button" className="btn-close" onClick={() => setError(null)}></button>
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+            <span className="material-icons align-middle mr-2">warning</span>
+            <strong className="font-semibold">Error:</strong> {error}
+            <button 
+              type="button" 
+              className="absolute top-0 bottom-0 right-0 px-4 py-3"
+              onClick={() => setError(null)}
+              aria-label="Close"
+            >
+              <span className="material-icons text-red-700">close</span>
+            </button>
           </div>
         )}
 
-        <div className="card shadow-sm">
-          <div className="card-header bg-white">
-            <div className="row align-items-center">
-              <div className="col">
-                <h5 className="mb-0">Lista de Usuarios</h5>
-              </div>
-              <div className="col-auto">
-                <button 
-                  className="btn btn-outline-primary btn-sm"
-                  onClick={() => window.location.reload()}
-                >
-                  <span className="material-icons me-1">refresh</span>
-                  Actualizar
-                </button>
-              </div>
-            </div>
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h5 className="text-gray-700 font-semibold mb-0">Lista de Usuarios</h5>
+            <button 
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
+              onClick={() => window.location.reload()}
+            >
+              <span className="material-icons align-middle mr-1">refresh</span>
+              Actualizar
+            </button>
           </div>
-          <div className="card-body p-0">
-            <div className="table-responsive">
-              <table className="table table-hover mb-0">
-                <thead className="table-light">
-                  <tr>
-                    <th className="border-0">Usuario</th>
-                    <th className="border-0">Correo</th>
-                    <th className="border-0">Rol</th>
-                    <th className="border-0">Fecha de Creación</th>
-                    <th className="border-0">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.length > 0 ? (
-                    users.map((user) => (
-                      <tr key={user._id}>
-                        <td>
-                          <div className="d-flex align-items-center">
-                            <div>
-                              <div className="fw-semibold">{user.username}</div>
-                              
-                            </div>
+          <div className="overflow-x-auto">
+            <table className="table-auto w-full border-collapse border border-gray-200">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="border border-gray-300 px-4 py-2 text-left">Usuario</th>
+                  <th className="border border-gray-300 px-4 py-2 text-left">Correo</th>
+                  <th className="border border-gray-300 px-4 py-2 text-left">Rol</th>
+                  <th className="border border-gray-300 px-4 py-2 text-left">Fecha de Creación</th>
+                  <th className="border border-gray-300 px-4 py-2 text-left">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.length > 0 ? (
+                  users.map((user) => (
+                    <tr key={user._id} className="hover:bg-gray-50">
+                      <td className="border border-gray-300 px-4 py-2">
+                        <div className="flex items-center">
+                          <div>
+                            <div className="font-semibold text-gray-800">{user.username}</div>
                           </div>
-                        </td>
-                        <td>
-                          <a href={`mailto:${user.email}`} className="text-decoration-none">
-                            {user.email}
-                          </a>
-                        </td>
-                        <td>
-                          {getRoleBadge(user.puesto || user.role || 'user')}
-                        </td>
-                        <td>
-                          <small className="text-muted">
-                            {formatDate(user.createdAt || '')}
-                          </small>
-                        </td>
-                        <td>
-                          <div className="btn-group btn-group-sm">
-                            <button className="btn btn-outline-primary" title="Editar">
-                              <span className="material-icons">edit</span>
-                            </button>
-                            <button className="btn btn-outline-success" title="Guardar">
-                              <span className="material-icons">save</span>
-                            </button>
-                            <button className="btn btn-outline-danger" title="Eliminar">
-                              <span className="material-icons">delete</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5} className="text-center py-5">
-                        <div className="text-muted">
-                          <span className="material-icons display-1">people_outline</span>
-                          <h5 className="mt-3">No se encontraron usuarios</h5>
-                          <p>No hay usuarios registrados en el sistema.</p>
+                        </div>
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2">
+                        <a href={`mailto:${user.email}`} className="text-blue-600 hover:underline">
+                          {user.email}
+                        </a>
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2">
+                        {getRoleBadge(user.puesto || user.role || 'user')}
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2">
+                        <small className="text-gray-500">
+                          {formatDate(user.createdAt || '')}
+                        </small>
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2">
+                        <div className="flex space-x-2">
+                          <button className="bg-transparent border border-blue-500 text-blue-500 rounded px-2 py-1 hover:bg-blue-500 hover:text-white transition" title="Editar">
+                            <span className="material-icons text-base">edit</span>
+                          </button>
+                          <button className="bg-transparent border border-green-500 text-green-500 rounded px-2 py-1 hover:bg-green-500 hover:text-white transition" title="Guardar">
+                            <span className="material-icons text-base">save</span>
+                          </button>
+                          <button className="bg-transparent border border-red-500 text-red-500 rounded px-2 py-1 hover:bg-red-500 hover:text-white transition" title="Eliminar">
+                            <span className="material-icons text-base">delete</span>
+                          </button>
                         </div>
                       </td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="text-center py-10 text-gray-500">
+                      <div>
+                        <span className="material-icons text-6xl mb-3">people_outline</span>
+                        <h5 className="text-lg font-semibold">No se encontraron usuarios</h5>
+                        <p>No hay usuarios registrados en el sistema.</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
         {/* Debug Info */}
-        <div className="mt-4">
-          <div className="card border-info">
-            <div className="card-header bg-info text-white">
-              <h6 className="mb-0">
-                <span className="material-icons me-2">info</span>
-                Información de Debug
-              </h6>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-blue-500 text-white rounded-t-lg px-4 py-2 mb-4 flex items-center">
+            <span className="material-icons mr-2">info</span>
+            <h6 className="font-semibold mb-0">Información de Debug</h6>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-gray-700">
+            <div>
+              <small className="block text-gray-500 mb-1">Total de usuarios:</small>
+              <div className="font-semibold">{users.length}</div>
             </div>
-            <div className="card-body">
-              <div className="row">
-                <div className="col-md-3">
-                  <small className="text-muted">Total de usuarios:</small>
-                  <div className="fw-bold">{users.length}</div>
-                </div>
-                <div className="col-md-3">
-                  <small className="text-muted">Token disponible:</small>
-                  <div className="fw-bold text-success">
-                    {authService.getToken() ? "✅ Sí" : "❌ No"}
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <small className="text-muted">Tu rol:</small>
-                  <div className="fw-bold text-primary">
-                    {currentUserRole}
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <small className="text-muted">Estado:</small>
-                  <div className="fw-bold text-success">✅ Conectado</div>
-                </div>
+            <div>
+              <small className="block text-gray-500 mb-1">Token disponible:</small>
+              <div className={`font-semibold ${authService.getToken() ? "text-green-600" : "text-red-600"}`}>
+                {authService.getToken() ? "✅ Sí" : "❌ No"}
               </div>
+            </div>
+            <div>
+              <small className="block text-gray-500 mb-1">Tu rol:</small>
+              <div className="font-semibold text-blue-600">{currentUserRole}</div>
+            </div>
+            <div>
+              <small className="block text-gray-500 mb-1">Estado:</small>
+              <div className="font-semibold text-green-600">✅ Conectado</div>
             </div>
           </div>
         </div>
