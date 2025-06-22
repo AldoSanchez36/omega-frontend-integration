@@ -69,3 +69,6 @@ body {
   'GRAD' 0,
   'opsz' 24
 }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
