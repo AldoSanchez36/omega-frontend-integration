@@ -1,20 +1,18 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Navbar } from "@/components/navbar"
-import { DebugPanel } from "@/components/debug-panel"
-import { useDebugLogger } from "@/hooks/useDebugLogger"
-import type { User } from "@/types"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+
+interface User {
+  id: string
+  name: string
+  email: string
+  role: string
+}
 
 export default function Settings() {
-  const { debugInfo, addDebugLog } = useDebugLogger()
-
+  const router = useRouter()
   const [userData, setUserData] = useState({
     name: "",
     email: "",
@@ -30,6 +28,7 @@ export default function Settings() {
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<string[]>([])
 
   const mockUser: User = {
     id: "1",
@@ -38,18 +37,18 @@ export default function Settings() {
     role: "admin",
   }
 
+  // Función para agregar logs de debug
+  const addDebugLog = (message: string) => {
+    console.log(`🐛 Settings: ${message}`)
+    setDebugInfo((prev) => [...prev.slice(-4), `${new Date().toLocaleTimeString()}: ${message}`])
+  }
+
   useEffect(() => {
     const loadUserData = async () => {
-      addDebugLog("info", "Cargando datos del usuario")
+      addDebugLog("Cargando datos del usuario")
 
       try {
         // Mock user data - replace with real fetch call
-        /*
-        const response = await fetch('/api/user/profile')
-        const userProfile = await response.json()
-        setUserData(userProfile)
-        */
-
         const mockUserData = {
           name: "Admin User",
           email: "admin@omega.com",
@@ -65,16 +64,16 @@ export default function Settings() {
         }
 
         setUserData(mockUserData)
-        addDebugLog("success", "Datos del usuario cargados exitosamente")
+        addDebugLog("Datos del usuario cargados exitosamente")
       } catch (error) {
-        addDebugLog("error", `Error cargando datos del usuario: ${error}`)
+        addDebugLog(`Error cargando datos del usuario: ${error}`)
       } finally {
         setLoading(false)
       }
     }
 
     loadUserData()
-  }, [addDebugLog])
+  }, [])
 
   const handleInputChange = (field: string, value: string) => {
     setUserData((prev) => ({
@@ -95,255 +94,432 @@ export default function Settings() {
 
   const handleSave = async () => {
     setSaving(true)
-    addDebugLog("info", "Guardando configuración del usuario")
+    addDebugLog("Guardando configuración del usuario")
 
     try {
-      // Mock save - replace with real API call
-      /*
-      const response = await fetch('/api/user/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(userData)
-      })
-      
-      if (!response.ok) {
-        throw new Error('Error updating user profile')
-      }
-      */
-
       // Simulate API delay
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
-      addDebugLog("success", "Configuración guardada exitosamente")
+      addDebugLog("Configuración guardada exitosamente")
     } catch (error) {
-      addDebugLog("error", `Error guardando configuración: ${error}`)
+      addDebugLog(`Error guardando configuración: ${error}`)
     } finally {
       setSaving(false)
     }
   }
 
+  const handleLogout = () => {
+    addDebugLog("Logout solicitado - redirigiendo a home")
+    router.push("/")
+  }
+
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case "admin":
-        return "bg-red-100 text-red-800"
+        return "bg-danger"
       case "operator":
-        return "bg-blue-100 text-blue-800"
+        return "bg-primary"
       case "viewer":
-        return "bg-green-100 text-green-800"
+        return "bg-success"
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-secondary"
     }
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <Navbar user={mockUser} />
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-vh-100 bg-light">
+        <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "50vh" }}>
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Cargando...</span>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar user={mockUser} />
+    <div className="min-vh-100 bg-light">
+      {/* Navigation */}
+      <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div className="container">
+          <Link className="navbar-brand fw-bold" href="/">
+            <span className="material-icons me-2">business</span>
+            Omega Dashboard
+          </Link>
+          <button
+            className="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#navbarNav"
+            aria-controls="navbarNav"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
+          >
+            <span className="navbar-toggler-icon"></span>
+          </button>
+          <div className="collapse navbar-collapse" id="navbarNav">
+            <ul className="navbar-nav me-auto">
+              <li className="nav-item">
+                <Link className="nav-link" href="/dashboard">
+                  <span className="material-icons me-1">dashboard</span>
+                  Dashboard
+                </Link>
+              </li>
+              <li className="nav-item">
+                <Link className="nav-link" href="/dashboard-test">
+                  <span className="material-icons me-1">dashboard</span>
+                  Dashboard Test
+                </Link>
+              </li>
+              <li className="nav-item">
+                <Link className="nav-link" href="/reports">
+                  <span className="material-icons me-1">assessment</span>
+                  Reportes
+                </Link>
+              </li>
+            </ul>
+            {/* User Dropdown */}
+            <ul className="navbar-nav">
+              <li className="nav-item dropdown">
+                <a
+                  className="nav-link dropdown-toggle d-flex align-items-center"
+                  href="#"
+                  role="button"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                >
+                  <span className="material-icons me-2">account_circle</span>
+                  {mockUser.name}
+                </a>
+                <ul className="dropdown-menu dropdown-menu-end">
+                  <li>
+                    <div className="dropdown-item-text px-3 py-2">
+                      <div className="fw-bold">{mockUser.name}</div>
+                      <small className="text-muted">{mockUser.email}</small>
+                      <br />
+                      <small className="text-muted">{mockUser.role}</small>
+                    </div>
+                  </li>
+                  <li><hr className="dropdown-divider" /></li>
+                  <li>
+                    <Link className="dropdown-item" href="/settings">
+                      <span className="material-icons me-2">settings</span>
+                      Configuración
+                    </Link>
+                  </li>
+                  <li><hr className="dropdown-divider" /></li>
+                  <li>
+                    <button className="dropdown-item text-danger" onClick={handleLogout}>
+                      <span className="material-icons me-2">logout</span>
+                      Cerrar Sesión
+                    </button>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </nav>
 
-      <div className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Configuración</h1>
-          <p className="text-gray-600">Gestiona tu perfil y preferencias del sistema</p>
+      {/* Main Content */}
+      <div className="container py-4">
+        {/* Status Banner */}
+        <div className="alert alert-info" role="alert">
+          <i className="material-icons me-2">info</i>
+          <strong>⚙️ Configuración:</strong> Gestiona tu perfil y preferencias del sistema.
+        </div>
+
+        {/* Page Header */}
+        <div className="row mb-4">
+          <div className="col-12">
+            <h1 className="h3 mb-0">Configuración</h1>
+            <p className="text-muted">Gestiona tu perfil y preferencias del sistema</p>
+            <p className="text-info">
+              <strong>URL actual:</strong> /settings
+            </p>
+          </div>
         </div>
 
         {/* Profile Overview */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Perfil de Usuario</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center space-x-6">
-              <Avatar className="h-20 w-20">
-                <AvatarFallback className="text-2xl">
-                  {userData.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
-                </AvatarFallback>
-              </Avatar>
-
-              <div className="flex-1">
-                <h3 className="text-xl font-semibold">{userData.name}</h3>
-                <p className="text-gray-600">{userData.email}</p>
-                <div className="flex items-center space-x-2 mt-2">
-                  <Badge className={getRoleBadgeColor(userData.role)}>{userData.role.toUpperCase()}</Badge>
-                  <span className="text-sm text-gray-500">•</span>
-                  <span className="text-sm text-gray-500">{userData.department}</span>
+        <div className="row mb-4">
+          <div className="col-12">
+            <div className="card">
+              <div className="card-header">
+                <h5 className="card-title mb-0">
+                  <i className="material-icons me-2">person</i>
+                  Perfil de Usuario
+                </h5>
+              </div>
+              <div className="card-body">
+                <div className="d-flex align-items-center">
+                  <div className="rounded-circle bg-primary d-flex align-items-center justify-content-center me-3" 
+                       style={{ width: "80px", height: "80px" }}>
+                    <span className="material-icons text-white" style={{ fontSize: "2rem" }}>
+                      person
+                    </span>
+                  </div>
+                  <div className="flex-grow-1">
+                    <h4 className="mb-1">{userData.name}</h4>
+                    <p className="text-muted mb-2">{userData.email}</p>
+                    <div className="d-flex align-items-center">
+                      <span className={`badge ${getRoleBadgeColor(userData.role)} me-2`}>
+                        {userData.role.toUpperCase()}
+                      </span>
+                      <span className="text-muted">•</span>
+                      <span className="text-muted ms-2">{userData.department}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Personal Information */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Información Personal</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium mb-2">Nombre Completo</label>
-                <Input
-                  value={userData.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  placeholder="Tu nombre completo"
-                />
+        <div className="row mb-4">
+          <div className="col-12">
+            <div className="card">
+              <div className="card-header">
+                <h5 className="card-title mb-0">
+                  <i className="material-icons me-2">edit</i>
+                  Información Personal
+                </h5>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Email</label>
-                <Input
-                  type="email"
-                  value={userData.email}
-                  onChange={(e) => handleInputChange("email", e.target.value)}
-                  placeholder="tu@email.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Departamento</label>
-                <Input
-                  value={userData.department}
-                  onChange={(e) => handleInputChange("department", e.target.value)}
-                  placeholder="Tu departamento"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Teléfono</label>
-                <Input
-                  value={userData.phone}
-                  onChange={(e) => handleInputChange("phone", e.target.value)}
-                  placeholder="+1 234 567 8900"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-2">Biografía</label>
-                <Textarea
-                  value={userData.bio}
-                  onChange={(e) => handleInputChange("bio", e.target.value)}
-                  placeholder="Cuéntanos sobre ti..."
-                  rows={3}
-                />
+              <div className="card-body">
+                <div className="row">
+                  <div className="col-md-6 mb-3">
+                    <label className="form-label fw-bold">Nombre Completo</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={userData.name}
+                      onChange={(e) => handleInputChange("name", e.target.value)}
+                      placeholder="Tu nombre completo"
+                    />
+                  </div>
+                  <div className="col-md-6 mb-3">
+                    <label className="form-label fw-bold">Email</label>
+                    <input
+                      type="email"
+                      className="form-control"
+                      value={userData.email}
+                      onChange={(e) => handleInputChange("email", e.target.value)}
+                      placeholder="tu@email.com"
+                    />
+                  </div>
+                  <div className="col-md-6 mb-3">
+                    <label className="form-label fw-bold">Departamento</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={userData.department}
+                      onChange={(e) => handleInputChange("department", e.target.value)}
+                      placeholder="Tu departamento"
+                    />
+                  </div>
+                  <div className="col-md-6 mb-3">
+                    <label className="form-label fw-bold">Teléfono</label>
+                    <input
+                      type="tel"
+                      className="form-control"
+                      value={userData.phone}
+                      onChange={(e) => handleInputChange("phone", e.target.value)}
+                      placeholder="+1 234 567 8900"
+                    />
+                  </div>
+                  <div className="col-12 mb-3">
+                    <label className="form-label fw-bold">Biografía</label>
+                    <textarea
+                      className="form-control"
+                      rows={3}
+                      value={userData.bio}
+                      onChange={(e) => handleInputChange("bio", e.target.value)}
+                      placeholder="Cuéntanos sobre ti..."
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* System Preferences */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Preferencias del Sistema</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">Notificaciones</h4>
-                  <p className="text-sm text-gray-600">Recibir notificaciones del sistema</p>
-                </div>
-                <Button
-                  variant={userData.preferences.notifications ? "default" : "outline"}
-                  onClick={() => handlePreferenceChange("notifications", !userData.preferences.notifications)}
-                >
-                  {userData.preferences.notifications ? "Activado" : "Desactivado"}
-                </Button>
+        <div className="row mb-4">
+          <div className="col-12">
+            <div className="card">
+              <div className="card-header">
+                <h5 className="card-title mb-0">
+                  <i className="material-icons me-2">tune</i>
+                  Preferencias del Sistema
+                </h5>
               </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">Modo Oscuro</h4>
-                  <p className="text-sm text-gray-600">Cambiar a tema oscuro</p>
+              <div className="card-body">
+                <div className="row">
+                  <div className="col-md-4 mb-3">
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h6 className="mb-1">Notificaciones</h6>
+                        <small className="text-muted">Recibir notificaciones del sistema</small>
+                      </div>
+                      <div className="form-check form-switch">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          checked={userData.preferences.notifications}
+                          onChange={(e) => handlePreferenceChange("notifications", e.target.checked)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="col-md-4 mb-3">
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h6 className="mb-1">Modo Oscuro</h6>
+                        <small className="text-muted">Cambiar a tema oscuro</small>
+                      </div>
+                      <div className="form-check form-switch">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          checked={userData.preferences.darkMode}
+                          onChange={(e) => handlePreferenceChange("darkMode", e.target.checked)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="col-md-4 mb-3">
+                    <div>
+                      <h6 className="mb-1">Idioma</h6>
+                      <small className="text-muted">Idioma de la interfaz</small>
+                      <select
+                        className="form-select mt-1"
+                        value={userData.preferences.language}
+                        onChange={(e) => handlePreferenceChange("language", e.target.value)}
+                      >
+                        <option value="es">Español</option>
+                        <option value="en">English</option>
+                        <option value="pt">Português</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
-                <Button
-                  variant={userData.preferences.darkMode ? "default" : "outline"}
-                  onClick={() => handlePreferenceChange("darkMode", !userData.preferences.darkMode)}
-                >
-                  {userData.preferences.darkMode ? "Activado" : "Desactivado"}
-                </Button>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">Idioma</h4>
-                  <p className="text-sm text-gray-600">Idioma de la interfaz</p>
-                </div>
-                <select
-                  className="px-3 py-2 border rounded-md"
-                  value={userData.preferences.language}
-                  onChange={(e) => handlePreferenceChange("language", e.target.value)}
-                >
-                  <option value="es">Español</option>
-                  <option value="en">English</option>
-                  <option value="pt">Português</option>
-                </select>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Security Settings */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Seguridad</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <Button variant="outline" className="w-full">
-                🔒 Cambiar Contraseña
-              </Button>
-              <Button variant="outline" className="w-full">
-                📱 Configurar Autenticación de Dos Factores
-              </Button>
-              <Button variant="outline" className="w-full">
-                📋 Ver Sesiones Activas
-              </Button>
+        <div className="row mb-4">
+          <div className="col-12">
+            <div className="card">
+              <div className="card-header">
+                <h5 className="card-title mb-0">
+                  <i className="material-icons me-2">security</i>
+                  Seguridad
+                </h5>
+              </div>
+              <div className="card-body">
+                <div className="row">
+                  <div className="col-md-4 mb-2">
+                    <button className="btn btn-outline-primary w-100">
+                      <i className="material-icons me-2">lock</i>
+                      Cambiar Contraseña
+                    </button>
+                  </div>
+                  <div className="col-md-4 mb-2">
+                    <button className="btn btn-outline-info w-100">
+                      <i className="material-icons me-2">phone_android</i>
+                      Autenticación 2FA
+                    </button>
+                  </div>
+                  <div className="col-md-4 mb-2">
+                    <button className="btn btn-outline-secondary w-100">
+                      <i className="material-icons me-2">devices</i>
+                      Sesiones Activas
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Save Button */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex justify-end">
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Guardando...
-                  </>
-                ) : (
-                  "💾 Guardar Configuración"
-                )}
-              </Button>
+        <div className="row mb-4">
+          <div className="col-12">
+            <div className="card">
+              <div className="card-body">
+                <div className="d-flex justify-content-end">
+                  <button 
+                    className="btn btn-primary btn-lg" 
+                    onClick={handleSave} 
+                    disabled={saving}
+                  >
+                    {saving ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                        Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <i className="material-icons me-2">save</i>
+                        Guardar Configuración
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <DebugPanel
-          debugInfo={debugInfo}
-          currentState={{
-            userName: userData.name,
-            userRole: userData.role,
-            notifications: userData.preferences.notifications,
-            darkMode: userData.preferences.darkMode,
-            language: userData.preferences.language,
-          }}
-        />
+        {/* Debug Info */}
+        <div className="row">
+          <div className="col-12">
+            <div className="card">
+              <div className="card-header">
+                <h5 className="card-title mb-0">🐛 Debug Settings</h5>
+              </div>
+              <div className="card-body">
+                <div className="row">
+                  <div className="col-md-6">
+                    <h6>Estado Actual:</h6>
+                    <ul className="list-unstyled">
+                      <li>✅ Página de configuración cargada</li>
+                      <li>✅ Datos del usuario cargados</li>
+                      <li>✅ Formularios funcionales</li>
+                      <li>✅ Navegación funcional</li>
+                      <li>👤 Usuario: {userData.name}</li>
+                      <li>📧 Email: {userData.email}</li>
+                      <li>🔔 Notificaciones: {userData.preferences.notifications ? "Activadas" : "Desactivadas"}</li>
+                      <li>🌙 Modo Oscuro: {userData.preferences.darkMode ? "Activado" : "Desactivado"}</li>
+                      <li>🌐 Idioma: {userData.preferences.language}</li>
+                      <li>💾 Guardando: {saving ? "Sí" : "No"}</li>
+                    </ul>
+                  </div>
+                  <div className="col-md-6">
+                    <h6>Logs Recientes:</h6>
+                    <div
+                      className="bg-dark text-light p-2 rounded"
+                      style={{ fontSize: "0.8rem", maxHeight: "150px", overflowY: "auto" }}
+                    >
+                      {debugInfo.length > 0 ? (
+                        debugInfo.map((log, index) => (
+                          <div key={index} className="text-info">
+                            <small>{log}</small>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-muted">No hay logs aún...</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -6,6 +6,8 @@ import { UserProvider } from "@/context/UserContext"
 import AuthDebug from "@/components/AuthDebug"
 import Navbar from "@/components/Navbar"
 import { LanguageProvider } from "Elements/LanguageContext"
+
+import BootstrapScript from "@/components/BootstrapScript"
 import { Inter } from "next/font/google"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -62,6 +64,7 @@ export default function RootLayout({
             {!isPublicRoute && <Navbar role={role} />}
             {children}
             <AuthDebug />
+            <BootstrapScript />
           </UserProvider>
         </LanguageProvider>
       </body>
