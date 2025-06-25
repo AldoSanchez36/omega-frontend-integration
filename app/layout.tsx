@@ -6,7 +6,11 @@ import { UserProvider } from "@/context/UserContext"
 import AuthDebug from "@/components/AuthDebug"
 import Navbar from "@/components/Navbar"
 import { LanguageProvider } from "Elements/LanguageContext"
+
 import BootstrapScript from "@/components/BootstrapScript"
+import { Inter } from "next/font/google"
+
+const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Omega - Sistema de Gestión Industrial",
@@ -48,8 +52,12 @@ export default function RootLayout({
     <html lang="es">
       <head>
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+        />
       </head>
-      <body>
+      <body className={inter.className}>
         <LanguageProvider>
           <UserProvider>
             {/* Navbar global, oculto en rutas públicas */}

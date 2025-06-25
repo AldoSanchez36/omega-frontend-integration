@@ -2,7 +2,16 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+
 import Link from "next/link"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Navbar } from "@/components/Navbar"
+
+// Define types locally to resolve import issue
 
 interface Client {
   id: string
@@ -11,15 +20,19 @@ interface Client {
   company: string
 }
 
+type UserRole = "admin" | "user" | "client" | "guest";
+
 interface User {
   id: string
   name: string
   email: string
-  role: string
+  role: UserRole
+
 }
 
 export default function AgregarPlanta() {
   const router = useRouter()
+
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClient, setSelectedClient] = useState<string>("")
   const [plantData, setPlantData] = useState({
@@ -49,6 +62,7 @@ export default function AgregarPlanta() {
 
   useEffect(() => {
     const loadClients = async () => {
+
       addDebugLog("Cargando clientes disponibles")
 
       try {
@@ -75,6 +89,7 @@ export default function AgregarPlanta() {
         ]
 
         setClients(mockClients)
+
         addDebugLog(`Cargados ${mockClients.length} clientes`)
       } catch (error) {
         addDebugLog(`Error cargando clientes: ${error}`)
@@ -98,6 +113,7 @@ export default function AgregarPlanta() {
     setSaving(true)
     addDebugLog("Iniciando creación de nueva planta")
 
+
     try {
       const plantPayload = {
         ...plantData,
@@ -107,14 +123,35 @@ export default function AgregarPlanta() {
       }
 
       // Mock save - replace with real API call
+
       addDebugLog(`Planta "${plantData.name}" creada exitosamente`)
+
+      /*
+      const response = await fetch('/api/plants', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(plantPayload)
+      })
+      
+      if (!response.ok) {
+        throw new Error('Error creating plant')
+      }
+      
+      const result = await response.json()
+      */
+
 
       // Simulate API delay
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       router.push("/dashboard")
     } catch (error) {
+
       addDebugLog(`Error creando planta: ${error}`)
+      console.error(`Error creando planta: ${error}`)
+
     } finally {
       setSaving(false)
     }
@@ -129,17 +166,24 @@ export default function AgregarPlanta() {
 
   if (loading) {
     return (
+
       <div className="min-vh-100 bg-light">
         <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "50vh" }}>
           <div className="spinner-border text-primary" role="status">
             <span className="visually-hidden">Cargando...</span>
           </div>
+          {/*<div className="min-h-screen bg-gray-50">*/}
+        <Navbar role={mockUser.role} />
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>*/}
+
         </div>
       </div>
     )
   }
 
   return (
+
     <div className="min-vh-100 bg-light">
       {/* Navigation */}
       <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -236,6 +280,10 @@ export default function AgregarPlanta() {
           <i className="material-icons me-2">info</i>
           <strong>🏭 Agregar Planta:</strong> Formulario para crear una nueva planta en el sistema.
         </div>
+
+        {/*<div className="min-h-screen bg-gray-50">
+      <Navbar role={mockUser.role} />*/}
+
 
         {/* Header */}
         <div className="row mb-4">
@@ -413,6 +461,7 @@ export default function AgregarPlanta() {
           </div>
         </form>
 
+
         {/* Debug Info */}
         <div className="row mt-4">
           <div className="col-12">
@@ -456,6 +505,7 @@ export default function AgregarPlanta() {
             </div>
           </div>
         </div>
+
       </div>
     </div>
   )
