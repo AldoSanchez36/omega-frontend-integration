@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -8,166 +8,206 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Navbar } from "@/components/navbar"
+import { Navbar } from "@/components/Navbar"
 import { DebugPanel } from "@/components/debug-panel"
 import { useDebugLogger } from "@/hooks/useDebugLogger"
-import type { Plant, User } from "@/types"
+
+// Interfaces
+interface User {
+  id: string
+  username: string
+  role: string
+}
+
+interface Plant {
+  id: string
+  nombre: string
+  location?: string
+  description?: string
+  clientId?: string
+  clientName?: string
+  status?: string
+  createdAt?: string
+}
+
+interface System {
+  id: string
+  nombre: string
+  descripcion: string
+  planta_id: string
+  type?: string
+  status?: string
+}
+
+interface Parameter {
+  id: string
+  nombre: string
+  unidad: string
+  proceso_id: string
+  value?: number
+  minValue?: number
+  maxValue?: number
+}
 
 export default function ReportManager() {
   const router = useRouter()
   const { debugInfo, addDebugLog } = useDebugLogger()
+  const token = typeof window !== "undefined" ? localStorage.getItem("omega_token") : null
 
+  // State
+  const [users, setUsers] = useState<User[]>([])
   const [plants, setPlants] = useState<Plant[]>([])
-  const [selectedPlant, setSelectedPlant] = useState<string>("")
+  const [systems, setSystems] = useState<System[]>([])
+  const [parameters, setParameters] = useState<Parameter[]>([])
+
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null)
   const [selectedSystem, setSelectedSystem] = useState<string>("")
   const [parameterValues, setParameterValues] = useState<Record<string, { checked: boolean; value: number }>>({})
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const mockUser: User = {
-    id: "1",
-    name: "Admin User",
-    email: "admin@omega.com",
-    role: "admin",
-  }
-
+  // Fetch Users
   useEffect(() => {
-    const loadPlants = async () => {
-      addDebugLog("info", "Cargando plantas para reporte manager")
-
+    if (!token) {
+      setError("Token de autenticación no encontrado. Por favor, inicie sesión.")
+      return
+    }
+    const fetchUsers = async () => {
+      setLoading(true)
+      setError(null)
       try {
-        // Mock data - replace with real fetch/axios call
-        /*
-        const response = await fetch('/api/plants')
-        const plantsData = await response.json()
-        setPlants(plantsData)
-        */
-
-        const mockPlants: Plant[] = [
-          {
-            id: "1",
-            name: "Planta Norte",
-            location: "Ciudad Norte",
-            description: "Planta principal",
-            clientId: "1",
-            clientName: "Cliente A",
-            status: "active",
-            systems: [
-              {
-                id: "1",
-                name: "Sistema de Temperatura",
-                type: "temperature",
-                description: "Control de temperatura",
-                plantId: "1",
-                parameters: [
-                  {
-                    id: "1",
-                    name: "Temperatura Ambiente",
-                    unit: "°C",
-                    value: 25,
-                    minValue: 0,
-                    maxValue: 50,
-                    systemId: "1",
-                  },
-                  {
-                    id: "2",
-                    name: "Humedad Relativa",
-                    unit: "%",
-                    value: 60,
-                    minValue: 0,
-                    maxValue: 100,
-                    systemId: "1",
-                  },
-                  {
-                    id: "3",
-                    name: "Punto de Rocío",
-                    unit: "°C",
-                    value: 15,
-                    minValue: -10,
-                    maxValue: 30,
-                    systemId: "1",
-                  },
-                ],
-                status: "online",
-              },
-              {
-                id: "2",
-                name: "Sistema de Presión",
-                type: "pressure",
-                description: "Control de presión",
-                plantId: "1",
-                parameters: [
-                  {
-                    id: "4",
-                    name: "Presión Principal",
-                    unit: "PSI",
-                    value: 120,
-                    minValue: 0,
-                    maxValue: 200,
-                    systemId: "2",
-                  },
-                  {
-                    id: "5",
-                    name: "Presión Secundaria",
-                    unit: "PSI",
-                    value: 80,
-                    minValue: 0,
-                    maxValue: 150,
-                    systemId: "2",
-                  },
-                ],
-                status: "online",
-              },
-            ],
-            createdAt: "2024-01-15",
-          },
-          {
-            id: "2",
-            name: "Planta Sur",
-            location: "Ciudad Sur",
-            description: "Planta de respaldo",
-            clientId: "2",
-            clientName: "Cliente B",
-            status: "active",
-            systems: [
-              {
-                id: "3",
-                name: "Sistema de Flujo",
-                type: "flow",
-                description: "Control de flujo",
-                plantId: "2",
-                parameters: [
-                  {
-                    id: "6",
-                    name: "Flujo Principal",
-                    unit: "L/min",
-                    value: 150,
-                    minValue: 0,
-                    maxValue: 300,
-                    systemId: "3",
-                  },
-                  { id: "7", name: "Velocidad", unit: "m/s", value: 2.5, minValue: 0, maxValue: 10, systemId: "3" },
-                ],
-                status: "online",
-              },
-            ],
-            createdAt: "2024-01-20",
-          },
-        ]
-
-        setPlants(mockPlants)
-        addDebugLog("success", `Cargadas ${mockPlants.length} plantas`)
-      } catch (error) {
-        addDebugLog("error", `Error cargando plantas: ${error}`)
+        const res = await fetch("http://localhost:4000/api/auth/users", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) {
+          const errorData = await res.json()
+          throw new Error(errorData.message || "Failed to fetch users")
+        }
+        const data = await res.json()
+        setUsers(data.usuarios || [])
+        if (data.usuarios.length > 0 && !selectedUser) {
+          const firstUser = data.usuarios[0]
+          setSelectedUser(firstUser)
+          handleSelectUser(firstUser.id)
+        }
+      } catch (e: any) {
+        setError(`Error al cargar usuarios: ${e.message}`)
+        addDebugLog("error", `Error al cargar usuarios: ${e.message}`)
       } finally {
         setLoading(false)
       }
     }
+    fetchUsers()
+  }, [token, addDebugLog])
 
-    loadPlants()
-  }, [addDebugLog])
+  // Handlers for selection changes
+  const handleSelectUser = async (userId: string) => {
+    const user = users.find((u) => u.id === userId)
+    if (!user) return
 
-  const selectedPlantData = plants.find((p) => p.id === selectedPlant)
-  const selectedSystemData = selectedPlantData?.systems.find((s) => s.id === selectedSystem)
+    setSelectedUser(user)
+    setSelectedPlant(null)
+    setSelectedSystem("")
+    setPlants([])
+    setSystems([])
+    setParameters([])
+    setParameterValues({})
+
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`http://localhost:4000/api/plantas/accesibles`, {
+        headers: { Authorization: `Bearer ${token}`, "x-usuario-id": user.id },
+      })
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "No se pudieron cargar las plantas para el usuario.")
+      }
+      const data = await res.json()
+      setPlants(data.plantas || [])
+      addDebugLog("success", `Cargadas ${data.plantas?.length || 0} plantas para usuario ${user.username}`)
+      if (data.plantas.length > 0) {
+        const firstPlant = data.plantas[0]
+        handleSelectPlant(firstPlant.id)
+      } else {
+        setSelectedPlant(null)
+      }
+    } catch (e: any) {
+      setError(`Error al cargar plantas: ${e.message}`)
+      addDebugLog("error", `Error al cargar plantas: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSelectPlant = async (plantId: string) => {
+    const plant = plants.find((p) => p.id === plantId)
+    if (!plant) return
+
+    setSelectedPlant(plant)
+    setSelectedSystem("")
+    setSystems([])
+    setParameters([])
+    setParameterValues({})
+
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`http://localhost:4000/api/procesos/planta/${plant.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "No se pudieron cargar los sistemas para la planta.")
+      }
+      const data = await res.json()
+      setSystems(data.procesos || [])
+      addDebugLog("success", `Cargados ${data.procesos?.length || 0} sistemas para planta ${plant.nombre}`)
+      if (data.procesos.length > 0) {
+        setSelectedSystem(data.procesos[0].id)
+      }
+    } catch (e: any) {
+      setError(`Error al cargar sistemas: ${e.message}`)
+      addDebugLog("error", `Error al cargar sistemas: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchParameters = useCallback(async () => {
+    if (!selectedSystem) {
+      setParameters([])
+      setParameterValues({})
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`http://localhost:4000/api/variables/proceso/${selectedSystem}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "No se pudieron cargar los parámetros para el sistema.")
+      }
+      const data = await res.json()
+      setParameters(data.variables || [])
+      addDebugLog("success", `Cargados ${data.variables?.length || 0} parámetros para sistema ${selectedSystem}`)
+    } catch (e: any) {
+      setError(`Error al cargar parámetros: ${e.message}`)
+      addDebugLog("error", `Error al cargar parámetros: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedSystem, token, addDebugLog])
+
+  useEffect(() => {
+    fetchParameters()
+  }, [fetchParameters])
+
+  const selectedPlantData = plants.find((p) => p.id === selectedPlant?.id)
+  const selectedSystemData = systems.find((s) => s.id === selectedSystem)
 
   const handleParameterChange = (parameterId: string, field: "checked" | "value", value: boolean | number) => {
     setParameterValues((prev) => ({
@@ -187,17 +227,18 @@ export default function ReportManager() {
       .map(([id, data]) => ({ id, value: data.value }))
 
     try {
-      // Mock save - replace with real API call
-      /*
-      const response = await fetch('/api/parameters/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemId: selectedSystem,
-          parameters: selectedParams
-        })
-      })
-      */
+      // TODO: Implement real API call for saving parameter values
+      // const response = await fetch('http://localhost:4000/api/variables/values', {
+      //   method: 'POST',
+      //   headers: { 
+      //     'Content-Type': 'application/json',
+      //     Authorization: `Bearer ${token}`
+      //   },
+      //   body: JSON.stringify({
+      //     systemId: selectedSystem,
+      //     parameters: selectedParams
+      //   })
+      // })
 
       addDebugLog("success", `Guardados ${selectedParams.length} parámetros`)
     } catch (error) {
@@ -213,18 +254,19 @@ export default function ReportManager() {
       .map(([id, data]) => ({ id, value: data.value }))
 
     try {
-      // Mock report generation - replace with real API call
-      /*
-      const response = await fetch('/reports', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plantId: selectedPlant,
-          systemId: selectedSystem,
-          parameters: selectedParams
-        })
-      })
-      */
+      // TODO: Implement real API call for report generation
+      // const response = await fetch('http://localhost:4000/api/reports/generate', {
+      //   method: 'POST',
+      //   headers: { 
+      //     'Content-Type': 'application/json',
+      //     Authorization: `Bearer ${token}`
+      //   },
+      //   body: JSON.stringify({
+      //     plantId: selectedPlant?.id,
+      //     systemId: selectedSystem,
+      //     parameters: selectedParams
+      //   })
+      // })
 
       addDebugLog("success", "Reporte generado exitosamente")
       router.push("/dashboard")
@@ -236,7 +278,6 @@ export default function ReportManager() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navbar user={mockUser} />
         <div className="flex items-center justify-center py-20">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
@@ -244,33 +285,50 @@ export default function ReportManager() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+          <div className="bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="flex">
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Error</h3>
+                <div className="mt-2 text-sm text-red-700">
+                  <p>{error}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar user={mockUser} />
-
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Gestor de Reportes</h1>
           <p className="text-gray-600">Selecciona parámetros y genera reportes personalizados</p>
         </div>
 
-        {/* Plant and System Selectors */}
+        {/* User and Plant Selectors */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Selección de Planta y Sistema</CardTitle>
+            <CardTitle>Selección de Usuario y Planta</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Planta</label>
-                <Select value={selectedPlant} onValueChange={setSelectedPlant}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar planta" />
+                <label className="block text-sm font-medium mb-2">Usuario</label>
+                <Select value={selectedUser?.id} onValueChange={handleSelectUser}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Seleccionar usuario" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {plants.map((plant) => (
-                      <SelectItem key={plant.id} value={plant.id}>
-                        {plant.name} - {plant.location}
+                  <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.username}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -278,15 +336,15 @@ export default function ReportManager() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Sistema</label>
-                <Select value={selectedSystem} onValueChange={setSelectedSystem} disabled={!selectedPlant}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar sistema" />
+                <label className="block text-sm font-medium mb-2">Planta</label>
+                <Select value={selectedPlant?.id} onValueChange={handleSelectPlant} disabled={!selectedUser}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Seleccionar planta" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {selectedPlantData?.systems.map((system) => (
-                      <SelectItem key={system.id} value={system.id}>
-                        {system.name} - {system.type}
+                  <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                    {plants.map((plant) => (
+                      <SelectItem key={plant.id} value={plant.id}>
+                        {plant.nombre}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -297,26 +355,26 @@ export default function ReportManager() {
         </Card>
 
         {/* System Tabs */}
-        {selectedPlantData && (
+        {selectedPlantData && systems.length > 0 && (
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Sistemas de {selectedPlantData.name}</CardTitle>
+              <CardTitle>Sistemas de {selectedPlantData.nombre}</CardTitle>
             </CardHeader>
             <CardContent>
               <Tabs value={selectedSystem} onValueChange={setSelectedSystem}>
                 <TabsList className="grid w-full grid-cols-1 md:grid-cols-3">
-                  {selectedPlantData.systems.map((system) => (
+                  {systems.map((system) => (
                     <TabsTrigger key={system.id} value={system.id}>
-                      {system.name}
+                      {system.nombre}
                     </TabsTrigger>
                   ))}
                 </TabsList>
 
-                {selectedPlantData.systems.map((system) => (
+                {systems.map((system) => (
                   <TabsContent key={system.id} value={system.id}>
                     <div className="mt-4">
-                      <h3 className="text-lg font-semibold mb-2">{system.name}</h3>
-                      <p className="text-gray-600 mb-4">{system.description}</p>
+                      <h3 className="text-lg font-semibold mb-2">{system.nombre}</h3>
+                      <p className="text-gray-600 mb-4">{system.descripcion}</p>
                     </div>
                   </TabsContent>
                 ))}
@@ -326,14 +384,14 @@ export default function ReportManager() {
         )}
 
         {/* Parameters List */}
-        {selectedSystemData && (
+        {selectedSystemData && parameters.length > 0 && (
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>Parámetros del Sistema</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {selectedSystemData.parameters.map((parameter) => (
+                {parameters.map((parameter) => (
                   <div key={parameter.id} className="flex items-center space-x-4 p-4 border rounded-lg">
                     <Checkbox
                       checked={parameterValues[parameter.id]?.checked || false}
@@ -341,19 +399,17 @@ export default function ReportManager() {
                     />
 
                     <div className="flex-1">
-                      <div className="font-medium">{parameter.name}</div>
+                      <div className="font-medium">{parameter.nombre}</div>
                       <div className="text-sm text-gray-500">
-                        Rango: {parameter.minValue} - {parameter.maxValue} {parameter.unit}
+                        Unidad: {parameter.unidad}
                       </div>
                     </div>
 
                     <div className="w-32">
                       <Input
                         type="number"
-                        placeholder={parameter.value.toString()}
-                        min={parameter.minValue}
-                        max={parameter.maxValue}
-                        value={parameterValues[parameter.id]?.value || parameter.value}
+                        placeholder="0"
+                        value={parameterValues[parameter.id]?.value || ""}
                         onChange={(e) =>
                           handleParameterChange(parameter.id, "value", Number.parseFloat(e.target.value) || 0)
                         }
@@ -361,7 +417,7 @@ export default function ReportManager() {
                       />
                     </div>
 
-                    <div className="text-sm text-gray-500 w-16">{parameter.unit}</div>
+                    <div className="text-sm text-gray-500 w-16">{parameter.unidad}</div>
                   </div>
                 ))}
               </div>
@@ -370,7 +426,7 @@ export default function ReportManager() {
         )}
 
         {/* Action Buttons */}
-        {selectedSystemData && (
+        {selectedSystemData && parameters.length > 0 && (
           <Card className="mb-6">
             <CardContent className="pt-6">
               <div className="flex space-x-4">
@@ -386,9 +442,10 @@ export default function ReportManager() {
         <DebugPanel
           debugInfo={debugInfo}
           currentState={{
-            selectedPlant,
-            selectedSystem,
-            parametersSelected: Object.values(parameterValues).filter((p) => p.checked).length,
+            plantsCount: plants.length,
+            reportsCount: 0,
+            dataLoading: loading,
+            userRole: selectedUser?.role || "guest",
           }}
         />
       </div>

@@ -17,7 +17,9 @@ interface Client {
   id: string
   name: string
   email: string
-  company: string
+  company?: string
+  puesto?: string
+  username: string
 }
 
 type UserRole = "admin" | "user" | "client" | "guest";
@@ -32,6 +34,7 @@ interface User {
 
 export default function AgregarPlanta() {
   const router = useRouter()
+  const token = typeof window !== "undefined" ? localStorage.getItem("omega_token") : null
 
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClient, setSelectedClient] = useState<string>("")
@@ -62,44 +65,29 @@ export default function AgregarPlanta() {
 
   useEffect(() => {
     const loadClients = async () => {
-
       addDebugLog("Cargando clientes disponibles")
-
       try {
-        // Mock data - replace with real fetch call
-        const mockClients: Client[] = [
-          {
-            id: "1",
-            name: "Cliente A",
-            email: "contacto@clientea.com",
-            company: "Empresa A S.A.",
-          },
-          {
-            id: "2",
-            name: "Cliente B",
-            email: "info@clienteb.com",
-            company: "Corporación B",
-          },
-          {
-            id: "3",
-            name: "Cliente C",
-            email: "admin@clientec.com",
-            company: "Industrias C Ltda.",
-          },
-        ]
-
-        setClients(mockClients)
-
-        addDebugLog(`Cargados ${mockClients.length} clientes`)
-      } catch (error) {
-        addDebugLog(`Error cargando clientes: ${error}`)
+        const res = await fetch("http://localhost:4000/api/auth/users", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) {
+          const errorData = await res.json()
+          throw new Error(errorData.message || "No se pudieron cargar los clientes")
+        }
+        const data = await res.json()
+        // Filtrar solo usuarios con puesto === 'client'
+        const clientes = (data.usuarios || []).filter((u: any) => u.puesto === "client")
+        console.log(clientes)
+        setClients(clientes)
+        addDebugLog(`Cargados ${clientes.length} clientes (puesto=client)`)
+      } catch (error: any) {
+        addDebugLog(`Error cargando clientes: ${error.message}`)
       } finally {
         setLoading(false)
       }
     }
-
     loadClients()
-  }, [])
+  }, [token])
 
   const handleInputChange = (field: string, value: string) => {
     setPlantData((prev) => ({
@@ -112,46 +100,34 @@ export default function AgregarPlanta() {
     e.preventDefault()
     setSaving(true)
     addDebugLog("Iniciando creación de nueva planta")
-
-
     try {
       const plantPayload = {
-        ...plantData,
-        clientId: selectedClient,
+        nombre: plantData.name,
+        ubicacion: plantData.location,
+        descripcion: plantData.description,
+        contacto: plantData.contactPerson,
+        email_contacto: plantData.contactEmail,
+        telefono_contacto: plantData.contactPhone,
+        cliente_id: selectedClient,
         status: "active",
-        createdAt: new Date().toISOString(),
       }
-
-      // Mock save - replace with real API call
-
-      addDebugLog(`Planta "${plantData.name}" creada exitosamente`)
-
-      /*
-      const response = await fetch('/api/plants', {
-        method: 'POST',
+      // Llamada real a la API para crear la planta
+      const res = await fetch("http://localhost:4000/api/plantas/crear", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(plantPayload)
+        body: JSON.stringify(plantPayload),
       })
-      
-      if (!response.ok) {
-        throw new Error('Error creating plant')
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "Error creando planta")
       }
-      
-      const result = await response.json()
-      */
-
-
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
+      addDebugLog(`Planta "${plantData.name}" creada exitosamente`)
       router.push("/dashboard")
-    } catch (error) {
-
-      addDebugLog(`Error creando planta: ${error}`)
-      console.error(`Error creando planta: ${error}`)
-
+    } catch (error: any) {
+      addDebugLog(`Error creando planta: ${error.message}`)
     } finally {
       setSaving(false)
     }
@@ -166,24 +142,17 @@ export default function AgregarPlanta() {
 
   if (loading) {
     return (
-
       <div className="min-vh-100 bg-light">
         <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "50vh" }}>
           <div className="spinner-border text-primary" role="status">
             <span className="visually-hidden">Cargando...</span>
           </div>
-          {/*<div className="min-h-screen bg-gray-50">*/}
-        <Navbar role={mockUser.role} />
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>*/}
-
         </div>
       </div>
     )
   }
 
   return (
-
     <div className="min-vh-100 bg-light">
       {/* Navigation */}
       <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -305,21 +274,30 @@ export default function AgregarPlanta() {
             <div className="card-body">
               <div className="mb-3">
                 <label className="form-label">Cliente *</label>
-                <select
-                  className="form-select"
-                  value={selectedClient}
-                  onChange={(e) => setSelectedClient(e.target.value)}
-                  required
-                >
-                  <option value="">Seleccionar cliente existente</option>
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name} - {client.company}
-                    </option>
-                  ))}
-                </select>
+                <Select value={selectedClient} onValueChange={setSelectedClient}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue
+                      placeholder="Seleccionar cliente existente"
+                      // @ts-ignore
+                      children={
+                        selectedClient
+                          ? (() => {
+                              const client = clients.find((c) => c.id === selectedClient)
+                              return client ? client.username : "-"
+                            })()
+                          : "-"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.username}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-
               {selectedClient && (
                 <div className="alert alert-primary">
                   <h6 className="alert-heading">Cliente Seleccionado</h6>
