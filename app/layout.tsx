@@ -4,7 +4,6 @@ import "bootstrap/dist/css/bootstrap.min.css"
 import "./globals.css"
 import { UserProvider } from "@/context/UserContext"
 import AuthDebug from "@/components/AuthDebug"
-import Navbar from "@/components/Navbar"
 import { LanguageProvider } from "Elements/LanguageContext"
 
 import BootstrapScript from "@/components/BootstrapScript"
@@ -37,17 +36,6 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  // Detectar si la ruta es pública
-  const isPublicRoute =
-    typeof window !== "undefined" &&
-    ["/login", "/register", "/forgot-password"].includes(window.location.pathname)
-
-  // Obtener el rol del usuario
-  let role: "admin" | "user" | "client" | "guest" = "guest"
-  if (typeof window !== "undefined" && !isPublicRoute) {
-    role = getUserRoleFromToken()
-  }
-
   return (
     <html lang="es">
       <head>
@@ -60,8 +48,6 @@ export default function RootLayout({
       <body className={inter.className}>
         <LanguageProvider>
           <UserProvider>
-            {/* Navbar global, oculto en rutas públicas */}
-            {!isPublicRoute && <Navbar role={role} />}
             {children}
             <AuthDebug />
             <BootstrapScript />

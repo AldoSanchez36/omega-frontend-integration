@@ -18,7 +18,6 @@ const NAV_LINKS = [
   { path: "/layouts", label: "Administrador de clientes", icon: "view_quilt", roles: ["admin", "user"] },
   // Para admin, user y client
   { path: "/reports", label: "Reportes", icon: "assessment", roles: ["admin", "user", "client"] },
-  // Para admin y client
   { path: "/home", label: "Página principal", icon: "home", roles: ["admin", "client"] },
   // Para cualquier usuario autenticado
   { path: "/profile", label: "Perfil de usuario", icon: "account_circle", roles: ["admin", "user", "client"] },

@@ -4,6 +4,13 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 
+// Add type declaration for window.bootstrap
+declare global {
+  interface Window {
+    bootstrap?: any
+  }
+}
+
 interface Plant {
   id: string
   nombre: string
@@ -85,6 +92,98 @@ export default function Dashboard() {
   const closeDropdown = () => {
     setIsDropdownOpen(false)
   }
+
+  // Mobile menu toggle function
+  const toggleMobileMenu = () => {
+    const mobileMenu = document.getElementById('mobileNavbar')
+    if (mobileMenu) {
+      const isVisible = mobileMenu.style.display === 'block'
+      mobileMenu.style.display = isVisible ? 'none' : 'block'
+      addDebugLog(`Menú móvil ${isVisible ? 'oculto' : 'mostrado'}`)
+    }
+  }
+
+  // Close mobile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element
+      const mobileMenu = document.getElementById('mobileNavbar')
+      const mobileButton = document.querySelector('.navbar-toggler')
+      const userDropdown = document.querySelector('.dropdown')
+      
+      // Close mobile menu
+      if (mobileMenu && mobileButton && 
+          !mobileMenu.contains(target) && 
+          !mobileButton.contains(target) &&
+          mobileMenu.style.display === 'block') {
+        mobileMenu.style.display = 'none'
+        addDebugLog("Menú móvil cerrado por clic externo")
+      }
+      
+      // Close user dropdown
+      if (isDropdownOpen && userDropdown && !userDropdown.contains(target)) {
+        closeDropdown()
+        addDebugLog("Dropdown de usuario cerrado por clic externo")
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }
+  }, [isDropdownOpen])
+
+  // Load Bootstrap JavaScript for navbar functionality
+  useEffect(() => {
+    const loadBootstrap = () => {
+      if (typeof window !== 'undefined') {
+        // Check if Bootstrap is already loaded
+        if (!window.bootstrap) {
+          const script = document.createElement('script')
+          script.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'
+          script.integrity = 'sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz'
+          script.crossOrigin = 'anonymous'
+          script.onload = () => {
+            addDebugLog("Bootstrap JavaScript cargado exitosamente")
+            // Initialize Bootstrap components after loading
+            if (window.bootstrap) {
+              // Initialize all collapse elements
+              const collapseElements = document.querySelectorAll('[data-bs-toggle="collapse"]')
+              collapseElements.forEach(element => {
+                new window.bootstrap.Collapse(element, {
+                  toggle: false
+                })
+              })
+              addDebugLog("Componentes Bootstrap inicializados")
+            }
+          }
+          script.onerror = () => {
+            addDebugLog("Error cargando Bootstrap JavaScript")
+          }
+          document.head.appendChild(script)
+        } else {
+          addDebugLog("Bootstrap JavaScript ya está cargado")
+          // Initialize components if Bootstrap is already available
+          if (window.bootstrap) {
+            const collapseElements = document.querySelectorAll('[data-bs-toggle="collapse"]')
+            collapseElements.forEach(element => {
+              new window.bootstrap.Collapse(element, {
+                toggle: false
+              })
+            })
+            addDebugLog("Componentes Bootstrap inicializados")
+          }
+        }
+      }
+    }
+    
+    loadBootstrap()
+  }, [])
 
   useEffect(() => {
     addDebugLog("Dashboard montado - iniciando carga de datos")
@@ -198,29 +297,9 @@ export default function Dashboard() {
     loadData()
   }, [])
 
-  // Handle clicking outside dropdown to close it
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element
-      if (isDropdownOpen && !target.closest('.dropdown')) {
-        closeDropdown()
-      }
-    }
-
-    if (isDropdownOpen && typeof window !== 'undefined') {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      if (typeof window !== 'undefined') {
-        document.removeEventListener('mousedown', handleClickOutside)
-      }
-    }
-  }, [isDropdownOpen])
-
   const handleLogout = () => {
-    addDebugLog("Logout solicitado - redirigiendo a home")
-    router.push("/")
+    addDebugLog("Logout solicitado - redirigiendo a logout")
+    router.push("/logout")
   }
 
   const handleNewReport = () => {
@@ -286,95 +365,170 @@ export default function Dashboard() {
 
   return (
     <div className="min-vh-100 bg-light">
-      {/* Enhanced Navigation with User Dropdown */}
-      <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
+      {/* Custom Navigation with User Dropdown */}
+      <nav className="navbar navbar-expand-lg navbar-dark bg-primary" style={{ zIndex: 1030 }}>
         <div className="container">
           <Link className="navbar-brand fw-bold" href="/">
             <span className="material-icons me-2">business</span>
             Omega Dashboard
           </Link>
+          
+          {/* Desktop Navigation - Always Visible */}
+          <div className="d-none d-lg-flex navbar-nav me-auto">
+            <Link className="nav-link" href="/dashboard-test">
+              <span className="material-icons me-1">dashboard</span>
+              Dashboard Test
+            </Link>
+            <Link className="nav-link" href="/reports">
+              <span className="material-icons me-1">assessment</span>
+              Reportes
+            </Link>
+            <Link className="nav-link" href="/plants">
+              <span className="material-icons me-1">factory</span>
+              Plantas
+            </Link>
+            <Link className="nav-link" href="/services">
+              <span className="material-icons me-1">build</span>
+              Servicios
+            </Link>
+            <Link className="nav-link" href="/users-management">
+              <span className="material-icons me-1">people</span>
+              Usuarios
+            </Link>
+          </div>
+
+          {/* Mobile Menu Button */}
           <button
-            className="navbar-toggler"
+            className="navbar-toggler d-lg-none"
             type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#navbarNav"
-            aria-controls="navbarNav"
-            aria-expanded="false"
+            onClick={toggleMobileMenu}
             aria-label="Toggle navigation"
           >
             <span className="navbar-toggler-icon"></span>
           </button>
-          <div className="collapse navbar-collapse" id="navbarNav">
-            <ul className="navbar-nav me-auto">
-              <li className="nav-item">
-                <Link className="nav-link" href="/dashboard-test">
-                  <span className="material-icons me-1">dashboard</span>
-                  Dashboard Test
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link" href="/reports">
-                  <span className="material-icons me-1">assessment</span>
-                  Reportes
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link" href="/plants">
-                  <span className="material-icons me-1">factory</span>
-                  Plantas
-                </Link>
-              </li>
-            </ul>
-            {/* Enhanced User Dropdown */}
-            <ul className="navbar-nav">
-              <li className="nav-item dropdown">
-                <a
-                  className="nav-link dropdown-toggle d-flex align-items-center"
-                  href="#"
-                  role="button"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    toggleDropdown()
-                  }}
-                  aria-expanded={isDropdownOpen}
-                >
-                  <div className="rounded-circle bg-white d-flex align-items-center justify-content-center me-2" 
-                       style={{ width: "35px", height: "35px" }}>
-                    <span className="material-icons text-primary" style={{ fontSize: "20px" }}>
-                      person
-                    </span>
-                  </div>
-                  <span className="d-none d-sm-inline">{mockUser.username}</span>
-                </a>
-                <ul className={`dropdown-menu dropdown-menu-end ${isDropdownOpen ? 'show' : ''}`}>
-                  <li>
-                    <div className="dropdown-item-text px-3 py-2">
-                      <div className="fw-bold">{mockUser.username}</div>
-                      <small className="text-muted">{mockUser.email}</small>
-                      <br />
-                      <small className="text-muted">{mockUser.puesto}</small>
+
+          {/* User Dropdown - Always Visible */}
+          <div className="navbar-nav ms-auto">
+            <div className="nav-item dropdown">
+              <a
+                className="nav-link dropdown-toggle d-flex align-items-center"
+                href="#"
+                role="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  toggleDropdown()
+                }}
+                aria-expanded={isDropdownOpen}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="rounded-circle bg-white d-flex align-items-center justify-content-center me-2" 
+                     style={{ width: "40px", height: "40px", boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                  <span className="material-icons text-primary" style={{ fontSize: "24px" }}>
+                    person
+                  </span>
+                </div>
+                <span className="d-none d-md-inline fw-medium">{mockUser.username}</span>
+                <span className="material-icons ms-1" style={{ fontSize: "18px" }}>
+                  expand_more
+                </span>
+              </a>
+              <ul className={`dropdown-menu dropdown-menu-end ${isDropdownOpen ? 'show' : ''}`} 
+                  style={{ zIndex: 1040, minWidth: '250px', marginTop: '8px' }}>
+                <li>
+                  <div className="dropdown-item-text px-3 py-3">
+                    <div className="d-flex align-items-center">
+                      <div className="rounded-circle bg-primary d-flex align-items-center justify-content-center me-3" 
+                           style={{ width: "50px", height: "50px" }}>
+                        <span className="material-icons text-white" style={{ fontSize: "28px" }}>
+                          person
+                        </span>
+                      </div>
+                      <div>
+                        <div className="fw-bold text-dark">{mockUser.username}</div>
+                        <small className="text-muted d-block">{mockUser.email}</small>
+                        <small className="text-primary fw-medium">{mockUser.puesto}</small>
+                      </div>
                     </div>
-                  </li>
-                  <li><hr className="dropdown-divider" /></li>
-                  <li>
-                    <Link className="dropdown-item" href="/settings" onClick={closeDropdown}>
-                      <span className="material-icons me-2">settings</span>
-                      Configuración
-                    </Link>
-                  </li>
-                  <li><hr className="dropdown-divider" /></li>
-                  <li>
-                    <button className="dropdown-item text-danger" onClick={() => {
-                      closeDropdown()
-                      handleLogout()
-                    }}>
-                      <span className="material-icons me-2">logout</span>
-                      Cerrar Sesión
-                    </button>
-                  </li>
-                </ul>
-              </li>
-            </ul>
+                  </div>
+                </li>
+                <li><hr className="dropdown-divider" /></li>
+                <li>
+                  <Link className="dropdown-item py-2" href="/profile" onClick={closeDropdown}>
+                    <span className="material-icons me-3" style={{ fontSize: "20px" }}>account_circle</span>
+                    <span className="fw-medium">Mi Perfil</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link className="dropdown-item py-2" href="/settings" onClick={closeDropdown}>
+                    <span className="material-icons me-3" style={{ fontSize: "20px" }}>settings</span>
+                    <span className="fw-medium">Configuración</span>
+                  </Link>
+                </li>
+                <li><hr className="dropdown-divider" /></li>
+                <li>
+                  <button className="dropdown-item py-2 text-danger" onClick={() => {
+                    closeDropdown()
+                    handleLogout()
+                  }}>
+                    <span className="material-icons me-3" style={{ fontSize: "20px" }}>logout</span>
+                    <span className="fw-medium">Cerrar Sesión</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Navigation Menu */}
+        <div id="mobileNavbar" className="d-lg-none" style={{ 
+          display: 'none', 
+          backgroundColor: '#f8f9fa', 
+          borderTop: '1px solid #dee2e6',
+          padding: '1rem 0',
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          zIndex: 1020
+        }}>
+          <div className="container">
+            <div className="d-flex flex-column gap-2">
+              <Link className="nav-link text-dark py-2" href="/dashboard-test" onClick={() => {
+                const mobileMenu = document.getElementById('mobileNavbar')
+                if (mobileMenu) mobileMenu.style.display = 'none'
+              }}>
+                <span className="material-icons me-2">dashboard</span>
+                Dashboard Test
+              </Link>
+              <Link className="nav-link text-dark py-2" href="/reports" onClick={() => {
+                const mobileMenu = document.getElementById('mobileNavbar')
+                if (mobileMenu) mobileMenu.style.display = 'none'
+              }}>
+                <span className="material-icons me-2">assessment</span>
+                Reportes
+              </Link>
+              <Link className="nav-link text-dark py-2" href="/plants" onClick={() => {
+                const mobileMenu = document.getElementById('mobileNavbar')
+                if (mobileMenu) mobileMenu.style.display = 'none'
+              }}>
+                <span className="material-icons me-2">factory</span>
+                Plantas
+              </Link>
+              <Link className="nav-link text-dark py-2" href="/services" onClick={() => {
+                const mobileMenu = document.getElementById('mobileNavbar')
+                if (mobileMenu) mobileMenu.style.display = 'none'
+              }}>
+                <span className="material-icons me-2">build</span>
+                Servicios
+              </Link>
+              <Link className="nav-link text-dark py-2" href="/users-management" onClick={() => {
+                const mobileMenu = document.getElementById('mobileNavbar')
+                if (mobileMenu) mobileMenu.style.display = 'none'
+              }}>
+                <span className="material-icons me-2">people</span>
+                Usuarios
+              </Link>
+            </div>
           </div>
         </div>
       </nav>
@@ -384,7 +538,11 @@ export default function Dashboard() {
         {/* Status Banner */}
         <div className="alert alert-info" role="alert">
           <i className="material-icons me-2">info</i>
-          <strong>🔧 Dashboard Mejorado:</strong> Con navbar mejorado y botones funcionales.
+          <strong>🔧 Dashboard Mejorado:</strong> Navbar completamente funcional sin dependencias de Bootstrap JS. 
+          <br />
+          <small className="text-muted">
+            • Navegación visible en desktop • Menú móvil funcional • Dropdown de usuario mejorado • Sin conflictos de JavaScript
+          </small>
         </div>
 
         {/* Welcome Section */}
@@ -771,9 +929,12 @@ export default function Dashboard() {
                       <li>✅ Botones de acción funcionales</li>
                       <li>✅ Datos mock funcionando</li>
                       <li>✅ Navegación funcional</li>
+                      <li>✅ Bootstrap JavaScript cargado</li>
+                      <li>✅ Navbar responsive configurado</li>
                       <li>📊 Plantas: {plants.length}</li>
                       <li>📋 Reportes: {reports.length}</li>
                       <li>🔄 Cargando: {dataLoading ? "Sí" : "No"}</li>
+                      <li>🌐 Bootstrap: {typeof window !== 'undefined' && window.bootstrap ? "Cargado" : "No cargado"}</li>
                     </ul>
                   </div>
                   <div className="col-md-6">
