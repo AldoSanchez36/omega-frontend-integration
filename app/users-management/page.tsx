@@ -4,6 +4,8 @@ import type React from "react"
 import { useEffect, useState, Fragment, useCallback, useMemo } from "react"
 import axios from "axios"
 import { authService } from "@/services/authService"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 
 interface User {
   _id: string
@@ -24,6 +26,19 @@ export default function UsersManagement() {
   const [selectedUsuario, setSelectedUsuario] = useState<string>("")
   const [selectedPlanta, setSelectedPlanta] = useState<string>("")
   const [selectedSistema, setSelectedSistema] = useState<string>("")
+
+  const [showPermissionModal, setShowPermissionModal] = useState(false)
+  const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<User | null>(null)
+
+  // Modal edición usuario
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null)
+  const [editUsername, setEditUsername] = useState("")
+  const [editEmail, setEditEmail] = useState("")
+  const [editPuesto, setEditPuesto] = useState("")
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [editSuccess, setEditSuccess] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -57,7 +72,7 @@ export default function UsersManagement() {
         console.log("Headers:", response.headers)
         
         console.log("📦 Datos recibidos:")
-        console.log(JSON.stringify(response.data, null, 2))
+       /*  console.log(JSON.stringify(response.data, null, 2)) */
         
         // Procesar los datos recibidos
         const usersData = Array.isArray(response.data) ? response.data : (response.data.users || response.data.usuarios || [])
@@ -101,8 +116,7 @@ export default function UsersManagement() {
     const roleMap: { [key: string]: { color: string; text: string } } = {
       admin: { color: "bg-red-600", text: "Administrador" },
       user: { color: "bg-blue-600", text: "Usuario" },
-      client: { color: "bg-gray-600", text: "Cliente" },
-      manager: { color: "bg-yellow-400", text: "Gerente" }
+      client: { color: "bg-gray-600", text: "Cliente" }
     }
     
     const roleInfo = roleMap[role.toLowerCase()] || { color: "bg-teal-500", text: role }
@@ -184,6 +198,108 @@ export default function UsersManagement() {
         )}
       </div>
     )
+  }
+
+  // Modal handler permisos
+  const openPermissionModal = (user: User) => {
+    setSelectedUserForPermissions(user)
+    setShowPermissionModal(true)
+  }
+  const closePermissionModal = () => {
+    setShowPermissionModal(false)
+    setSelectedUserForPermissions(null)
+  }
+
+  // Modal handler edición
+  const openEditModal = (user: User) => {
+    setSelectedUserForEdit(user)
+    setEditUsername(user.username)
+    setEditEmail(user.email)
+    setEditPuesto(user.puesto || "user")
+    setEditError(null)
+    setEditSuccess(null)
+    setShowEditModal(true)
+  }
+  const closeEditModal = () => {
+    setShowEditModal(false)
+    setSelectedUserForEdit(null)
+    setEditError(null)
+    setEditSuccess(null)
+  }
+
+  // PATCH update user
+  const handleEditSave = async () => {
+    if (!selectedUserForEdit) return
+    setEditLoading(true)
+    setEditError(null)
+    setEditSuccess(null)
+    try {
+      const token = authService.getToken()
+      const res = await fetch(`http://localhost:4000/api/auth/update/${selectedUserForEdit.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          username: editUsername,
+          email: editEmail,
+          puesto: editPuesto,
+        }),
+      })
+      // Verifica si la respuesta es JSON
+      const contentType = res.headers.get("content-type")
+      if (!res.ok) {
+        let errorMsg = "No se pudo actualizar el usuario."
+        if (contentType && contentType.includes("application/json")) {
+          const errJson = await res.json()
+          errorMsg = errJson.message || errorMsg
+        } else {
+          errorMsg = "Error de conexión o endpoint no encontrado."
+        }
+        throw new Error(errorMsg)
+      }
+      setEditSuccess("Usuario actualizado correctamente.")
+      setTimeout(() => {
+        closeEditModal()
+        window.location.reload()
+      }, 1000)
+    } catch (e) {
+      if (e instanceof Error) {
+        setEditError(e.message)
+      } else {
+        setEditError("Error inesperado al actualizar el usuario.")
+      }
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
+  // DELETE user
+  const handleDeleteUser = async () => {
+    if (!selectedUserForEdit) return
+    if (!window.confirm("¿Seguro que deseas eliminar este usuario?")) return
+    setEditLoading(true)
+    setEditError(null)
+    setEditSuccess(null)
+    try {
+      const res = await fetch(`http://localhost:4000/api/auth/delete/${selectedUserForEdit.id}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "No se pudo eliminar el usuario.")
+      }
+      setEditSuccess("Usuario eliminado correctamente.")
+      setTimeout(() => {
+        closeEditModal()
+        window.location.reload()
+      }, 1000)
+    } catch (e: any) {
+      setEditError(e.message)
+    } finally {
+      setEditLoading(false)
+    }
   }
 
   if (loading) {
@@ -295,14 +411,13 @@ export default function UsersManagement() {
                   <th className="border border-gray-300 px-4 py-2 text-left">Usuario</th>
                   <th className="border border-gray-300 px-4 py-2 text-left">Correo</th>
                   <th className="border border-gray-300 px-4 py-2 text-left">Rol</th>
-                  <th className="border border-gray-300 px-4 py-2 text-left">Fecha de Creación</th>
                   <th className="border border-gray-300 px-4 py-2 text-left">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {users.length > 0 ? (
                   users.map((user) => (
-                    <tr key={user._id} className="hover:bg-gray-50">
+                    <tr key={user.id} className="hover:bg-gray-50">
                       <td className="border border-gray-300 px-4 py-2">
                         <div className="flex items-center">
                           <div>
@@ -319,19 +434,22 @@ export default function UsersManagement() {
                         {getRoleBadge(user.puesto || user.role || 'user')}
                       </td>
                       <td className="border border-gray-300 px-4 py-2">
-                        <small className="text-gray-500">
-                          {formatDate(user.createdAt || '')}
-                        </small>
-                      </td>
-                      <td className="border border-gray-300 px-4 py-2">
                         <div className="flex space-x-2">
-                          <button className="bg-transparent border border-blue-500 text-blue-500 rounded px-2 py-1 hover:bg-blue-500 hover:text-white transition" title="Editar">
+                          <button
+                            className="flex items-center justify-center w-9 h-9 bg-transparent border border-blue-500 text-blue-500 rounded hover:bg-blue-500 hover:text-white transition"
+                            title="Editar usuario"
+                            onClick={() => openEditModal(user)}
+                          >
                             <span className="material-icons text-base">edit</span>
                           </button>
-                          <button className="bg-transparent border border-green-500 text-green-500 rounded px-2 py-1 hover:bg-green-500 hover:text-white transition" title="Guardar">
-                            <span className="material-icons text-base">save</span>
+                          <button
+                            className="flex items-center justify-center w-9 h-9 bg-transparent border border-gray-500 text-gray-700 rounded hover:bg-gray-700 hover:text-white transition"
+                            title="Gestionar permisos"
+                            onClick={() => openPermissionModal(user)}
+                          >
+                            <span className="material-icons text-base">lock</span>
                           </button>
-                          <button className="bg-transparent border border-red-500 text-red-500 rounded px-2 py-1 hover:bg-red-500 hover:text-white transition" title="Eliminar">
+                          <button className="flex items-center justify-center w-9 h-9 bg-transparent border border-red-500 text-red-500 rounded hover:bg-red-500 hover:text-white transition" title="Eliminar" onClick={() => openEditModal(user)} disabled>
                             <span className="material-icons text-base">delete</span>
                           </button>
                         </div>
@@ -382,6 +500,99 @@ export default function UsersManagement() {
           </div>
         </div>
       </div>
+
+      {/* Modal de edición de usuario */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-gray-500/75 transition-opacity" aria-hidden="true" onClick={closeEditModal}></div>
+          <div className="relative z-10 w-full max-w-lg mx-auto">
+            <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+              <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                  <div className="sm:flex sm:items-start">
+                    <div className="mx-auto flex size-12 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:mx-0 sm:size-10">
+                      <span className="material-icons text-blue-600 text-3xl">edit</span>
+                    </div>
+                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                      <h3 className="text-base font-semibold text-gray-900" id="dialog-title">Editar usuario</h3>
+                      <div className="mt-2 space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                          <Input
+                            value={editUsername}
+                            onChange={e => setEditUsername(e.target.value)}
+                            placeholder="Username"
+                            className="w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                          <Input
+                            type="email"
+                            value={editEmail}
+                            onChange={e => setEditEmail(e.target.value)}
+                            placeholder="Email"
+                            className="w-full"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Puesto</label>
+                          <Select value={editPuesto} onValueChange={setEditPuesto}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Seleccione un puesto" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                              <SelectItem value="admin">Administrador</SelectItem>
+                              <SelectItem value="user">Usuario</SelectItem>
+                              <SelectItem value="client">Cliente</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {editError && <div className="text-red-600 text-sm">{editError}</div>}
+                        {editSuccess && <div className="text-green-600 text-sm">{editSuccess}</div>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 px-4 py-3 flex justify-end gap-2 sm:px-2">
+                  <button type="button" className="inline-flex items-center justify-center w-45 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-blue-500" onClick={handleEditSave} disabled={editLoading}>{editLoading ? "Guardando..." : "Guardar cambios"}</button>
+                  <button type="button" className="inline-flex items-center justify-center w-45 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs ring-1 ring-gray-300 ring-inset hover:bg-gray-50" onClick={closeEditModal} disabled={editLoading}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal de permisos */}
+      {showPermissionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-gray-500/75 transition-opacity" aria-hidden="true" onClick={closePermissionModal}></div>
+          <div className="relative z-10 w-full max-w-lg mx-auto">
+            <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+              <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                  <div className="sm:flex sm:items-start">
+                    <div className="mx-auto flex size-12 shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:size-10">
+                      <span className="material-icons text-red-600 text-3xl">lock</span>
+                    </div>
+                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                      <h3 className="text-base font-semibold text-gray-900" id="dialog-title">Gestionar permisos</h3>
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-500">Aquí puedes gestionar los permisos de planta y sistema para el usuario <span className="font-bold">{selectedUserForPermissions?.username}</span>.</p>
+                        {/* Aquí puedes agregar los controles de permisos reales */}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                  <button type="button" className="inline-flex w-32 items-center justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-red-500 sm:ml-3 sm:w-auto" onClick={closePermissionModal}>Guardar</button>
+                  <button type="button" className="mt-3 inline-flex w-32 items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs ring-1 ring-gray-300 ring-inset hover:bg-gray-50 sm:mt-0 sm:w-auto" onClick={closePermissionModal}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

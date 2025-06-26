@@ -424,22 +424,7 @@ export default function ParameterManager() {
                               ))}
                             </SelectContent>
                           </Select>
-                          <Button type="button" onClick={() => setShowCreatePlant(true)} variant="secondary">
-                            <Plus className="mr-2 h-4 w-4" /> Crear Planta
-                          </Button>
                         </div>
-                        {showCreatePlant && (
-                          <div className="grid w-full grid-cols-[1fr_auto] gap-2 rounded-lg border p-3">
-                            <Input
-                              placeholder="Nombre de la nueva planta"
-                              value={newPlantName}
-                              onChange={(e) => setNewPlantName(e.target.value)}
-                            />
-                            <Button type="button" onClick={handleCreatePlant} disabled={loading || !newPlantName.trim()}>
-                              Guardar
-                            </Button>
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}
@@ -450,9 +435,6 @@ export default function ParameterManager() {
                       <div className="grid grid-cols-[150px_1fr] items-start gap-4">
                         <Label className="pt-2 text-sm font-medium text-gray-700">Sistema</Label>
                         <div className="flex items-center justify-between">
-                          <Button type="button" onClick={() => setShowCreateSystem(true)} variant="secondary">
-                            <Plus className="mr-2 h-4 w-4" /> Crear Sistema
-                          </Button>
                         </div>
                       </div>
                     </div>
@@ -475,24 +457,6 @@ export default function ParameterManager() {
                           </button>
                         ))}
                       </div>
-                    </div>
-                  )}
-
-                  {showCreateSystem && (
-                    <div className="mt-4 grid w-full grid-cols-[1fr_1fr_auto] gap-2 rounded-lg border p-3">
-                      <Input
-                        placeholder="Nombre del sistema"
-                        value={newSystemName}
-                        onChange={(e) => setNewSystemName(e.target.value)}
-                      />
-                      <Input
-                        placeholder="Descripción"
-                        value={newSystemDescription}
-                        onChange={(e) => setNewSystemDescription(e.target.value)}
-                      />
-                      <Button type="button" onClick={handleCreateSystem} disabled={loading || !newSystemName.trim()}>
-                        Guardar
-                      </Button>
                     </div>
                   )}
                 </div>
