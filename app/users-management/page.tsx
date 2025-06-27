@@ -235,7 +235,7 @@ export default function UsersManagement() {
     setEditSuccess(null)
     try {
       const token = authService.getToken()
-      const res = await fetch(`http://localhost:4000/api/auth/update/${selectedUserForEdit.id}`, {
+      const res = await fetch(`http://localhost:4000/api/auth/update/${selectedUserForEdit._id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -283,7 +283,7 @@ export default function UsersManagement() {
     setEditError(null)
     setEditSuccess(null)
     try {
-      const res = await fetch(`http://localhost:4000/api/auth/delete/${selectedUserForEdit.id}`, {
+      const res = await fetch(`http://localhost:4000/api/auth/delete/${selectedUserForEdit._id}`, {
         method: "DELETE",
       })
       if (!res.ok) {
@@ -417,7 +417,7 @@ export default function UsersManagement() {
               <tbody>
                 {users.length > 0 ? (
                   users.map((user) => (
-                    <tr key={user.id} className="hover:bg-gray-50">
+                    <tr key={user._id} className="hover:bg-gray-50">
                       <td className="border border-gray-300 px-4 py-2">
                         <div className="flex items-center">
                           <div>

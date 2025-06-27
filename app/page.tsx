@@ -65,7 +65,7 @@ export default function Home() {
               </p>
               <div className="d-flex gap-3">
                 <Link href="/login" className="btn btn-light btn-lg">
-                  Iniciar secion
+                  Iniciar sesion
                 </Link>
                 <Link href="/register" className="btn btn-outline-light btn-lg">
                   Registrarse
