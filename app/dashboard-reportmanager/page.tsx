@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Navbar } from "@/components/Navbar"
 import { DebugPanel } from "@/components/debug-panel"
 import { useDebugLogger } from "@/hooks/useDebugLogger"
+import { SensorTimeSeriesChart } from "./components/SensorTimeSeriesChart"
 
 // Interfaces
 interface User {
@@ -51,6 +52,10 @@ interface Parameter {
 
 export default function ReportManager() {
   const router = useRouter()
+  // Parámetros de fechas y URL para SensorTimeSeriesChart
+  const startDate = "2025-04-04"
+  const endDate   = "2025-06-04"
+  const apiBase   = "http://localhost:4000"
   const { debugInfo, addDebugLog } = useDebugLogger()
   const token = typeof window !== "undefined" ? localStorage.getItem("omega_token") : null
 
@@ -64,6 +69,12 @@ export default function ReportManager() {
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null)
   const [selectedSystem, setSelectedSystem] = useState<string>("")
   const [parameterValues, setParameterValues] = useState<Record<string, { checked: boolean; value: number }>>({})
+  // Determinar el parámetro seleccionado para el gráfico
+  const selectedParameter = parameters.find(param => parameterValues[param.id]?.checked);
+  const variablefiltro = selectedParameter?.nombre || "";
+  const labelLeftText = selectedParameter
+    ? `${selectedParameter.nombre} (${selectedParameter.unidad})`
+    : "";
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -439,7 +450,20 @@ export default function ReportManager() {
           </Card>
         )}
 
-        <DebugPanel
+        {/* Gráfico de series de tiempo de sensores */}
+        <div className="mb-6">
+          {selectedParameter && (
+            <SensorTimeSeriesChart
+              variable={variablefiltro}
+              startDate={startDate}
+              endDate={endDate}
+              apiBase={apiBase}
+              unidades={selectedParameter.unidad}
+            />
+          )}
+        </div>
+
+        {/* <DebugPanel
           debugInfo={debugInfo}
           currentState={{
             plantsCount: plants.length,
@@ -447,7 +471,7 @@ export default function ReportManager() {
             dataLoading: loading,
             userRole: selectedUser?.role || "guest",
           }}
-        />
+        /> */}
       </div>
     </div>
   )
