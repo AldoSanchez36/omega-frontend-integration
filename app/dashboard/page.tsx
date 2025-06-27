@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import Navbar from "@/components/Navbar"
 
 // Add type declaration for window.bootstrap
 declare global {
@@ -67,16 +68,8 @@ export default function Dashboard() {
   const [reports, setReports] = useState<Report[]>([])
   const [dataLoading, setDataLoading] = useState(false)
   const [debugInfo, setDebugInfo] = useState<string[]>([])
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-
-  // Usuario mock fijo
-  const mockUser = {
-    id: "dashboard-user-id",
-    username: "Usuario Dashboard",
-    email: "dashboard@example.com",
-    puesto: "admin" as const,
-    created_at: new Date().toISOString(),
-  }
+  const [user, setUser] = useState<any>(null)
+  const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
 
   // Función para agregar logs de debug
   const addDebugLog = (message: string) => {
@@ -84,14 +77,21 @@ export default function Dashboard() {
     setDebugInfo((prev) => [...prev.slice(-4), `${new Date().toLocaleTimeString()}: ${message}`])
   }
 
-  const toggleDropdown = () => {
-    setIsDropdownOpen(!isDropdownOpen)
-    addDebugLog(`Dropdown ${!isDropdownOpen ? 'abierto' : 'cerrado'}`)
-  }
-
-  const closeDropdown = () => {
-    setIsDropdownOpen(false)
-  }
+  // Load user from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('omega_user')
+      if (storedUser) {
+        const userData = JSON.parse(storedUser)
+        setUser(userData)
+        setUserRole(userData.puesto || "user")
+        addDebugLog(`Usuario cargado: ${userData.username}`)
+      } else {
+        addDebugLog("No se encontró usuario en localStorage")
+        router.push("/login")
+      }
+    }
+  }, [router])
 
   // Mobile menu toggle function
   const toggleMobileMenu = () => {
@@ -121,8 +121,7 @@ export default function Dashboard() {
       }
       
       // Close user dropdown
-      if (isDropdownOpen && userDropdown && !userDropdown.contains(target)) {
-        closeDropdown()
+      if (userDropdown && !userDropdown.contains(target)) {
         addDebugLog("Dropdown de usuario cerrado por clic externo")
       }
     }
@@ -136,7 +135,7 @@ export default function Dashboard() {
         document.removeEventListener('mousedown', handleClickOutside)
       }
     }
-  }, [isDropdownOpen])
+  }, [])
 
   // Load Bootstrap JavaScript for navbar functionality
   useEffect(() => {
@@ -186,6 +185,8 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
+    if (!user) return // Don't load data if user is not loaded
+    
     addDebugLog("Dashboard montado - iniciando carga de datos")
 
     const loadData = async () => {
@@ -200,7 +201,7 @@ export default function Dashboard() {
           { 
             id: "1", 
             nombre: "Planta Norte", 
-            creado_por: mockUser.id, 
+            creado_por: user.id, 
             created_at: new Date().toISOString(),
             location: "Ciudad Norte",
             description: "Planta de producción principal",
@@ -223,7 +224,7 @@ export default function Dashboard() {
           { 
             id: "2", 
             nombre: "Planta Sur", 
-            creado_por: mockUser.id, 
+            creado_por: user.id, 
             created_at: new Date().toISOString(),
             location: "Ciudad Sur",
             description: "Planta de respaldo",
@@ -245,7 +246,7 @@ export default function Dashboard() {
           { 
             id: "3", 
             nombre: "Planta Central", 
-            creado_por: mockUser.id, 
+            creado_por: user.id, 
             created_at: new Date().toISOString(),
             location: "Ciudad Central",
             description: "Planta experimental",
@@ -257,7 +258,7 @@ export default function Dashboard() {
         const mockReports: Report[] = [
           {
             id: "1",
-            usuario_id: mockUser.id,
+            usuario_id: user.id,
             planta_id: "1",
             proceso_id: "proc-1",
             datos: { temperatura: 25, presion: 1.2 },
@@ -270,7 +271,7 @@ export default function Dashboard() {
           },
           {
             id: "2",
-            usuario_id: mockUser.id,
+            usuario_id: user.id,
             planta_id: "2",
             proceso_id: "proc-2",
             datos: { temperatura: 30, presion: 1.5 },
@@ -295,12 +296,7 @@ export default function Dashboard() {
     }
 
     loadData()
-  }, [])
-
-  const handleLogout = () => {
-    addDebugLog("Logout solicitado - redirigiendo a logout")
-    router.push("/logout")
-  }
+  }, [user])
 
   const handleNewReport = () => {
     addDebugLog("Nuevo Reporte clickeado - redirigiendo a report manager")
@@ -363,175 +359,24 @@ export default function Dashboard() {
     return data
   }
 
+  // Don't render if user is not loaded
+  if (!user) {
+    return (
+      <div className="min-vh-100 bg-light d-flex align-items-center justify-content-center">
+        <div className="text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Cargando...</span>
+          </div>
+          <p className="mt-3">Cargando dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-vh-100 bg-light">
-      {/* Custom Navigation with User Dropdown */}
-      <nav className="navbar navbar-expand-lg navbar-dark bg-primary" style={{ zIndex: 1030 }}>
-        <div className="container">
-          <Link className="navbar-brand fw-bold" href="/">
-            <span className="material-icons me-2">business</span>
-            Omega Dashboard
-          </Link>
-          
-          {/* Desktop Navigation - Always Visible */}
-          <div className="d-none d-lg-flex navbar-nav me-auto">
-            <Link className="nav-link" href="/dashboard-test">
-              <span className="material-icons me-1">dashboard</span>
-              Dashboard Test
-            </Link>
-            <Link className="nav-link" href="/reports">
-              <span className="material-icons me-1">assessment</span>
-              Reportes
-            </Link>
-            <Link className="nav-link" href="/plants">
-              <span className="material-icons me-1">factory</span>
-              Plantas
-            </Link>
-            <Link className="nav-link" href="/services">
-              <span className="material-icons me-1">build</span>
-              Servicios
-            </Link>
-            <Link className="nav-link" href="/users-management">
-              <span className="material-icons me-1">people</span>
-              Usuarios
-            </Link>
-          </div>
-
-          {/* Mobile Menu Button */}
-          <button
-            className="navbar-toggler d-lg-none"
-            type="button"
-            onClick={toggleMobileMenu}
-            aria-label="Toggle navigation"
-          >
-            <span className="navbar-toggler-icon"></span>
-          </button>
-
-          {/* User Dropdown - Always Visible */}
-          <div className="navbar-nav ms-auto">
-            <div className="nav-item dropdown">
-              <a
-                className="nav-link dropdown-toggle d-flex align-items-center"
-                href="#"
-                role="button"
-                onClick={(e) => {
-                  e.preventDefault()
-                  toggleDropdown()
-                }}
-                aria-expanded={isDropdownOpen}
-                style={{ cursor: 'pointer' }}
-              >
-                <div className="rounded-circle bg-white d-flex align-items-center justify-content-center me-2" 
-                     style={{ width: "40px", height: "40px", boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                  <span className="material-icons text-primary" style={{ fontSize: "24px" }}>
-                    person
-                  </span>
-                </div>
-                <span className="d-none d-md-inline fw-medium">{mockUser.username}</span>
-                <span className="material-icons ms-1" style={{ fontSize: "18px" }}>
-                  expand_more
-                </span>
-              </a>
-              <ul className={`dropdown-menu dropdown-menu-end ${isDropdownOpen ? 'show' : ''}`} 
-                  style={{ zIndex: 1040, minWidth: '250px', marginTop: '8px' }}>
-                <li>
-                  <div className="dropdown-item-text px-3 py-3">
-                    <div className="d-flex align-items-center">
-                      <div className="rounded-circle bg-primary d-flex align-items-center justify-content-center me-3" 
-                           style={{ width: "50px", height: "50px" }}>
-                        <span className="material-icons text-white" style={{ fontSize: "28px" }}>
-                          person
-                        </span>
-                      </div>
-                      <div>
-                        <div className="fw-bold text-dark">{mockUser.username}</div>
-                        <small className="text-muted d-block">{mockUser.email}</small>
-                        <small className="text-primary fw-medium">{mockUser.puesto}</small>
-                      </div>
-                    </div>
-                  </div>
-                </li>
-                <li><hr className="dropdown-divider" /></li>
-                <li>
-                  <Link className="dropdown-item py-2" href="/profile" onClick={closeDropdown}>
-                    <span className="material-icons me-3" style={{ fontSize: "20px" }}>account_circle</span>
-                    <span className="fw-medium">Mi Perfil</span>
-                  </Link>
-                </li>
-                <li>
-                  <Link className="dropdown-item py-2" href="/settings" onClick={closeDropdown}>
-                    <span className="material-icons me-3" style={{ fontSize: "20px" }}>settings</span>
-                    <span className="fw-medium">Configuración</span>
-                  </Link>
-                </li>
-                <li><hr className="dropdown-divider" /></li>
-                <li>
-                  <button className="dropdown-item py-2 text-danger" onClick={() => {
-                    closeDropdown()
-                    handleLogout()
-                  }}>
-                    <span className="material-icons me-3" style={{ fontSize: "20px" }}>logout</span>
-                    <span className="fw-medium">Cerrar Sesión</span>
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile Navigation Menu */}
-        <div id="mobileNavbar" className="d-lg-none" style={{ 
-          display: 'none', 
-          backgroundColor: '#f8f9fa', 
-          borderTop: '1px solid #dee2e6',
-          padding: '1rem 0',
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          right: 0,
-          zIndex: 1020
-        }}>
-          <div className="container">
-            <div className="d-flex flex-column gap-2">
-              <Link className="nav-link text-dark py-2" href="/dashboard-test" onClick={() => {
-                const mobileMenu = document.getElementById('mobileNavbar')
-                if (mobileMenu) mobileMenu.style.display = 'none'
-              }}>
-                <span className="material-icons me-2">dashboard</span>
-                Dashboard Test
-              </Link>
-              <Link className="nav-link text-dark py-2" href="/reports" onClick={() => {
-                const mobileMenu = document.getElementById('mobileNavbar')
-                if (mobileMenu) mobileMenu.style.display = 'none'
-              }}>
-                <span className="material-icons me-2">assessment</span>
-                Reportes
-              </Link>
-              <Link className="nav-link text-dark py-2" href="/plants" onClick={() => {
-                const mobileMenu = document.getElementById('mobileNavbar')
-                if (mobileMenu) mobileMenu.style.display = 'none'
-              }}>
-                <span className="material-icons me-2">factory</span>
-                Plantas
-              </Link>
-              <Link className="nav-link text-dark py-2" href="/services" onClick={() => {
-                const mobileMenu = document.getElementById('mobileNavbar')
-                if (mobileMenu) mobileMenu.style.display = 'none'
-              }}>
-                <span className="material-icons me-2">build</span>
-                Servicios
-              </Link>
-              <Link className="nav-link text-dark py-2" href="/users-management" onClick={() => {
-                const mobileMenu = document.getElementById('mobileNavbar')
-                if (mobileMenu) mobileMenu.style.display = 'none'
-              }}>
-                <span className="material-icons me-2">people</span>
-                Usuarios
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      {/* Use the Navbar component */}
+      <Navbar role={userRole} />
 
       {/* Main Content */}
       <div className="container py-4">
@@ -548,8 +393,8 @@ export default function Dashboard() {
         {/* Welcome Section */}
         <div className="row mb-4">
           <div className="col-12">
-            <h1 className="h3 mb-0">Bienvenido, {mockUser.username}</h1>
-            <p className="text-muted">Panel de control - {mockUser.puesto}</p>
+            <h1 className="h3 mb-0">Bienvenido, {user.username}</h1>
+            <p className="text-muted">Panel de control - {user.puesto}</p>
             <p className="text-info">
               <strong>URL actual:</strong> /dashboard
             </p>

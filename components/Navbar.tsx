@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useState, useEffect } from "react"
 import Link from "next/link"
 import { useUser } from "@/context/UserContext"
 
@@ -34,6 +34,48 @@ const PUBLIC_LINKS = [
 
 export const Navbar: React.FC<NavbarProps> = ({ role }) => {
   const { isAuthenticated, user } = useUser();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Determine if user is authenticated based on localStorage as fallback
+  const checkAuth = () => {
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('omega_user')
+      return !!storedUser
+    }
+    return isAuthenticated
+  }
+
+  const isUserAuthenticated = checkAuth()
+
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(!mobileMenuOpen)
+  }
+
+  // Close mobile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element
+      const mobileMenu = document.getElementById('navbarMobileMenu')
+      const mobileButton = document.querySelector('.navbar-toggler')
+      
+      if (mobileMenu && mobileButton && 
+          !mobileMenu.contains(target) && 
+          !mobileButton.contains(target) &&
+          mobileMenuOpen) {
+        setMobileMenuOpen(false)
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }
+  }, [mobileMenuOpen])
 
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -42,48 +84,100 @@ export const Navbar: React.FC<NavbarProps> = ({ role }) => {
           <span className="material-icons me-2">business</span>
           Omega
         </Link>
+        
+        {/* Desktop Navigation - Always Visible */}
+        <div className="d-none d-lg-flex navbar-nav me-auto">
+          {isUserAuthenticated ? (
+            NAV_LINKS.filter(link => link.roles.includes(role)).map(link => (
+              <Link className="nav-link" href={link.path} key={link.path}>
+                <span className="material-icons me-1">{link.icon}</span>
+                {link.label}
+              </Link>
+            ))
+          ) : (
+            PUBLIC_LINKS.map(link => (
+              <Link className="nav-link" href={link.path} key={link.path}>
+                <span className="material-icons me-1">{link.icon}</span>
+                {link.label}
+              </Link>
+            ))
+          )}
+        </div>
+
+        {/* Mobile Menu Button */}
         <button
-          className="navbar-toggler"
+          className="navbar-toggler d-lg-none"
           type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#navbarNav"
+          onClick={toggleMobileMenu}
+          aria-label="Toggle navigation"
         >
           <span className="navbar-toggler-icon"></span>
         </button>
-        <div className="collapse navbar-collapse" id="navbarNav">
-          <ul className="navbar-nav me-auto">
-            {isAuthenticated ? (
-              NAV_LINKS.filter(link => link.roles.includes(role)).map(link => (
-                <li className="nav-item" key={link.path}>
-                  <Link className="nav-link" href={link.path}>
-                    <span className="material-icons me-1">{link.icon}</span>
+
+        {/* Desktop Logout - Always Visible */}
+        {isUserAuthenticated && (
+          <div className="d-none d-lg-flex navbar-nav">
+            <Link className="nav-link" href="/logout">
+              <span className="material-icons me-1">logout</span>
+              Cerrar Sesión
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {/* Mobile Navigation Menu */}
+      {mobileMenuOpen && (
+        <div id="navbarMobileMenu" className="d-lg-none" style={{ 
+          backgroundColor: '#f8f9fa', 
+          borderTop: '1px solid #dee2e6',
+          padding: '1rem 0',
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          zIndex: 1020
+        }}>
+          <div className="container">
+            <div className="d-flex flex-column gap-2">
+              {isUserAuthenticated ? (
+                NAV_LINKS.filter(link => link.roles.includes(role)).map(link => (
+                  <Link 
+                    className="nav-link text-dark py-2" 
+                    href={link.path} 
+                    key={link.path}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <span className="material-icons me-2">{link.icon}</span>
                     {link.label}
                   </Link>
-                </li>
-              ))
-            ) : (
-              PUBLIC_LINKS.map(link => (
-                <li className="nav-item" key={link.path}>
-                  <Link className="nav-link" href={link.path}>
-                    <span className="material-icons me-1">{link.icon}</span>
+                ))
+              ) : (
+                PUBLIC_LINKS.map(link => (
+                  <Link 
+                    className="nav-link text-dark py-2" 
+                    href={link.path} 
+                    key={link.path}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <span className="material-icons me-2">{link.icon}</span>
                     {link.label}
                   </Link>
-                </li>
-              ))
-            )}
-          </ul>
-          {isAuthenticated && (
-            <ul className="navbar-nav">
-              <li className="nav-item">
-                <Link className="nav-link" href="/logout">
-                  <span className="material-icons me-1">logout</span>
+                ))
+              )}
+              {isUserAuthenticated && (
+                <Link 
+                  className="nav-link text-dark py-2" 
+                  href="/logout"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span className="material-icons me-2">logout</span>
                   Cerrar Sesión
                 </Link>
-              </li>
-            </ul>
-          )}
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </nav>
   )
 }
