@@ -12,6 +12,7 @@ import { Navbar } from "@/components/Navbar"
 import { DebugPanel } from "@/components/debug-panel"
 import { useDebugLogger } from "@/hooks/useDebugLogger"
 import { SensorTimeSeriesChart } from "./components/SensorTimeSeriesChart"
+import ProtectedRoute from "@/components/ProtectedRoute"
 
 // Interfaces
 interface User {
@@ -316,163 +317,165 @@ export default function ReportManager() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Gestor de Reportes</h1>
-          <p className="text-gray-600">Selecciona parámetros y genera reportes personalizados</p>
-        </div>
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">Gestor de Reportes</h1>
+            <p className="text-gray-600">Selecciona parámetros y genera reportes personalizados</p>
+          </div>
 
-        {/* User and Plant Selectors */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Selección de Usuario y Planta</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Usuario</label>
-                <Select value={selectedUser?.id} onValueChange={handleSelectUser}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Seleccionar usuario" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#f6f6f6] text-gray-900">
-                    {users.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.username}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Planta</label>
-                <Select value={selectedPlant?.id} onValueChange={handleSelectPlant} disabled={!selectedUser}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Seleccionar planta" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#f6f6f6] text-gray-900">
-                    {plants.map((plant) => (
-                      <SelectItem key={plant.id} value={plant.id}>
-                        {plant.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* System Tabs */}
-        {selectedPlantData && systems.length > 0 && (
+          {/* User and Plant Selectors */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Sistemas de {selectedPlantData.nombre}</CardTitle>
+              <CardTitle>Selección de Usuario y Planta</CardTitle>
             </CardHeader>
             <CardContent>
-              <Tabs value={selectedSystem} onValueChange={setSelectedSystem}>
-                <TabsList className="grid w-full grid-cols-1 md:grid-cols-3">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Usuario</label>
+                  <Select value={selectedUser?.id} onValueChange={handleSelectUser}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Seleccionar usuario" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                      {users.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.username}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Planta</label>
+                  <Select value={selectedPlant?.id} onValueChange={handleSelectPlant} disabled={!selectedUser}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Seleccionar planta" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                      {plants.map((plant) => (
+                        <SelectItem key={plant.id} value={plant.id}>
+                          {plant.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* System Tabs */}
+          {selectedPlantData && systems.length > 0 && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Sistemas de {selectedPlantData.nombre}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Tabs value={selectedSystem} onValueChange={setSelectedSystem}>
+                  <TabsList className="grid w-full grid-cols-1 md:grid-cols-3">
+                    {systems.map((system) => (
+                      <TabsTrigger key={system.id} value={system.id}>
+                        {system.nombre}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+
                   {systems.map((system) => (
-                    <TabsTrigger key={system.id} value={system.id}>
-                      {system.nombre}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-
-                {systems.map((system) => (
-                  <TabsContent key={system.id} value={system.id}>
-                    <div className="mt-4">
-                      <h3 className="text-lg font-semibold mb-2">{system.nombre}</h3>
-                      <p className="text-gray-600 mb-4">{system.descripcion}</p>
-                    </div>
-                  </TabsContent>
-                ))}
-              </Tabs>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Parameters List */}
-        {selectedSystemData && parameters.length > 0 && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Parámetros del Sistema</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {parameters.map((parameter) => (
-                  <div key={parameter.id} className="flex items-center space-x-4 p-4 border rounded-lg">
-                    <Checkbox
-                      checked={parameterValues[parameter.id]?.checked || false}
-                      onCheckedChange={(checked) => handleParameterChange(parameter.id, "checked", checked as boolean)}
-                    />
-
-                    <div className="flex-1">
-                      <div className="font-medium">{parameter.nombre}</div>
-                      <div className="text-sm text-gray-500">
-                        Unidad: {parameter.unidad}
+                    <TabsContent key={system.id} value={system.id}>
+                      <div className="mt-4">
+                        <h3 className="text-lg font-semibold mb-2">{system.nombre}</h3>
+                        <p className="text-gray-600 mb-4">{system.descripcion}</p>
                       </div>
-                    </div>
-
-                    <div className="w-32">
-                      <Input
-                        type="number"
-                        placeholder="0"
-                        value={parameterValues[parameter.id]?.value || ""}
-                        onChange={(e) =>
-                          handleParameterChange(parameter.id, "value", Number.parseFloat(e.target.value) || 0)
-                        }
-                        disabled={!parameterValues[parameter.id]?.checked}
-                      />
-                    </div>
-
-                    <div className="text-sm text-gray-500 w-16">{parameter.unidad}</div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Action Buttons */}
-        {selectedSystemData && parameters.length > 0 && (
-          <Card className="mb-6">
-            <CardContent className="pt-6">
-              <div className="flex space-x-4">
-                <Button onClick={handleSaveData} variant="outline">
-                  💾 Guardar Datos
-                </Button>
-                <Button onClick={handleGenerateReport}>📊 Generar Reporte</Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Gráfico de series de tiempo de sensores */}
-        <div className="mb-6">
-          {selectedParameter && (
-            <SensorTimeSeriesChart
-              variable={variablefiltro}
-              startDate={startDate}
-              endDate={endDate}
-              apiBase={apiBase}
-              unidades={selectedParameter.unidad}
-            />
+                    </TabsContent>
+                  ))}
+                </Tabs>
+              </CardContent>
+            </Card>
           )}
-        </div>
 
-        {/* <DebugPanel
-          debugInfo={debugInfo}
-          currentState={{
-            plantsCount: plants.length,
-            reportsCount: 0,
-            dataLoading: loading,
-            userRole: selectedUser?.role || "guest",
-          }}
-        /> */}
+          {/* Parameters List */}
+          {selectedSystemData && parameters.length > 0 && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Parámetros del Sistema</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {parameters.map((parameter) => (
+                    <div key={parameter.id} className="flex items-center space-x-4 p-4 border rounded-lg">
+                      <Checkbox
+                        checked={parameterValues[parameter.id]?.checked || false}
+                        onCheckedChange={(checked) => handleParameterChange(parameter.id, "checked", checked as boolean)}
+                      />
+
+                      <div className="flex-1">
+                        <div className="font-medium">{parameter.nombre}</div>
+                        <div className="text-sm text-gray-500">
+                          Unidad: {parameter.unidad}
+                        </div>
+                      </div>
+
+                      <div className="w-32">
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          value={parameterValues[parameter.id]?.value || ""}
+                          onChange={(e) =>
+                            handleParameterChange(parameter.id, "value", Number.parseFloat(e.target.value) || 0)
+                          }
+                          disabled={!parameterValues[parameter.id]?.checked}
+                        />
+                      </div>
+
+                      <div className="text-sm text-gray-500 w-16">{parameter.unidad}</div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Action Buttons */}
+          {selectedSystemData && parameters.length > 0 && (
+            <Card className="mb-6">
+              <CardContent className="pt-6">
+                <div className="flex space-x-4">
+                  <Button onClick={handleSaveData} variant="outline">
+                    💾 Guardar Datos
+                  </Button>
+                  <Button onClick={handleGenerateReport}>📊 Generar Reporte</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Gráfico de series de tiempo de sensores */}
+          <div className="mb-6">
+            {selectedParameter && (
+              <SensorTimeSeriesChart
+                variable={variablefiltro}
+                startDate={startDate}
+                endDate={endDate}
+                apiBase={apiBase}
+                unidades={selectedParameter.unidad}
+              />
+            )}
+          </div>
+
+          {/* <DebugPanel
+            debugInfo={debugInfo}
+            currentState={{
+              plantsCount: plants.length,
+              reportsCount: 0,
+              dataLoading: loading,
+              userRole: selectedUser?.role || "guest",
+            }}
+          /> */}
+        </div>
       </div>
-    </div>
+    </ProtectedRoute>
   )
 }

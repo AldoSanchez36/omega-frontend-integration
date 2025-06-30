@@ -1,5 +1,6 @@
 "use client"
 
+import ProtectedRoute from "@/components/ProtectedRoute"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -275,7 +276,8 @@ export default function Reporte() {
   }
 
   return (
-    <div className="min-vh-100 bg-light">
+    <ProtectedRoute>
+      <div className="min-vh-100 bg-light">
       {/* Navigation */}
       <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
         <div className="container">
@@ -600,6 +602,7 @@ export default function Reporte() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </ProtectedRoute>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { useUser } from "@/context/UserContext"
 
@@ -10,20 +10,19 @@ interface NavbarProps {
 
 const NAV_LINKS = [
   // Solo para admin
-  { path: "/users-management", label: "Gestión de usuarios", icon: "people", roles: ["admin"] },
-  { path: "/agregar-formula", label: "Agregar fórmula", icon: "science", roles: ["admin"] },
-  { path: "/dashboard-parameters", label: "Administrador de parámetros", icon: "tune", roles: ["admin"] },
-  { path: "/dashboard-manager", label: "Dashboard del administrador", icon: "admin_panel_settings", roles: ["admin"] },
+  /* { path: "/users-management",      label: "Gestión de usuarios", icon: "people", roles: ["admin"] }, */
+  { path: "/agregar-formula",       label: "Agregar fórmula", icon: "science", roles: ["admin"] },
+  { path: "/dashboard-parameters",  label: "Administrador de parámetros", icon: "tune", roles: ["admin"] },
   // Para admin y user
-  { path: "/layouts", label: "Administrador de clientes", icon: "view_quilt", roles: ["admin", "user"] },
+  { path: "/users-management",      label: "Gestión de usuarios", icon: "people", roles: ["admin", "user"] },
   // Para admin, user y client
   { path: "/reports", label: "Reportes", icon: "assessment", roles: ["admin", "user", "client"] },
-  { path: "/home", label: "Página principal", icon: "home", roles: ["admin", "client"] },
+
   // Para cualquier usuario autenticado
-  { path: "/profile", label: "Perfil de usuario", icon: "account_circle", roles: ["admin", "user", "client"] },
-  { path: "/contact", label: "Contacto", icon: "mail", roles: ["admin", "user", "client"] },
-  { path: "/about", label: "Acerca de", icon: "info", roles: ["admin", "user", "client"] },
-  { path: "/services", label: "Servicios", icon: "build", roles: ["admin", "user", "client"] },
+  { path: "/profile",   label: "Perfil de usuario", icon: "account_circle", roles: ["admin", "user", "client"] },
+  /* { path: "/contact",   label: "Contacto", icon: "mail", roles: ["admin", "user", "client"] },
+  { path: "/about",     label: "Acerca de", icon: "info", roles: ["admin", "user", "client"] },
+  { path: "/services",  label: "Servicios", icon: "build", roles: ["admin", "user", "client"] }, */
 ]
 
 const PUBLIC_LINKS = [
@@ -34,150 +33,85 @@ const PUBLIC_LINKS = [
 
 export const Navbar: React.FC<NavbarProps> = ({ role }) => {
   const { isAuthenticated, user } = useUser();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Determine if user is authenticated based on localStorage as fallback
-  const checkAuth = () => {
-    if (typeof window !== 'undefined') {
-      const storedUser = localStorage.getItem('omega_user')
-      return !!storedUser
-    }
-    return isAuthenticated
-  }
-
-  const isUserAuthenticated = checkAuth()
-
-  const toggleMobileMenu = () => {
-    setMobileMenuOpen(!mobileMenuOpen)
-  }
-
-  // Close mobile menu when clicking outside
+  // Cierra el dropdown al hacer click fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element
-      const mobileMenu = document.getElementById('navbarMobileMenu')
-      const mobileButton = document.querySelector('.navbar-toggler')
-      
-      if (mobileMenu && mobileButton && 
-          !mobileMenu.contains(target) && 
-          !mobileButton.contains(target) &&
-          mobileMenuOpen) {
-        setMobileMenuOpen(false)
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
       }
+    };
+    if (dropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
     }
-
-    if (typeof window !== 'undefined') {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
     return () => {
-      if (typeof window !== 'undefined') {
-        document.removeEventListener('mousedown', handleClickOutside)
-      }
-    }
-  }, [mobileMenuOpen])
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [dropdownOpen]);
+
+  // Obtén la ruta actual para evitar mostrar links activos
+  let currentPath = "";
+  if (typeof window !== "undefined") {
+    currentPath = window.location.pathname;
+  }
+
+  // Filtra los links según el rol y autenticación
+  const filteredLinks = isAuthenticated
+    ? NAV_LINKS.filter(link => link.roles.includes(role))
+    : PUBLIC_LINKS;
+
+  // No muestres el link activo (por ejemplo, no muestres /login si ya estás en /login)
+  const visibleLinks = filteredLinks.filter(link => link.path !== currentPath);
 
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
-      <div className="container">
+      <div className="container d-flex justify-content-between align-items-center">
         <Link className="navbar-brand fw-bold" href="/">
           <span className="material-icons me-2">business</span>
           Omega
         </Link>
-        
-        {/* Desktop Navigation - Always Visible */}
-        <div className="d-none d-lg-flex navbar-nav me-auto">
-          {isUserAuthenticated ? (
-            NAV_LINKS.filter(link => link.roles.includes(role)).map(link => (
-              <Link className="nav-link" href={link.path} key={link.path}>
-                <span className="material-icons me-1">{link.icon}</span>
-                {link.label}
-              </Link>
-            ))
-          ) : (
-            PUBLIC_LINKS.map(link => (
-              <Link className="nav-link" href={link.path} key={link.path}>
-                <span className="material-icons me-1">{link.icon}</span>
-                {link.label}
-              </Link>
-            ))
-          )}
-        </div>
-
-        {/* Mobile Menu Button */}
-        <button
-          className="navbar-toggler d-lg-none"
-          type="button"
-          onClick={toggleMobileMenu}
-          aria-label="Toggle navigation"
-        >
-          <span className="navbar-toggler-icon"></span>
-        </button>
-
-        {/* Desktop Logout - Always Visible */}
-        {isUserAuthenticated && (
-          <div className="d-none d-lg-flex navbar-nav">
-            <Link className="nav-link" href="/logout">
-              <span className="material-icons me-1">logout</span>
-              Cerrar Sesión
-            </Link>
-          </div>
-        )}
-      </div>
-
-      {/* Mobile Navigation Menu */}
-      {mobileMenuOpen && (
-        <div id="navbarMobileMenu" className="d-lg-none" style={{ 
-          backgroundColor: '#f8f9fa', 
-          borderTop: '1px solid #dee2e6',
-          padding: '1rem 0',
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          right: 0,
-          zIndex: 1020
-        }}>
-          <div className="container">
-            <div className="d-flex flex-column gap-2">
-              {isUserAuthenticated ? (
-                NAV_LINKS.filter(link => link.roles.includes(role)).map(link => (
-                  <Link 
-                    className="nav-link text-dark py-2" 
-                    href={link.path} 
-                    key={link.path}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    <span className="material-icons me-2">{link.icon}</span>
-                    {link.label}
-                  </Link>
-                ))
-              ) : (
-                PUBLIC_LINKS.map(link => (
-                  <Link 
-                    className="nav-link text-dark py-2" 
-                    href={link.path} 
-                    key={link.path}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    <span className="material-icons me-2">{link.icon}</span>
-                    {link.label}
-                  </Link>
-                ))
+        <div className="position-relative" ref={dropdownRef}>
+          <button
+            className="btn btn-light"
+            type="button"
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            aria-expanded={dropdownOpen}
+            style={{ minWidth: 120 }}
+          >
+            Opciones <span className="material-icons align-middle ms-1">expand_more</span>
+          </button>
+          {dropdownOpen && (
+            <div
+              className="dropdown-menu show position-absolute mt-2 end-0 shadow"
+              style={{ minWidth: 240, left: 'auto', right: 0 }}
+            >
+              {isAuthenticated && (
+                <div className="dropdown-item-text text-muted small mb-2">
+                  Signed in as<br />
+                  <strong>{user?.email}</strong>
+                </div>
               )}
-              {isUserAuthenticated && (
-                <Link 
-                  className="nav-link text-dark py-2" 
-                  href="/logout"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <span className="material-icons me-2">logout</span>
-                  Cerrar Sesión
+              <div className="dropdown-divider"></div>
+              {visibleLinks.map(link => (
+                <Link className="dropdown-item" href={link.path} key={link.path}>
+                  <span className="material-icons me-2 align-middle">{link.icon}</span>
+                  {link.label}
+                </Link>
+              ))}
+              <div className="dropdown-divider"></div>
+              {/* El link de logout siempre debe estar disponible si está autenticado */}
+              {isAuthenticated && currentPath !== "/logout" && (
+                <Link className="dropdown-item" href="/logout">
+                  <span className="material-icons me-2 align-middle">logout</span>
+                  Cerrar sesión
                 </Link>
               )}
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </nav>
   )
 }

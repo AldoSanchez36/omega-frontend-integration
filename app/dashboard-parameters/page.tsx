@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Trash2, Plus, Edit } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { v4 as uuidv4 } from "uuid"
+import ProtectedRoute from "@/components/ProtectedRoute"
 
 interface Parameter {
   id: string;
@@ -371,242 +372,244 @@ export default function ParameterManager() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-        <div className="bg-white p-8 rounded-lg shadow-sm">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">Gestor de Parámetros</h1>
-            <p className="mt-2 text-sm text-gray-600">Gestione usuarios, plantas, sistemas y parámetros de forma jerárquica.</p>
-          </div>
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+          <div className="bg-white p-8 rounded-lg shadow-sm">
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-gray-900">Gestor de Parámetros</h1>
+              <p className="mt-2 text-sm text-gray-600">Gestione usuarios, plantas, sistemas y parámetros de forma jerárquica.</p>
+            </div>
 
-          <form onSubmit={handleSaveParameters}>
-            <div className="space-y-8">
-              {/* --- Selección Jerárquica --- */}
-              <div>
-                <h2 className="text-lg font-medium leading-6 text-gray-900">Selección Jerárquica</h2>
-                <p className="mt-1 text-sm text-gray-500">Seleccione Cliente, Planta y Sistema para gestionar parámetros.</p>
-                <div className="mt-6 flex flex-col space-y-6">
-                  {/* Cliente (Usuario) */}
-                  <div className="grid grid-cols-[150px_1fr] items-start gap-4">
-                    <Label className="pt-2 text-sm font-medium text-gray-700">Cliente (Usuario)</Label>
-                    <div className="flex flex-col">
-                      <Select value={selectedUser?.id} onValueChange={handleSelectUser}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Seleccione un usuario" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#f6f6f6] text-gray-900">
-                          {users.map((user) => (
-                            <SelectItem key={user.id} value={user.id}>
-                              {user.username}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="mt-2 text-sm text-gray-500">Seleccione el usuario para ver las plantas asociadas.</p>
-                    </div>
-                  </div>
-
-                  {/* Planta */}
-                  {selectedUser && (
+            <form onSubmit={handleSaveParameters}>
+              <div className="space-y-8">
+                {/* --- Selección Jerárquica --- */}
+                <div>
+                  <h2 className="text-lg font-medium leading-6 text-gray-900">Selección Jerárquica</h2>
+                  <p className="mt-1 text-sm text-gray-500">Seleccione Cliente, Planta y Sistema para gestionar parámetros.</p>
+                  <div className="mt-6 flex flex-col space-y-6">
+                    {/* Cliente (Usuario) */}
                     <div className="grid grid-cols-[150px_1fr] items-start gap-4">
-                      <Label className="pt-2 text-sm font-medium text-gray-700">Planta</Label>
-                      <div className="flex flex-col gap-3">
-                        <div className="flex items-center gap-2">
-                          <Select value={selectedPlant?.id} onValueChange={handleSelectPlant} disabled={plants.length === 0}>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Seleccione una planta" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-[#f6f6f6] text-gray-900">
-                              {plants.map((plant) => (
-                                <SelectItem key={plant.id} value={plant.id}>
-                                  {plant.nombre}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                      <Label className="pt-2 text-sm font-medium text-gray-700">Cliente (Usuario)</Label>
+                      <div className="flex flex-col">
+                        <Select value={selectedUser?.id} onValueChange={handleSelectUser}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Seleccione un usuario" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                            {users.map((user) => (
+                              <SelectItem key={user.id} value={user.id}>
+                                {user.username}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="mt-2 text-sm text-gray-500">Seleccione el usuario para ver las plantas asociadas.</p>
                       </div>
                     </div>
-                  )}
 
-                  {/* Sistema */}
-                  {selectedPlant && (
-                    <div>
+                    {/* Planta */}
+                    {selectedUser && (
                       <div className="grid grid-cols-[150px_1fr] items-start gap-4">
-                        <Label className="pt-2 text-sm font-medium text-gray-700">Sistema</Label>
-                        <div className="flex items-center justify-between">
+                        <Label className="pt-2 text-sm font-medium text-gray-700">Planta</Label>
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-center gap-2">
+                            <Select value={selectedPlant?.id} onValueChange={handleSelectPlant} disabled={plants.length === 0}>
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Seleccione una planta" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                                {plants.map((plant) => (
+                                  <SelectItem key={plant.id} value={plant.id}>
+                                    {plant.nombre}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {selectedPlant && systems.length > 0 && (
-                    <div className="mt-4">
-                      <div className="flex border rounded overflow-hidden">
-                        {systems.map((system) => (
-                          <button
-                            key={system.id}
-                            onClick={() => setSelectedSystemId(system.id)}
-                            className={`px-4 py-2 text-sm font-medium ${
-                              selectedSystemId === system.id
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                            }`}
-                          >
-                            {system.nombre}
-                          </button>
-                        ))}
+                    {/* Sistema */}
+                    {selectedPlant && (
+                      <div>
+                        <div className="grid grid-cols-[150px_1fr] items-start gap-4">
+                          <Label className="pt-2 text-sm font-medium text-gray-700">Sistema</Label>
+                          <div className="flex items-center justify-between">
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+                    )}
 
-              {/* --- Parámetros del Sistema --- */}
-              {selectedSystemId && (
-                <div className="border-t border-gray-200 pt-6">
-                  <h2 className="text-lg font-medium leading-6 text-gray-900">Parámetros del Sistema</h2>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Parámetros para el sistema seleccionado:{" "}
-                    <span className="font-semibold">{systems.find((s) => s.id === selectedSystemId)?.nombre || "N/A"}</span>
-                  </p>
-                  <div className="mt-6">
-                    {parameters.length > 0 ? (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Unidad</TableHead>
-                            <TableHead className="text-right">Acciones</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {parameters.map((param) => (
-                            <TableRow key={param.id}>
-                              <TableCell className="font-medium">{param.nombre}</TableCell>
-                              <TableCell>{param.unidad}</TableCell>
-                              <TableCell className="text-right flex gap-2 justify-end">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleOpenEditModal(param)}
-                                  className="h-8 w-8 text-blue-500 hover:text-blue-700"
-                                  aria-label={`Editar ${param.nombre}`}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDeleteParameter(param.id)}
-                                  className="h-8 w-8 text-red-500 hover:text-red-700"
-                                  aria-label={`Eliminar ${param.nombre}`}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
+                    {selectedPlant && systems.length > 0 && (
+                      <div className="mt-4">
+                        <div className="flex border rounded overflow-hidden">
+                          {systems.map((system) => (
+                            <button
+                              key={system.id}
+                              onClick={() => setSelectedSystemId(system.id)}
+                              className={`px-4 py-2 text-sm font-medium ${
+                                selectedSystemId === system.id
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                              }`}
+                            >
+                              {system.nombre}
+                            </button>
                           ))}
-                        </TableBody>
-                      </Table>
-                    ) : (
-                      <div className="text-center py-8 text-sm text-gray-500">
-                        <p>No hay parámetros para este sistema. ¡Agrega uno!</p>
+                        </div>
                       </div>
                     )}
                   </div>
                 </div>
-              )}
-              
-              {/* --- Add New Parameter Form --- */}
-              {selectedSystemId && (
-                <div className="border-t border-gray-200 pt-6">
-                  <h2 className="text-lg font-medium leading-6 text-gray-900">Agregar Nuevo Parámetro</h2>
-                  <p className="mt-1 text-sm text-gray-500">Añada un nuevo parámetro al sistema seleccionado.</p>
-                  <div className="mt-6 grid md:grid-cols-2 gap-6">
-                    <div className="grid gap-2">
-                      <Label htmlFor="new-param-name">Nombre del Parámetro</Label>
-                      <Input
-                        id="new-param-name"
-                        placeholder="Ej. Temperatura"
-                        value={newParameterName}
-                        onChange={(e) => setNewParameterName(e.target.value)}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="new-param-unit">Unidad de Medida</Label>
-                      <Input
-                        id="new-param-unit"
-                        placeholder="Ej. °C"
-                        value={newParameterUnit}
-                        onChange={(e) => setNewParameterUnit(e.target.value)}
-                      />
+
+                {/* --- Parámetros del Sistema --- */}
+                {selectedSystemId && (
+                  <div className="border-t border-gray-200 pt-6">
+                    <h2 className="text-lg font-medium leading-6 text-gray-900">Parámetros del Sistema</h2>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Parámetros para el sistema seleccionado:{" "}
+                      <span className="font-semibold">{systems.find((s) => s.id === selectedSystemId)?.nombre || "N/A"}</span>
+                    </p>
+                    <div className="mt-6">
+                      {parameters.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Nombre</TableHead>
+                              <TableHead>Unidad</TableHead>
+                              <TableHead className="text-right">Acciones</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {parameters.map((param) => (
+                              <TableRow key={param.id}>
+                                <TableCell className="font-medium">{param.nombre}</TableCell>
+                                <TableCell>{param.unidad}</TableCell>
+                                <TableCell className="text-right flex gap-2 justify-end">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleOpenEditModal(param)}
+                                    className="h-8 w-8 text-blue-500 hover:text-blue-700"
+                                    aria-label={`Editar ${param.nombre}`}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteParameter(param.id)}
+                                    className="h-8 w-8 text-red-500 hover:text-red-700"
+                                    aria-label={`Eliminar ${param.nombre}`}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <div className="text-center py-8 text-sm text-gray-500">
+                          <p>No hay parámetros para este sistema. ¡Agrega uno!</p>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <Button type="button" onClick={handleAddParameter} className="mt-4" disabled={!selectedSystemId || loading}>
-                    <Plus className="mr-2 h-4 w-4" /> Agregar Parámetro a la lista
-                  </Button>
-                  <p className="mt-2 text-sm text-gray-500">
-                    ⚠️ Recuerde hacer clic en <strong>"Guardar Cambios"</strong> al final del formulario para guardar los parámetros en la base de datos.
-                  </p>
+                )}
+                
+                {/* --- Add New Parameter Form --- */}
+                {selectedSystemId && (
+                  <div className="border-t border-gray-200 pt-6">
+                    <h2 className="text-lg font-medium leading-6 text-gray-900">Agregar Nuevo Parámetro</h2>
+                    <p className="mt-1 text-sm text-gray-500">Añada un nuevo parámetro al sistema seleccionado.</p>
+                    <div className="mt-6 grid md:grid-cols-2 gap-6">
+                      <div className="grid gap-2">
+                        <Label htmlFor="new-param-name">Nombre del Parámetro</Label>
+                        <Input
+                          id="new-param-name"
+                          placeholder="Ej. Temperatura"
+                          value={newParameterName}
+                          onChange={(e) => setNewParameterName(e.target.value)}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="new-param-unit">Unidad de Medida</Label>
+                        <Input
+                          id="new-param-unit"
+                          placeholder="Ej. °C"
+                          value={newParameterUnit}
+                          onChange={(e) => setNewParameterUnit(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <Button type="button" onClick={handleAddParameter} className="mt-4" disabled={!selectedSystemId || loading}>
+                      <Plus className="mr-2 h-4 w-4" /> Agregar Parámetro a la lista
+                    </Button>
+                    <p className="mt-2 text-sm text-gray-500">
+                      ⚠️ Recuerde hacer clic en <strong>"Guardar Cambios"</strong> al final del formulario para guardar los parámetros en la base de datos.
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              {/* --- Action Buttons --- */}
+              {selectedSystemId && (
+                <div className="mt-8 pt-5 border-t border-gray-200">
+                  <div className="flex justify-end space-x-3">
+                    <Button type="button" variant="outline" onClick={() => router.back()}>
+                      Cancelar
+                    </Button>
+                    <Button type="submit" disabled={loading || parameters.filter((p) => p.isNew).length === 0}>
+                      {loading ? "Guardando..." : "Guardar Cambios"}
+                    </Button>
+                  </div>
                 </div>
               )}
-            </div>
-            
-            {/* --- Action Buttons --- */}
-            {selectedSystemId && (
-              <div className="mt-8 pt-5 border-t border-gray-200">
-                <div className="flex justify-end space-x-3">
-                  <Button type="button" variant="outline" onClick={() => router.back()}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit" disabled={loading || parameters.filter((p) => p.isNew).length === 0}>
-                    {loading ? "Guardando..." : "Guardar Cambios"}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </form>
+            </form>
+          </div>
         </div>
-      </div>
-      {/* Edit Parameter Modal */}
-      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="sm:max-w-lg sm:w-full p-0 overflow-hidden rounded-lg shadow-xl bg-white">
-          <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Editar Parámetro</h3>
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-name">Nombre</Label>
-                  <Input
-                    id="edit-name"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-unit">Unidad</Label>
-                  <Input
-                    id="edit-unit"
-                    value={editUnit}
-                    onChange={(e) => setEditUnit(e.target.value)}
-                  />
+        {/* Edit Parameter Modal */}
+        <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+          <DialogContent className="sm:max-w-lg sm:w-full p-0 overflow-hidden rounded-lg shadow-xl bg-white">
+            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Editar Parámetro</h3>
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit-name">Nombre</Label>
+                    <Input
+                      id="edit-name"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit-unit">Unidad</Label>
+                    <Input
+                      id="edit-unit"
+                      value={editUnit}
+                      onChange={(e) => setEditUnit(e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          <div className="bg-gray-50 px-4 py-3 flex justify-end gap-3 sm:px-6">
-            <Button variant="outline" onClick={() => setShowEditModal(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveEdit} className="bg-blue-600 hover:bg-blue-500 text-white">
-              Guardar
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+            <div className="bg-gray-50 px-4 py-3 flex justify-end gap-3 sm:px-6">
+              <Button variant="outline" onClick={() => setShowEditModal(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveEdit} className="bg-blue-600 hover:bg-blue-500 text-white">
+                Guardar
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </ProtectedRoute>
   )
 }

@@ -3,19 +3,19 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { authService } from "@/services/authService"
+import { useUser } from "@/context/UserContext"
 
 export default function LogoutPage() {
   const [isLoggingOut, setIsLoggingOut] = useState(true)
   const [message, setMessage] = useState("Cerrando sesión...")
   const router = useRouter()
+  const { logout } = useUser()
 
   useEffect(() => {
     const performLogout = async () => {
       try {
         setMessage("Limpiando datos de sesión...")
-        
-        // Limpiar token del authService
-        authService.logout()
+        await logout()
         
         // Limpiar localStorage
         localStorage.clear()
@@ -36,7 +36,7 @@ export default function LogoutPage() {
         setTimeout(() => {
           setMessage("Redirigiendo al inicio...")
           // Redirigir a la página principal
-          router.push("/")
+          router.push("/login")
         }, 1500)
         
       } catch (error) {
@@ -45,47 +45,21 @@ export default function LogoutPage() {
         
         // Aún así, intentar limpiar y redirigir
         setTimeout(() => {
-          router.push("/")
+          router.push("/login")
         }, 2000)
       }
     }
 
     performLogout()
-  }, [router])
+  }, [router, logout])
 
   return (
     <div className="min-vh-100 bg-light d-flex align-items-center justify-content-center">
       <div className="text-center">
-        <div className="card shadow-sm" style={{ maxWidth: "400px" }}>
-          <div className="card-body p-5">
-            {isLoggingOut ? (
-              <>
-                <div className="spinner-border text-primary mb-3" role="status">
-                  <span className="visually-hidden">Cerrando sesión...</span>
-                </div>
-                <h5 className="text-primary mb-3">Cerrando Sesión</h5>
-                <p className="text-muted mb-0">{message}</p>
-              </>
-            ) : (
-              <>
-                <div className="text-success mb-3">
-                  <span className="material-icons" style={{ fontSize: "3rem" }}>
-                    check_circle
-                  </span>
-                </div>
-                <h5 className="text-success mb-3">¡Hasta Luego!</h5>
-                <p className="text-muted mb-0">Tu sesión ha sido cerrada correctamente</p>
-              </>
-            )}
-          </div>
+        <div className="spinner-border text-primary mb-3" role="status">
+          <span className="visually-hidden">Cerrando sesión...</span>
         </div>
-        
-        <div className="mt-4">
-          <small className="text-muted">
-            Si no eres redirigido automáticamente,{" "}
-            <a href="/" className="text-decoration-none">haz clic aquí</a>
-          </small>
-        </div>
+        <h5 className="text-primary mb-3">Cerrando Sesión</h5>
       </div>
     </div>
   )

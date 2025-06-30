@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import ProtectedRoute from "@/components/ProtectedRoute"
 
 interface User {
   id: string
@@ -91,53 +92,55 @@ export default function AgregarPlanta() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold mb-6 text-center">Agregar Nueva Planta</h1>
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4 text-sm">{error}</div>
-        )}
-        {success && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded mb-4 text-sm">{success}</div>
-        )}
-        <form onSubmit={handleCreatePlant}>
-          <div className="mb-4">
-            <Label className="mb-1 block">Cliente *</Label>
-            <Select value={selectedUserId} onValueChange={setSelectedUserId} disabled={loading || users.length === 0}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Seleccione un cliente" />
-              </SelectTrigger>
-              <SelectContent className="bg-[#f6f6f6] text-gray-900">
-                {users.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.username} ({user.email})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="mb-4">
-            <Label className="mb-1 block">Nombre de la Planta *</Label>
-            <Input
-              value={plantName}
-              onChange={e => setPlantName(e.target.value)}
-              placeholder="Ej: Planta Norte"
-              required
-            />
-          </div>
-          {/*<div className="mb-6">
-            <Label className="mb-1 block">Ubicación</Label>
-            <Input
-              value={plantLocation}
-              onChange={e => setPlantLocation(e.target.value)}
-              placeholder="Ej: Ciudad, País"
-            />
-          </div>*/}
-          <Button type="submit" className="w-full" disabled={!selectedUserId || !plantName.trim() || saving}>
-            {saving ? "Guardando..." : "Crear Planta"}
-          </Button>
-        </form>
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+          <h1 className="text-2xl font-bold mb-6 text-center">Agregar Nueva Planta</h1>
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4 text-sm">{error}</div>
+          )}
+          {success && (
+            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded mb-4 text-sm">{success}</div>
+          )}
+          <form onSubmit={handleCreatePlant}>
+            <div className="mb-4">
+              <Label className="mb-1 block">Cliente *</Label>
+              <Select value={selectedUserId} onValueChange={setSelectedUserId} disabled={loading || users.length === 0}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Seleccione un cliente" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.username} ({user.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="mb-4">
+              <Label className="mb-1 block">Nombre de la Planta *</Label>
+              <Input
+                value={plantName}
+                onChange={e => setPlantName(e.target.value)}
+                placeholder="Ej: Planta Norte"
+                required
+              />
+            </div>
+            {/*<div className="mb-6">
+              <Label className="mb-1 block">Ubicación</Label>
+              <Input
+                value={plantLocation}
+                onChange={e => setPlantLocation(e.target.value)}
+                placeholder="Ej: Ciudad, País"
+              />
+            </div>*/}
+            <Button type="submit" className="w-full" disabled={!selectedUserId || !plantName.trim() || saving}>
+              {saving ? "Guardando..." : "Crear Planta"}
+            </Button>
+          </form>
+        </div>
       </div>
-    </div>
+    </ProtectedRoute>
   )
 }
