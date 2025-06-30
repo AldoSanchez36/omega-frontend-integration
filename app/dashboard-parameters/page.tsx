@@ -13,6 +13,7 @@ import { Trash2, Plus, Edit } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { v4 as uuidv4 } from "uuid"
 import ProtectedRoute from "@/components/ProtectedRoute"
+import Navbar from "@/components/Navbar"
 
 interface Parameter {
   id: string;
@@ -374,6 +375,7 @@ export default function ParameterManager() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
+        <Navbar role="admin" />
         <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
           <div className="bg-white p-8 rounded-lg shadow-sm">
             <div className="mb-8">

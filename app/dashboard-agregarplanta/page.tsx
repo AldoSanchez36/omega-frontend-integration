@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import ProtectedRoute from "@/components/ProtectedRoute"
+import Navbar from "@/components/Navbar"
 
 interface User {
   id: string
@@ -93,7 +94,9 @@ export default function AgregarPlanta() {
 
   return (
     <ProtectedRoute>
+      <Navbar role="admin" />
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+       
         <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
           <h1 className="text-2xl font-bold mb-6 text-center">Agregar Nueva Planta</h1>
           {error && (

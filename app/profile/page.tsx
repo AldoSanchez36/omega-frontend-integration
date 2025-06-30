@@ -6,6 +6,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useUser } from "@/context/UserContext"
+import Navbar from "@/components/Navbar"
 
 export default function Profile() {
   const { user, updateUser, logout, isAuthenticated, isLoading } = useUser()
@@ -43,8 +44,15 @@ export default function Profile() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // Aquí puedes agregar la lógica para actualizar el perfil
-    updateUser(formData)
+    // Corrige el tipo de puesto para updateUser
+    const validPuesto = ["admin", "user", "client"].includes(formData.puesto)
+      ? (formData.puesto as "admin" | "user" | "client")
+      : "user"
+    updateUser({
+      username: formData.username,
+      email: formData.email,
+      puesto: validPuesto,
+    })
     setEditing(false)
     alert("Perfil actualizado correctamente")
   }
@@ -68,49 +76,7 @@ export default function Profile() {
 
   return (
     <div className="min-vh-100 bg-light">
-      {/* Navigation */}
-      <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div className="container">
-          <Link className="navbar-brand fw-bold" href="/">
-            Omega
-          </Link>
-          <div className="navbar-nav ms-auto">
-            <Link className="nav-link" href="/dashboard">
-              Dashboard
-            </Link>
-            <Link className="nav-link" href="/reports">
-              Reportes
-            </Link>
-            <div className="nav-item dropdown">
-              <a
-                className="nav-link dropdown-toggle active"
-                href="#"
-                role="button"
-                data-bs-toggle="dropdown"
-                aria-expanded="false"
-              >
-                {user.username}
-              </a>
-              <ul className="dropdown-menu">
-                <li>
-                  <Link className="dropdown-item active" href="/profile">
-                    Perfil
-                  </Link>
-                </li>
-                <li>
-                  <hr className="dropdown-divider" />
-                </li>
-                <li>
-                  <button className="dropdown-item" onClick={handleLogout}>
-                    Cerrar Sesión
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </nav>
-
+      <Navbar role={user?.puesto || 'client'} />
       {/* Main Content */}
       <div className="container py-4">
         <div className="row">

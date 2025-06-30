@@ -10,7 +10,6 @@ interface NavbarProps {
 
 const NAV_LINKS = [
   // Solo para admin
-  /* { path: "/users-management",      label: "Gestión de usuarios", icon: "people", roles: ["admin"] }, */
   { path: "/agregar-formula",       label: "Agregar fórmula", icon: "science", roles: ["admin"] },
   { path: "/dashboard-parameters",  label: "Administrador de parámetros", icon: "tune", roles: ["admin"] },
   // Para admin y user
@@ -19,6 +18,7 @@ const NAV_LINKS = [
   { path: "/reports", label: "Reportes", icon: "assessment", roles: ["admin", "user", "client"] },
 
   // Para cualquier usuario autenticado
+  { path: "/dashboard",             label: "Dashboard", icon: "home", roles: ["admin", "user", "client"] },
   { path: "/profile",   label: "Perfil de usuario", icon: "account_circle", roles: ["admin", "user", "client"] },
   /* { path: "/contact",   label: "Contacto", icon: "mail", roles: ["admin", "user", "client"] },
   { path: "/about",     label: "Acerca de", icon: "info", roles: ["admin", "user", "client"] },

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import ProtectedRoute from "@/components/ProtectedRoute"
+import Navbar from "@/components/Navbar"
 
 interface User {
   id: string
@@ -142,6 +143,7 @@ export default function Settings() {
   return (
     <ProtectedRoute>
       <div className="min-vh-100 bg-light">
+        <Navbar role="admin" />
         {/* Navigation */}
         <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
           <div className="container">

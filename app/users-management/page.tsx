@@ -7,6 +7,7 @@ import { authService } from "@/services/authService"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import ProtectedRoute from "@/components/ProtectedRoute"
+import Navbar from "@/components/Navbar"
 
 interface User {
   _id: string
@@ -317,6 +318,7 @@ export default function UsersManagement() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50 p-6">
+        <Navbar role="admin" />
         {/* Header */}
         <div className="bg-blue-600 text-white py-6 rounded-lg shadow mb-6">
           <div className="container mx-auto flex flex-col md:flex-row items-center justify-between">

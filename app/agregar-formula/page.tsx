@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import ProtectedRoute from "@/components/ProtectedRoute"
+import Navbar from "@/components/Navbar"
 
 interface Variable {
   nombre: string
@@ -85,26 +86,7 @@ export default function AgregarFormula() {
   return (
     <ProtectedRoute>
       <div className="min-vh-100 bg-light">
-        {/* Navigation */}
-        <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
-          <div className="container">
-            <Link className="navbar-brand fw-bold" href="/">
-              Omega
-            </Link>
-            <div className="navbar-nav ms-auto">
-              <Link className="nav-link" href="/dashboard">
-                Dashboard
-              </Link>
-              <Link className="nav-link" href="/dashboard-manager">
-                Dashboard Manager
-              </Link>
-              <Link className="nav-link active" href="/agregar-formula">
-                Agregar Fórmula
-              </Link>
-            </div>
-          </div>
-        </nav>
-
+        <Navbar role="admin" />
         {/* Main Content */}
         <div className="container py-4">
           <div className="row justify-content-center">

@@ -7,6 +7,7 @@ import Link from "next/link"
 import Image from "next/image"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
+import Navbar from "@/components/Navbar"
 
 interface SystemData {
   [systemName: string]: Array<{
@@ -278,330 +279,313 @@ export default function Reporte() {
   return (
     <ProtectedRoute>
       <div className="min-vh-100 bg-light">
-      {/* Navigation */}
-      <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div className="container">
-          <Link className="navbar-brand fw-bold" href="/">
-            Omega
-          </Link>
-          <div className="navbar-nav ms-auto">
-            <Link className="nav-link" href="/dashboard">
-              Dashboard
-            </Link>
-            <Link className="nav-link active" href="/reports">
-              Reportes
-            </Link>
-            <Link className="nav-link" href="/dashboard-manager">
-              Dashboard Manager
-            </Link>
+        {/* Navigation */}
+        <Navbar role="admin" />
+
+        {/* Header */}
+        <div className="container-fluid bg-primary text-white py-3">
+          <div className="container">
+            <h1 className="h4 mb-0">Vista Previa del Reporte</h1>
+            <p className="mb-0">
+              <strong>Fecha:</strong> {currentDate}
+            </p>
           </div>
         </div>
-      </nav>
 
-      {/* Header */}
-      <div className="container-fluid bg-primary text-white py-3">
-        <div className="container">
-          <h1 className="h4 mb-0">Vista Previa del Reporte</h1>
-          <p className="mb-0">
-            <strong>Fecha:</strong> {currentDate}
-          </p>
-        </div>
-      </div>
-
-      {/* Header Image */}
-      <div id="header-img" className="text-center">
-        {imagesLoaded ? (
-          <Image
-            src="/images/header.jpeg"
-            alt="Header del reporte"
-            width={800}
-            height={150}
-            className="w-100"
-            style={{ height: "auto", maxHeight: "200px", objectFit: "cover" }}
-            priority
-          />
-        ) : (
-          <div className="bg-secondary text-white py-4" style={{ minHeight: "150px" }}>
-            <div className="d-flex flex-column justify-content-center h-100">
-              <h5>HEADER IMAGE</h5>
-              <small>Coloca header.jpeg en /public/images/reports/</small>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Report Content */}
-      <div id="report-container" className="container py-4">
-        <div className="card shadow">
-          <div className="card-body">
-            {/* Report Header */}
-            <div className="mb-4">
-              <div className="text-end mb-3">
-                <strong>Ubicación y fecha: </strong>
-                <span
-                  contentEditable={isEditing}
-                  suppressContentEditableWarning={true}
-                  onBlur={(e) => handleNoteChange("ubicacion", e.currentTarget.innerText)}
-                  className="border-bottom"
-                  style={{ minWidth: "200px", display: "inline-block" }}
-                >
-                  {reportNotes["ubicacion"] || "San Luis Potosí, S.L.P. a 28 de Mayo 2024"}
-                </span>
+        {/* Header Image */}
+        <div id="header-img" className="text-center">
+          {imagesLoaded ? (
+            <Image
+              src="/images/header.jpeg"
+              alt="Header del reporte"
+              width={800}
+              height={150}
+              className="w-100"
+              style={{ height: "auto", maxHeight: "200px", objectFit: "cover" }}
+              priority
+            />
+          ) : (
+            <div className="bg-secondary text-white py-4" style={{ minHeight: "150px" }}>
+              <div className="d-flex flex-column justify-content-center h-100">
+                <h5>HEADER IMAGE</h5>
+                <small>Coloca header.jpeg en /public/images/reports/</small>
               </div>
+            </div>
+          )}
+        </div>
 
-              <h3 className="text-center mb-4">
-                <strong>SERVICIO CRYOINFRA</strong>
-              </h3>
+        {/* Report Content */}
+        <div id="report-container" className="container py-4">
+          <div className="card shadow">
+            <div className="card-body">
+              {/* Report Header */}
+              <div className="mb-4">
+                <div className="text-end mb-3">
+                  <strong>Ubicación y fecha: </strong>
+                  <span
+                    contentEditable={isEditing}
+                    suppressContentEditableWarning={true}
+                    onBlur={(e) => handleNoteChange("ubicacion", e.currentTarget.innerText)}
+                    className="border-bottom"
+                    style={{ minWidth: "200px", display: "inline-block" }}
+                  >
+                    {reportNotes["ubicacion"] || "San Luis Potosí, S.L.P. a 28 de Mayo 2024"}
+                  </span>
+                </div>
 
-              <div className="row">
-                <div className="col-12">
-                  <p>
-                    <strong>Dirigido a: </strong>
-                    <span
-                      contentEditable={isEditing}
-                      suppressContentEditableWarning={true}
-                      onBlur={(e) => handleNoteChange("dirigido", e.currentTarget.innerText)}
-                      className="border-bottom"
-                      style={{ minWidth: "300px", display: "inline-block" }}
-                    >
-                      {reportNotes["dirigido"] || "ING. ABDIEL ZENTELLA"}
-                    </span>
-                  </p>
+                <h3 className="text-center mb-4">
+                  <strong>SERVICIO CRYOINFRA</strong>
+                </h3>
 
-                  <p>
-                    <strong>Asunto: </strong>
-                    <span
-                      contentEditable={isEditing}
-                      suppressContentEditableWarning={true}
-                      onBlur={(e) => handleNoteChange("asunto", e.currentTarget.innerText)}
-                      className="border-bottom"
-                      style={{ minWidth: "400px", display: "inline-block" }}
-                    >
-                      {reportNotes["asunto"] ||
-                        "REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE HIDROGENO SLP"}
-                    </span>
-                  </p>
+                <div className="row">
+                  <div className="col-12">
+                    <p>
+                      <strong>Dirigido a: </strong>
+                      <span
+                        contentEditable={isEditing}
+                        suppressContentEditableWarning={true}
+                        onBlur={(e) => handleNoteChange("dirigido", e.currentTarget.innerText)}
+                        className="border-bottom"
+                        style={{ minWidth: "300px", display: "inline-block" }}
+                      >
+                        {reportNotes["dirigido"] || "ING. ABDIEL ZENTELLA"}
+                      </span>
+                    </p>
 
-                  <p>
-                    <strong>Sistema Evaluado: </strong>
-                    <span
-                      contentEditable={isEditing}
-                      suppressContentEditableWarning={true}
-                      onBlur={(e) => handleNoteChange("sistema", e.currentTarget.innerText)}
-                      className="border-bottom"
-                      style={{ minWidth: "300px", display: "inline-block" }}
-                    >
-                      {reportNotes["sistema"] || "Todos los sistemas"}
-                    </span>
-                  </p>
+                    <p>
+                      <strong>Asunto: </strong>
+                      <span
+                        contentEditable={isEditing}
+                        suppressContentEditableWarning={true}
+                        onBlur={(e) => handleNoteChange("asunto", e.currentTarget.innerText)}
+                        className="border-bottom"
+                        style={{ minWidth: "400px", display: "inline-block" }}
+                      >
+                        {reportNotes["asunto"] ||
+                          "REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE HIDROGENO SLP"}
+                      </span>
+                    </p>
 
-                  <p>
-                    <strong>Fecha de muestra: </strong>
-                    <span
-                      contentEditable={isEditing}
-                      suppressContentEditableWarning={true}
-                      onBlur={(e) => handleNoteChange("fecha_muestra", e.currentTarget.innerText)}
-                      className="border-bottom"
-                      style={{ minWidth: "200px", display: "inline-block" }}
-                    >
-                      {reportNotes["fecha_muestra"] || currentDate}
-                    </span>
-                  </p>
+                    <p>
+                      <strong>Sistema Evaluado: </strong>
+                      <span
+                        contentEditable={isEditing}
+                        suppressContentEditableWarning={true}
+                        onBlur={(e) => handleNoteChange("sistema", e.currentTarget.innerText)}
+                        className="border-bottom"
+                        style={{ minWidth: "300px", display: "inline-block" }}
+                      >
+                        {reportNotes["sistema"] || "Todos los sistemas"}
+                      </span>
+                    </p>
+
+                    <p>
+                      <strong>Fecha de muestra: </strong>
+                      <span
+                        contentEditable={isEditing}
+                        suppressContentEditableWarning={true}
+                        onBlur={(e) => handleNoteChange("fecha_muestra", e.currentTarget.innerText)}
+                        className="border-bottom"
+                        style={{ minWidth: "200px", display: "inline-block" }}
+                      >
+                        {reportNotes["fecha_muestra"] || currentDate}
+                      </span>
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Legend Table */}
-            <div className="mb-4">
-              <h5>
-                <strong>Leyenda de colores</strong>
-              </h5>
-              <div className="table-responsive">
-                <table className="table table-bordered">
-                  <thead>
-                    <tr>
-                      <th>Estado</th>
-                      <th>Descripción</th>
-                      <th>Rango</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style={{ backgroundColor: "#FFC6CE" }}>
-                        <strong>Fuera</strong>
-                      </td>
-                      <td>FUERA DE RANGO</td>
-                      <td>{rangeLimits["pH"]?.fuera || "> 8"}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ backgroundColor: "#FFEB9C" }}>
-                        <strong>Límite</strong>
-                      </td>
-                      <td>CERCA DE LÍMITE RECOMENDADO</td>
-                      <td>{rangeLimits["pH"]?.limite || "7.5 - 8"}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ backgroundColor: "#C5EECE" }}>
-                        <strong>Bien</strong>
-                      </td>
-                      <td>DENTRO DE RANGO</td>
-                      <td>{rangeLimits["pH"]?.bien || "7"}</td>
-                    </tr>
-                  </tbody>
-                </table>
+              {/* Legend Table */}
+              <div className="mb-4">
+                <h5>
+                  <strong>Leyenda de colores</strong>
+                </h5>
+                <div className="table-responsive">
+                  <table className="table table-bordered">
+                    <thead>
+                      <tr>
+                        <th>Estado</th>
+                        <th>Descripción</th>
+                        <th>Rango</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style={{ backgroundColor: "#FFC6CE" }}>
+                          <strong>Fuera</strong>
+                        </td>
+                        <td>FUERA DE RANGO</td>
+                        <td>{rangeLimits["pH"]?.fuera || "> 8"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ backgroundColor: "#FFEB9C" }}>
+                          <strong>Límite</strong>
+                        </td>
+                        <td>CERCA DE LÍMITE RECOMENDADO</td>
+                        <td>{rangeLimits["pH"]?.limite || "7.5 - 8"}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ backgroundColor: "#C5EECE" }}>
+                          <strong>Bien</strong>
+                        </td>
+                        <td>DENTRO DE RANGO</td>
+                        <td>{rangeLimits["pH"]?.bien || "7"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
 
-            {/* Comparative Analysis Table */}
-            <div className="mb-4">
-              <h5>Análisis Comparativo por Parámetro</h5>
-              <div className="table-responsive">
-                <table className="table table-bordered">
-                  <thead className="table-dark">
-                    <tr>
-                      <th>Parámetro</th>
-                      <th>AGUA CEA</th>
-                      <th>AGUA DE REPUESTO</th>
-                      <th>TORRE DE ENFRIAMIENTO</th>
-                      <th>DRY COOLER</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      const allParams = new Set<string>()
-                      Object.values(savedSystemData).forEach((system) => {
-                        system.forEach((param) => {
-                          if (param.checked) allParams.add(param.name)
+              {/* Comparative Analysis Table */}
+              <div className="mb-4">
+                <h5>Análisis Comparativo por Parámetro</h5>
+                <div className="table-responsive">
+                  <table className="table table-bordered">
+                    <thead className="table-dark">
+                      <tr>
+                        <th>Parámetro</th>
+                        <th>AGUA CEA</th>
+                        <th>AGUA DE REPUESTO</th>
+                        <th>TORRE DE ENFRIAMIENTO</th>
+                        <th>DRY COOLER</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const allParams = new Set<string>()
+                        Object.values(savedSystemData).forEach((system) => {
+                          system.forEach((param) => {
+                            if (param.checked) allParams.add(param.name)
+                          })
                         })
-                      })
-                      return Array.from(allParams).map((paramName) => (
-                        <tr key={paramName}>
-                          <td>
-                            <strong>{paramName}</strong>
-                          </td>
-                          {["AGUA CEA", "AGUA DE REPUESTO", "TORRE DE ENFRIAMIENTO", "DRY COOLER"].map((systemName) => {
-                            const systemParams = savedSystemData[systemName] || []
-                            const param = systemParams.find((p) => p.name === paramName)
-                            const value = param ? param.value || "N/A" : "—"
+                        return Array.from(allParams).map((paramName) => (
+                          <tr key={paramName}>
+                            <td>
+                              <strong>{paramName}</strong>
+                            </td>
+                            {["AGUA CEA", "AGUA DE REPUESTO", "TORRE DE ENFRIAMIENTO", "DRY COOLER"].map((systemName) => {
+                              const systemParams = savedSystemData[systemName] || []
+                              const param = systemParams.find((p) => p.name === paramName)
+                              const value = param ? param.value || "N/A" : "—"
 
-                            return (
-                              <td
-                                key={systemName}
-                                contentEditable={isEditing}
-                                suppressContentEditableWarning={true}
-                                onBlur={(e) => {
-                                  const updatedValue = e.currentTarget.innerText
-                                  setSavedSystemData((prev) => {
-                                    const updated = { ...prev }
-                                    const targetParam = updated[systemName]?.find((p) => p.name === paramName)
-                                    if (targetParam) {
-                                      targetParam.value = updatedValue
-                                    }
-                                    return updated
-                                  })
-                                }}
-                                className={isEditing ? "border border-primary" : ""}
-                                style={{
-                                  backgroundColor: getCellBackgroundColor(paramName, value),
-                                  cursor: isEditing ? "text" : "default",
-                                }}
-                              >
-                                {value}
-                              </td>
-                            )
-                          })}
-                        </tr>
-                      ))
-                    })()}
-                  </tbody>
-                </table>
+                              return (
+                                <td
+                                  key={systemName}
+                                  contentEditable={isEditing}
+                                  suppressContentEditableWarning={true}
+                                  onBlur={(e) => {
+                                    const updatedValue = e.currentTarget.innerText
+                                    setSavedSystemData((prev) => {
+                                      const updated = { ...prev }
+                                      const targetParam = updated[systemName]?.find((p) => p.name === paramName)
+                                      if (targetParam) {
+                                        targetParam.value = updatedValue
+                                      }
+                                      return updated
+                                    })
+                                  }}
+                                  className={isEditing ? "border border-primary" : ""}
+                                  style={{
+                                    backgroundColor: getCellBackgroundColor(paramName, value),
+                                    cursor: isEditing ? "text" : "default",
+                                  }}
+                                >
+                                  {value}
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        ))
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
 
-            {/* Instructions for images */}
-            {!imagesLoaded && (
-              <div className="alert alert-info">
-                <h6>📁 Para mostrar las imágenes del reporte:</h6>
-                <ol className="mb-0">
-                  <li>
-                    Crea la carpeta: <code>public/images/reports/</code>
-                  </li>
-                  <li>
-                    Coloca tus imágenes:
-                    <ul>
-                      <li>
-                        <code>header.jpeg</code> - Imagen de encabezado
-                      </li>
-                      <li>
-                        <code>footer-textless.png</code> - Imagen de pie de página
-                      </li>
-                    </ul>
-                  </li>
-                  <li>Recarga la página</li>
-                </ol>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Footer Image */}
-      <div id="footer-img" className="text-center">
-        {imagesLoaded ? (
-          <Image
-            src="/images/footer-textless.png"
-            alt="Footer del reporte"
-            width={800}
-            height={100}
-            className="w-100"
-            style={{ height: "auto", maxHeight: "150px", objectFit: "cover" }}
-          />
-        ) : (
-          <div className="bg-secondary text-white py-4" style={{ minHeight: "100px" }}>
-            <div className="d-flex flex-column justify-content-center h-100">
-              <h6>FOOTER IMAGE</h6>
-              <small>Coloca footer-textless.png en /public/images/reports/</small>
+              {/* Instructions for images */}
+              {!imagesLoaded && (
+                <div className="alert alert-info">
+                  <h6>📁 Para mostrar las imágenes del reporte:</h6>
+                  <ol className="mb-0">
+                    <li>
+                      Crea la carpeta: <code>public/images/reports/</code>
+                    </li>
+                    <li>
+                      Coloca tus imágenes:
+                      <ul>
+                        <li>
+                          <code>header.jpeg</code> - Imagen de encabezado
+                        </li>
+                        <li>
+                          <code>footer-textless.png</code> - Imagen de pie de página
+                        </li>
+                      </ul>
+                    </li>
+                    <li>Recarga la página</li>
+                  </ol>
+                </div>
+              )}
             </div>
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Action Buttons */}
-      <div className="container py-4">
-        <div className="text-center">
-          <div className="btn-group" role="group">
-            <Link href="/dashboard" className="btn btn-secondary">
-              <i className="material-icons me-2">arrow_back</i>
-              Volver
-            </Link>
-            <button className="btn btn-warning" onClick={enableEditing}>
-              <i className="material-icons me-2">edit</i>
-              Editar
-            </button>
-            <button
-              className="btn btn-info me-2"
-              onClick={() => {
-                try {
-                  const doc = new jsPDF()
-                  doc.text("Prueba de PDF", 20, 20)
-                  doc.save("prueba.pdf")
-                  alert("Prueba exitosa!")
-                } catch (error) {
-                  console.error("Error en prueba:", error)
-                  alert(`Error en prueba: ${error}`)
-                }
-              }}
-            >
-              <i className="material-icons me-2">bug_report</i>
-              Prueba PDF
-            </button>
-            <button className="btn btn-danger" onClick={generatePDF}>
-              <i className="material-icons me-2">picture_as_pdf</i>
-              Descargar PDF
-            </button>
+        {/* Footer Image */}
+        <div id="footer-img" className="text-center">
+          {imagesLoaded ? (
+            <Image
+              src="/images/footer-textless.png"
+              alt="Footer del reporte"
+              width={800}
+              height={100}
+              className="w-100"
+              style={{ height: "auto", maxHeight: "150px", objectFit: "cover" }}
+            />
+          ) : (
+            <div className="bg-secondary text-white py-4" style={{ minHeight: "100px" }}>
+              <div className="d-flex flex-column justify-content-center h-100">
+                <h6>FOOTER IMAGE</h6>
+                <small>Coloca footer-textless.png en /public/images/reports/</small>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="container py-4">
+          <div className="text-center">
+            <div className="btn-group" role="group">
+              <Link href="/dashboard" className="btn btn-secondary">
+                <i className="material-icons me-2">arrow_back</i>
+                Volver
+              </Link>
+              <button className="btn btn-warning" onClick={enableEditing}>
+                <i className="material-icons me-2">edit</i>
+                Editar
+              </button>
+              <button
+                className="btn btn-info me-2"
+                onClick={() => {
+                  try {
+                    const doc = new jsPDF()
+                    doc.text("Prueba de PDF", 20, 20)
+                    doc.save("prueba.pdf")
+                    alert("Prueba exitosa!")
+                  } catch (error) {
+                    console.error("Error en prueba:", error)
+                    alert(`Error en prueba: ${error}`)
+                  }
+                }}
+              >
+                <i className="material-icons me-2">bug_report</i>
+                Prueba PDF
+              </button>
+              <button className="btn btn-danger" onClick={generatePDF}>
+                <i className="material-icons me-2">picture_as_pdf</i>
+                Descargar PDF
+              </button>
+            </div>
           </div>
         </div>
-      </div>
       </div>
     </ProtectedRoute>
   )
