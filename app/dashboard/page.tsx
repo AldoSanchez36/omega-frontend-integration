@@ -4,6 +4,9 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Navbar from "@/components/Navbar"
+import { QuickActions as AdminQuickActions } from "@/app/dashboard/buttons/admin"
+import { QuickActions as UserQuickActions } from "@/app/dashboard/buttons/user"
+import { QuickActions as ClientQuickActions } from "@/app/dashboard/buttons/client"
 
 // Add type declaration for window.bootstrap
 declare global {
@@ -474,55 +477,30 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div className="row mb-4">
-          <div className="col-12">
-            <div className="card">
-              <div className="card-header">
-                <h5 className="card-title mb-0">🚀 Acciones Rápidas</h5>
-              </div>
-              <div className="card-body">
-                <div className="row">
-                  <div className="col-md-3 mb-2">
-                    <button
-                      className="btn btn-outline-primary w-100"
-                      onClick={handleNewReport}
-                    >
-                      <i className="material-icons me-2">add</i>
-                      Nuevo Reporte
-                    </button>
-                  </div>
-                  <div className="col-md-3 mb-2">
-                    <button
-                      className="btn btn-outline-success w-100"
-                      onClick={handleNewPlant}
-                    >
-                      <i className="material-icons me-2">factory</i>
-                      Nueva Planta
-                    </button>
-                  </div>
-                  <div className="col-md-3 mb-2">
-                    <button
-                      className="btn btn-outline-info w-100"
-                      onClick={handleNewSystem}
-                    >
-                      <i className="material-icons me-2">settings</i>
-                      Nuevo Sistema
-                    </button>
-                  </div>
-                  <div className="col-md-3 mb-2">
-                    <button
-                      className="btn btn-outline-warning w-100"
-                      onClick={handleNewVariable}
-                    >
-                      <i className="material-icons me-2">analytics</i>
-                      Nueva Variable
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        {userRole === "admin" && (
+          <AdminQuickActions
+            handleNewReport={handleNewReport}
+            handleNewPlant={handleNewPlant}
+            handleNewSystem={handleNewSystem}
+            handleNewVariable={handleNewVariable}
+          />
+        )}
+        {userRole === "user" && (
+          <UserQuickActions
+            handleNewReport={handleNewReport}
+            handleNewPlant={handleNewPlant}
+            handleNewSystem={handleNewSystem}
+            handleNewVariable={handleNewVariable}
+          />
+        )}
+        {userRole === "client" && (
+          <ClientQuickActions
+            handleNewReport={handleNewReport}
+            handleNewPlant={handleNewPlant}
+            handleNewSystem={handleNewSystem}
+            handleNewVariable={handleNewVariable}
+          />
+        )}
 
         {/* Recent Reports */}
         <div className="row mb-4">

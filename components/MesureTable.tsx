@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
+import EditableLeyenda from "@/app/dashboard/buttons/admin"
 
 interface RawMeasurement {
   fecha: string
@@ -162,27 +163,13 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
       </table>
       <div className="text-muted small mt-2 mb-2" style={{fontWeight: 500}}>
         Rango de {variable} ({unidades}) {" "}
-        {isAdmin ? (
-          editLeyenda ? (
-            <input
-              className="border px-1 py-0.5 text-xs"
-              value={leyendaEditable}
-              onChange={e => setLeyendaEditable(e.target.value)}
-              onBlur={() => setEditLeyenda(false)}
-              autoFocus
-            />
-          ) : (
-            <span
-              className="underline cursor-pointer"
-              title="Editar leyenda"
-              onClick={() => setEditLeyenda(true)}
-            >
-              {leyendaEditable || "Segun NOM-127-SSA1-2021"}
-            </span>
-          )
-        ) : (
-          <span>{leyendaEditable || "Segun NOM-127-SSA1-2021"}</span>
-        )}
+        <EditableLeyenda
+          leyenda={leyendaEditable}
+          setLeyenda={setLeyendaEditable}
+          editLeyenda={editLeyenda}
+          setEditLeyenda={setEditLeyenda}
+          isAdmin={isAdmin}
+        />
       </div>
       <hr className="my-2 border-0" style={{height: '8px'}} />
       <table className="table table-bordered table-sm w-auto min-w-full bg-white">
