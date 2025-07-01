@@ -152,7 +152,7 @@ export function SensorTimeSeriesChart({
             <YAxis
               tickLine={false}
               axisLine={false}
-              label={{ value: `${variable} ${unidades}`, angle: -90, position: 'insideLeft' }}
+              label={{ value: `${variable} (${unidades})`, angle: -90, position: 'insideLeft' }}
             />
             <XAxis
               dataKey="fechaEtiqueta"

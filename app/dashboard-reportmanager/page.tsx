@@ -13,6 +13,7 @@ import { DebugPanel } from "@/components/debug-panel"
 import { useDebugLogger } from "@/hooks/useDebugLogger"
 import { SensorTimeSeriesChart } from "./components/SensorTimeSeriesChart"
 import ProtectedRoute from "@/components/ProtectedRoute"
+import MesureTable from "./components/MesureTable"
 
 // Interfaces
 interface User {
@@ -71,11 +72,9 @@ export default function ReportManager() {
   const [selectedSystem, setSelectedSystem] = useState<string>("")
   const [parameterValues, setParameterValues] = useState<Record<string, { checked: boolean; value: number }>>({})
   // Determinar el parámetro seleccionado para el gráfico
-  const selectedParameter = parameters.find(param => parameterValues[param.id]?.checked);
-  const variablefiltro = selectedParameter?.nombre || "";
-  const labelLeftText = selectedParameter
-    ? `${selectedParameter.nombre} (${selectedParameter.unidad})`
-    : "";
+  const selectedParameters = parameters.filter(param => parameterValues[param.id]?.checked);
+  const variablefiltro = selectedParameters.length > 0 ? selectedParameters[0].nombre : "";
+  const labelLeftText = selectedParameters.length > 0 ? `${selectedParameters[0].nombre} (${selectedParameters[0].unidad})` : "";
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -455,15 +454,24 @@ export default function ReportManager() {
 
           {/* Gráfico de series de tiempo de sensores */}
           <div className="mb-6">
-            {selectedParameter && (
-              <SensorTimeSeriesChart
-                variable={variablefiltro}
-                startDate={startDate}
-                endDate={endDate}
-                apiBase={apiBase}
-                unidades={selectedParameter.unidad}
-              />
-            )}
+            {selectedParameters.length > 0 && selectedParameters.map(param => (
+              <div key={param.id} className="mb-8">
+                <MesureTable
+                  variable={param.nombre}
+                  startDate={startDate}
+                  endDate={endDate}
+                  apiBase={apiBase}
+                  unidades={param.unidad}
+                />
+                <SensorTimeSeriesChart
+                  variable={param.nombre}
+                  startDate={startDate}
+                  endDate={endDate}
+                  apiBase={apiBase}
+                  unidades={param.unidad}
+                />
+              </div>
+            ))}
           </div>
 
           {/* <DebugPanel

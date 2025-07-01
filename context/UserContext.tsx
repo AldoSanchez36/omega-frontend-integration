@@ -120,7 +120,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     dispatch({ type: "SET_HYDRATED", payload: true })
 
     return
-    /*
+    
     // Prevenir múltiples inicializaciones
     if (initializationRef.current) {
       console.log("⚠️ Inicialización ya ejecutada, saltando...")
@@ -174,7 +174,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     return () => {
       clearTimeout(timeoutId)
-    }*/
+    }
   }, []) // Sin dependencias para ejecutar solo una vez
 
   const login = async (email: string, password: string) => {
