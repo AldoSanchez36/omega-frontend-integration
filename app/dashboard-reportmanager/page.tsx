@@ -11,9 +11,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Navbar } from "@/components/Navbar"
 import { DebugPanel } from "@/components/debug-panel"
 import { useDebugLogger } from "@/hooks/useDebugLogger"
-import { SensorTimeSeriesChart } from "./components/SensorTimeSeriesChart"
+import { SensorTimeSeriesChart } from "@/components/SensorTimeSeriesChart"
 import ProtectedRoute from "@/components/ProtectedRoute"
-import MesureTable from "./components/MesureTable"
+import MesureTable from "@/components/MesureTable"
 
 // Interfaces
 interface User {
