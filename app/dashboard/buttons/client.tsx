@@ -20,8 +20,8 @@ const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport, handleNewP
                 className="btn btn-outline-primary w-100"
                 onClick={handleNewReport}
               >
-                <i className="material-icons me-2">add</i>
-                Nuevo Reporte
+                <i className="material-icons me-2">table_view</i>
+                Tabla de Reportes
               </button>
             </div>
           </div>

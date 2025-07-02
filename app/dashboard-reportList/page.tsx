@@ -3,12 +3,16 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Navbar } from "@/components/Navbar"
+import { Eye, Download } from "lucide-react";
 
 interface ReportePDF {
   id: number;
   nombre: string;
   fecha_creacion: string; // Asegúrate de que tu backend devuelva este campo
   url: string;
+  planta: string;
+  sistema: string;
+  estado: string;
 }
 
 export default function ReportList() {
@@ -26,20 +30,28 @@ export default function ReportList() {
       }
     }
     const fetchReportes = async () => {
+      let data: ReportePDF[] = [];
       try {
         const response = await axios.get("/api/documentos-pdf");
-        // Suponiendo que tu backend devuelve un array de reportes
-        const data = response.data;
+        data = response.data;
+      } catch (error) {
+        console.error("Error fetching reportes:", error);
+      } finally {
+        data.push({
+          id: 9999,
+          nombre: "Reporte de prueba",
+          planta: "Planta Norte",
+          sistema: "Sistema de Temperatura",
+          estado: "Completado",
+          fecha_creacion: new Date().toISOString().split('T')[0], // YYYY-MM-DD only
+          url: "/dummy.pdf"
+        });
 
-        // Ordenar de más nuevo a más viejo y limitar a 12
         const ordenados = data.sort((a: ReportePDF, b: ReportePDF) =>
           new Date(b.fecha_creacion).getTime() - new Date(a.fecha_creacion).getTime()
         ).slice(0, 12);
 
         setReportes(ordenados);
-      } catch (error) {
-        console.error("Error fetching reportes:", error);
-      } finally {
         setLoading(false);
       }
     };
@@ -79,43 +91,64 @@ export default function ReportList() {
         <table className="min-w-full">
           <thead>
             <tr className="bg-gray-100 border-b">
-              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 tracking-wider">ID</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 tracking-wider">Nombre</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 tracking-wider">Fecha de Creación</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 tracking-wider">Título</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 tracking-wider">Planta</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 tracking-wider">Sistema</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 tracking-wider">Estado</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 tracking-wider">Fecha</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 tracking-wider">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-gray-400">
+                <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
                   Cargando reportes...
                 </td>
               </tr>
             ) : filtrados.length > 0 ? (
               filtrados.map(reporte => (
-                <tr
-                  key={reporte.id}
-                  className="hover:bg-gray-50 transition border-b last:border-b-0"
-                >
-                  <td className="px-6 py-4 text-gray-900">{reporte.id}</td>
-                  <td className="px-6 py-4">{reporte.nombre}</td>
-                  <td className="px-6 py-4">{new Date(reporte.fecha_creacion).toLocaleDateString()}</td>
+                <tr key={reporte.id} className="border-b hover:bg-gray-50 transition">
+                  <td className="px-6 py-4 font-medium text-gray-900">{reporte.nombre}</td>
                   <td className="px-6 py-4">
-                    <a
-                      href={reporte.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline font-medium"
+                    <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
+                      {reporte.planta}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="bg-cyan-500 text-white text-xs px-2 py-1 rounded-full">
+                      {reporte.sistema}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="bg-green-600 text-white text-xs px-2 py-1 rounded-full flex items-center">
+                      {reporte.estado}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    {new Date(reporte.fecha_creacion).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 flex gap-2">
+                    <button
+                      onClick={() => window.open(reporte.url, '_blank')}
+                      className="border border-gray-300 p-2 rounded hover:bg-gray-100"
+                      title="Ver PDF"
                     >
-                      Ver PDF
-                    </a>
+                      <Eye className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => window.open(`/api/documentos-pdf/${reporte.id}`, '_blank')}
+                      className="border border-gray-300 p-2 rounded hover:bg-gray-100"
+                      title="Descargar PDF"
+                    >
+                      <Download className="w-5 h-5" />
+                    </button>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-gray-400">
+                <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
                   No hay reportes para la fecha seleccionada.
                 </td>
               </tr>
