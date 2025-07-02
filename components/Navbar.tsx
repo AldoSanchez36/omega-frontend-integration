@@ -17,7 +17,7 @@ const NAV_LINKS = [
   // Para admin y user
   { path: "/users-management",      label: "Gestión de usuarios", icon: "people", roles: ["admin", "user"] },
   // Para admin, user y client
-  { path: "/reports", label: "Reportes", icon: "assessment", roles: ["admin", "user", "client"] },
+  { path: "/reports", label: "Reporte", icon: "assessment", roles: ["admin", "user", "client"] },
 
   // Para cualquier usuario autenticado
   { path: "/dashboard",             label: "Dashboard", icon: "home", roles: ["admin", "user", "client"] },

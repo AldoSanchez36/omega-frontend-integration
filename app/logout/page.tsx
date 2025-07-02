@@ -14,26 +14,43 @@ export default function LogoutPage() {
     const performLogout = async () => {
       if (didRun) return
       didRun = true
+      
       try {
         setMessage("Limpiando datos de sesión...")
-        await logout()
-
-        // Limpiar localStorage
-        localStorage.clear()
+        
+        // Limpiar localStorage inmediatamente
+        if (typeof window !== "undefined") {
+          localStorage.clear()
+          console.log("🗑️ localStorage limpiado")
+        }
+        
+        // Intentar logout del contexto (opcional)
+        try {
+          await logout()
+          console.log("✅ Logout del contexto completado")
+        } catch (error) {
+          console.warn("⚠️ Error en logout del contexto:", error)
+        }
 
         setMessage("Sesión cerrada exitosamente. Redirigiendo...")
+        
+        // Redirigir después de un breve delay
         setTimeout(() => {
           router.replace("/login")
         }, 100)
+        
       } catch (error) {
+        console.error("❌ Error en logout:", error)
         setMessage("Error al cerrar sesión. Redirigiendo...")
+        
+        // Redirigir de todas formas
         setTimeout(() => {
           router.replace("/login")
         }, 100)
       }
     }
+    
     performLogout()
-    // eslint-disable-next-line
   }, [logout, router])
 
   return (
