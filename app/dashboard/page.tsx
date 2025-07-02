@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
+import { authService } from "@/services/authService"
+
 import Navbar from "@/components/Navbar"
 import { QuickActions as AdminQuickActions } from "@/app/dashboard/buttons/admin"
 import { QuickActions as UserQuickActions } from "@/app/dashboard/buttons/user"
 import { QuickActions as ClientQuickActions } from "@/app/dashboard/buttons/client"
+import axios from "axios"
 
 // Add type declaration for window.bootstrap
 declare global {
@@ -73,6 +75,7 @@ export default function Dashboard() {
   const [debugInfo, setDebugInfo] = useState<string[]>([])
   const [user, setUser] = useState<any>(null)
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
+  const [dashboardResumen, setDashboardResumen] = useState<{ plantas: number; procesos: number; variables: number; reportes: number } | null>(null)
 
   // Función para agregar logs de debug
   const addDebugLog = (message: string) => {
@@ -368,6 +371,55 @@ export default function Dashboard() {
     return data
   }
 
+  // Fetch del resumen del dashboard
+  useEffect(() => {
+    if (!user) return;
+    const fetchResumen = async () => {
+      // Obtener token
+      const token = authService.getToken()
+      if (!token) {
+        console.error("❌ No hay token de autenticación")
+        return
+      }
+      
+      // Obtener el puesto del usuario
+      const currentUser = authService.getCurrentUser()
+      if (!currentUser) {
+        console.error("❌ No se pudo obtener información del usuario")
+        return
+      }
+      
+      const puesto = currentUser.puesto
+      console.log("👤 Puesto del usuario:", puesto)
+      
+      // Determinar el endpoint según el puesto
+      let endpoint = "/api/dashboard/resumen"
+      if (puesto === "admin") {
+        endpoint = "/api/dashboard/resumen-admin"
+      } else{
+        endpoint = "/api/dashboard/resumen"
+      }
+      
+      try {
+        const res = await axios.get(`http://localhost:4000${endpoint}`, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
+        if (res.data && res.data.ok && res.data.resumen) {
+          setDashboardResumen(res.data.resumen);
+          addDebugLog(`Resumen del dashboard cargado desde API (${puesto})`);
+        } else {
+          addDebugLog("Respuesta inesperada al cargar resumen del dashboard");
+        }
+      } catch (error) {
+        addDebugLog("Error al cargar resumen del dashboard: " + error);
+      }
+    };
+    fetchResumen();
+  }, [user]);
+
   // Don't render if user is not loaded
   if (!user) {
     return (
@@ -418,7 +470,7 @@ export default function Dashboard() {
                 <div className="d-flex justify-content-between">
                   <div>
                     <h5 className="card-title">Plantas</h5>
-                    <h2 className="mb-0">{dataLoading ? "..." : plants.length}</h2>
+                    <h2 className="mb-0">{dashboardResumen ? dashboardResumen.plantas : "..."}</h2>
                   </div>
                   <div className="align-self-center">
                     <i className="material-icons" style={{ fontSize: "3rem" }}>
@@ -435,7 +487,7 @@ export default function Dashboard() {
                 <div className="d-flex justify-content-between">
                   <div>
                     <h5 className="card-title">Reportes</h5>
-                    <h2 className="mb-0">{dataLoading ? "..." : reports.length}</h2>
+                    <h2 className="mb-0">{dashboardResumen ? dashboardResumen.reportes : "..."}</h2>
                   </div>
                   <div className="align-self-center">
                     <i className="material-icons" style={{ fontSize: "3rem" }}>
@@ -452,7 +504,7 @@ export default function Dashboard() {
                 <div className="d-flex justify-content-between">
                   <div>
                     <h5 className="card-title">Procesos</h5>
-                    <h2 className="mb-0">15</h2>
+                    <h2 className="mb-0">{dashboardResumen ? dashboardResumen.procesos : "..."}</h2>
                   </div>
                   <div className="align-self-center">
                     <i className="material-icons" style={{ fontSize: "3rem" }}>
@@ -469,7 +521,7 @@ export default function Dashboard() {
                 <div className="d-flex justify-content-between">
                   <div>
                     <h5 className="card-title">Variables</h5>
-                    <h2 className="mb-0">52</h2>
+                    <h2 className="mb-0">{dashboardResumen ? dashboardResumen.variables : "..."}</h2>
                   </div>
                   <div className="align-self-center">
                     <i className="material-icons" style={{ fontSize: "3rem" }}>
@@ -514,12 +566,19 @@ export default function Dashboard() {
             <div className="card">
               <div className="card-header d-flex justify-content-between align-items-center">
                 <h5 className="card-title mb-0">📊 Reportes Recientes</h5>
-                <button
+                {/* <button
                   className="btn btn-sm btn-primary"
                   onClick={() => addDebugLog("Ver todos los reportes clickeado")}
                 >
                   Ver todos
-                </button>
+                </button> */}
+                <button
+                className="btn btn-outline-primary w-35"
+                onClick={getClientReports}
+              >
+                <i className="material-icons me-2">table_view</i>
+                Tabla de Reportes
+              </button>
               </div>
               <div className="card-body">
                 {dataLoading ? (

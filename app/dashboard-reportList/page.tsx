@@ -32,7 +32,7 @@ export default function ReportList() {
     const fetchReportes = async () => {
       let data: ReportePDF[] = [];
       try {
-        const response = await axios.get("/api/documentos-pdf");
+        const response = await axios.get("http://localhost:4000/api/documentos-pdf");
         data = response.data;
       } catch (error) {
         console.error("Error fetching reportes:", error);
