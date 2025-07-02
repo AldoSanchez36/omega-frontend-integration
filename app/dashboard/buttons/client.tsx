@@ -9,7 +9,7 @@ interface QuickActionsProps {
 
 const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport, handleNewPlant, handleNewSystem, handleNewVariable }) => (
   <div className="row mb-4">
-    <div className="col-12">
+    {/* <div className="col-12">
       <div className="card">
         <div className="card-header">
           <h5 className="card-title mb-0">🚀 Acciones Rápidas</h5>
@@ -26,7 +26,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport, handleNewP
             </div>
           </div>
       </div>
-    </div>
+    </div> */}
   </div>
 )
 
