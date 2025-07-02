@@ -78,12 +78,24 @@ export default function ReportManager() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Estado para el usuario y el rol
+  const [userRole, setUserRole] = useState<"admin" | "user" | "client">("client")
   // Fetch Users
   useEffect(() => {
     if (!token) {
       setError("Token de autenticación no encontrado. Por favor, inicie sesión.")
       return
     }
+
+    let userData: any = null
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('omega_user')
+      if (storedUser) {
+        userData = JSON.parse(storedUser)
+        setUserRole(userData.puesto || "user")
+      }
+    }
+
     const fetchUsers = async () => {
       setLoading(true)
       setError(null)
@@ -109,8 +121,16 @@ export default function ReportManager() {
         setLoading(false)
       }
     }
-    fetchUsers()
-  }, [token, addDebugLog])
+
+    if (userRole === "admin") {
+      fetchUsers()
+    } else if (userRole === "user" && userData) {
+      setUsers([userData])
+      setSelectedUser(userData)
+      handleSelectUser(userData.id)
+      setLoading(false)
+    }
+  }, [token, userRole, addDebugLog])
 
   // Handlers for selection changes
   const handleSelectUser = async (userId: string) => {
@@ -318,7 +338,7 @@ export default function ReportManager() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
-        <Navbar role="admin" />
+        <Navbar role={userRole} />
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Gestor de Reportes</h1>

@@ -41,8 +41,18 @@ export default function UsersManagement() {
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const [editSuccess, setEditSuccess] = useState<string | null>(null)
+  const [user, setUser] = useState<User | null>(null)
+  const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("user")
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('omega_user')
+      if (storedUser) {
+        const userData = JSON.parse(storedUser)
+        setUser(userData)
+        setUserRole(userData.puesto || "user")
+      }
+    }
     const fetchUsers = async () => {
       try {
         console.log("🔍 Iniciando petición al backend con axios...")
@@ -318,7 +328,7 @@ export default function UsersManagement() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50 p-6">
-        <Navbar role="admin" />
+       <Navbar role={userRole} />
         {/* Header */}
         <div className="bg-blue-600 text-white py-6 rounded-lg shadow mb-6">
           <div className="container mx-auto flex flex-col md:flex-row items-center justify-between">

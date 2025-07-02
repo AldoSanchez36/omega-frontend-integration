@@ -321,6 +321,12 @@ export default function Dashboard() {
     router.push("/dashboard-parameters")
   }
 
+  // look repots for client
+  const getClientReports = async () => {
+    addDebugLog("Ver reportes clickeado - redirigiendo a report list")
+    router.push("/dashboard-reportList")
+  }
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
@@ -495,7 +501,7 @@ export default function Dashboard() {
         )}
         {userRole === "client" && (
           <ClientQuickActions
-            handleNewReport={handleNewReport}
+            handleNewReport={getClientReports}
             handleNewPlant={handleNewPlant}
             handleNewSystem={handleNewSystem}
             handleNewVariable={handleNewVariable}

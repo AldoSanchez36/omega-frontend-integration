@@ -33,6 +33,8 @@ export default function Reporte() {
   const [currentDate, setCurrentDate] = useState("")
   const [isEditing, setIsEditing] = useState(true)
   const [imagesLoaded, setImagesLoaded] = useState(false)
+  const [user, setUser] = useState<any>(null)
+  const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
 
   const [rangeLimits] = useState<RangeLimits>({
     pH: {
@@ -66,11 +68,19 @@ export default function Reporte() {
   useEffect(() => {
     // Verificar si las imágenes existen
     const checkImages = async () => {
-      // Como las imágenes están en public, simplemente las marcamos como disponibles
       setImagesLoaded(true)
     }
-
     checkImages()
+
+    // Obtener usuario y rol
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('omega_user')
+      if (storedUser) {
+        const userData = JSON.parse(storedUser)
+        setUser(userData)
+        setUserRole(userData.puesto || "user")
+      }
+    }
 
     // Cargar datos del localStorage o usar datos mock
     const storedData = JSON.parse(localStorage.getItem("savedSystemData") || "{}")
@@ -280,7 +290,7 @@ export default function Reporte() {
     <ProtectedRoute>
       <div className="min-vh-100 bg-light">
         {/* Navigation */}
-        <Navbar role="admin" />
+        <Navbar role={userRole} />
 
         {/* Header */}
         <div className="container-fluid bg-primary text-white py-3">

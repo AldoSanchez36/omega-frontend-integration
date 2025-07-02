@@ -31,6 +31,8 @@ export default function Settings() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [debugInfo, setDebugInfo] = useState<string[]>([])
+  const [user, setUser] = useState<any>(null)
+  const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
 
   const mockUser: User = {
     id: "1",
@@ -46,6 +48,14 @@ export default function Settings() {
   }
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('omega_user')
+      if (storedUser) {
+        const userData = JSON.parse(storedUser)
+        setUser(userData)
+        setUserRole(userData.puesto || "user")
+      }
+    }
     const loadUserData = async () => {
       addDebugLog("Cargando datos del usuario")
 
@@ -143,7 +153,7 @@ export default function Settings() {
   return (
     <ProtectedRoute>
       <div className="min-vh-100 bg-light">
-        <Navbar role="admin" />
+        <Navbar role={userRole} />
         {/* Navigation */}
         <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
           <div className="container">

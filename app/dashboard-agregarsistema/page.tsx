@@ -116,12 +116,25 @@ export default function ParameterManager() {
     }
   }
 
+  // Estado para el usuario y el rol
+  const [user, setUser] = useState<any>(null)
+  const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
+
   // Fetch Users
   useEffect(() => {
     if (!token) {
       setError("Token de autenticación no encontrado. Por favor, inicie sesión.")
       return
     }
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('omega_user')
+      if (storedUser) {
+        const userData = JSON.parse(storedUser)
+        setUser(userData)
+        setUserRole(userData.puesto || "user")
+      }
+    }
+
     const fetchUsers = async () => {
       setLoading(true)
       setError(null)
@@ -375,7 +388,7 @@ export default function ParameterManager() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
-        <Navbar role="admin" />
+        <Navbar role={userRole} />
         <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
           <div className="bg-white p-8 rounded-lg shadow-sm">
             <div className="mb-8">

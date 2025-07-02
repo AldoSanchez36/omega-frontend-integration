@@ -21,6 +21,8 @@ export default function AgregarPlanta() {
   const token = typeof window !== "undefined" ? localStorage.getItem("omega_token") : null
 
   const [users, setUsers] = useState<User[]>([])
+  const [user, setUser] = useState<any>(null)
+  const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
   const [selectedUserId, setSelectedUserId] = useState<string>("")
   const [plantName, setPlantName] = useState("")
   const [plantLocation, setPlantLocation] = useState("")
@@ -34,6 +36,16 @@ export default function AgregarPlanta() {
     if (!token) {
       setError("Token de autenticación no encontrado. Por favor, inicie sesión.")
       return
+    }
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('omega_user')
+      if (storedUser) {
+        const userData = JSON.parse(storedUser)
+        setUser(userData)
+        setUserRole(userData.puesto || "user")
+      } else {
+        router.push("/login")
+      }
     }
     const fetchUsers = async () => {
       setLoading(true)
@@ -56,7 +68,7 @@ export default function AgregarPlanta() {
       }
     }
     fetchUsers()
-  }, [token])
+  }, [token, router])
 
   const handleCreatePlant = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -94,7 +106,7 @@ export default function AgregarPlanta() {
 
   return (
     <ProtectedRoute>
-      <Navbar role="admin" />
+      <Navbar role={userRole} />
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
        
         <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">

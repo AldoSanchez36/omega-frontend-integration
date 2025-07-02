@@ -12,6 +12,8 @@ const NAV_LINKS = [
   // Solo para admin
   { path: "/agregar-formula",       label: "Agregar fórmula", icon: "science", roles: ["admin"] },
   { path: "/dashboard-parameters",  label: "Administrador de parámetros", icon: "tune", roles: ["admin"] },
+  { path: "/dashboard-agregarplanta",  label: "Administrador de parámetros", icon: "tune", roles: ["admin"] },
+  { path: "/dashboard-reportmanager",  label: "Reportes", icon: "tune", roles: ["admin", "user"] },
   // Para admin y user
   { path: "/users-management",      label: "Gestión de usuarios", icon: "people", roles: ["admin", "user"] },
   // Para admin, user y client
@@ -20,16 +22,18 @@ const NAV_LINKS = [
   // Para cualquier usuario autenticado
   { path: "/dashboard",             label: "Dashboard", icon: "home", roles: ["admin", "user", "client"] },
   { path: "/profile",   label: "Perfil de usuario", icon: "account_circle", roles: ["admin", "user", "client"] },
-  /* { path: "/contact",   label: "Contacto", icon: "mail", roles: ["admin", "user", "client"] },
-  { path: "/about",     label: "Acerca de", icon: "info", roles: ["admin", "user", "client"] },
-  { path: "/services",  label: "Servicios", icon: "build", roles: ["admin", "user", "client"] }, */
+  
 ]
 
 const PUBLIC_LINKS = [
-  { path: "/login", label: "Login", icon: "login" },
-  { path: "/register", label: "Registro", icon: "person_add" },
-  { path: "/forgot-password", label: "Recuperar contraseña", icon: "lock_open" },
+  { path: "/logout", label: "Logout", icon: "logout" },
+  
 ]
+/* { path: "/register", label: "Registro", icon: "person_add" },
+  { path: "/forgot-password", label: "Recuperar contraseña", icon: "lock_open" },
+  { path: "/contact",   label: "Contacto", icon: "mail", roles: ["admin", "user", "client"] },
+  { path: "/about",     label: "Acerca de", icon: "info", roles: ["admin", "user", "client"] },
+  { path: "/services",  label: "Servicios", icon: "build", roles: ["admin", "user", "client"] }, */
 
 export const Navbar: React.FC<NavbarProps> = ({ role }) => {
   const { isAuthenticated, user } = useUser();

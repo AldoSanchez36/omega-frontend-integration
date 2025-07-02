@@ -12,7 +12,7 @@ interface ProtectedRouteProps {
   redirectTo?: string
 }
 
-export default function ProtectedRoute({ children, adminOnly = false, redirectTo = "/login" }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, adminOnly = false, redirectTo = "/dashboard" }: ProtectedRouteProps) {
   const { isAuthenticated, user, isLoading, isHydrated } = useUser()
   const router = useRouter()
   const [shouldRender, setShouldRender] = useState(false)
