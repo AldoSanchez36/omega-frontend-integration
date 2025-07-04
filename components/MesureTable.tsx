@@ -163,13 +163,7 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
       </table>
       <div className="text-muted small mt-2 mb-2" style={{fontWeight: 500}}>
         Rango de {variable} ({unidades}) {" "}
-        <EditableLeyenda
-          leyenda={leyendaEditable}
-          setLeyenda={setLeyendaEditable}
-          editLeyenda={editLeyenda}
-          setEditLeyenda={setEditLeyenda}
-          isAdmin={isAdmin}
-        />
+        
       </div>
       <hr className="my-2 border-0" style={{height: '8px'}} />
       <table className="table table-bordered table-sm w-auto min-w-full bg-white">

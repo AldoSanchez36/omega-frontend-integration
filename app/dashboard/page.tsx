@@ -692,63 +692,68 @@ export default function Dashboard() {
                           <div className="mb-3">
                             <h6 className="text-muted mb-2">Datos Históricos (Últimas 24 horas)</h6>
                             <div className="bg-light rounded p-3">
-                              {/* Time labels */}
-                              <div className="d-flex justify-content-between mb-2">
-                                <small className="text-muted">00:00</small>
-                                <small className="text-muted">06:00</small>
-                                <small className="text-muted">12:00</small>
-                                <small className="text-muted">18:00</small>
-                                <small className="text-muted">24:00</small>
-                              </div>
-                              
                               {/* Historical values for each parameter */}
-                              {system.parameters.map((param) => {
+                              {system.parameters.map((param, paramIndex) => {
                                 // Generate historical data for the last 24 hours
                                 const historicalData = generateHistoricalData(param)
                                 const maxValue = Math.max(...historicalData.map((d: HistoricalDataPoint) => d.value))
                                 const minValue = Math.min(...historicalData.map((d: HistoricalDataPoint) => d.value))
                                 
                                 return (
-                                  <div key={param.id} className="mb-3">
-                                    <div className="d-flex justify-content-between align-items-center mb-1">
+                                  <div key={param.id} className="mb-4">
+                                    <div className="d-flex justify-content-between align-items-center mb-2">
                                       <small className="fw-bold">{param.name}</small>
                                       <small className="text-muted">
                                         Actual: {param.value} {param.unit}
                                       </small>
                                     </div>
                                     
-                                    {/* Historical chart line */}
-                                    <div className="position-relative" style={{ height: "40px" }}>
-                                      <svg width="100%" height="40" className="position-absolute">
-                                        <polyline
-                                          fill="none"
-                                          stroke="#007bff"
-                                          strokeWidth="2"
-                                          points={historicalData.map((d: HistoricalDataPoint, i: number) => 
-                                            `${(i / (historicalData.length - 1)) * 100},${40 - ((d.value - minValue) / (maxValue - minValue)) * 35}`
-                                          ).join(' ')}
-                                        />
-                                        {/* Data points */}
-                                        {historicalData.map((d: HistoricalDataPoint, i: number) => (
-                                          <circle
-                                            key={i}
-                                            cx={`${(i / (historicalData.length - 1)) * 100}%`}
-                                            cy={40 - ((d.value - minValue) / (maxValue - minValue)) * 35}
-                                            r="2"
-                                            fill="#007bff"
-                                          />
-                                        ))}
-                                      </svg>
+                                    {/* Chart container with proper spacing */}
+                                    <div className="position-relative" style={{ height: "60px", marginBottom: "10px" }}>
+                                      {/* Y-axis labels with better positioning */}
+                                      <div className="position-absolute" style={{ left: "-35px", top: "0", height: "100%", width: "30px" }}>
+                                        <div className="d-flex flex-column justify-content-between h-100">
+                                          <small className="text-muted text-end">{maxValue.toFixed(1)}</small>
+                                          <small className="text-muted text-end">{minValue.toFixed(1)}</small>
+                                        </div>
+                                      </div>
                                       
-                                      {/* Value labels */}
-                                      <div className="d-flex justify-content-between position-absolute w-100" style={{ top: "-20px" }}>
-                                        <small className="text-muted">{maxValue.toFixed(1)}</small>
-                                        <small className="text-muted">{minValue.toFixed(1)}</small>
+                                      {/* Chart area */}
+                                      <div className="position-relative" style={{ height: "100%", marginLeft: "5px" }}>
+                                        <svg width="100%" height="60" className="position-absolute">
+                                          <polyline
+                                            fill="none"
+                                            stroke="#007bff"
+                                            strokeWidth="2"
+                                            points={historicalData.map((d: HistoricalDataPoint, i: number) => 
+                                              `${(i / (historicalData.length - 1)) * 100},${60 - ((d.value - minValue) / (maxValue - minValue)) * 50}`
+                                            ).join(' ')}
+                                          />
+                                          {/* Data points */}
+                                          {historicalData.map((d: HistoricalDataPoint, i: number) => (
+                                            <circle
+                                              key={i}
+                                              cx={`${(i / (historicalData.length - 1)) * 100}%`}
+                                              cy={60 - ((d.value - minValue) / (maxValue - minValue)) * 50}
+                                              r="2"
+                                              fill="#007bff"
+                                            />
+                                          ))}
+                                        </svg>
+                                      </div>
+                                      
+                                      {/* X-axis time labels */}
+                                      <div className="d-flex justify-content-between mt-2" style={{ marginLeft: "5px" }}>
+                                        <small className="text-muted">00:00</small>
+                                        <small className="text-muted">06:00</small>
+                                        <small className="text-muted">12:00</small>
+                                        <small className="text-muted">18:00</small>
+                                        <small className="text-muted">24:00</small>
                                       </div>
                                     </div>
                                     
                                     {/* Statistics */}
-                                    <div className="row text-center mt-2">
+                                    <div className="row text-center mt-3">
                                       <div className="col-4">
                                         <small className="text-muted d-block">Máx</small>
                                         <small className="fw-bold text-success">{maxValue.toFixed(1)}</small>
