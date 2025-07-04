@@ -13,7 +13,7 @@ interface User {
 
 interface UserState {
   user: User | null
-  isAuthenticated: boolean
+  isAuthenticated: boolean | null
   isLoading: boolean
   error: string | null
   language: string
@@ -33,7 +33,7 @@ type UserAction =
 
 const initialState: UserState = {
   user: null,
-  isAuthenticated: false,
+  isAuthenticated: null,
   isLoading: false,
   error: null,
   language: "es",

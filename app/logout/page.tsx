@@ -36,7 +36,7 @@ export default function LogoutPage() {
         
         // Redirigir después de un breve delay
         setTimeout(() => {
-          router.replace("/login")
+          router.replace("/")
         }, 100)
         
       } catch (error) {
@@ -45,7 +45,7 @@ export default function LogoutPage() {
         
         // Redirigir de todas formas
         setTimeout(() => {
-          router.replace("/login")
+          router.replace("/")
         }, 100)
       }
     }

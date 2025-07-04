@@ -10,7 +10,7 @@ import { LanguageProvider } from "../../Elements/LanguageContext"
 
 export default function Login() {
   const router = useRouter()
-  const { login, isAuthenticated, isLoading, error, clearError } = useUser()
+  const { login, isAuthenticated, isLoading, error, clearError, isHydrated } = useUser()
   const { translations, changeLanguage, language } = useLanguage()
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({
@@ -19,7 +19,7 @@ export default function Login() {
   })
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated === true) {
       router.push("/dashboard")
     }
   }, [isAuthenticated, router])
@@ -42,6 +42,19 @@ export default function Login() {
     } catch (error) {
       // El error se maneja en el contexto
     }
+  }
+
+  if (!isHydrated) {
+    return (
+      <div className="d-flex vh-100 align-items-center justify-content-center">
+        <div className="text-center">
+          <div className="spinner-border text-primary mb-3" role="status">
+            <span className="visually-hidden">Cargando...</span>
+          </div>
+          <h5 className="text-primary mb-3">Cargando autenticación...</h5>
+        </div>
+      </div>
+    )
   }
 
   return (
