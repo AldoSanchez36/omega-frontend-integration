@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@/context/UserContext"
 
@@ -8,50 +8,23 @@ export default function LogoutPage() {
   const { logout } = useUser()
   const router = useRouter()
   const [message, setMessage] = useState("Cerrando sesión...")
+  const didRunRef = useRef(false)
 
-  useEffect(() => {
-    let didRun = false
-    const performLogout = async () => {
-      if (didRun) return
-      didRun = true
-      
-      try {
-        setMessage("Limpiando datos de sesión...")
-        
-        // Limpiar localStorage inmediatamente
-        if (typeof window !== "undefined") {
-          localStorage.clear()
-          console.log("🗑️ localStorage limpiado")
-        }
-        
-        // Intentar logout del contexto (opcional)
-        try {
-          await logout()
-          console.log("✅ Logout del contexto completado")
-        } catch (error) {
-          console.warn("⚠️ Error en logout del contexto:", error)
-        }
+  const handleLogout = () => {
+    if (didRunRef.current) return
+    didRunRef.current = true
+    setMessage("Limpiando datos de sesión...")
+    logout()
+    setMessage("Sesión cerrada exitosamente. Redirigiendo...")
+    setTimeout(() => {
+      router.replace("/")
+    }, 300)
+  }
 
-        setMessage("Sesión cerrada exitosamente. Redirigiendo...")
-        
-        // Redirigir después de un breve delay
-        setTimeout(() => {
-          router.replace("/")
-        }, 100)
-        
-      } catch (error) {
-        console.error("❌ Error en logout:", error)
-        setMessage("Error al cerrar sesión. Redirigiendo...")
-        
-        // Redirigir de todas formas
-        setTimeout(() => {
-          router.replace("/")
-        }, 100)
-      }
-    }
-    
-    performLogout()
-  }, [logout, router])
+  // Ejecutar handleLogout una sola vez al montar
+  if (typeof window !== "undefined" && !didRunRef.current) {
+    handleLogout()
+  }
 
   return (
     <div className="min-vh-100 bg-light d-flex align-items-center justify-content-center">

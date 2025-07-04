@@ -146,26 +146,18 @@ class AuthService {
   }
 
   async logout(): Promise<void> {
-    console.log("🚪 AuthService.logout - Iniciando...")
-    
-    // Primero limpiar localStorage inmediatamente
+    // Limpia localStorage inmediatamente
     if (typeof window !== "undefined") {
       localStorage.removeItem("omega_token")
       localStorage.removeItem("omega_user")
-      console.log("🗑️ Datos eliminados del localStorage")
     }
-    
-    // Luego intentar notificar al backend (opcional)
-    try {
-      console.log("📡 Notificando logout al backend...")
-      await httpService.post(API_ENDPOINTS.AUTH.LOGOUT)
-      console.log("✅ Logout notificado al backend exitosamente")
-    } catch (error) {
-      console.warn("⚠️ No se pudo notificar logout al backend:", error)
-      console.log("ℹ️ Continuando con logout local...")
+
+    // Notifica al backend, pero NO esperes la respuesta
+    if (typeof window !== "undefined") {
+      httpService.post(API_ENDPOINTS.AUTH.LOGOUT).catch((error) => {
+        console.warn("No se pudo notificar logout al backend:", error)
+      })
     }
-    
-    console.log("✅ Logout completado")
   }
 
   getCurrentUser(): User | null {

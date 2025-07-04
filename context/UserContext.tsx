@@ -91,7 +91,7 @@ const userReducer = (state: UserState, action: UserAction): UserState => {
 interface UserContextType extends UserState {
   login: (email: string, password: string) => Promise<void>
   register: (userData: any) => Promise<void>
-  logout: () => Promise<void>
+  logout: () => void
   clearError: () => void
   setLanguage: (lang: string) => void
   updateUser: (userData: Partial<User>) => void
@@ -222,9 +222,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  const logout = async () => {
+  const logout = () => {
     try {
-      await authService.logout()
+      authService.logout() // NO await
     } catch (error) {
       console.error("Logout error:", error)
     } finally {
