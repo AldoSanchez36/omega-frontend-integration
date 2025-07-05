@@ -78,12 +78,12 @@ export default function UsersManagement() {
           },
         })
         
-        console.log("📡 Respuesta del servidor:")
+        /* console.log("📡 Respuesta del servidor:")
         console.log("Status:", response.status)
         console.log("Status Text:", response.statusText)
         console.log("Headers:", response.headers)
         
-        console.log("📦 Datos recibidos:")
+        console.log("📦 Datos recibidos:") */
        /*  console.log(JSON.stringify(response.data, null, 2)) */
         
         // Procesar los datos recibidos

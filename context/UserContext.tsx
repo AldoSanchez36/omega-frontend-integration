@@ -43,10 +43,10 @@ const initialState: UserState = {
 const userReducer = (state: UserState, action: UserAction): UserState => {
   switch (action.type) {
     case "LOGIN_START":
-      console.log("🔄 LOGIN_START")
+      /* console.log("🔄 LOGIN_START") */
       return { ...state, isLoading: true, error: null }
     case "LOGIN_SUCCESS":
-      console.log("✅ LOGIN_SUCCESS - Usuario:", action.payload.username)
+      /* console.log("✅ LOGIN_SUCCESS - Usuario:", action.payload.username) */
       return {
         ...state,
         user: action.payload,
@@ -55,7 +55,7 @@ const userReducer = (state: UserState, action: UserAction): UserState => {
         error: null,
       }
     case "LOGIN_FAILURE":
-      console.log("❌ LOGIN_FAILURE - Error:", action.payload)
+      /* console.log("❌ LOGIN_FAILURE - Error:", action.payload) */
       return {
         ...state,
         user: null,
@@ -81,7 +81,7 @@ const userReducer = (state: UserState, action: UserAction): UserState => {
     case "UPDATE_USER":
       return { ...state, user: state.user ? { ...state.user, ...action.payload } : null }
     case "SET_HYDRATED":
-      console.log("💧 SET_HYDRATED:", action.payload)
+      /* console.log("💧 SET_HYDRATED:", action.payload) */
       return { ...state, isHydrated: action.payload }
     default:
       return state
@@ -112,7 +112,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, [])
 
   useEffect(() => {
-    console.log("⚠️ UserContext: Inicialización de auth deshabilitada para desarrollo")
+    /* console.log("⚠️ UserContext: Inicialización de auth deshabilitada para desarrollo") */
 
     // Solo configurar idioma
     const savedLanguage = localStorage.getItem("omega_language") || "es"
@@ -178,26 +178,26 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, []) // Sin dependencias para ejecutar solo una vez
 
   const login = async (email: string, password: string) => {
-    console.log("🔐 UserContext.login - Iniciando...")
+    /* console.log("🔐 UserContext.login - Iniciando...") */
     dispatch({ type: "LOGIN_START" })
 
     try {
       const response = await authService.login({ email, password })
-      console.log("✅ Login exitoso en contexto")
+      /* console.log("✅ Login exitoso en contexto") */
 
       // Verificar que los datos se guardaron correctamente antes de actualizar el estado
       const savedUser = authService.getCurrentUser()
       const savedToken = authService.getToken()
 
       if (savedUser && savedToken) {
-        console.log("✅ Datos verificados en localStorage, actualizando estado...")
+        /* console.log("✅ Datos verificados en localStorage, actualizando estado...") */
         dispatch({ type: "LOGIN_SUCCESS", payload: response.user })
       } else {
-        console.error("❌ Error: Datos no encontrados después del login")
+        /* console.error("❌ Error: Datos no encontrados después del login") */
         throw new Error("Failed to save authentication data")
       }
     } catch (error) {
-      console.error("❌ Error en login:", error)
+      /* console.error("❌ Error en login:", error) */
       dispatch({
         type: "LOGIN_FAILURE",
         payload: error instanceof Error ? error.message : "Login failed",

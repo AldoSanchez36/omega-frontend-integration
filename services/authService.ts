@@ -68,13 +68,13 @@ interface LoginResponse {
 
 class AuthService {
   async login(credentials: LoginRequest): Promise<{ token: string; user: User }> {
-    console.log("🔐 AuthService.login - Iniciando...")
+    /* console.log("🔐 AuthService.login - Iniciando...") */
 
     const response = await httpService.post<LoginResponse>(API_ENDPOINTS.AUTH.LOGIN, credentials, {
       requiresAuth: false,
     })
 
-    console.log("📡 Respuesta del servidor:", { ok: response.ok, username: response.username })
+    /* console.log("📡 Respuesta del servidor:", { ok: response.ok, username: response.username }) */
 
     if (response.ok && response.token) {
       const adaptedResponse = {
@@ -88,7 +88,7 @@ class AuthService {
         },
       }
 
-      console.log("💾 Guardando en localStorage...")
+      /* console.log("💾 Guardando en localStorage...") */
 
       // Guardar en localStorage
       if (typeof window !== "undefined") {
@@ -99,9 +99,9 @@ class AuthService {
         const savedToken = localStorage.getItem("omega_token")
         const savedUser = localStorage.getItem("omega_user")
 
-        console.log("🔍 Verificación inmediata:")
+        /* console.log("🔍 Verificación inmediata:")
         console.log("  Token guardado:", !!savedToken)
-        console.log("  Usuario guardado:", !!savedUser)
+        console.log("  Usuario guardado:", !!savedUser) */
 
         if (!savedToken || !savedUser) {
           console.error("❌ Error: Los datos no se guardaron correctamente")
@@ -109,10 +109,10 @@ class AuthService {
         }
       }
 
-      console.log("✅ Login completado exitosamente")
+      /* console.log("✅ Login completado exitosamente") */
       return adaptedResponse
     } else {
-      console.log("❌ Login fallido:", response.msg)
+      /* console.log("❌ Login fallido:", response.msg) */
       throw new Error(response.msg || "Login failed")
     }
   }
@@ -168,12 +168,12 @@ class AuthService {
     try {
       const userStr = localStorage.getItem("omega_user")
       if (!userStr) {
-        console.log("👤 getCurrentUser: No hay datos en localStorage")
+        /* console.log("👤 getCurrentUser: No hay datos en localStorage") */
         return null
       }
 
       const user = JSON.parse(userStr)
-      console.log("👤 getCurrentUser:", user.username)
+      /* console.log("👤 getCurrentUser:", user.username) */
       return user
     } catch (error) {
       console.error("❌ Error parseando usuario:", error)
@@ -187,7 +187,7 @@ class AuthService {
     }
 
     const token = localStorage.getItem("omega_token")
-    console.log("🔑 getToken:", token ? "✅ Existe" : "❌ No existe")
+    /* console.log("🔑 getToken:", token ? "✅ Existe" : "❌ No existe") */
     return token
   }
 
@@ -195,7 +195,7 @@ class AuthService {
     const hasToken = !!this.getToken()
     const hasUser = !!this.getCurrentUser()
     const isAuth = hasToken && hasUser
-    console.log("🔐 isAuthenticated:", { hasToken, hasUser, isAuth })
+    /* console.log("🔐 isAuthenticated:", { hasToken, hasUser, isAuth }) */
     return isAuth
   }
 

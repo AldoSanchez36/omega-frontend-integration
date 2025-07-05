@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { authService } from "@/services/authService"
+import { httpService } from "@/services/httpService"
 
 import Navbar from "@/components/Navbar"
 import { QuickActions as AdminQuickActions } from "@/app/dashboard/buttons/admin"
@@ -79,8 +80,8 @@ export default function Dashboard() {
 
   // Función para agregar logs de debug
   const addDebugLog = (message: string) => {
-    console.log(`🐛 Dashboard: ${message}`)
-    setDebugInfo((prev) => [...prev.slice(-4), `${new Date().toLocaleTimeString()}: ${message}`])
+    /* console.log(`🐛 Dashboard: ${message}`) */
+    /* setDebugInfo((prev) => [...prev.slice(-4), `${new Date().toLocaleTimeString()}: ${message}`]) */
   }
 
   // Load user from localStorage
@@ -91,7 +92,7 @@ export default function Dashboard() {
         const userData = JSON.parse(storedUser)
         setUser(userData)
         setUserRole(userData.puesto || "user")
-        addDebugLog(`Usuario cargado: ${userData.username}`)
+        /* addDebugLog(`Usuario cargado: ${userData.username}`) */
       } else {
         addDebugLog("No se encontró usuario en localStorage")
         router.push("/login")
@@ -105,7 +106,7 @@ export default function Dashboard() {
     if (mobileMenu) {
       const isVisible = mobileMenu.style.display === 'block'
       mobileMenu.style.display = isVisible ? 'none' : 'block'
-      addDebugLog(`Menú móvil ${isVisible ? 'oculto' : 'mostrado'}`)
+      /* addDebugLog(`Menú móvil ${isVisible ? 'oculto' : 'mostrado'}`) */
     }
   }
 
@@ -128,7 +129,7 @@ export default function Dashboard() {
       
       // Close user dropdown
       if (userDropdown && !userDropdown.contains(target)) {
-        addDebugLog("Dropdown de usuario cerrado por clic externo")
+        /* addDebugLog("Dropdown de usuario cerrado por clic externo") */
       }
     }
 
@@ -154,7 +155,7 @@ export default function Dashboard() {
           script.integrity = 'sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz'
           script.crossOrigin = 'anonymous'
           script.onload = () => {
-            addDebugLog("Bootstrap JavaScript cargado exitosamente")
+            /* addDebugLog("Bootstrap JavaScript cargado exitosamente") */
             // Initialize Bootstrap components after loading
             if (window.bootstrap) {
               // Initialize all collapse elements
@@ -164,7 +165,7 @@ export default function Dashboard() {
                   toggle: false
                 })
               })
-              addDebugLog("Componentes Bootstrap inicializados")
+              /* addDebugLog("Componentes Bootstrap inicializados") */
             }
           }
           script.onerror = () => {
@@ -172,7 +173,7 @@ export default function Dashboard() {
           }
           document.head.appendChild(script)
         } else {
-          addDebugLog("Bootstrap JavaScript ya está cargado")
+          /* addDebugLog("Bootstrap JavaScript ya está cargado") */
           // Initialize components if Bootstrap is already available
           if (window.bootstrap) {
             const collapseElements = document.querySelectorAll('[data-bs-toggle="collapse"]')
@@ -181,7 +182,7 @@ export default function Dashboard() {
                 toggle: false
               })
             })
-            addDebugLog("Componentes Bootstrap inicializados")
+            /* addDebugLog("Componentes Bootstrap inicializados") */
           }
         }
       }
@@ -193,12 +194,12 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return // Don't load data if user is not loaded
     
-    addDebugLog("Dashboard montado - iniciando carga de datos")
+    /* addDebugLog("Dashboard montado - iniciando carga de datos") */
 
     const loadData = async () => {
       try {
         setDataLoading(true)
-        addDebugLog("Cargando datos mock...")
+        /* addDebugLog("Cargando datos mock...") */
 
         // Simular carga de datos
         await new Promise((resolve) => setTimeout(resolve, 500))
@@ -292,12 +293,12 @@ export default function Dashboard() {
 
         setPlants(mockPlants)
         setReports(mockReports)
-        addDebugLog(`Datos cargados: ${mockPlants.length} plantas, ${mockReports.length} reportes`)
+        /* addDebugLog(`Datos cargados: ${mockPlants.length} plantas, ${mockReports.length} reportes`) */
       } catch (error) {
-        addDebugLog(`Error cargando datos: ${error}`)
+        /* addDebugLog(`Error cargando datos: ${error}`) */
       } finally {
         setDataLoading(false)
-        addDebugLog("Carga de datos completada")
+        /* addDebugLog("Carga de datos completada") */
       }
     }
 
@@ -305,28 +306,28 @@ export default function Dashboard() {
   }, [user])
 
   const handleNewReport = () => {
-    addDebugLog("Nuevo Reporte clickeado - redirigiendo a report manager")
+    /* addDebugLog("Nuevo Reporte clickeado - redirigiendo a report manager") */
     router.push("/dashboard-reportmanager")
   }
 
   const handleNewPlant = () => {
-    addDebugLog("Nueva Planta clickeado - redirigiendo a agregar planta")
+    /* addDebugLog("Nueva Planta clickeado - redirigiendo a agregar planta") */
     router.push("/dashboard-agregarplanta")
   }
 
   const handleNewSystem = () => {
-    addDebugLog("Nuevo Sistema clickeado - redirigiendo a agregar sistema")
+    /* addDebugLog("Nuevo Sistema clickeado - redirigiendo a agregar sistema") */
     router.push("/dashboard-agregarsistema")
   }
 
   const handleNewVariable = () => {
-    addDebugLog("Nueva Variable clickeado - redirigiendo a parámetros")
+    /* addDebugLog("Nueva Variable clickeado - redirigiendo a parámetros") */
     router.push("/dashboard-parameters")
   }
 
   // look repots for client
   const getClientReports = async () => {
-    addDebugLog("Ver reportes clickeado - redirigiendo a report list")
+    /* addDebugLog("Ver reportes clickeado - redirigiendo a report list") */
     router.push("/dashboard-reportList")
   }
 
@@ -390,7 +391,7 @@ export default function Dashboard() {
       }
       
       const puesto = currentUser.puesto
-      console.log("👤 Puesto del usuario:", puesto)
+      /* console.log("👤 Puesto del usuario:", puesto) */
       
       // Determinar el endpoint según el puesto
       let endpoint = "/api/dashboard/resumen"
@@ -401,14 +402,14 @@ export default function Dashboard() {
       }
       
       try {
-        const res = await axios.get(`http://localhost:4000${endpoint}`, {
+        const res = await httpService.get(endpoint, {
           headers: {
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-        })
-        if (res.data && res.data.ok && res.data.resumen) {
-          setDashboardResumen(res.data.resumen);
+        }) as { ok?: boolean; resumen?: any }
+        if (res && res.ok && res.resumen) {
+          setDashboardResumen(res.resumen);
           addDebugLog(`Resumen del dashboard cargado desde API (${puesto})`);
         } else {
           addDebugLog("Respuesta inesperada al cargar resumen del dashboard");
@@ -806,7 +807,7 @@ export default function Dashboard() {
         </div>
 
         {/* Debug Info */}
-        <div className="row">
+       {/*  <div className="row">
           <div className="col-12">
             <div className="card">
               <div className="card-header">
@@ -851,7 +852,7 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   )

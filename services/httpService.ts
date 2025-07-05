@@ -32,12 +32,12 @@ class HttpService {
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
-    console.log("📡 Respuesta HTTP:", {
+    /* console.log("📡 Respuesta HTTP:", {
       status: response.status,
       statusText: response.statusText,
       url: response.url,
       ok: response.ok,
-    })
+    }) */
 
     if (!response.ok) {
       if (response.status === 401) {
@@ -64,7 +64,7 @@ class HttpService {
     const contentType = response.headers.get("content-type")
     if (contentType && contentType.includes("application/json")) {
       const data = await response.json()
-      console.log("📦 Datos recibidos:", data)
+      /* console.log("📦 Datos recibidos:", data) */
       return data
     }
 

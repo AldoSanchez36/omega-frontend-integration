@@ -80,6 +80,7 @@ export default function ReportManager() {
 
   // Estado para el usuario y el rol
   const [userRole, setUserRole] = useState<"admin" | "user" | "client">("client")
+
   // Fetch Users
   useEffect(() => {
     if (!token) {
