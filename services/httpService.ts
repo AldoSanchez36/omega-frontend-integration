@@ -142,3 +142,8 @@ class HttpService {
 }
 
 export const httpService = new HttpService(API_BASE_URL)
+
+// Helpers para variables_tolerancia
+export const getTolerancias = () => httpService.get('/api/variables-tolerancia')
+export const createTolerancia = (data: any) => httpService.post('/api/variables-tolerancia', data)
+export const updateTolerancia = (id: string, data: any) => httpService.patch(`/api/variables-tolerancia/${id}`, data)

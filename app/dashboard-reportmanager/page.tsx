@@ -14,6 +14,7 @@ import { useDebugLogger } from "@/hooks/useDebugLogger"
 import { SensorTimeSeriesChart } from "@/components/SensorTimeSeriesChart"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import MesureTable from "@/components/MesureTable"
+import { getTolerancias, createTolerancia, updateTolerancia } from "@/services/httpService"
 
 // Interfaces
 interface User {
@@ -80,6 +81,12 @@ export default function ReportManager() {
 
   // Estado para el usuario y el rol
   const [userRole, setUserRole] = useState<"admin" | "user" | "client">("client")
+
+  // Estado para tolerancias por parámetro
+  const [tolerancias, setTolerancias] = useState<Record<string, any>>({})
+  const [tolLoading, setTolLoading] = useState<Record<string, boolean>>({})
+  const [tolError, setTolError] = useState<Record<string, string | null>>({})
+  const [tolSuccess, setTolSuccess] = useState<Record<string, string | null>>({})
 
   // Fetch Users
   useEffect(() => {
@@ -307,6 +314,77 @@ export default function ReportManager() {
     }
   }
 
+  // Cargar tolerancias al cargar parámetros o sistema
+  useEffect(() => {
+    if (!selectedSystem || parameters.length === 0) return
+    setTolLoading({})
+    setTolError({})
+    setTolSuccess({})
+    getTolerancias()
+      .then((data: any) => {
+        // Filtrar solo las tolerancias del sistema y parámetros actuales
+        const map: Record<string, any> = {}
+        if (Array.isArray(data)) {
+          data.forEach((tol) => {
+            if (parameters.some(p => p.id === tol.variable_id) && tol.proceso_id === selectedSystem) {
+              map[tol.variable_id] = tol
+            }
+          })
+        } else if (Array.isArray(data.tolerancias)) {
+          data.tolerancias.forEach((tol: any) => {
+            if (parameters.some(p => p.id === tol.variable_id) && tol.proceso_id === selectedSystem) {
+              map[tol.variable_id] = tol
+            }
+          })
+        }
+        setTolerancias(map)
+      })
+      .catch((e) => {
+        setTolError((prev) => ({ ...prev, global: e.message }))
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSystem, parameters])
+
+  const handleTolChange = (variableId: string, field: string, value: string) => {
+    setTolerancias((prev) => ({
+      ...prev,
+      [variableId]: {
+        ...prev[variableId],
+        [field]: value === '' ? '' : Number(value),
+        variable_id: variableId,
+        proceso_id: selectedSystem,
+        planta_id: selectedPlant?.id,
+        cliente_id: selectedUser?.id,
+      },
+    }))
+  }
+
+  const handleTolSave = async (variableId: string) => {
+    setTolLoading((prev) => ({ ...prev, [variableId]: true }))
+    setTolError((prev) => ({ ...prev, [variableId]: null }))
+    setTolSuccess((prev) => ({ ...prev, [variableId]: null }))
+    const tol = {
+      ...tolerancias[variableId],
+      variable_id: variableId,
+      proceso_id: selectedSystem,
+      planta_id: selectedPlant?.id,
+      cliente_id: selectedUser?.id,
+    }
+    try {
+      if (tol && tol.id) {
+        await updateTolerancia(tol.id, tol)
+        setTolSuccess((prev) => ({ ...prev, [variableId]: '¡Guardado!' }))
+      } else {
+        await createTolerancia(tol)
+        setTolSuccess((prev) => ({ ...prev, [variableId]: '¡Guardado!' }))
+      }
+    } catch (e: any) {
+      setTolError((prev) => ({ ...prev, [variableId]: e.message }))
+    } finally {
+      setTolLoading((prev) => ({ ...prev, [variableId]: false }))
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -422,6 +500,11 @@ export default function ReportManager() {
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle>Parámetros del Sistema</CardTitle>
+                <div className="flex flex-row gap-4 mt-2 text-xs items-center">
+                  <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-red-100 border border-red-400"></span><span className="font-semibold text-red-700">F-(min,max)</span>: Fuera de rango</div>
+                  <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-yellow-100 border border-yellow-400"></span><span className="font-semibold text-yellow-700">L-(min,max)</span>: Cerca del límite recomendado</div>
+                  <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-green-100 border border-green-400"></span><span className="font-semibold text-green-700">B-(min,max)</span>: Dentro de rango</div>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -431,14 +514,12 @@ export default function ReportManager() {
                         checked={parameterValues[parameter.id]?.checked || false}
                         onCheckedChange={(checked) => handleParameterChange(parameter.id, "checked", checked as boolean)}
                       />
-
                       <div className="flex-1">
                         <div className="font-medium">{parameter.nombre}</div>
                         <div className="text-sm text-gray-500">
                           Unidad: {parameter.unidad}
                         </div>
                       </div>
-
                       <div className="w-32">
                         <Input
                           type="number"
@@ -450,8 +531,41 @@ export default function ReportManager() {
                           disabled={!parameterValues[parameter.id]?.checked}
                         />
                       </div>
-
                       <div className="text-sm text-gray-500 w-16">{parameter.unidad}</div>
+                      {/* Inputs de tolerancia en una sola fila */}
+                      <div className="flex flex-row items-end gap-2 ml-2">
+                        <div className="flex flex-col items-center">
+                          <span className="text-xs font-semibold text-red-700">F-min</span>
+                          <Input type="number" className="w-14 bg-red-100 border-red-400 text-red-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[parameter.id]?.fuera_min ?? ''} onChange={e => handleTolChange(parameter.id, 'fuera_min', e.target.value)} />
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-xs font-semibold text-yellow-700">L-min</span>
+                          <Input type="number" className="w-14 bg-yellow-100 border-yellow-400 text-yellow-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[parameter.id]?.limite_min ?? ''} onChange={e => handleTolChange(parameter.id, 'limite_min', e.target.value)} />
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-xs font-semibold text-yellow-700">L-max</span>
+                          <Input type="number" className="w-14 bg-yellow-100 border-yellow-400 text-yellow-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[parameter.id]?.limite_max ?? ''} onChange={e => handleTolChange(parameter.id, 'limite_max', e.target.value)} />
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-xs font-semibold text-green-700">B-min</span>
+                          <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[parameter.id]?.bien_min ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_min', e.target.value)} />
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-xs font-semibold text-green-700">B-max</span>
+                          <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[parameter.id]?.bien_max ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_max', e.target.value)} />
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-xs font-semibold text-red-700">F-max</span>
+                          <Input type="number" className="w-14 bg-red-100 border-red-400 text-red-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[parameter.id]?.fuera_max ?? ''} onChange={e => handleTolChange(parameter.id, 'fuera_max', e.target.value)} />
+                        </div>
+                        <Button size="icon" className="ml-2 h-7 w-7 p-0 flex items-center justify-center" onClick={() => handleTolSave(parameter.id)} disabled={tolLoading[parameter.id]} title="Guardar límites">
+                          <span className="material-icons text-base">save</span>
+                        </Button>
+                        <div className="flex flex-col items-center justify-end">
+                          {tolError[parameter.id] && <div className="text-xs text-red-600">{tolError[parameter.id]}</div>}
+                          {tolSuccess[parameter.id] && <div className="text-xs text-green-600">{tolSuccess[parameter.id]}</div>}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
