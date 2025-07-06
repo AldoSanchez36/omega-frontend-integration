@@ -369,6 +369,8 @@ export default function ReportManager() {
       proceso_id: selectedSystem,
       planta_id: selectedPlant?.id,
       cliente_id: selectedUser?.id,
+      limite_min: tolerancias[variableId]?.usar_limite_min ? tolerancias[variableId]?.limite_min : null,
+      limite_max: tolerancias[variableId]?.usar_limite_max ? tolerancias[variableId]?.limite_max : null,
     }
     try {
       if (tol && tol.id) {
@@ -501,9 +503,8 @@ export default function ReportManager() {
               <CardHeader>
                 <CardTitle>Parámetros del Sistema</CardTitle>
                 <div className="flex flex-row gap-4 mt-2 text-xs items-center">
-                  <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-red-100 border border-red-400"></span><span className="font-semibold text-red-700">F-(min,max)</span>: Fuera de rango</div>
-                  <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-yellow-100 border border-yellow-400"></span><span className="font-semibold text-yellow-700">L-(min,max)</span>: Cerca del límite recomendado</div>
-                  <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-green-100 border border-green-400"></span><span className="font-semibold text-green-700">B-(min,max)</span>: Dentro de rango</div>
+                  <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-yellow-100 border border-yellow-400"></span><span className="font-semibold text-yellow-700">Lim-(min,max)</span>: Cerca del límite recomendado</div>
+                  <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-green-100 border border-green-400"></span><span className="font-semibold text-green-700">Bien</span>: Dentro de rango</div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -535,28 +536,19 @@ export default function ReportManager() {
                       {/* Inputs de tolerancia en una sola fila */}
                       <div className="flex flex-row items-end gap-2 ml-2">
                         <div className="flex flex-col items-center">
-                          <span className="text-xs font-semibold text-red-700">F-min</span>
-                          <Input type="number" className="w-14 bg-red-100 border-red-400 text-red-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[parameter.id]?.fuera_min ?? ''} onChange={e => handleTolChange(parameter.id, 'fuera_min', e.target.value)} />
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-xs font-semibold text-yellow-700">L-min</span>
+                          <span className="text-xs font-semibold text-yellow-700">Lim-min</span>
                           <Input type="number" className="w-14 bg-yellow-100 border-yellow-400 text-yellow-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[parameter.id]?.limite_min ?? ''} onChange={e => handleTolChange(parameter.id, 'limite_min', e.target.value)} />
                         </div>
                         <div className="flex flex-col items-center">
-                          <span className="text-xs font-semibold text-yellow-700">L-max</span>
+                          <span className="text-xs font-semibold text-yellow-700">Lim-max</span>
                           <Input type="number" className="w-14 bg-yellow-100 border-yellow-400 text-yellow-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[parameter.id]?.limite_max ?? ''} onChange={e => handleTolChange(parameter.id, 'limite_max', e.target.value)} />
                         </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-xs font-semibold text-green-700">B-min</span>
-                          <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[parameter.id]?.bien_min ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_min', e.target.value)} />
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-xs font-semibold text-green-700">B-max</span>
-                          <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[parameter.id]?.bien_max ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_max', e.target.value)} />
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-xs font-semibold text-red-700">F-max</span>
-                          <Input type="number" className="w-14 bg-red-100 border-red-400 text-red-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[parameter.id]?.fuera_max ?? ''} onChange={e => handleTolChange(parameter.id, 'fuera_max', e.target.value)} />
+                        <div className="flex flex-col items-center col-span-2" style={{minWidth: '60px'}}>
+                          <span className="text-xs font-semibold text-green-700 text-center w-full">Bien</span>
+                          <div className="flex flex-row gap-1">
+                            <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[parameter.id]?.bien_min ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_min', e.target.value)} />
+                            <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[parameter.id]?.bien_max ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_max', e.target.value)} />
+                          </div>
                         </div>
                         <Button size="icon" className="ml-2 h-7 w-7 p-0 flex items-center justify-center" onClick={() => handleTolSave(parameter.id)} disabled={tolLoading[parameter.id]} title="Guardar límites">
                           <span className="material-icons text-base">save</span>

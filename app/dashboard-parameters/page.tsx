@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { v4 as uuidv4 } from "uuid"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import Navbar from "@/components/Navbar"
+import { getTolerancias, createTolerancia, updateTolerancia } from "@/services/httpService"
 
 interface Parameter {
   id: string;
@@ -119,6 +120,12 @@ export default function ParameterManager() {
   // Estado para el usuario y el rol
   const [user, setUser] = useState<any>(null)
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
+
+  // Estado para tolerancias por parámetro
+  const [tolerancias, setTolerancias] = useState<Record<string, any>>({})
+  const [tolLoading, setTolLoading] = useState<Record<string, boolean>>({})
+  const [tolError, setTolError] = useState<Record<string, string | null>>({})
+  const [tolSuccess, setTolSuccess] = useState<Record<string, string | null>>({})
 
   // Fetch Users
   useEffect(() => {
@@ -384,6 +391,77 @@ export default function ParameterManager() {
     }
   }
 
+  // Cargar tolerancias al cargar parámetros o sistema
+  useEffect(() => {
+    if (!selectedSystemId || parameters.length === 0) return
+    setTolLoading({})
+    setTolError({})
+    setTolSuccess({})
+    getTolerancias()
+      .then((data: any) => {
+        console.log("Respuesta de getTolerancias:", data)
+        const map: Record<string, any> = {}
+        if (Array.isArray(data)) {
+          data.forEach((tol) => {
+            if (parameters.some(p => p.id === tol.variable_id) && tol.proceso_id === selectedSystemId) {
+              map[tol.variable_id] = tol
+            }
+          })
+        } else if (Array.isArray(data.tolerancias)) {
+          data.tolerancias.forEach((tol: any) => {
+            if (parameters.some(p => p.id === tol.variable_id) && tol.proceso_id === selectedSystemId) {
+              map[tol.variable_id] = tol
+            }
+          })
+        }
+        setTolerancias(map)
+      })
+      .catch((e) => {
+        setTolError((prev) => ({ ...prev, global: e.message }))
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSystemId, parameters])
+
+  const handleTolChange = (variableId: string, field: string, value: string) => {
+    setTolerancias((prev) => ({
+      ...prev,
+      [variableId]: {
+        ...prev[variableId],
+        [field]: (field === 'usar_limite_min' || field === 'usar_limite_max') ? value === 'true' : (value === '' ? '' : Number(value)),
+        variable_id: variableId,
+        proceso_id: selectedSystemId,
+        planta_id: selectedPlant?.id,
+        cliente_id: selectedUser?.id,
+      },
+    }))
+  }
+
+  const handleTolSave = async (variableId: string) => {
+    setTolLoading((prev) => ({ ...prev, [variableId]: true }))
+    setTolError((prev) => ({ ...prev, [variableId]: null }))
+    setTolSuccess((prev) => ({ ...prev, [variableId]: null }))
+    const tol = {
+      ...tolerancias[variableId],
+      variable_id: variableId,
+      proceso_id: selectedSystemId,
+      planta_id: selectedPlant?.id,
+      cliente_id: selectedUser?.id,
+    }
+    try {
+      if (tol && tol.id) {
+        await updateTolerancia(tol.id, tol)
+        setTolSuccess((prev) => ({ ...prev, [variableId]: '¡Guardado!' }))
+      } else {
+        await createTolerancia(tol)
+        setTolSuccess((prev) => ({ ...prev, [variableId]: '¡Guardado!' }))
+      }
+    } catch (e: any) {
+      setTolError((prev) => ({ ...prev, [variableId]: e.message }))
+    } finally {
+      setTolLoading((prev) => ({ ...prev, [variableId]: false }))
+    }
+  }
+
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
@@ -482,8 +560,12 @@ export default function ParameterManager() {
                 {selectedSystemId && (
                   <div className="border-t border-gray-200 pt-6">
                     <h2 className="text-lg font-medium leading-6 text-gray-900">Parámetros del Sistema</h2>
+                    <div className="flex flex-row gap-4 mt-2 text-xs items-center">
+                      <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-yellow-100 border border-yellow-400"></span><span className="font-semibold text-yellow-700">Limite-(min,max)</span>: Cerca del límite recomendado</div>
+                      <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-green-100 border-green-400"></span><span className="font-semibold text-green-700">Bien</span>: Dentro de rango</div>
+                    </div>
                     <p className="mt-1 text-sm text-gray-500">
-                      Parámetros para el sistema seleccionado:{" "}
+                      Parámetros para el sistema seleccionado: {" "}
                       <span className="font-semibold">{systems.find((s) => s.id === selectedSystemId)?.nombre || "N/A"}</span>
                     </p>
                     <div className="mt-6">
@@ -497,34 +579,81 @@ export default function ParameterManager() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {parameters.map((param) => (
-                              <TableRow key={param.id}>
-                                <TableCell className="font-medium">{param.nombre}</TableCell>
-                                <TableCell>{param.unidad}</TableCell>
-                                <TableCell className="text-right flex gap-2 justify-end">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleOpenEditModal(param)}
-                                    className="h-8 w-8 text-blue-500 hover:text-blue-700"
-                                    aria-label={`Editar ${param.nombre}`}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleDeleteParameter(param.id)}
-                                    className="h-8 w-8 text-red-500 hover:text-red-700"
-                                    aria-label={`Eliminar ${param.nombre}`}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
+                            {parameters.map((param) => {
+                              const usarLimiteMin = !!tolerancias[param.id]?.usar_limite_min;
+                              const usarLimiteMax = !!tolerancias[param.id]?.usar_limite_max;
+                              return (
+                                <TableRow key={param.id}>
+                                  <TableCell className="font-medium">{param.nombre}</TableCell>
+                                  <TableCell>{param.unidad}</TableCell>
+                                  <TableCell className="text-right flex gap-2 justify-end items-center">
+                                    {/* Inputs de tolerancia: Lim-min | Bien (min/max) | Lim-max */}
+                                    <div className="flex flex-row items-end gap-2">
+                                      {/* Lim-min */}
+                                      <div className="flex flex-col items-center">
+                                        <div className="flex items-center gap-1 mb-0.5">
+                                          <span className="text-xs font-semibold text-yellow-700">Lim-min</span>
+                                          <button type="button" onClick={() => handleTolChange(param.id, 'usar_limite_min', String(!usarLimiteMin))} className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${usarLimiteMin ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'}`}>{usarLimiteMin ? <span className="material-icons text-yellow-700 text-xs">check</span> : null}</button>
+                                        </div>
+                                        <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMin ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="min" value={tolerancias[param.id]?.limite_min ?? ''} onChange={e => handleTolChange(param.id, 'limite_min', e.target.value)} disabled={!usarLimiteMin} />
+                                      </div>
+                                      {/* Bien (min/max) con letrero centrado */}
+                                      <div className="flex flex-col items-center" style={{minWidth: '60px'}}>
+                                        <span className="text-xs font-semibold text-green-700 text-center w-full mb-1">Bien</span>
+                                        <div className="flex flex-row gap-1">
+                                          <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[param.id]?.bien_min ?? ''} onChange={e => handleTolChange(param.id, 'bien_min', e.target.value)} />
+                                          <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[param.id]?.bien_max ?? ''} onChange={e => handleTolChange(param.id, 'bien_max', e.target.value)} />
+                                        </div>
+                                      </div>
+                                      {/* Lim-max */}
+                                      <div className="flex flex-col items-center">
+                                        <div className="flex items-center gap-1 mb-0.5">
+                                          <span className="text-xs font-semibold text-yellow-700">Lim-max</span>
+                                          <button type="button" onClick={() => handleTolChange(param.id, 'usar_limite_max', String(!usarLimiteMax))} className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${usarLimiteMax ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'}`}>{usarLimiteMax ? <span className="material-icons text-yellow-700 text-xs">check</span> : null}</button>
+                                        </div>
+                                        <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMax ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="max" value={tolerancias[param.id]?.limite_max ?? ''} onChange={e => handleTolChange(param.id, 'limite_max', e.target.value)} disabled={!usarLimiteMax} />
+                                      </div>
+                                     
+                                    </div>
+                                    <div className="flex flex-col items-center justify-end">
+                                      {tolError[param.id] && <div className="text-xs text-red-600">{tolError[param.id]}</div>}
+                                      {tolSuccess[param.id] && <div className="text-xs text-green-600">{tolSuccess[param.id]}</div>}
+                                    </div>
+                                    {/* Acciones originales */}
+                                     {/* Botón guardar límites */}
+                                     <Button 
+                                        size="icon" 
+                                        variant="ghost"
+                                        className="ml-2 h-7 w-7 p-0 flex items-center justify-center" 
+                                        onClick={() => handleTolSave(param.id)} 
+                                        disabled={tolLoading[param.id]} 
+                                        title="Guardar límites">
+                                        <span className="material-icons text-base">save</span>
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleOpenEditModal(param)}
+                                      className="h-8 w-8 text-blue-500 hover:text-blue-700"
+                                      aria-label={`Editar ${param.nombre}`}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleDeleteParameter(param.id)}
+                                      className="h-8 w-8 text-red-500 hover:text-red-700"
+                                      aria-label={`Eliminar ${param.nombre}`}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       ) : (
