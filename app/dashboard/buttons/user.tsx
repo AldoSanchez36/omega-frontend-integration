@@ -2,12 +2,10 @@ import React from "react"
 
 interface QuickActionsProps {
   handleNewReport: () => void
-  handleNewPlant: () => void
   handleNewSystem: () => void
-  handleNewVariable: () => void
 }
 
-const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport, handleNewPlant, handleNewSystem, handleNewVariable }) => (
+const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport, handleNewSystem }) => (
   <div className="row mb-4">
     <div className="col-12">
       <div className="card">
@@ -25,22 +23,13 @@ const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport, handleNewP
                 Nuevo Reporte
               </button>
             </div>
-            <div className="col-md-3 mb-2">
+            <div className="col-md-4 mb-2">
               <button
                 className="btn btn-outline-success w-100"
-                onClick={handleNewPlant}
-              >
-                <i className="material-icons me-2">factory</i>
-                Planta
-              </button>
-            </div>
-            <div className="col-md-3 mb-2">
-              <button
-                className="btn btn-outline-info w-100"
                 onClick={handleNewSystem}
               >
                 <i className="material-icons me-2">settings</i>
-                Sistema
+                Nueva Planta o Sistema 
               </button>
             </div>
             
