@@ -539,7 +539,7 @@ export default function Dashboard() {
         {userRole === "admin" && (
           <AdminQuickActions
             handleNewReport={handleNewReport}
-            handleNewPlant={handleNewPlant}
+            
             handleNewSystem={handleNewSystem}
             handleNewVariable={handleNewVariable}
           />
@@ -547,17 +547,11 @@ export default function Dashboard() {
         {userRole === "user" && (
           <UserQuickActions
             handleNewReport={handleNewReport}
-            handleNewPlant={handleNewPlant}
             handleNewSystem={handleNewSystem}
-            handleNewVariable={handleNewVariable}
           />
         )}
         {userRole === "client" && (
           <ClientQuickActions
-            handleNewReport={getClientReports}
-            handleNewPlant={handleNewPlant}
-            handleNewSystem={handleNewSystem}
-            handleNewVariable={handleNewVariable}
           />
         )}
 

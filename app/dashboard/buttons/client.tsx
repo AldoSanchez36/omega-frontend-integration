@@ -1,13 +1,10 @@
 import React from "react"
 
 interface QuickActionsProps {
-  handleNewReport: () => void
-  handleNewPlant: () => void
-  handleNewSystem: () => void
-  handleNewVariable: () => void
+
 }
 
-const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport, handleNewPlant, handleNewSystem, handleNewVariable }) => (
+const QuickActions: React.FC<QuickActionsProps> = ({ }) => (
   <div className="row mb-4">
     {/* <div className="col-12">
       <div className="card">
