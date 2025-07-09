@@ -33,13 +33,13 @@ const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport, handleNewS
                 Nueva Planta o Sistema 
               </button>
             </div>
-            <div className="col-md-3 mb-2">
+            <div className="col-md-4 mb-2">
               <button
                 className="btn btn-outline-warning w-100"
                 onClick={handleNewVariable}
               >
                 <i className="material-icons me-2">analytics</i>
-                Nueva Variable
+                Gestion de Parametros
               </button>
             </div>
           </div>

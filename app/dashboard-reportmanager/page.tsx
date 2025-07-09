@@ -53,6 +53,167 @@ interface Parameter {
   maxValue?: number
 }
 
+// Componente para ingreso de mediciones por parámetro seleccionado
+import { useRef } from "react"
+
+function MedicionInputBox({ parameter, userId, plantId, procesoId, sistemas, onSuccess, onSaveMediciones }: {
+  parameter: any,
+  userId?: string,
+  plantId?: string,
+  procesoId?: string,
+  sistemas: string[],
+  onSuccess?: () => void,
+  onSaveMediciones?: (mediciones: any[]) => void
+}) {
+  const [fecha, setFecha] = useState<string>("")
+  const [comentarios, setComentarios] = useState<string>("")
+  const [tab, setTab] = useState<string>(sistemas[0] || "S01")
+  const [valores, setValores] = useState<{ [sistema: string]: string }>({})
+  const [localSistemas, setLocalSistemas] = useState<string[]>(sistemas)
+  const [loading, setLoading] = useState(false)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  // Sincronizar localSistemas si cambia el prop sistemas
+  useEffect(() => {
+    setLocalSistemas(sistemas)
+    if (!sistemas.includes(tab)) setTab(sistemas[0] || "S01")
+  }, [sistemas])
+
+  const handleValorChange = (s: string, v: string) => {
+    setValores(prev => ({ ...prev, [s]: v }))
+  }
+
+  // Agregar nuevo sistema secuencial
+  const handleAgregarSistema = () => {
+    // Buscar el mayor SXX actual
+    const maxNum = localSistemas.reduce((max, s) => {
+      const match = s.match(/^S(\d+)$/)
+      if (match) {
+        const num = parseInt(match[1], 10)
+        return num > max ? num : max
+      }
+      return max
+    }, 0)
+    const nuevo = `S${String(maxNum + 1).padStart(2, "0")}`
+    if (!localSistemas.includes(nuevo)) {
+      setLocalSistemas([...localSistemas, nuevo])
+      setTab(nuevo)
+    }
+  }
+
+  const handleGuardar = async () => {
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const mediciones = localSistemas
+        .filter(s => valores[s] && valores[s] !== "")
+        .map(s => ({
+          fecha,
+          comentarios,
+          valor: parseFloat(valores[s]),
+          variable_id: parameter.id,
+          proceso_id: procesoId,
+          sistema: s,
+          usuario_id: userId,
+          planta_id: plantId,
+        }))
+      if (mediciones.length === 0) {
+        setError("Ingrese al menos un valor para algún sistema.")
+        setLoading(false)
+        return
+      }
+      for (const m of mediciones) {
+        await fetch("http://localhost:4000/api/mediciones", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(m),
+        })
+      }
+      setSuccess("¡Mediciones guardadas!")
+      setValores({})
+      setComentarios("")
+      setFecha("")
+      if (onSuccess) onSuccess()
+      if (onSaveMediciones) onSaveMediciones(mediciones)
+    } catch (e: any) {
+      setError("Error al guardar mediciones")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="border rounded-lg p-4 bg-gray-50">
+      <div className="flex items-center mb-2">
+        <span className="text-gray-400 font-semibold text-base w-48">{parameter.nombre}</span>
+        <input
+          type="date"
+          className="border rounded px-2 py-1 ml-2 text-sm"
+          value={fecha}
+          onChange={e => setFecha(e.target.value)}
+        />
+        <input
+          type="text"
+          className="border rounded px-2 py-1 ml-2 text-sm flex-1"
+          placeholder="Comentarios"
+          value={comentarios}
+          onChange={e => setComentarios(e.target.value)}
+        />
+      </div>
+      <div className="mt-2">
+        <div className="flex flex-row gap-1 border-b mb-2 items-center">
+          {localSistemas.map(s => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setTab(s)}
+              className={
+                (tab === s
+                  ? "border-b-2 border-blue-600 bg-white text-blue-700 font-semibold "
+                  : "bg-gray-100 text-gray-500 hover:text-blue-600 ") +
+                " px-4 py-1 rounded-t transition-colors duration-150 focus:outline-none"
+              }
+              style={{ minWidth: 48 }}
+            >
+              {s}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={handleAgregarSistema}
+            className="ml-2 px-2 py-1 rounded bg-blue-100 text-blue-700 font-bold hover:bg-blue-200 border border-blue-200"
+            title="Agregar sistema"
+          >
+            +
+          </button>
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500 w-20">Valor {tab}:</span>
+            <Input
+              type="number"
+              className="w-32"
+              placeholder="0"
+              value={valores[tab] || ""}
+              onChange={e => handleValorChange(tab, e.target.value)}
+            />
+            <span className="text-xs text-gray-400">{parameter.unidad}</span>
+          </div>
+        </div>
+      </div>
+      <div className="mt-2 flex items-center gap-4">
+        <Button onClick={handleGuardar} disabled={loading} variant="default">
+          Guardar
+        </Button>
+        {success && <span className="text-green-600 text-xs">{success}</span>}
+        {error && <span className="text-red-600 text-xs">{error}</span>}
+      </div>
+    </div>
+  )
+}
+
 export default function ReportManager() {
   const router = useRouter()
   // Parámetros de fechas y URL para SensorTimeSeriesChart
@@ -87,6 +248,12 @@ export default function ReportManager() {
   const [tolLoading, setTolLoading] = useState<Record<string, boolean>>({})
   const [tolError, setTolError] = useState<Record<string, string | null>>({})
   const [tolSuccess, setTolSuccess] = useState<Record<string, string | null>>({})
+
+  // 1. Crear un estado global en ReportManager para almacenar las mediciones ingresadas manualmente en esta sesión:
+  const [medicionesPreview, setMedicionesPreview] = useState<any[]>([])
+
+  // 1. En ReportManager, crear un estado para los sistemas dinámicos por parámetro:
+  const [sistemasPorParametro, setSistemasPorParametro] = useState<Record<string, string[]>>({})
 
   // Fetch Users
   useEffect(() => {
@@ -248,6 +415,29 @@ export default function ReportManager() {
   const selectedPlantData = plants.find((p) => p.id === selectedPlant?.id)
   const selectedSystemData = systems.find((s) => s.id === selectedSystem)
 
+  // 2. Agrega la función para fetch dinámico:
+  async function fetchSistemasForParametro(param: Parameter) {
+    if (!selectedSystem) return;
+    const res = await fetch(`http://localhost:4000/api/mediciones/variable/${encodeURIComponent(param.nombre)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
+    const data = await res.json();
+    const medicionesFiltradas = (data.mediciones || []).filter((m: any) => m.proceso_id === selectedSystem)
+    const sistemasRaw = medicionesFiltradas.map((m: any) => String(m.sistema))
+    let maxNum = 1
+    sistemasRaw.forEach((s: string) => {
+      const match = s.match(/^S(\d+)$/)
+      if (match) {
+        const num = parseInt(match[1], 10)
+        if (num > maxNum) maxNum = num
+      }
+    })
+    let sistemasSecuencia = Array.from({length: maxNum}, (_, i) => `S${String(i+1).padStart(2, '0')}`)
+    if (sistemasSecuencia.length === 0) sistemasSecuencia = ["S01"]
+    setSistemasPorParametro(prev => ({ ...prev, [param.id]: sistemasSecuencia }))
+  }
+
+  // 3. En el handler del checkbox, si checked=true, llama a fetchSistemasForParametro(param)
   const handleParameterChange = (parameterId: string, field: "checked" | "value", value: boolean | number) => {
     setParameterValues((prev) => ({
       ...prev,
@@ -256,6 +446,10 @@ export default function ReportManager() {
         [field]: value,
       },
     }))
+    if (field === "checked" && value === true) {
+      const param = parameters.find(p => p.id === parameterId)
+      if (param) fetchSistemasForParametro(param)
+    }
   }
 
   const handleSaveData = async () => {
@@ -502,12 +696,98 @@ export default function ReportManager() {
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle>Parámetros del Sistema</CardTitle>
-                <div className="flex flex-row gap-4 mt-2 text-xs items-center">
-                  <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-yellow-100 border border-yellow-400"></span><span className="font-semibold text-yellow-700">Lim-(min,max)</span>: Cerca del límite recomendado</div>
-                  <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-green-100 border border-green-400"></span><span className="font-semibold text-green-700">Bien</span>: Dentro de rango</div>
+                <div className="flex flex-row gap-4 mt-2 text-xs items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-yellow-100 border border-yellow-400"></span><span className="font-semibold text-yellow-700">Lim-(min,max)</span>: Cerca del límite recomendado</div>
+                    <div className="flex items-center gap-1"><span className="font-semibold text-green-700">Bien</span>: Dentro de rango</div>
+                  </div>
+                  <Button 
+                    onClick={() => router.push('/dashboard-parameters')} 
+                    variant="secondary"
+                    size="sm"
+                    className="bg-orange-100 text-orange-700 hover:bg-orange-200 border-orange-300 text-xs"
+                  >
+                    ⚙️ Configurar Límites
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Formulario de ingreso de mediciones por parámetro seleccionado */}
+                <div className="space-y-6 mb-8">
+                  {parameters.filter(p => parameterValues[p.id]?.checked).map((parameter) => (
+                    <MedicionInputBox
+                      key={parameter.id}
+                      parameter={parameter}
+                      userId={selectedUser?.id}
+                      plantId={selectedPlant?.id}
+                      procesoId={selectedSystem}
+                      sistemas={sistemasPorParametro[parameter.id] || ["S01"]}
+                      onSuccess={() => fetchParameters()}
+                      onSaveMediciones={(mediciones) => setMedicionesPreview(prev => [...prev, ...mediciones])}
+                    />
+                  ))}
+                </div>
+                {/* Fin formulario mediciones */}
+
+                {/* Tabla de previsualización justo debajo del formulario de ingreso */}
+                {medicionesPreview.length > 0 && systems.length > 0 && (
+                  <div className="mt-6">
+                    {/* Agrupar por parámetro */}
+                    {(() => {
+                      // Agrupar por parámetro
+                      const porParametro: Record<string, any[]> = {}
+                      medicionesPreview.forEach(m => {
+                        const nombre = m.nombreParametro || m.parametroNombre || ''
+                        if (!porParametro[nombre]) porParametro[nombre] = []
+                        porParametro[nombre].push(m)
+                      })
+                      // Obtener sistemas dinámicos ordenados
+                      const parametro = Object.keys(porParametro)[0]
+                      const sistemasDyn = (sistemasPorParametro && sistemasPorParametro[parametro] && sistemasPorParametro[parametro].length > 0) ? sistemasPorParametro[parametro] : ["S01"]
+                      return (
+                        <>
+                          {Object.entries(porParametro).map(([parametro, mediciones]) => {
+                            // Agrupar por fecha
+                            const fechasSet = new Set(mediciones.map(m => m.fecha))
+                            const fechas = Array.from(fechasSet).sort()
+                            // Mapa fecha -> sistema -> valor
+                            const data: Record<string, Record<string, any>> = {}
+                            mediciones.forEach(m => {
+                              if (!data[m.fecha]) data[m.fecha] = {}
+                              data[m.fecha][m.sistema] = m.valor
+                            })
+                            return (
+                              <div key={parametro} className="mb-8">
+                                <div className="font-bold text-lg text-center mb-1">{parametro}</div>
+                                <table className="min-w-full border text-xs bg-white">
+                                  <thead>
+                                    <tr className="bg-gray-100">
+                                      <th className="border px-2 py-1">Fecha</th>
+                                      {sistemasDyn.map(s => (
+                                        <th key={s} className="border px-2 py-1">{s}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {fechas.map(fecha => (
+                                      <tr key={fecha}>
+                                        <td className="border px-2 py-1 font-semibold">{fecha}</td>
+                                        {sistemasDyn.map(s => (
+                                          <td key={s} className="border px-2 py-1 text-center">{data[fecha][s] !== undefined ? data[fecha][s] : ''}</td>
+                                        ))}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )
+                          })}
+                        </>
+                      )
+                    })()}
+                  </div>
+                )}
+
                 <div className="space-y-4">
                   {parameters.map((parameter) => (
                     <div key={parameter.id} className="flex items-center space-x-4 p-4 border rounded-lg">
@@ -520,17 +800,6 @@ export default function ReportManager() {
                         <div className="text-sm text-gray-500">
                           Unidad: {parameter.unidad}
                         </div>
-                      </div>
-                      <div className="w-32">
-                        <Input
-                          type="number"
-                          placeholder="0"
-                          value={parameterValues[parameter.id]?.value || ""}
-                          onChange={(e) =>
-                            handleParameterChange(parameter.id, "value", Number.parseFloat(e.target.value) || 0)
-                          }
-                          disabled={!parameterValues[parameter.id]?.checked}
-                        />
                       </div>
                       <div className="text-sm text-gray-500 w-16">{parameter.unidad}</div>
                       {/* Inputs de tolerancia en una sola fila */}
