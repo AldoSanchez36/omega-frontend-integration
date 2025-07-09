@@ -310,9 +310,9 @@ export default function Dashboard() {
     router.push("/dashboard-reportmanager")
   }
 
-  const handleNewPlant = () => {
-    /* addDebugLog("Nueva Planta clickeado - redirigiendo a agregar planta") */
-    router.push("/dashboard-agregarplanta")
+  const handleNewVariable = () => {
+   /* addDebugLog("Nueva Variable clickeado - redirigiendo a parámetros") */
+    router.push("/dashboard-agregarvariables")
   }
 
   const handleNewSystem = () => {
@@ -320,8 +320,8 @@ export default function Dashboard() {
     router.push("/dashboard-agregarsistema")
   }
 
-  const handleNewVariable = () => {
-    /* addDebugLog("Nueva Variable clickeado - redirigiendo a parámetros") */
+  const handleNewParameters = () => {
+    /* addDebugLog("Nuevo Parametro clickeado - redirigiendo a parámetros") */
     router.push("/dashboard-parameters")
   }
 
@@ -539,9 +539,9 @@ export default function Dashboard() {
         {userRole === "admin" && (
           <AdminQuickActions
             handleNewReport={handleNewReport}
-            
-            handleNewSystem={handleNewSystem}
             handleNewVariable={handleNewVariable}
+            handleNewSystem={handleNewSystem}
+            handleNewParameter={handleNewParameters}
           />
         )}
         {userRole === "user" && (
