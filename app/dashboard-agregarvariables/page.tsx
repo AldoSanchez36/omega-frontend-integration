@@ -23,20 +23,98 @@ interface Proceso {
   descripcion: string
 }
 
-// Placeholder para SelectProceso
-function SelectProceso({ value, onChange }: { value: string, onChange: (v: string) => void }) {
-  // TODO: Implementar búsqueda asíncrona de procesos
+// Dropdown de procesos estilo users-management
+function DropdownProceso({ value, onChange, token }: { value: string, onChange: (v: string) => void, token: string | null }) {
+  const [procesos, setProcesos] = useState<Proceso[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    const fetchProcesos = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await fetch("http://localhost:4000/api/procesos/", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        })
+        if (!res.ok) throw new Error("No se pudieron cargar los procesos")
+        const data = await res.json()
+        setProcesos(data.procesos || data || [])
+      } catch (e: any) {
+        setError(e.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchProcesos()
+  }, [token])
+
+  const selectedProceso = procesos.find(p => p.id === value)
+
   return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-48">
-        <SelectValue placeholder="Seleccionar proceso" />
-      </SelectTrigger>
-      <SelectContent>
-        {/* Opciones de ejemplo */}
-        <SelectItem value="proceso1">Proceso 1</SelectItem>
-        <SelectItem value="proceso2">Proceso 2</SelectItem>
-      </SelectContent>
-    </Select>
+    <div className="relative inline-block text-left w-48">
+      <button
+        type="button"
+        className="inline-flex w-full justify-between gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+        aria-expanded={open}
+        aria-haspopup="true"
+        onClick={() => setOpen(!open)}
+      >
+        {loading ? "Cargando..." : (selectedProceso ? selectedProceso.nombre : "Todas las variables")}
+        <svg
+          className="-mr-1 size-5 text-gray-400"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+      {open && (
+        <div
+          className="absolute z-10 mt-2 w-full origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black/5 focus:outline-none"
+          role="menu"
+          aria-orientation="vertical"
+        >
+          <div className="py-1 max-h-60 overflow-y-auto">
+            <button
+              onClick={() => {
+                setOpen(false)
+                onChange("")
+              }}
+              className={`block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 ${!value ? 'font-bold bg-gray-100' : ''}`}
+              role="menuitem"
+            >
+              Todas las variables
+            </button>
+            {procesos.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => {
+                  setOpen(false)
+                  onChange(p.id)
+                }}
+                className={`block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 ${value === p.id ? 'font-bold bg-gray-100' : ''}`}
+                role="menuitem"
+              >
+                {p.nombre}
+              </button>
+            ))}
+            {!loading && procesos.length === 0 && (
+              <div className="px-4 py-2 text-gray-400">No hay procesos</div>
+            )}
+            {error && (
+              <div className="px-4 py-2 text-red-500">{error}</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -51,6 +129,7 @@ export default function VariablesPage() {
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
   const [formData, setFormData] = useState({ nombre: '', unidad: '' })
   const [saving, setSaving] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean, variable: Variable | null }>({ open: false, variable: null })
   
   const token = typeof window !== "undefined" ? localStorage.getItem("omega_token") : null
 
@@ -139,8 +218,8 @@ export default function VariablesPage() {
 
   // Guardar variable (crear o editar)
   const handleSaveVariable = async () => {
-    if (!formData.nombre.trim() || !formData.unidad.trim()) {
-      setError('Nombre y unidad son obligatorios')
+    if (!formData.nombre.trim()) {
+      setError('El nombre es obligatorio')
       return
     }
 
@@ -162,7 +241,7 @@ export default function VariablesPage() {
         },
         body: JSON.stringify({
           nombre: formData.nombre.trim(),
-          unidad: formData.unidad.trim(),
+          unidad: formData.unidad.trim(), // puede ser vacío
           proceso_id: selectedProceso || variables[0]?.proceso_id
         })
       })
@@ -199,42 +278,42 @@ export default function VariablesPage() {
     }
   }
 
-  // Eliminar variable
-  const handleDeleteVariable = async (variableId: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar esta variable?')) {
-      return
-    }
+  // Eliminar variable (ahora solo abre el modal de confirmación)
+  const handleDeleteVariable = (variable: Variable) => {
+    setDeleteConfirm({ open: true, variable })
+  }
 
+  // Confirmar eliminación
+  const confirmDeleteVariable = async () => {
+    if (!deleteConfirm.variable) return
     try {
-      const response = await fetch(`http://localhost:4000/api/variables/${variableId}`, {
+      const response = await fetch(`http://localhost:4000/api/variables/${deleteConfirm.variable.id}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`
         }
       })
-
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`)
       }
-
       // Recargar variables después de eliminar
       const url = selectedProceso 
         ? `http://localhost:4000/api/variables/proceso/${selectedProceso}`
         : "http://localhost:4000/api/variables/"
-      
       const reloadResponse = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json"
         }
       })
-
       if (reloadResponse.ok) {
         const data = await reloadResponse.json()
         setVariables(data.variables || data || [])
       }
+      setDeleteConfirm({ open: false, variable: null })
     } catch (err: any) {
       setError(`Error al eliminar variable: ${err.message}`)
+      setDeleteConfirm({ open: false, variable: null })
     }
   }
 
@@ -247,7 +326,7 @@ export default function VariablesPage() {
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold">Parámetros</h1>
             <div className="flex items-center gap-2">
-              <SelectProceso value={selectedProceso} onChange={setSelectedProceso} />
+              <DropdownProceso value={selectedProceso} onChange={setSelectedProceso} token={token} />
               <Button onClick={handleCreateVariable} className="ml-2">+ Agregar</Button>
             </div>
           </div>
@@ -299,7 +378,7 @@ export default function VariablesPage() {
                           <Button 
                             size="sm" 
                             variant="ghost"
-                            onClick={() => handleDeleteVariable(variable.id)}
+                            onClick={() => handleDeleteVariable(variable)}
                           >
                             <i className="material-icons text-sm">delete</i>
                           </Button>
@@ -314,47 +393,86 @@ export default function VariablesPage() {
 
           {/* Modal para crear/editar variable */}
           {showModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
-                <h2 className="text-lg font-bold mb-4">
-                  {modalMode === 'create' ? 'Agregar Variable' : 'Editar Variable'}
-                </h2>
-                
-                {error && (
-                  <div className="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded mb-4 text-sm">
-                    {error}
-                  </div>
-                )}
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Nombre *</label>
-                    <Input 
-                      value={formData.nombre}
-                      onChange={(e) => setFormData(prev => ({ ...prev, nombre: e.target.value }))}
-                      placeholder="Ej: pH, Temperatura"
-                      maxLength={25}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Unidad *</label>
-                    <Input 
-                      value={formData.unidad}
-                      onChange={(e) => setFormData(prev => ({ ...prev, unidad: e.target.value }))}
-                      placeholder="Ej: udless, °C, ppm"
-                      maxLength={10}
-                    />
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div className="fixed inset-0 bg-gray-500/75 transition-opacity" aria-hidden="true" onClick={handleCloseModal}></div>
+              <div className="relative z-10 w-full max-w-lg mx-auto">
+                <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                  <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                    <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                      <div className="sm:flex sm:items-start">
+                        <div className="mx-auto flex size-12 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:mx-0 sm:size-10">
+                          <span className="material-icons text-blue-600 text-3xl">{modalMode === 'create' ? 'add' : 'edit'}</span>
+                        </div>
+                        <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                          <h3 className="text-base font-semibold text-gray-900" id="dialog-title">
+                            {modalMode === 'create' ? 'Agregar Variable' : 'Editar Variable'}
+                          </h3>
+                          <div className="mt-2 space-y-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                              <Input
+                                value={formData.nombre}
+                                onChange={e => setFormData(prev => ({ ...prev, nombre: e.target.value }))}
+                                placeholder="Ej: pH, Temperatura"
+                                maxLength={25}
+                                className="w-full"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Unidad <span className="text-gray-400">(opcional)</span></label>
+                              <Input
+                                value={formData.unidad}
+                                onChange={e => setFormData(prev => ({ ...prev, unidad: e.target.value }))}
+                                placeholder="Ej: °C, ppm o dejar vacío"
+                                maxLength={10}
+                                className="w-full"
+                              />
+                            </div>
+                            {error && <div className="text-red-600 text-sm">{error}</div>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 px-4 py-3 flex justify-end gap-2 sm:px-2">
+                      <Button variant="outline" onClick={handleCloseModal} disabled={saving}>Cancelar</Button>
+                      <Button onClick={handleSaveVariable} disabled={saving}>
+                        {saving ? 'Guardando...' : 'Guardar'}
+                      </Button>
+                    </div>
                   </div>
                 </div>
-                
-                <div className="flex justify-end gap-2 mt-6">
-                  <Button variant="outline" onClick={handleCloseModal} disabled={saving}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleSaveVariable} disabled={saving}>
-                    {saving ? 'Guardando...' : 'Guardar'}
-                  </Button>
+              </div>
+            </div>
+          )}
+          {/* Modal de confirmación de eliminación */}
+          {deleteConfirm.open && deleteConfirm.variable && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div className="fixed inset-0 bg-gray-500/75 transition-opacity" aria-hidden="true" onClick={() => setDeleteConfirm({ open: false, variable: null })}></div>
+              <div className="relative z-10 w-full max-w-md mx-auto">
+                <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                  <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md">
+                    <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                      <div className="sm:flex sm:items-start">
+                        <div className="mx-auto flex size-12 shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:size-10">
+                          <span className="material-icons text-red-600 text-3xl">delete</span>
+                        </div>
+                        <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                          <h3 className="text-base font-semibold text-gray-900" id="dialog-title">
+                            Eliminar variable
+                          </h3>
+                          <div className="mt-2">
+                            <p className="text-sm text-gray-700">¿Estás seguro que quieres eliminar <span className="font-bold">{deleteConfirm.variable.nombre}</span>?</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 px-4 py-3 flex justify-end gap-2 sm:px-2">
+                      <Button variant="outline" onClick={() => setDeleteConfirm({ open: false, variable: null })}>Cancelar</Button>
+                      <Button onClick={confirmDeleteVariable} className="bg-red-600 hover:bg-red-700 text-white" type="button">
+                        Eliminar
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
