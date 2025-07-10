@@ -427,7 +427,7 @@ export default function UsersManagement() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50 p-6">
+      <div className="min-h-screen bg-gray-50">
        <Navbar role={userRole} />
         {/* Header */}
         <div className="bg-blue-600 text-white py-6 rounded-lg shadow mb-6">
@@ -448,50 +448,7 @@ export default function UsersManagement() {
         </div>
 
         {/* Main Content */}
-        <div className="container mx-auto">
-          {/* Filtros jerárquicos (Cliente/Usuario, Planta, Sistema) - NUEVO DISEÑO */}
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-1">Selección Jerárquica</h2>
-            <p className="text-sm text-gray-500 mb-4">Seleccione Usuario, Planta y Sistema para gestionar parámetros.</p>
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <label htmlFor="usuario" className="text-sm font-semibold text-gray-700 min-w-[70px]">Usuario</label>
-                <div className="w-full max-w-sm">
-                  <Dropdown
-                    label={selectedUsuario || "Seleccione un usuario"}
-                    options={["Usuario A", "Usuario B"]}
-                    onSelect={setSelectedUsuario}
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <label htmlFor="planta" className="text-sm font-semibold text-gray-700 min-w-[70px]">Planta</label>
-                <div className="w-full max-w-sm">
-                  <Dropdown
-                    label={selectedPlanta || "Seleccione una planta"}
-                    options={["Planta A", "Planta B"]}
-                    onSelect={setSelectedPlanta}
-                  />
-                </div>
-                <button className="ml-2 bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 transition">
-                  Crear Planta
-                </button>
-              </div>
-              <div className="flex items-center gap-4">
-                <label htmlFor="sistema" className="text-sm font-semibold text-gray-700 min-w-[70px]">Sistema</label>
-                <div className="w-full max-w-sm">
-                  <Dropdown
-                    label={selectedSistema || "Seleccione un sistema"}
-                    options={["Sistema A", "Sistema B"]}
-                    onSelect={setSelectedSistema}
-                  />
-                </div>
-                <button className="ml-2 bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600 transition">
-                  Cargar procesos
-                </button>
-              </div>
-            </div>
-          </div>
+        <div className="container mx-auto">          
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
               <span className="material-icons align-middle mr-2">warning</span>
