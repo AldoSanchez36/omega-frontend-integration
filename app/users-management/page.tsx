@@ -67,20 +67,16 @@ export default function UsersManagement() {
     }
     const fetchUsers = async () => {
       try {
-        console.log("🔍 Iniciando petición al backend con axios...")
         setLoading(true)
         setError(null)
         
         // Obtener token
         const token = authService.getToken()
         if (!token) {
-          console.error("❌ No hay token de autenticación")
           setError("No hay token de autenticación")
           setLoading(false)
           return
         }
-        
-        console.log("🔑 Token encontrado:", token.substring(0, 20) + "...")
         
         // Hacer la petición con axios
         const response = await axios.get("http://localhost:4000/api/auth/users", {
@@ -89,14 +85,6 @@ export default function UsersManagement() {
             "Content-Type": "application/json",
           },
         })
-        
-        /* console.log("📡 Respuesta del servidor:")
-        console.log("Status:", response.status)
-        console.log("Status Text:", response.statusText)
-        console.log("Headers:", response.headers)
-        
-        console.log("📦 Datos recibidos:") */
-       /*  console.log(JSON.stringify(response.data, null, 2)) */
         
         // Procesar los datos recibidos
         const usersData = (Array.isArray(response.data) ? response.data : (response.data.users || response.data.usuarios || []))
@@ -108,25 +96,17 @@ export default function UsersManagement() {
           const tokenData = JSON.parse(atob(token.split('.')[1]))
           setCurrentUserRole(tokenData.userType || tokenData.role || 'user')
         } catch (e) {
-          console.error("Error decodificando token:", e)
           setCurrentUserRole('user')
         }
         
       } catch (err) {
-        console.error("❌ Error en la petición:")
         if (axios.isAxiosError(err)) {
-          console.error("Status:", err.response?.status)
-          console.error("Status Text:", err.response?.statusText)
-          console.error("Data:", err.response?.data)
-          console.error("Message:", err.message)
-          
           if (err.response?.status === 401) {
             setError("Sesión expirada. Por favor, inicia sesión nuevamente.")
           } else {
             setError(`Error del servidor: ${err.response?.status} - ${err.response?.statusText}`)
           }
         } else {
-          console.error("Error:", err)
           setError("Error de conexión. Verifica que el backend esté corriendo.")
         }
       } finally {
@@ -142,14 +122,12 @@ export default function UsersManagement() {
     if (!showPermissionModal || !selectedUserForPermissions) return;
     const token = authService.getToken();
     const usuarioId = getUserId(selectedUserForPermissions)
-    console.log("🔑 x-usuario-id para fetch plantas:", usuarioId, selectedUserForPermissions);
     if (!usuarioId) return; // No hacer fetch si no hay id
     fetch("http://localhost:4000/api/plantas/accesibles", {
       headers: { Authorization: `Bearer ${token}`, "x-usuario-id": usuarioId }
     })
       .then(res => res.json())
       .then(data => {
-        console.log("🌱 Plantas accesibles para el modal:", data);
         setPlantasModal(data.plantas || []);
         if (data.plantas && data.plantas.length > 0) {
           setPlantaSeleccionadaModal(data.plantas[0].id ?? data.plantas[0]._id);
@@ -161,19 +139,43 @@ export default function UsersManagement() {
   useEffect(() => {
     if (!plantaSeleccionadaModal) return;
     const token = authService.getToken();
-    console.log("🌿 Fetch sistemas para planta:", plantaSeleccionadaModal);
     fetch(`http://localhost:4000/api/procesos/planta/${plantaSeleccionadaModal}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => {
-        console.log("🛠️ Sistemas para la planta:", data);
         setSistemasModal(data.procesos || []);
         if (data.procesos && data.procesos.length > 0) {
           setSistemaSeleccionadoModal(data.procesos[0].id);
         }
       });
   }, [plantaSeleccionadaModal]);
+
+  useEffect(() => {
+    if (!selectedUserForPermissions || !sistemaSeleccionadoModal) {
+      setPermisoVer(false);
+      setPermisoEditar(false);
+      return;
+    }
+    const usuarioId = getUserId(selectedUserForPermissions);
+    const procesoId = sistemaSeleccionadoModal;
+    const token = authService.getToken();
+
+    fetch(`http://localhost:4000/api/accesos/procesos/usuario/${usuarioId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        const procesos = data.procesos || [];
+        const found = procesos.find((p: { proceso_id: string; puede_ver: boolean; puede_editar: boolean }) => String(p.proceso_id) === String(procesoId));
+        setPermisoVer(!!found?.puede_ver);
+        setPermisoEditar(!!found?.puede_editar);
+      })
+      .catch(() => {
+        setPermisoVer(false);
+        setPermisoEditar(false);
+      });
+  }, [selectedUserForPermissions, sistemaSeleccionadoModal]);
 
   const getRoleBadge = (role: string) => {
     const roleMap: { [key: string]: { color: string; text: string } } = {
@@ -365,32 +367,30 @@ export default function UsersManagement() {
     }
   }
 
-  // Handler para guardar permisos de sistema
+  // Handler para guardar permisos de sistema (versión corregida según backend)
   const handleGuardarPermisos = async () => {
     if (!selectedUserForPermissions || !plantaSeleccionadaModal || !sistemaSeleccionadoModal) {
-      console.error("Faltan datos para guardar permisos");
       return;
     }
     const usuarioId = getUserId(selectedUserForPermissions);
-    const plantaId = plantaSeleccionadaModal;
-    const sistemaId = sistemaSeleccionadoModal;
+    const procesoId = sistemaSeleccionadoModal;
     const token = authService.getToken();
     try {
-      // 1. GET para saber si ya existen permisos
-      const getRes = await fetch(`http://localhost:4000/api/accesos/procesos/usuario/${usuarioId}?planta_id=${plantaId}&proceso_id=${sistemaId}`, {
+      // 1. GET para saber si ya existen permisos para este proceso
+      const getRes = await fetch(`http://localhost:4000/api/accesos/procesos/usuario/${usuarioId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const getData = await getRes.json();
-      console.log("🔎 GET permisos existentes:", getData);
-      const yaExiste = Array.isArray(getData.permisos) ? getData.permisos.length > 0 : !!getData.permisos;
+      const procesos = getData.procesos || [];
+      const yaExiste = procesos.some((p: any) => String(p.proceso_id) === String(procesoId));
       // 2. POST o PATCH según corresponda
-      const body = JSON.stringify({
+      const payload = {
         usuario_id: usuarioId,
-        planta_id: plantaId,
-        proceso_id: sistemaId,
-        ver: permisoVer,
-        editar: permisoEditar
-      });
+        proceso_id: procesoId,
+        puede_ver: permisoVer,
+        puede_editar: permisoEditar
+      };
+      const body = JSON.stringify(payload);
       let res, data;
       if (!yaExiste) {
         // POST asignar
@@ -400,7 +400,7 @@ export default function UsersManagement() {
           body
         });
         data = await res.json();
-        console.log("✅ POST asignar permisos:", data);
+        closePermissionModal();
       } else {
         // PATCH actualizar
         res = await fetch("http://localhost:4000/api/accesos/procesos/actualizar", {
@@ -409,10 +409,8 @@ export default function UsersManagement() {
           body
         });
         data = await res.json();
-        console.log("✏️ PATCH actualizar permisos:", data);
       }
     } catch (err) {
-      console.error("❌ Error guardando permisos:", err);
     }
   }
 
@@ -715,7 +713,7 @@ export default function UsersManagement() {
                                     className={`px-4 py-2 font-semibold ${sistemaSeleccionadoModal === sistema.id ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500'}`}
                                     onClick={() => setSistemaSeleccionadoModal(sistema.id)}
                                   >
-                                    {sistema.nombre}
+                                    {sistema.nombre} 
                                   </button>
                                 ))}
                               </div>
@@ -736,7 +734,6 @@ export default function UsersManagement() {
                                         <input type="checkbox" checked={permisoEditar} onChange={e => setPermisoEditar(e.target.checked)} />
                                         <span>Editar</span>
                                       </label>
-                                     c
                                     </div>
                                   </div>
                                 )
