@@ -29,8 +29,8 @@ const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport }) => (
                 </div>
               </div>
             </div>
+            </div>
           </div>
-        </div>
       </div>
     </div>
   </div>

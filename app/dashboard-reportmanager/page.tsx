@@ -698,7 +698,7 @@ export default function ReportManager() {
                 <CardTitle>Parámetros del Sistema</CardTitle>
                 <div className="flex flex-row gap-4 mt-2 text-xs items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-yellow-100 border border-yellow-400"></span><span className="font-semibold text-yellow-700">Lim-(min,max)</span>: Cerca del límite recomendado</div>
+                  <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-yellow-100 border border-yellow-400"></span><span className="font-semibold text-yellow-700">Lim-(min,max)</span>: Cerca del límite recomendado</div>
                     <div className="flex items-center gap-1"><span className="font-semibold text-green-700">Bien</span>: Dentro de rango</div>
                   </div>
                   <Button 
