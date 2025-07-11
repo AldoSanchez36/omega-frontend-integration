@@ -35,6 +35,7 @@ export default function Reporte() {
   const [imagesLoaded, setImagesLoaded] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
+  const [reportMetadata, setReportMetadata] = useState<any>(null)
 
   const [rangeLimits] = useState<RangeLimits>({
     pH: {
@@ -85,6 +86,7 @@ export default function Reporte() {
     // Cargar datos del localStorage o usar datos mock
     const storedData = JSON.parse(localStorage.getItem("savedSystemData") || "{}")
     const storedNotes = JSON.parse(localStorage.getItem("reportNotes") || "{}")
+    const storedMetadata = JSON.parse(localStorage.getItem("reportMetadata") || "null")
 
     // Si no hay datos, usar datos mock
     if (Object.keys(storedData).length === 0) {
@@ -120,6 +122,7 @@ export default function Reporte() {
     }
 
     setReportNotes(storedNotes)
+    setReportMetadata(storedMetadata)
 
     // Obtener fecha actual
     const today = new Date()
@@ -158,8 +161,15 @@ export default function Reporte() {
       doc.text(`Asunto: ${reportNotes["asunto"] || "REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS"}`, 20, 55)
       doc.text(`Sistema Evaluado: ${reportNotes["sistema"] || "Todos los sistemas"}`, 20, 65)
       doc.text(`Ubicación: ${reportNotes["ubicacion"] || "San Luis Potosí, S.L.P."}`, 20, 75)
+      
+      // Add metadata if available
+      if (reportMetadata) {
+        doc.text(`Planta: ${reportMetadata.plantName}`, 20, 85)
+        doc.text(`Sistema: ${reportMetadata.systemName}`, 20, 95)
+        doc.text(`Generado por: ${reportMetadata.user}`, 20, 105)
+      }
 
-      let currentY = 90
+      let currentY = reportMetadata ? 120 : 90
 
       // Leyenda de colores
       doc.setFontSize(14)
@@ -196,10 +206,11 @@ export default function Reporte() {
         })
       })
 
-      const tableHeaders = ["Parámetro", "AGUA CEA", "AGUA DE REPUESTO", "TORRE DE ENFRIAMIENTO", "DRY COOLER"]
+      const systemNames = Object.keys(savedSystemData)
+      const tableHeaders = ["Parámetro", ...systemNames]
       const tableData = Array.from(allParams).map((paramName) => {
         const row = [paramName]
-        ;["AGUA CEA", "AGUA DE REPUESTO", "TORRE DE ENFRIAMIENTO", "DRY COOLER"].forEach((systemName) => {
+        systemNames.forEach((systemName) => {
           const systemParams = savedSystemData[systemName] || []
           const param = systemParams.find((p) => p.name === paramName)
           const value = param ? param.value || "N/A" : "—"
@@ -299,6 +310,15 @@ export default function Reporte() {
             <p className="mb-0">
               <strong>Fecha:</strong> {currentDate}
             </p>
+            {reportMetadata && (
+              <div className="mt-2">
+                <small>
+                  <strong>Planta:</strong> {reportMetadata.plantName} | 
+                  <strong> Sistema:</strong> {reportMetadata.systemName} | 
+                  <strong> Generado por:</strong> {reportMetadata.user}
+                </small>
+              </div>
+            )}
           </div>
         </div>
 
@@ -454,10 +474,9 @@ export default function Reporte() {
                     <thead className="table-dark">
                       <tr>
                         <th>Parámetro</th>
-                        <th>AGUA CEA</th>
-                        <th>AGUA DE REPUESTO</th>
-                        <th>TORRE DE ENFRIAMIENTO</th>
-                        <th>DRY COOLER</th>
+                        {Object.keys(savedSystemData).map((systemName) => (
+                          <th key={systemName}>{systemName}</th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
@@ -473,7 +492,7 @@ export default function Reporte() {
                             <td>
                               <strong>{paramName}</strong>
                             </td>
-                            {["AGUA CEA", "AGUA DE REPUESTO", "TORRE DE ENFRIAMIENTO", "DRY COOLER"].map((systemName) => {
+                            {Object.keys(savedSystemData).map((systemName) => {
                               const systemParams = savedSystemData[systemName] || []
                               const param = systemParams.find((p) => p.name === paramName)
                               const value = param ? param.value || "N/A" : "—"
@@ -511,6 +530,27 @@ export default function Reporte() {
                   </table>
                 </div>
               </div>
+
+              {/* Detailed Measurements Section */}
+              {reportMetadata && (
+                <div className="mb-4">
+                  <h5>Detalles de Mediciones</h5>
+                  <div className="card">
+                    <div className="card-body">
+                      <div className="row">
+                        <div className="col-md-6">
+                          <p><strong>Planta:</strong> {reportMetadata.plantName}</p>
+                          <p><strong>Sistema:</strong> {reportMetadata.systemName}</p>
+                        </div>
+                        <div className="col-md-6">
+                          <p><strong>Generado por:</strong> {reportMetadata.user}</p>
+                          <p><strong>Fecha de generación:</strong> {new Date(reportMetadata.generatedDate).toLocaleString('es-ES')}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Instructions for images */}
               {!imagesLoaded && (

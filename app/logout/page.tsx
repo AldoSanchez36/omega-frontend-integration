@@ -10,21 +10,18 @@ export default function LogoutPage() {
   const [message, setMessage] = useState("Cerrando sesión...")
   const didRunRef = useRef(false)
 
-  const handleLogout = () => {
-    if (didRunRef.current) return
-    didRunRef.current = true
-    setMessage("Limpiando datos de sesión...")
-    logout()
-    setMessage("Sesión cerrada exitosamente. Redirigiendo...")
-    setTimeout(() => {
-      router.replace("/")
-    }, 300)
-  }
-
-  // Ejecutar handleLogout una sola vez al montar
-  if (typeof window !== "undefined" && !didRunRef.current) {
-    handleLogout()
-  }
+  // Ejecutar handleLogout una sola vez al montar usando useEffect
+  useEffect(() => {
+    if (typeof window !== "undefined" && !didRunRef.current) {
+      didRunRef.current = true
+      setMessage("Limpiando datos de sesión...")
+      logout()
+      setMessage("Sesión cerrada exitosamente. Redirigiendo...")
+      setTimeout(() => {
+        router.replace("/")
+      }, 300)
+    }
+  }, [logout, router]) // Include dependencies
 
   return (
     <div className="min-vh-100 bg-light d-flex align-items-center justify-content-center">

@@ -56,23 +56,21 @@ interface Parameter {
 // Componente para ingreso de mediciones por parámetro seleccionado
 import { useRef } from "react"
 
-function MedicionInputBox({ parameter, userId, plantId, procesoId, sistemas, onSuccess, onSaveMediciones }: {
+function MedicionInputBox({ parameter, userId, plantId, procesoId, sistemas, onDataChange }: {
   parameter: any,
   userId?: string,
   plantId?: string,
   procesoId?: string,
   sistemas: string[],
-  onSuccess?: () => void,
-  onSaveMediciones?: (mediciones: any[]) => void
+  onDataChange?: (parameterId: string, data: { fecha: string; comentarios: string; valores: { [sistema: string]: string } }) => void
 }) {
   const [fecha, setFecha] = useState<string>("")
   const [comentarios, setComentarios] = useState<string>("")
   const [tab, setTab] = useState<string>(sistemas[0] || "S01")
   const [valores, setValores] = useState<{ [sistema: string]: string }>({})
   const [localSistemas, setLocalSistemas] = useState<string[]>(sistemas)
-  const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const prevDataRef = useRef<{ fecha: string; comentarios: string; valores: { [sistema: string]: string } }>({ fecha: "", comentarios: "", valores: {} })
+  // Removed unused state variables
 
   // Sincronizar localSistemas si cambia el prop sistemas
   useEffect(() => {
@@ -102,47 +100,24 @@ function MedicionInputBox({ parameter, userId, plantId, procesoId, sistemas, onS
     }
   }
 
-  const handleGuardar = async () => {
-    setLoading(true)
-    setError(null)
-    setSuccess(null)
-    try {
-      const mediciones = localSistemas
-        .filter(s => valores[s] && valores[s] !== "")
-        .map(s => ({
-          fecha,
-          comentarios,
-          valor: parseFloat(valores[s]),
-          variable_id: parameter.id,
-          proceso_id: procesoId,
-          sistema: s,
-          usuario_id: userId,
-          planta_id: plantId,
-        }))
-      if (mediciones.length === 0) {
-        setError("Ingrese al menos un valor para algún sistema.")
-        setLoading(false)
-        return
+  // Notify parent component when data changes
+  useEffect(() => {
+    if (onDataChange && parameter?.id) {
+      const currentData = { fecha, comentarios, valores }
+      const prevData = prevDataRef.current
+      
+      // Only call onDataChange if data has actually changed
+      const hasChanged = 
+        prevData.fecha !== fecha ||
+        prevData.comentarios !== comentarios ||
+        JSON.stringify(prevData.valores) !== JSON.stringify(valores)
+      
+      if (hasChanged) {
+        prevDataRef.current = currentData
+        onDataChange(parameter.id, currentData)
       }
-      for (const m of mediciones) {
-        await fetch("http://localhost:4000/api/mediciones", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(m),
-        })
-      }
-      setSuccess("¡Mediciones guardadas!")
-      setValores({})
-      setComentarios("")
-      setFecha("")
-      if (onSuccess) onSuccess()
-      if (onSaveMediciones) onSaveMediciones(mediciones)
-    } catch (e: any) {
-      setError("Error al guardar mediciones")
-    } finally {
-      setLoading(false)
     }
-  }
+  }, [fecha, comentarios, valores, parameter?.id]) // Removed onDataChange from dependencies
 
   return (
     <div className="border rounded-lg p-4 bg-gray-50">
@@ -204,11 +179,10 @@ function MedicionInputBox({ parameter, userId, plantId, procesoId, sistemas, onS
         </div>
       </div>
       <div className="mt-2 flex items-center gap-4">
-        <Button onClick={handleGuardar} disabled={loading} variant="default">
-          Guardar
-        </Button>
-        {success && <span className="text-green-600 text-xs">{success}</span>}
-        {error && <span className="text-red-600 text-xs">{error}</span>}
+        <span className="text-xs text-gray-500">Los datos se guardarán cuando uses "Guardar Datos"</span>
+        {!fecha && (
+          <span className="text-xs text-red-500">⚠️ Fecha requerida</span>
+        )}
       </div>
     </div>
   )
@@ -254,6 +228,9 @@ export default function ReportManager() {
 
   // 1. En ReportManager, crear un estado para los sistemas dinámicos por parámetro:
   const [sistemasPorParametro, setSistemasPorParametro] = useState<Record<string, string[]>>({})
+
+  // Estado para almacenar todos los datos de mediciones ingresados
+  const [allMeasurementData, setAllMeasurementData] = useState<Record<string, { fecha: string; comentarios: string; valores: { [sistema: string]: string } }>>({})
 
   // Fetch Users
   useEffect(() => {
@@ -303,7 +280,7 @@ export default function ReportManager() {
   }, [token, userRole, addDebugLog])
 
   // Handlers for selection changes
-  const handleSelectUser = async (userId: string) => {
+  const handleSelectUser = useCallback(async (userId: string) => {
     const user = users.find((u) => u.id === userId)
     if (!user) return
 
@@ -340,9 +317,9 @@ export default function ReportManager() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [users, token, addDebugLog])
 
-  const handleSelectPlant = async (plantId: string) => {
+  const handleSelectPlant = useCallback(async (plantId: string) => {
     const plant = plants.find((p) => p.id === plantId)
     if (!plant) return
 
@@ -374,7 +351,7 @@ export default function ReportManager() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [plants, token, addDebugLog])
 
   const fetchParameters = useCallback(async () => {
     if (!selectedSystem) {
@@ -447,28 +424,69 @@ export default function ReportManager() {
     }
   }
 
-  const handleSaveData = async () => {
-    addDebugLog("info", "Guardando datos de parámetros")
+  const handleMeasurementDataChange = useCallback((parameterId: string, data: { fecha: string; comentarios: string; valores: { [sistema: string]: string } }) => {
+    setAllMeasurementData(prev => ({
+      ...prev,
+      [parameterId]: data
+    }))
+  }, [])
 
-    const selectedParams = Object.entries(parameterValues)
-      .filter(([_, data]) => data.checked)
-      .map(([id, data]) => ({ id, value: data.value }))
+  const handleSaveData = async () => {
+    addDebugLog("info", "Guardando datos de mediciones")
 
     try {
-      // TODO: Implement real API call for saving parameter values
-      // const response = await fetch('http://localhost:4000/api/variables/values', {
-      //   method: 'POST',
-      //   headers: { 
-      //     'Content-Type': 'application/json',
-      //     Authorization: `Bearer ${token}`
-      //   },
-      //   body: JSON.stringify({
-      //     systemId: selectedSystem,
-      //     parameters: selectedParams
-      //   })
-      // })
+      // Collect all measurement data from all parameters
+      const allMediciones: any[] = []
+      
+      Object.entries(allMeasurementData).forEach(([parameterId, data]) => {
+        const parameter = parameters.find(p => p.id === parameterId)
+        if (!parameter) return
 
-      addDebugLog("success", `Guardados ${selectedParams.length} parámetros`)
+        // Convert data to measurement format
+        Object.entries(data.valores).forEach(([sistema, valor]) => {
+          if (valor && valor !== "" && data.fecha) { // Validate required fields
+            allMediciones.push({
+              fecha: data.fecha,
+              comentarios: data.comentarios || "",
+              valor: parseFloat(valor),
+              variable_id: parameterId,
+              proceso_id: selectedSystem,
+              sistema: sistema,
+              usuario_id: selectedUser?.id,
+              planta_id: selectedPlant?.id,
+              nombreParametro: parameter.nombre,
+              parametroNombre: parameter.nombre
+            })
+          }
+        })
+      })
+
+      if (allMediciones.length === 0) {
+        addDebugLog("warning", "No hay datos de mediciones para guardar")
+        return
+      }
+
+      // Save all measurements to backend
+      for (const medicion of allMediciones) {
+        const response = await fetch("http://localhost:4000/api/mediciones", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(medicion),
+        })
+        
+        if (!response.ok) {
+          throw new Error(`Error saving measurement: ${response.status} ${response.statusText}`)
+        }
+      }
+
+      // Update medicionesPreview for display
+      setMedicionesPreview(prev => [...prev, ...allMediciones])
+
+      addDebugLog("success", `Guardadas ${allMediciones.length} mediciones`)
+      
+      // Clear the form data after successful save
+      setAllMeasurementData({})
+      
     } catch (error) {
       addDebugLog("error", `Error guardando datos: ${error}`)
     }
@@ -482,22 +500,100 @@ export default function ReportManager() {
       .map(([id, data]) => ({ id, value: data.value }))
 
     try {
-      // TODO: Implement real API call for report generation
-      // const response = await fetch('http://localhost:4000/api/reports/generate', {
-      //   method: 'POST',
-      //   headers: { 
-      //     'Content-Type': 'application/json',
-      //     Authorization: `Bearer ${token}`
-      //   },
-      //   body: JSON.stringify({
-      //     plantId: selectedPlant?.id,
-      //     systemId: selectedSystem,
-      //     parameters: selectedParams
-      //   })
-      // })
+      // Convert measurement data to the format expected by reports page
+      const systemData: { [systemName: string]: Array<{ name: string; value: string; unit: string; checked: boolean }> } = {}
+      
+      // Group measurements by system
+      const measurementsBySystem: { [system: string]: any[] } = {}
+      
+      // Add saved measurements
+      medicionesPreview.forEach(medicion => {
+        const sistema = medicion.sistema || 'S01'
+        if (!measurementsBySystem[sistema]) {
+          measurementsBySystem[sistema] = []
+        }
+        measurementsBySystem[sistema].push(medicion)
+      })
+      
+      // Add current session measurements
+      Object.entries(allMeasurementData).forEach(([parameterId, data]) => {
+        const parameter = parameters.find(p => p.id === parameterId)
+        if (!parameter) return
+        
+        Object.entries(data.valores).forEach(([sistema, valor]) => {
+          if (valor && valor !== "") {
+            const medicion = {
+              fecha: data.fecha,
+              comentarios: data.comentarios,
+              valor: parseFloat(valor),
+              sistema: sistema,
+              nombreParametro: parameter.nombre,
+              parametroNombre: parameter.nombre,
+              variable_id: parameterId
+            }
+            if (!measurementsBySystem[sistema]) {
+              measurementsBySystem[sistema] = []
+            }
+            measurementsBySystem[sistema].push(medicion)
+          }
+        })
+      })
 
-      addDebugLog("success", "Reporte generado exitosamente")
-      router.push("/dashboard")
+      // Convert to the format expected by reports page
+      Object.entries(measurementsBySystem).forEach(([sistema, mediciones]) => {
+        const systemName = selectedSystemData?.nombre || sistema
+        systemData[systemName] = []
+        
+        // Group by parameter and get the latest measurement for each
+        const paramMap: { [paramName: string]: any } = {}
+        mediciones.forEach(medicion => {
+          const paramName = medicion.nombreParametro || medicion.parametroNombre || 'Parámetro'
+          const param = parameters.find(p => p.id === medicion.variable_id)
+          
+          if (!paramMap[paramName]) {
+            paramMap[paramName] = {
+              name: paramName,
+              value: medicion.valor?.toString() || 'N/A',
+              unit: param?.unidad || '',
+              checked: true
+            }
+          } else {
+            // Keep the latest measurement
+            paramMap[paramName].value = medicion.valor?.toString() || 'N/A'
+          }
+        })
+        
+        systemData[systemName] = Object.values(paramMap)
+      })
+
+      // If no measurements, create empty data structure for selected parameters
+      if (Object.keys(systemData).length === 0 && selectedSystemData) {
+        systemData[selectedSystemData.nombre] = selectedParams.map(({ id }) => {
+          const param = parameters.find(p => p.id === id)
+          return {
+            name: param?.nombre || 'Parámetro',
+            value: 'N/A',
+            unit: param?.unidad || '',
+            checked: true
+          }
+        })
+      }
+
+      // Save to localStorage for the reports page
+      localStorage.setItem('savedSystemData', JSON.stringify(systemData))
+      
+      // Save report metadata
+      const reportMetadata = {
+        plantName: selectedPlantData?.nombre || 'Planta',
+        systemName: selectedSystemData?.nombre || 'Sistema',
+        generatedDate: new Date().toISOString(),
+        user: selectedUser?.username || 'Usuario'
+      }
+      localStorage.setItem('reportMetadata', JSON.stringify(reportMetadata))
+
+      addDebugLog("success", `Reporte generado exitosamente con ${Object.keys(systemData).length} sistemas`)
+      addDebugLog("info", `Datos guardados: ${JSON.stringify(systemData, null, 2)}`)
+      router.push("/reports")
     } catch (error) {
       addDebugLog("error", `Error generando reporte: ${error}`)
     }
@@ -717,28 +813,51 @@ export default function ReportManager() {
                       plantId={selectedPlant?.id}
                       procesoId={selectedSystem}
                       sistemas={sistemasPorParametro[parameter.id] || ["S01"]}
-                      onSuccess={() => fetchParameters()}
-                      onSaveMediciones={(mediciones) => setMedicionesPreview(prev => [...prev, ...mediciones])}
+                      onDataChange={handleMeasurementDataChange}
                     />
                   ))}
                 </div>
                 {/* Fin formulario mediciones */}
 
                 {/* Tabla de previsualización justo debajo del formulario de ingreso */}
-                {medicionesPreview.length > 0 && systems.length > 0 && (
+                {(medicionesPreview.length > 0 || Object.keys(allMeasurementData).length > 0) && systems.length > 0 && (
                   <div className="mt-6">
                     {/* Agrupar por parámetro */}
                     {(() => {
                       // Agrupar por parámetro
                       const porParametro: Record<string, any[]> = {}
+                      
+                      // Add saved measurements
                       medicionesPreview.forEach(m => {
                         const nombre = m.nombreParametro || m.parametroNombre || ''
                         if (!porParametro[nombre]) porParametro[nombre] = []
                         porParametro[nombre].push(m)
                       })
+                      
+                      // Add current session measurements
+                      Object.entries(allMeasurementData).forEach(([parameterId, data]) => {
+                        const parameter = parameters.find(p => p.id === parameterId)
+                        if (!parameter) return
+                        
+                        Object.entries(data.valores).forEach(([sistema, valor]) => {
+                          if (valor && valor !== "") {
+                            const medicion = {
+                              fecha: data.fecha,
+                              comentarios: data.comentarios,
+                              valor: parseFloat(valor),
+                              sistema: sistema,
+                              nombreParametro: parameter.nombre,
+                              parametroNombre: parameter.nombre
+                            }
+                            if (!porParametro[parameter.nombre]) porParametro[parameter.nombre] = []
+                            porParametro[parameter.nombre].push(medicion)
+                          }
+                        })
+                      })
+                      
                       // Obtener sistemas dinámicos ordenados
                       const parametro = Object.keys(porParametro)[0]
-                      const sistemasDyn = (sistemasPorParametro && sistemasPorParametro[parametro] && sistemasPorParametro[parametro].length > 0) ? sistemasPorParametro[parametro] : ["S01"]
+                      const sistemasDyn = (parametro && sistemasPorParametro && sistemasPorParametro[parametro] && sistemasPorParametro[parametro].length > 0) ? sistemasPorParametro[parametro] : ["S01"]
                       return (
                         <>
                           {Object.entries(porParametro).map(([parametro, mediciones]) => {
