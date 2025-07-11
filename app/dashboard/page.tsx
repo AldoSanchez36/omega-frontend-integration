@@ -443,25 +443,12 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="container py-4">
         {/* Status Banner */}
+        {/* Welcome Section */}
         <div className="alert alert-info" role="alert">
-          <i className="material-icons me-2">info</i>
-          <strong>🔧 Dashboard Mejorado:</strong> Navbar completamente funcional sin dependencias de Bootstrap JS. 
-          <br />
-          <small className="text-muted">
-            • Navegación visible en desktop • Menú móvil funcional • Dropdown de usuario mejorado • Sin conflictos de JavaScript
-          </small>
+          <h1 className="h3 mb-0">Bienvenido,  <strong>{user.username}</strong></h1>
+          <p className="text-muted">Panel de control</p>
         </div>
 
-        {/* Welcome Section */}
-        <div className="row mb-4">
-          <div className="col-12">
-            <h1 className="h3 mb-0">Bienvenido, {user.username}</h1>
-            <p className="text-muted">Panel de control - {user.puesto}</p>
-            <p className="text-info">
-              <strong>URL actual:</strong> /dashboard
-            </p>
-          </div>
-        </div>
 
         {/* Stats Cards */}
         <div className="row mb-4">
