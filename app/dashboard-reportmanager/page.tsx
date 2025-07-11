@@ -284,11 +284,6 @@ export default function ReportManager() {
         }
         const data = await res.json()
         setUsers(data.usuarios || [])
-        if (data.usuarios.length > 0 && !selectedUser) {
-          const firstUser = data.usuarios[0]
-          setSelectedUser(firstUser)
-          handleSelectUser(firstUser.id)
-        }
       } catch (e: any) {
         setError(`Error al cargar usuarios: ${e.message}`)
         addDebugLog("error", `Error al cargar usuarios: ${e.message}`)

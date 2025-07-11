@@ -180,7 +180,7 @@ export default function UsersManagement() {
   const getRoleBadge = (role: string) => {
     const roleMap: { [key: string]: { color: string; text: string } } = {
       admin: { color: "bg-red-600", text: "Administrador" },
-      user: { color: "bg-blue-600", text: "Usuario" },
+      user: { color: "bg-blue-600", text: "Analista" },
       client: { color: "bg-gray-600", text: "Cliente" }
     }
     
