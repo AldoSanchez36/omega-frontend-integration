@@ -64,9 +64,9 @@ export default function ReportList() {
     : reportes;
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen">
+    <div className=" bg-gray-50 min-h-screen">
       <Navbar role={userRole} />
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+      <div className="p-8 flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Reportes PDF Generados</h1>
           <p className="text-gray-500 text-sm mt-1">Con filtrado por fecha</p>
