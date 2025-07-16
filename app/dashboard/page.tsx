@@ -10,6 +10,9 @@ import { QuickActions as AdminQuickActions } from "@/app/dashboard/buttons/admin
 import { QuickActions as UserQuickActions } from "@/app/dashboard/buttons/user"
 import { QuickActions as ClientQuickActions } from "@/app/dashboard/buttons/client"
 import axios from "axios"
+import StatsCards from "./StatsCards";
+import ChartsDashboard from "@/components/chartsDashboard";
+import RecentReportsTable from "@/components/RecentReportsTable";
 
 // Add type declaration for window.bootstrap
 declare global {
@@ -77,6 +80,12 @@ export default function Dashboard() {
   const [user, setUser] = useState<any>(null)
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
   const [dashboardResumen, setDashboardResumen] = useState<{ plantas: number; procesos: number; variables: number; reportes: number } | null>(null)
+  const [historicalData, setHistoricalData] = useState<Record<string, any[]>>({});
+  const today = new Date();
+  const defaultStartDate = `${today.getFullYear()}-01-01`;
+  const defaultEndDate = today.toISOString().slice(0, 10);
+  const [startDate, setStartDate] = useState<string>(defaultStartDate);
+  const [endDate, setEndDate] = useState<string>(defaultEndDate);
 
   // Función para agregar logs de debug
   const addDebugLog = (message: string) => {
@@ -192,118 +201,72 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
-    if (!user) return // Don't load data if user is not loaded
-    
-    /* addDebugLog("Dashboard montado - iniciando carga de datos") */
+    if (!user) return;
+    setDataLoading(true);
+    const token = authService.getToken();
+    const apiBase = "http://localhost:4000";
 
-    const loadData = async () => {
+    const fetchPlants = async (): Promise<Plant[]> => {
+      const res = await fetch(`${apiBase}/api/plantas/accesibles`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      return data.plantas || [];
+    };
+
+    const fetchProcesos = async (plantaId: string): Promise<any[]> => {
+      const res = await fetch(`${apiBase}/api/procesos/planta/${plantaId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      return data.procesos || [];
+    };
+
+    const fetchVariables = async (procesoId: string): Promise<any[]> => {
+      const res = await fetch(`${apiBase}/api/variables/proceso/${procesoId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      return data.variables || [];
+    };
+
+    const loadAll = async () => {
       try {
-        setDataLoading(true)
-        /* addDebugLog("Cargando datos mock...") */
-
-        // Simular carga de datos
-        await new Promise((resolve) => setTimeout(resolve, 500))
-
-        const mockPlants: Plant[] = [
-          { 
-            id: "1", 
-            nombre: "Planta Norte", 
-            creado_por: user.id, 
-            created_at: new Date().toISOString(),
-            location: "Ciudad Norte",
-            description: "Planta de producción principal",
-            status: "active",
-            systems: [
-              {
-                id: "1",
-                name: "Sistema de Temperatura",
-                type: "temperature",
-                description: "Control de temperatura",
-                plantId: "1",
-                parameters: [
-                  { id: "1", name: "Temp Ambiente", unit: "°C", value: 25, minValue: 0, maxValue: 50, systemId: "1" },
-                  { id: "2", name: "Humedad", unit: "%", value: 60, minValue: 0, maxValue: 100, systemId: "1" },
-                ],
-                status: "online",
-              },
-            ]
-          },
-          { 
-            id: "2", 
-            nombre: "Planta Sur", 
-            creado_por: user.id, 
-            created_at: new Date().toISOString(),
-            location: "Ciudad Sur",
-            description: "Planta de respaldo",
-            status: "active",
-            systems: [
-              {
-                id: "2",
-                name: "Sistema de Presión",
-                type: "pressure",
-                description: "Control de presión",
-                plantId: "2",
-                parameters: [
-                  { id: "3", name: "Presión Principal", unit: "PSI", value: 120, minValue: 0, maxValue: 200, systemId: "2" },
-                ],
-                status: "online",
-              },
-            ]
-          },
-          { 
-            id: "3", 
-            nombre: "Planta Central", 
-            creado_por: user.id, 
-            created_at: new Date().toISOString(),
-            location: "Ciudad Central",
-            description: "Planta experimental",
-            status: "maintenance",
-            systems: []
-          },
-        ]
-
-        const mockReports: Report[] = [
-          {
-            id: "1",
-            usuario_id: user.id,
-            planta_id: "1",
-            proceso_id: "proc-1",
-            datos: { temperatura: 25, presion: 1.2 },
-            observaciones: "Reporte de prueba",
-            created_at: new Date().toISOString(),
-            title: "Reporte Temperatura Enero",
-            plantName: "Planta Norte",
-            systemName: "Sistema de Temperatura",
-            status: "completed"
-          },
-          {
-            id: "2",
-            usuario_id: user.id,
-            planta_id: "2",
-            proceso_id: "proc-2",
-            datos: { temperatura: 30, presion: 1.5 },
-            observaciones: "Segundo reporte",
-            created_at: new Date(Date.now() - 86400000).toISOString(),
-            title: "Reporte Presión Enero",
-            plantName: "Planta Sur",
-            systemName: "Sistema de Presión",
-            status: "completed"
-          },
-        ]
-
-        setPlants(mockPlants)
-        setReports(mockReports)
-        /* addDebugLog(`Datos cargados: ${mockPlants.length} plantas, ${mockReports.length} reportes`) */
+        const plantas = await fetchPlants();
+        for (const planta of plantas) {
+          planta.systems = [];
+          const procesos = await fetchProcesos(planta.id);
+          for (const proceso of procesos) {
+            const variables = await fetchVariables(proceso.id);
+            planta.systems.push({
+              id: proceso.id,
+              name: proceso["nombre"],
+              description: proceso["descripcion"],
+              plantId: planta.id,
+              type: "default",
+              parameters: variables.map((v: any) => ({
+                id: v.id,
+                name: v.nombre,
+                unit: v.unidad,
+                value: 0,
+                minValue: 0,
+                maxValue: 0,
+                systemId: proceso.id
+              })),
+              status: "active"
+            });
+          }
+        }
+        setPlants(plantas);
       } catch (error) {
-        /* addDebugLog(`Error cargando datos: ${error}`) */
+        console.error("Error cargando plantas/procesos/variables:", error);
       } finally {
-        setDataLoading(false)
-        /* addDebugLog("Carga de datos completada") */
+        setDataLoading(false);
       }
-    }
+    };
 
-    loadData()
-  }, [user])
+    loadAll();
+  }, [user]);
 
   const handleNewReport = () => {
     /* addDebugLog("Nuevo Reporte clickeado - redirigiendo a report manager") */
@@ -421,6 +384,41 @@ export default function Dashboard() {
     fetchResumen();
   }, [user]);
 
+  useEffect(() => {
+    if (!plants.length) return;
+    const token = authService.getToken();
+    const apiBase = "http://localhost:4000";
+
+    const fetchAllHistoricalData = async () => {
+      const allData: Record<string, any[]> = {};
+      for (const plant of plants) {
+        if (!plant.systems) continue;
+        for (const system of plant.systems) {
+          for (const param of system.parameters) {
+            const encodedVar = encodeURIComponent(param.name);
+            const res = await fetch(
+              `${apiBase}/api/mediciones/variable/${encodedVar}`,
+              { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+            );
+            const result = await res.json();
+            const json: any[] = result.mediciones || [];
+            const filtered = json.filter(m => {
+              const d = new Date(m.fecha);
+              return d >= new Date(startDate) && d <= new Date(endDate);
+            });
+            allData[param.id] = filtered.map(m => ({
+              timestamp: m.fecha,
+              value: Number(m.valor)
+            }));
+          }
+        }
+      }
+      setHistoricalData(allData);
+    };
+
+    fetchAllHistoricalData();
+  }, [plants, startDate, endDate]);
+
   // Don't render if user is not loaded
   if (!user) {
     return (
@@ -451,76 +449,7 @@ export default function Dashboard() {
 
 
         {/* Stats Cards */}
-        <div className="row mb-4">
-          <div className="col-md-3">
-            <div className="card bg-primary text-white">
-              <div className="card-body">
-                <div className="d-flex justify-content-between">
-                  <div>
-                    <h5 className="card-title">Plantas</h5>
-                    <h2 className="mb-0">{dashboardResumen ? dashboardResumen.plantas : "..."}</h2>
-                  </div>
-                  <div className="align-self-center">
-                    <i className="material-icons" style={{ fontSize: "3rem" }}>
-                      factory
-                    </i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="col-md-3">
-            <div className="card bg-success text-white">
-              <div className="card-body">
-                <div className="d-flex justify-content-between">
-                  <div>
-                    <h5 className="card-title">Reportes</h5>
-                    <h2 className="mb-0">{dashboardResumen ? dashboardResumen.reportes : "..."}</h2>
-                  </div>
-                  <div className="align-self-center">
-                    <i className="material-icons" style={{ fontSize: "3rem" }}>
-                      assessment
-                    </i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="col-md-3">
-            <div className="card bg-info text-white">
-              <div className="card-body">
-                <div className="d-flex justify-content-between">
-                  <div>
-                    <h5 className="card-title">Procesos</h5>
-                    <h2 className="mb-0">{dashboardResumen ? dashboardResumen.procesos : "..."}</h2>
-                  </div>
-                  <div className="align-self-center">
-                    <i className="material-icons" style={{ fontSize: "3rem" }}>
-                      settings
-                    </i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="col-md-3">
-            <div className="card bg-warning text-white">
-              <div className="card-body">
-                <div className="d-flex justify-content-between">
-                  <div>
-                    <h5 className="card-title">Variables</h5>
-                    <h2 className="mb-0">{dashboardResumen ? dashboardResumen.variables : "..."}</h2>
-                  </div>
-                  <div className="align-self-center">
-                    <i className="material-icons" style={{ fontSize: "3rem" }}>
-                      analytics
-                    </i>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <StatsCards dashboardResumen={dashboardResumen} />
 
         {/* Quick Actions */}
         {userRole === "admin" && (
@@ -545,101 +474,14 @@ export default function Dashboard() {
 
         {/* Recent Reports */}
         <div className="row mb-4">
-          <div className="col-12">
-            <div className="card">
-              <div className="card-header d-flex justify-content-between align-items-center">
-                <h5 className="card-title mb-0">📊 Reportes Recientes</h5>
-                {/* <button
-                  className="btn btn-sm btn-primary"
-                  onClick={() => addDebugLog("Ver todos los reportes clickeado")}
-                >
-                  Ver todos
-                </button> */}
-                <button
-                className="btn btn-outline-primary w-35"
-                onClick={getClientReports}
-              >
-                <i className="material-icons me-2">table_view</i>
-                Tabla de Reportes
-              </button>
-              </div>
-              <div className="card-body">
-                {dataLoading ? (
-                  <div className="text-center py-4">
-                    <div className="spinner-border text-primary" role="status">
-                      <span className="visually-hidden">Cargando reportes...</span>
-                    </div>
-                  </div>
-                ) : reports.length > 0 ? (
-                  <div className="table-responsive">
-                    <table className="table table-hover">
-                      <thead>
-                        <tr>
-                          <th>Título</th>
-                          <th>Planta</th>
-                          <th>Sistema</th>
-                          <th>Estado</th>
-                          <th>Fecha</th>
-                          <th>Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {reports.map((report) => (
-                          <tr key={report.id}>
-                            <td>
-                              <strong>{report.title || `Reporte ${report.id}`}</strong>
-                            </td>
-                            <td>
-                              <span className="badge bg-primary">{report.plantName || report.planta_id}</span>
-                            </td>
-                            <td>
-                              <span className="badge bg-info">{report.systemName || report.proceso_id}</span>
-                            </td>
-                            <td>
-                              <span className={`badge ${getStatusColor(report.status || "completed")}`}>
-                                {report.status === "completed" ? "✅ Completado" : report.status || "Completado"}
-                              </span>
-                            </td>
-                            <td>{new Date(report.created_at || "").toLocaleDateString()}</td>
-                            <td>
-                              <div className="btn-group btn-group-sm">
-                                <button
-                                  className="btn btn-outline-primary"
-                                  onClick={() => addDebugLog(`Ver reporte ${report.id}`)}
-                                >
-                                  <i className="material-icons" style={{ fontSize: "1rem" }}>
-                                    visibility
-                                  </i>
-                                </button>
-                                <button
-                                  className="btn btn-outline-secondary"
-                                  onClick={() => addDebugLog(`Descargar reporte ${report.id}`)}
-                                >
-                                  <i className="material-icons" style={{ fontSize: "1rem" }}>
-                                    download
-                                  </i>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <i className="material-icons text-muted" style={{ fontSize: "4rem" }}>
-                      description
-                    </i>
-                    <p className="text-muted mt-2">No hay reportes disponibles</p>
-                    <button className="btn btn-primary" onClick={() => addDebugLog("Crear primer reporte clickeado")}>
-                      Crear Primer Reporte
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          
+          <RecentReportsTable
+            reports={reports}
+            dataLoading={dataLoading}
+            getStatusColor={getStatusColor}
+            onTableClick={getClientReports}
+            onDebugLog={addDebugLog}
+          />
         </div>
 
         {/* System Charts - Historical Data */}
@@ -647,145 +489,13 @@ export default function Dashboard() {
           <div className="col-12">
             <h5 className="mb-3">📈 Gráficos Históricos de Sistemas</h5>
           </div>
-          {plants.slice(0, 4).map((plant) => (
-            <div key={plant.id} className="col-md-6 mb-4">
-              <div className="card">
-                <div className="card-header d-flex justify-content-between align-items-center">
-                  <h6 className="card-title mb-0">
-                    <i className="material-icons me-2">factory</i>
-                    {plant.nombre}
-                  </h6>
-                  <span className={`badge ${getStatusColor(plant.status || "active")}`}>
-                    {plant.status || "active"}
-                  </span>
-                </div>
-                <div className="card-body">
-                  {plant.systems && plant.systems.length > 0 ? (
-                    <div className="space-y-3">
-                      {plant.systems.slice(0, 2).map((system) => (
-                        <div key={system.id} className="border rounded p-3">
-                          <div className="d-flex justify-content-between align-items-center mb-3">
-                            <h6 className="mb-0">{system.name}</h6>
-                            <span className={`badge ${getStatusColor(system.status)}`}>
-                              {system.status}
-                            </span>
-                          </div>
-                          
-                          {/* Historical Data Chart */}
-                          <div className="mb-3">
-                            <h6 className="text-muted mb-2">Datos Históricos (Últimas 24 horas)</h6>
-                            <div className="bg-light rounded p-3">
-                              {/* Historical values for each parameter */}
-                              {system.parameters.map((param, paramIndex) => {
-                                // Generate historical data for the last 24 hours
-                                const historicalData = generateHistoricalData(param)
-                                const maxValue = Math.max(...historicalData.map((d: HistoricalDataPoint) => d.value))
-                                const minValue = Math.min(...historicalData.map((d: HistoricalDataPoint) => d.value))
-                                
-                                return (
-                                  <div key={param.id} className="mb-4">
-                                    <div className="d-flex justify-content-between align-items-center mb-2">
-                                      <small className="fw-bold">{param.name}</small>
-                                      <small className="text-muted">
-                                        Actual: {param.value} {param.unit}
-                                      </small>
-                                    </div>
-                                    
-                                    {/* Chart container with proper spacing */}
-                                    <div className="position-relative" style={{ height: "60px", marginBottom: "10px" }}>
-                                      {/* Y-axis labels with better positioning */}
-                                      <div className="position-absolute" style={{ left: "-35px", top: "0", height: "100%", width: "30px" }}>
-                                        <div className="d-flex flex-column justify-content-between h-100">
-                                          <small className="text-muted text-end">{maxValue.toFixed(1)}</small>
-                                          <small className="text-muted text-end">{minValue.toFixed(1)}</small>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Chart area */}
-                                      <div className="position-relative" style={{ height: "100%", marginLeft: "5px" }}>
-                                        <svg width="100%" height="60" className="position-absolute">
-                                          <polyline
-                                            fill="none"
-                                            stroke="#007bff"
-                                            strokeWidth="2"
-                                            points={historicalData.map((d: HistoricalDataPoint, i: number) => 
-                                              `${(i / (historicalData.length - 1)) * 100},${60 - ((d.value - minValue) / (maxValue - minValue)) * 50}`
-                                            ).join(' ')}
-                                          />
-                                          {/* Data points */}
-                                          {historicalData.map((d: HistoricalDataPoint, i: number) => (
-                                            <circle
-                                              key={i}
-                                              cx={`${(i / (historicalData.length - 1)) * 100}%`}
-                                              cy={60 - ((d.value - minValue) / (maxValue - minValue)) * 50}
-                                              r="2"
-                                              fill="#007bff"
-                                            />
-                                          ))}
-                                        </svg>
-                                      </div>
-                                      
-                                      {/* X-axis time labels */}
-                                      <div className="d-flex justify-content-between mt-2" style={{ marginLeft: "5px" }}>
-                                        <small className="text-muted">00:00</small>
-                                        <small className="text-muted">06:00</small>
-                                        <small className="text-muted">12:00</small>
-                                        <small className="text-muted">18:00</small>
-                                        <small className="text-muted">24:00</small>
-                                      </div>
-                                    </div>
-                                    
-                                    {/* Statistics */}
-                                    <div className="row text-center mt-3">
-                                      <div className="col-4">
-                                        <small className="text-muted d-block">Máx</small>
-                                        <small className="fw-bold text-success">{maxValue.toFixed(1)}</small>
-                                      </div>
-                                      <div className="col-4">
-                                        <small className="text-muted d-block">Prom</small>
-                                        <small className="fw-bold text-primary">
-                                          {(historicalData.reduce((sum: number, d: HistoricalDataPoint) => sum + d.value, 0) / historicalData.length).toFixed(1)}
-                                        </small>
-                                      </div>
-                                      <div className="col-4">
-                                        <small className="text-muted d-block">Mín</small>
-                                        <small className="fw-bold text-danger">{minValue.toFixed(1)}</small>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-                          
-                          {/* System info */}
-                          <div className="mt-3 pt-3 border-top">
-                            <div className="row text-center">
-                              <div className="col-6">
-                                <small className="text-muted d-block">Tipo</small>
-                                <small className="fw-bold">{system.type}</small>
-                              </div>
-                              <div className="col-6">
-                                <small className="text-muted d-block">Parámetros</small>
-                                <small className="fw-bold">{system.parameters.length}</small>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-4">
-                      <i className="material-icons text-muted" style={{ fontSize: "3rem" }}>
-                        settings
-                      </i>
-                      <p className="text-muted mt-2">No hay sistemas configurados para esta planta</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
+          <ChartsDashboard
+            plants={plants}
+            historicalData={historicalData}
+            getStatusColor={getStatusColor}
+            startDate={startDate}
+            endDate={endDate}
+          />
         </div>
 
         {/* Debug Info */}

@@ -123,6 +123,11 @@ const es = {
     reportSize: "Tamaño del Reporte",
     reportLink: "Enlace",
     viewReport: "Ver Reporte",
+
+    //Errores 
+
+    //Login error
+    errorEmailOrUser:"correo o usuario incorrecto"
   };
   
   export default es;

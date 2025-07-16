@@ -89,7 +89,7 @@ export default function Login() {
 
                     {error && (
                       <div className="alert alert-danger" role="alert">
-                        {error}
+                        {translations.errorEmailOrUser}
                       </div>
                     )}
 

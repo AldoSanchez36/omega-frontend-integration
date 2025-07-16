@@ -128,7 +128,14 @@ const en = {
     choosePlant: "Choose a plant",
     selectPlant: "--Select a plant--",
     chooseSystem: "Choose a system",
-    selectSystem: "--Select a system--"
+    selectSystem: "--Select a system--",
+
+
+
+    //errores 
+
+    //Login error
+    errorEmailOrUser:"email or user incorrect"
   };
   
   export default en;
