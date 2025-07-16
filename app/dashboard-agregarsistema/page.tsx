@@ -54,7 +54,7 @@ function classNames(...classes: (string | boolean | undefined)[]) {
 
 export default function ParameterManager() {
   const router = useRouter()
-  const token = typeof window !== "undefined" ? localStorage.getItem("omega_token") : null
+  const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
 
   // State
   const [users, setUsers] = useState<User[]>([])
@@ -127,7 +127,7 @@ export default function ParameterManager() {
       return
     }
     if (typeof window !== 'undefined') {
-      const storedUser = localStorage.getItem('omega_user')
+      const storedUser = localStorage.getItem('Organomex_user')
       if (storedUser) {
         const userData = JSON.parse(storedUser)
         setUser(userData)

@@ -27,12 +27,12 @@ class ReportService {
       created_at: new Date().toISOString(),
     }
     reports.push(newReport)
-    localStorage.setItem("omega_reports", JSON.stringify(reports))
+    localStorage.setItem("Organomex_reports", JSON.stringify(reports))
     return newReport
   }
 
   getLocalReports() {
-    const reports = localStorage.getItem("omega_reports")
+    const reports = localStorage.getItem("Organomex_reports")
     return reports ? JSON.parse(reports) : []
   }
 

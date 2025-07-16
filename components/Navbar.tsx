@@ -74,7 +74,7 @@ export const Navbar: React.FC<NavbarProps> = ({ role }) => {
       <div className="container d-flex justify-content-between align-items-center">
         <Link className="navbar-brand fw-bold" href="/">
           <span className="material-icons me-2">business</span>
-          Omega
+          Organomex
         </Link>
         <div className="position-relative" ref={dropdownRef}>
           <button

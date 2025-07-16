@@ -13,7 +13,7 @@ class HttpService {
 
   private getAuthToken(): string | null {
     if (typeof window === "undefined") return null
-    return localStorage.getItem("omega_token")
+    return localStorage.getItem("Organomex_token")
   }
 
   private getHeaders(requiresAuth = true): HeadersInit {
@@ -45,8 +45,8 @@ class HttpService {
 
         // Solo limpiar localStorage y redirigir si estamos en el cliente
         if (typeof window !== "undefined") {
-          localStorage.removeItem("omega_token")
-          localStorage.removeItem("omega_user")
+          localStorage.removeItem("Organomex_token")
+          localStorage.removeItem("Organomex_user")
 
           // Solo redirigir si no estamos ya en login
           if (!window.location.pathname.includes("/login")) {

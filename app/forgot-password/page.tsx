@@ -76,7 +76,7 @@ export default function ForgotPassword() {
       <div className="row h-100">
         <div className="col-md-6 d-flex align-items-center justify-content-center bg-primary">
           <div className="text-center text-white">
-            <h1 className="display-4 fw-bold">Omega</h1>
+            <h1 className="display-4 fw-bold">Organomex</h1>
             <p className="lead">Recupera tu acceso</p>
           </div>
         </div>

@@ -1,4 +1,4 @@
-# Omega Frontend - Sistema de Gestión Industrial
+# Organomex Frontend - Sistema de Gestión Industrial
 
 Este proyecto es un sistema de gestión industrial desarrollado con **Next.js** (React), diseñado para la administración de plantas, sistemas, reportes y usuarios en un entorno industrial moderno.
 

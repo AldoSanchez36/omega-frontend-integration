@@ -24,8 +24,8 @@ export default function AuthDebug() {
     console.log("Context Authenticated:", isAuthenticated)
     console.log("Context Hydrated:", isHydrated)
     console.log("Context Loading:", isLoading)
-    console.log("LocalStorage Token:", localStorage.getItem("omega_token"))
-    console.log("LocalStorage User:", localStorage.getItem("omega_user"))
+    console.log("LocalStorage Token:", localStorage.getItem("Organomex_token"))
+    console.log("LocalStorage User:", localStorage.getItem("Organomex_user"))
     /* console.log("AuthService User:", authService.getCurrentUser()) */
     console.log("AuthService Token:", authService.getToken())
   }
@@ -66,9 +66,9 @@ export default function AuthDebug() {
             <br />
             <strong>Error:</strong> {error || "none"}
             <br />
-            <strong>Token:</strong> {localStorage.getItem("omega_token") ? "✅" : "❌"}
+            <strong>Token:</strong> {localStorage.getItem("Organomex_token") ? "✅" : "❌"}
             <br />
-            <strong>LocalStorage User:</strong> {localStorage.getItem("omega_user") ? "✅" : "❌"}
+            <strong>LocalStorage User:</strong> {localStorage.getItem("Organomex_user") ? "✅" : "❌"}
             <br />
             <strong>Current URL:</strong> {window.location.pathname}
           </div>

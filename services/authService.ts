@@ -92,12 +92,12 @@ class AuthService {
 
       // Guardar en localStorage
       if (typeof window !== "undefined") {
-        localStorage.setItem("omega_token", adaptedResponse.token)
-        localStorage.setItem("omega_user", JSON.stringify(adaptedResponse.user))
+        localStorage.setItem("Organomex_token", adaptedResponse.token)
+        localStorage.setItem("Organomex_user", JSON.stringify(adaptedResponse.user))
 
         // Verificar inmediatamente
-        const savedToken = localStorage.getItem("omega_token")
-        const savedUser = localStorage.getItem("omega_user")
+        const savedToken = localStorage.getItem("Organomex_token")
+        const savedUser = localStorage.getItem("Organomex_user")
 
         /* console.log("🔍 Verificación inmediata:")
         console.log("  Token guardado:", !!savedToken)
@@ -135,8 +135,8 @@ class AuthService {
       }
 
       if (typeof window !== "undefined") {
-        localStorage.setItem("omega_token", adaptedResponse.token)
-        localStorage.setItem("omega_user", JSON.stringify(adaptedResponse.user))
+        localStorage.setItem("Organomex_token", adaptedResponse.token)
+        localStorage.setItem("Organomex_user", JSON.stringify(adaptedResponse.user))
       }
 
       return adaptedResponse
@@ -148,8 +148,8 @@ class AuthService {
   async logout(): Promise<void> {
     // Limpia localStorage inmediatamente
     if (typeof window !== "undefined") {
-      localStorage.removeItem("omega_token")
-      localStorage.removeItem("omega_user")
+      localStorage.removeItem("Organomex_token")
+      localStorage.removeItem("Organomex_user")
     }
 
     // Notifica al backend, pero NO esperes la respuesta
@@ -166,7 +166,7 @@ class AuthService {
     }
 
     try {
-      const userStr = localStorage.getItem("omega_user")
+      const userStr = localStorage.getItem("Organomex_user")
       if (!userStr) {
         /* console.log("👤 getCurrentUser: No hay datos en localStorage") */
         return null
@@ -186,7 +186,7 @@ class AuthService {
       return null
     }
 
-    const token = localStorage.getItem("omega_token")
+    const token = localStorage.getItem("Organomex_token")
     /* console.log("🔑 getToken:", token ? "✅ Existe" : "❌ No existe") */
     return token
   }

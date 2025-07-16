@@ -1,4 +1,5 @@
 import React from "react";
+import { SensorTimeSeriesChart } from "./SensorTimeSeriesChart";
 
 interface HistoricalDataPoint {
   timestamp: string;
@@ -42,6 +43,12 @@ interface ChartsDashboardProps {
   getStatusColor: (status: string) => string;
   startDate: string;
   endDate: string;
+}
+
+export function getDatePosition(dateStr: string, minDate: number, maxDate: number) {
+  const date = new Date(dateStr).getTime();
+  const range = maxDate - minDate || 1;
+  return ((date - minDate) / range) * 100;
 }
 
 const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
@@ -93,12 +100,10 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                               <div key={param.id} className="mb-4">
                                 <div className="d-flex justify-content-between align-items-center mb-2">
                                   <small className="fw-bold">{param.name}</small>
-                                  <small className="text-muted">
-                                    Actual: {param.value} {param.unit}
-                                  </small>
+                                  
                                 </div>
                                 {/* Chart container with proper spacing */}
-                                <div className="position-relative" style={{ height: "60px", marginBottom: "10px" }}>
+                                <div className="position-relative" style={{ height: "120px", marginBottom: "10px" }}>
                                   {/* Y-axis labels with better positioning */}
                                   <div className="position-absolute" style={{ left: "-35px", top: "0", height: "100%", width: "30px" }}>
                                     <div className="d-flex flex-column justify-content-between h-100">
@@ -114,22 +119,18 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                         stroke="#007bff"
                                         strokeWidth="2"
                                         points={data.map((d) => {
-                                          const parseDate = (dateStr: string) => new Date(dateStr).getTime();
-                                          const minDate = Math.min(...data.map(d => parseDate(d.timestamp)));
-                                          const maxDate = Math.max(...data.map(d => parseDate(d.timestamp)));
-                                          const dateRange = maxDate - minDate || 1;
-                                          const x = ((parseDate(d.timestamp) - minDate) / dateRange) * 100;
+                                          const minDate = Math.min(...data.map(d => new Date(d.timestamp).getTime()));
+                                          const maxDate = Math.max(...data.map(d => new Date(d.timestamp).getTime()));
+                                          const x = getDatePosition(d.timestamp, minDate, maxDate);
                                           const y = 60 - ((d.value - minValue) / (maxValue - minValue || 1)) * 50;
                                           return `${x},${y}`;
                                         }).join(" ")}
                                       />
                                       {/* Data points */}
                                       {data.map((d, i) => {
-                                        const parseDate = (dateStr: string) => new Date(dateStr).getTime();
-                                        const minDate = Math.min(...data.map(d => parseDate(d.timestamp)));
-                                        const maxDate = Math.max(...data.map(d => parseDate(d.timestamp)));
-                                        const dateRange = maxDate - minDate || 1;
-                                        const x = ((parseDate(d.timestamp) - minDate) / dateRange) * 100;
+                                        const minDate = Math.min(...data.map(d => new Date(d.timestamp).getTime()));
+                                        const maxDate = Math.max(...data.map(d => new Date(d.timestamp).getTime()));
+                                        const x = getDatePosition(d.timestamp, minDate, maxDate);
                                         const y = 60 - ((d.value - minValue) / (maxValue - minValue || 1)) * 50;
                                         return (
                                           <circle
@@ -155,20 +156,28 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                 {/* Statistics */}
                                 <div className="row text-center mt-3">
                                   <div className="col-4">
-                                    <small className="text-muted d-block">Máx</small>
-                                    <small className="fw-bold text-success">{maxValue.toFixed(1)}</small>
+                                    <small className="text-muted d-block">Alto</small>
+                                    <small className="fw-bold text-success">{maxValue.toFixed(3)}</small>
                                   </div>
                                   <div className="col-4">
-                                    <small className="text-muted d-block">Prom</small>
+                                    <small className="text-muted d-block">Promedio</small>
                                     <small className="fw-bold text-primary">
-                                      {(data.reduce((sum, d) => sum + d.value, 0) / data.length).toFixed(1)}
+                                      {(data.reduce((sum, d) => sum + d.value, 0) / data.length).toFixed(3)}
                                     </small>
                                   </div>
                                   <div className="col-4">
-                                    <small className="text-muted d-block">Mín</small>
-                                    <small className="fw-bold text-danger">{minValue.toFixed(1)}</small>
+                                    <small className="text-muted d-block">Bajo</small>
+                                    <small className="fw-bold text-danger">{minValue.toFixed(3)}</small>
                                   </div>
                                 </div>
+                                <SensorTimeSeriesChart
+                                  variable={param.name}
+                                  startDate={startDate}
+                                  endDate={endDate}
+                                  apiBase="http://localhost:4000"
+                                  unidades={param.unit}
+                                  hideXAxisLabels={true}
+                                />
                               </div>
                             );
                           })}

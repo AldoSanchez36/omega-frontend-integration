@@ -64,7 +64,7 @@ export const UserProvider = ({ children }) => {
     const initAuth = () => {
       const user = authService.getCurrentUser()
       const token = authService.getToken()
-      const savedLanguage = localStorage.getItem("omega_language") || "es"
+      const savedLanguage = localStorage.getItem("Organomex_language") || "es"
 
       dispatch({ type: "SET_LANGUAGE", payload: savedLanguage })
 
@@ -126,7 +126,7 @@ export const UserProvider = ({ children }) => {
   }
 
   const setLanguage = (lang) => {
-    localStorage.setItem("omega_language", lang)
+    localStorage.setItem("Organomex_language", lang)
     dispatch({ type: "SET_LANGUAGE", payload: lang })
   }
 

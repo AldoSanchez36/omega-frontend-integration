@@ -50,7 +50,7 @@ const Login = () => {
       <div className="login-card">
         <div className="login-header">
           <h2>Iniciar Sesión</h2>
-          <p>Accede a tu cuenta de Omega</p>
+          <p>Accede a tu cuenta de Organomex</p>
         </div>
 
         {error && (

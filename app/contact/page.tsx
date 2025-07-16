@@ -35,7 +35,7 @@ export default function Contact() {
       <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
         <div className="container">
           <Link className="navbar-brand fw-bold" href="/">
-            Omega
+            Organomex
           </Link>
           <div className="navbar-nav ms-auto">
             <Link className="nav-link" href="/">
@@ -169,7 +169,7 @@ export default function Contact() {
                     <i className="material-icons text-primary me-2">email</i>
                     <strong>Email</strong>
                   </div>
-                  <p className="ms-4 text-muted">contacto@omega.com</p>
+                  <p className="ms-4 text-muted">contacto@Organomex.com</p>
                 </div>
                 <div className="mb-3">
                   <div className="d-flex align-items-center mb-2">

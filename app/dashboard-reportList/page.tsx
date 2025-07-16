@@ -23,7 +23,7 @@ export default function ReportList() {
   
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const storedUser = localStorage.getItem('omega_user')
+      const storedUser = localStorage.getItem('Organomex_user')
       if (storedUser) {
         const userData = JSON.parse(storedUser)
         setUserRole(userData.puesto || "user")

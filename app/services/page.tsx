@@ -48,7 +48,7 @@ export default function Services() {
       <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
         <div className="container">
           <Link className="navbar-brand fw-bold" href="/">
-            Omega
+            Organomex
           </Link>
           <div className="navbar-nav ms-auto">
             <Link className="nav-link" href="/">
@@ -119,7 +119,7 @@ export default function Services() {
               <div className="card-body p-5 text-center">
                 <h2 className="h3 mb-3">¿Listo para optimizar tu industria?</h2>
                 <p className="lead mb-4">
-                  Únete a cientos de empresas que ya confían en Omega para gestionar sus procesos industriales.
+                  Únete a cientos de empresas que ya confían en Organomex para gestionar sus procesos industriales.
                 </p>
                 <div className="d-flex gap-3 justify-content-center">
                   <Link href="/register" className="btn btn-light btn-lg">

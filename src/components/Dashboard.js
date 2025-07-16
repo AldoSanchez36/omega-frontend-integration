@@ -54,7 +54,7 @@ const Dashboard = () => {
       <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
         <div className="container">
           <a className="navbar-brand fw-bold" href="/">
-            Omega
+            Organomex
           </a>
           <div className="navbar-nav ms-auto">
             <div className="nav-item dropdown">

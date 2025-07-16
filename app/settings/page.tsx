@@ -37,7 +37,7 @@ export default function Settings() {
   const mockUser: User = {
     id: "1",
     name: "Admin User",
-    email: "admin@omega.com",
+    email: "admin@Organomex.com",
     role: "admin",
   }
 
@@ -49,7 +49,7 @@ export default function Settings() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const storedUser = localStorage.getItem('omega_user')
+      const storedUser = localStorage.getItem('Organomex_user')
       if (storedUser) {
         const userData = JSON.parse(storedUser)
         setUser(userData)
@@ -63,11 +63,11 @@ export default function Settings() {
         // Mock user data - replace with real fetch call
         const mockUserData = {
           name: "Admin User",
-          email: "admin@omega.com",
+          email: "admin@Organomex.com",
           role: "admin",
           department: "Sistemas",
           phone: "+1 234 567 8900",
-          bio: "Administrador del sistema Omega Dashboard con experiencia en monitoreo industrial.",
+          bio: "Administrador del sistema Organomex Dashboard con experiencia en monitoreo industrial.",
           preferences: {
             notifications: true,
             darkMode: false,
@@ -159,7 +159,7 @@ export default function Settings() {
           <div className="container">
             <Link className="navbar-brand fw-bold" href="/">
               <span className="material-icons me-2">business</span>
-              Omega Dashboard
+              Organomex Dashboard
             </Link>
             <button
               className="navbar-toggler"

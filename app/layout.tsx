@@ -12,7 +12,7 @@ import { Inter } from "next/font/google"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Omega - Sistema de Gestión Industrial",
+  title: "Organomex - Sistema de Gestión Industrial",
   description: "Sistema completo de gestión industrial con reportes y análisis",
     generator: 'v0.dev'
 }

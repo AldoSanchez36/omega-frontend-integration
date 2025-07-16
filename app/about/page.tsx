@@ -9,7 +9,7 @@ export default function About() {
       <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
         <div className="container">
           <Link className="navbar-brand fw-bold" href="/">
-            Omega
+            Organomex
           </Link>
           <div className="navbar-nav ms-auto">
             <Link className="nav-link" href="/">
@@ -36,7 +36,7 @@ export default function About() {
         <div className="container">
           <div className="row">
             <div className="col-12 text-center">
-              <h1 className="display-4 fw-bold mb-4">Acerca de Omega</h1>
+              <h1 className="display-4 fw-bold mb-4">Acerca de Organomex</h1>
               <p className="lead">Innovación en gestión industrial desde 2020</p>
             </div>
           </div>
@@ -51,7 +51,7 @@ export default function About() {
               <div className="card-body p-5">
                 <h2 className="h3 mb-4">Nuestra Historia</h2>
                 <p className="mb-4">
-                  Omega nació de la necesidad de modernizar y optimizar los procesos industriales mediante tecnología
+                  Organomex nació de la necesidad de modernizar y optimizar los procesos industriales mediante tecnología
                   avanzada. Nuestro sistema integral permite a las empresas gestionar sus plantas, procesos y variables
                   de manera eficiente y segura.
                 </p>

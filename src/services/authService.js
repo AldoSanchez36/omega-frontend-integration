@@ -44,8 +44,8 @@ class AuthService {
     })
 
     if (response.token && response.user) {
-      localStorage.setItem("omega_token", response.token)
-      localStorage.setItem("omega_user", JSON.stringify(response.user))
+      localStorage.setItem("Organomex_token", response.token)
+      localStorage.setItem("Organomex_user", JSON.stringify(response.user))
     }
 
     return response
@@ -57,8 +57,8 @@ class AuthService {
     })
 
     if (response.token && response.user) {
-      localStorage.setItem("omega_token", response.token)
-      localStorage.setItem("omega_user", JSON.stringify(response.user))
+      localStorage.setItem("Organomex_token", response.token)
+      localStorage.setItem("Organomex_user", JSON.stringify(response.user))
     }
 
     return response
@@ -70,18 +70,18 @@ class AuthService {
     } catch (error) {
       console.error("Logout error:", error)
     } finally {
-      localStorage.removeItem("omega_token")
-      localStorage.removeItem("omega_user")
+      localStorage.removeItem("Organomex_token")
+      localStorage.removeItem("Organomex_user")
     }
   }
 
   getCurrentUser() {
-    const userStr = localStorage.getItem("omega_user")
+    const userStr = localStorage.getItem("Organomex_user")
     return userStr ? JSON.parse(userStr) : null
   }
 
   getToken() {
-    return localStorage.getItem("omega_token")
+    return localStorage.getItem("Organomex_token")
   }
 
   isAuthenticated() {

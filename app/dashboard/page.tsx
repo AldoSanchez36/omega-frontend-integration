@@ -96,7 +96,7 @@ export default function Dashboard() {
   // Load user from localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const storedUser = localStorage.getItem('omega_user')
+      const storedUser = localStorage.getItem('Organomex_user')
       if (storedUser) {
         const userData = JSON.parse(storedUser)
         setUser(userData)

@@ -41,10 +41,11 @@ interface Props {
   endDate: string              // "2025-06-04"
   apiBase: string              // "http://localhost:4000"
   unidades: string             // p.ej. "ppm", "mg/L", etc.
+  hideXAxisLabels?: boolean
 }
 
 export function SensorTimeSeriesChart({
-  variable, startDate, endDate, apiBase, unidades
+  variable, startDate, endDate, apiBase, unidades, hideXAxisLabels
 }: Props) {
   // Paleta de 10 colores aleatorios
   const colorPalette: string[] = useMemo(() =>
@@ -57,7 +58,7 @@ export function SensorTimeSeriesChart({
   const [sensors, setSensors] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null);
-  const token = typeof window !== 'undefined' ? localStorage.getItem('omega_token') : null;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
   const encodedVar = encodeURIComponent(variable)
 
   useEffect(() => {
@@ -160,6 +161,7 @@ export function SensorTimeSeriesChart({
               tickLine={false}
               axisLine={false}
               tickMargin={8}
+              tick={hideXAxisLabels ? false : undefined}
             />
             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
 
@@ -185,9 +187,7 @@ export function SensorTimeSeriesChart({
           </LineChart>
         </ChartContainer>
       </CardContent>
-      <CardFooter>
-        <small>Solo sensores con datos</small>
-      </CardFooter>
+     
     </Card>
   )
 }

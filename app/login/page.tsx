@@ -62,7 +62,7 @@ export default function Login() {
       <div className="row h-100">
         <div className="col-md-6 d-flex align-items-center justify-content-center bg-primary">
           <div className="text-center text-white">
-            <h1 className="display-4 fw-bold">Omega</h1>
+            <h1 className="display-4 fw-bold">Organomex</h1>
             <p className="lead">Sistema de Gestión Industrial</p>
           </div>
         </div>
@@ -84,7 +84,7 @@ export default function Login() {
                         </select>
                       </div>
                       <h2>{translations.login}</h2>
-                      <p>{language === "es" ? "Accede a tu cuenta de Omega" : "Access your Omega account"}</p>
+                      <p>{language === "es" ? "Accede a tu cuenta de Organomex" : "Access your Organomex account"}</p>
                     </div>
 
                     {error && (

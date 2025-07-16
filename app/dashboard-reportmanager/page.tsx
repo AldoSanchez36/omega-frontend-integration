@@ -195,7 +195,7 @@ export default function ReportManager() {
   const endDate   = "2025-06-04"
   const apiBase   = "http://localhost:4000"
   const { debugInfo, addDebugLog } = useDebugLogger()
-  const token = typeof window !== "undefined" ? localStorage.getItem("omega_token") : null
+  const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
 
   // State
   const [users, setUsers] = useState<User[]>([])
@@ -241,7 +241,7 @@ export default function ReportManager() {
 
     let userData: any = null
     if (typeof window !== 'undefined') {
-      const storedUser = localStorage.getItem('omega_user')
+      const storedUser = localStorage.getItem('Organomex_user')
       if (storedUser) {
         userData = JSON.parse(storedUser)
         setUserRole(userData.puesto || "user")

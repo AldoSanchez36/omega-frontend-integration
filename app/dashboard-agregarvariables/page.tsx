@@ -131,7 +131,7 @@ export default function VariablesPage() {
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean, variable: Variable | null }>({ open: false, variable: null })
   
-  const token = typeof window !== "undefined" ? localStorage.getItem("omega_token") : null
+  const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
 
   // Cargar variables desde el backend
   useEffect(() => {

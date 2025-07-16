@@ -66,7 +66,7 @@ const RegisterScreen = () => {
       <div className="register-card">
         <div className="register-header">
           <h2>Crear Cuenta</h2>
-          <p>Únete a Omega</p>
+          <p>Únete a Organomex</p>
         </div>
 
         {error && (

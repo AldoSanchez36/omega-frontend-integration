@@ -31,7 +31,7 @@ export default function Home() {
       <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
         <div className="container">
           <Link className="navbar-brand fw-bold" href="/">
-            Omega
+            Organomex
           </Link>
           <div className="navbar-nav ms-auto">
             <Link className="nav-link" href="/about">
@@ -133,11 +133,11 @@ export default function Home() {
         <div className="container">
           <div className="row">
             <div className="col-md-6">
-              <h5>Omega</h5>
+              <h5>Organomex</h5>
               <p className="mb-0">Sistema de Gestión Industrial</p>
             </div>
             <div className="col-md-6 text-md-end">
-              <p className="mb-0">&copy; 2024 Omega. Todos los derechos reservados.</p>
+              <p className="mb-0">&copy; 2024 Organomex. Todos los derechos reservados.</p>
             </div>
           </div>
         </div>

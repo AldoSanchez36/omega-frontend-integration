@@ -115,7 +115,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     /* console.log("⚠️ UserContext: Inicialización de auth deshabilitada para desarrollo") */
 
     // Solo configurar idioma
-    const savedLanguage = localStorage.getItem("omega_language") || "es"
+    const savedLanguage = localStorage.getItem("Organomex_language") || "es"
     dispatch({ type: "SET_LANGUAGE", payload: savedLanguage })
     dispatch({ type: "SET_HYDRATED", payload: true })
 
@@ -138,7 +138,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
 
         // Configurar idioma
-        const savedLanguage = localStorage.getItem("omega_language") || "es"
+        const savedLanguage = localStorage.getItem("Organomex_language") || "es"
         if (mountedRef.current) {
           dispatch({ type: "SET_LANGUAGE", payload: savedLanguage })
         }
@@ -238,7 +238,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   const setLanguage = (lang: string) => {
     if (typeof window !== "undefined") {
-      localStorage.setItem("omega_language", lang)
+      localStorage.setItem("Organomex_language", lang)
     }
     dispatch({ type: "SET_LANGUAGE", payload: lang })
   }

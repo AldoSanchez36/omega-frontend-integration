@@ -6,7 +6,7 @@ class HttpService {
   }
 
   getAuthToken() {
-    return localStorage.getItem("omega_token")
+    return localStorage.getItem("Organomex_token")
   }
 
   getHeaders(requiresAuth = true) {
@@ -28,8 +28,8 @@ class HttpService {
     if (!response.ok) {
       if (response.status === 401) {
         // Token expired or invalid
-        localStorage.removeItem("omega_token")
-        localStorage.removeItem("omega_user")
+        localStorage.removeItem("Organomex_token")
+        localStorage.removeItem("Organomex_user")
         window.location.href = "/login"
         throw new Error("Session expired")
       }
