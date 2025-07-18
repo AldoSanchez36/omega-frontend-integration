@@ -15,6 +15,14 @@ export default function LogoutPage() {
     if (typeof window !== "undefined" && !didRunRef.current) {
       didRunRef.current = true
       setMessage("Limpiando datos de sesión...")
+      // Limpiar localStorage de claves relevantes
+      localStorage.removeItem('Organomex_token');
+      localStorage.removeItem('Organomex_user');
+      localStorage.removeItem('savedSystemData');
+      localStorage.removeItem('reportMetadata');
+      localStorage.removeItem('reportSelection');
+      localStorage.removeItem('gbFeaturesCache');
+      // Puedes agregar más claves si es necesario
       logout()
       setMessage("Sesión cerrada exitosamente. Redirigiendo...")
       setTimeout(() => {

@@ -188,6 +188,29 @@ function MedicionInputBox({ parameter, userId, plantId, procesoId, sistemas, onD
   )
 }
 
+// Custom hook para obtener sistemas únicos de mediciones para una variable
+function useSistemasDeMediciones(variable: string, apiBase: string, token: string | null) {
+  const [sistemas, setSistemas] = useState<string[]>([]);
+
+  useEffect(() => {
+    async function fetchSistemas() {
+      const encodedVar = encodeURIComponent(variable);
+      const res = await fetch(
+        `${apiBase}/api/mediciones/variable/${encodedVar}`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      if (!res.ok) return setSistemas([]);
+      const result = await res.json();
+      const mediciones = result.mediciones || [];
+      const sistemasUnicos = Array.from(new Set(mediciones.map((m: any) => m.sistema))).map(String).sort();
+      setSistemas(sistemasUnicos.length > 0 ? sistemasUnicos : ["S01"]);
+    }
+    if (variable) fetchSistemas();
+  }, [variable, apiBase, token]);
+
+  return sistemas;
+}
+
 export default function ReportManager() {
   const router = useRouter()
   // Parámetros de fechas y URL para SensorTimeSeriesChart
@@ -206,7 +229,18 @@ export default function ReportManager() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null)
   const [selectedSystem, setSelectedSystem] = useState<string>("")
-  const [parameterValues, setParameterValues] = useState<Record<string, { checked: boolean; value: number }>>({})
+  // 1. Define un tipo ParameterValue para el estado parameterValues
+
+  type ParameterValue = {
+    checked: boolean;
+    value?: number;
+    valores?: { [sistema: string]: string };
+    fecha?: string;
+    comentarios?: string;
+  };
+
+  // 2. Cambia la declaración de parameterValues para usar este tipo
+  const [parameterValues, setParameterValues] = useState<Record<string, ParameterValue>>({});
   // Determinar el parámetro seleccionado para el gráfico
   const selectedParameters = parameters.filter(param => parameterValues[param.id]?.checked);
   const variablefiltro = selectedParameters.length > 0 ? selectedParameters[0].nombre : "";
@@ -226,11 +260,47 @@ export default function ReportManager() {
   // 1. Crear un estado global en ReportManager para almacenar las mediciones ingresadas manualmente en esta sesión:
   const [medicionesPreview, setMedicionesPreview] = useState<any[]>([])
 
-  // 1. En ReportManager, crear un estado para los sistemas dinámicos por parámetro:
-  const [sistemasPorParametro, setSistemasPorParametro] = useState<Record<string, string[]>>({})
+  // Centraliza la lista de sistemas para los tabs de medición usando la misma lógica que MesureTable
+  const [sistemas, setSistemas] = useState<string[]>([]);
 
-  // Estado para almacenar todos los datos de mediciones ingresados
-  const [allMeasurementData, setAllMeasurementData] = useState<Record<string, { fecha: string; comentarios: string; valores: { [sistema: string]: string } }>>({})
+  useEffect(() => {
+    // Extrae los sistemas únicos de medicionesPreview (como en MesureTable)
+    const sistemasFromMediciones = Array.from(
+      new Set(
+        medicionesPreview.map((m) => m.sistema)
+      )
+    ).sort();
+    if (sistemasFromMediciones.length > 0) {
+      setSistemas(sistemasFromMediciones);
+    } else if (sistemas.length === 0) {
+      setSistemas(["S01"]);
+    }
+  }, [medicionesPreview]);
+
+  // Handler para agregar un nuevo sistema
+  const handleAgregarSistema = () => {
+    // Si hay sistemas con nombre SXX, agrega el siguiente SXX
+    const sNums = sistemas
+      .map((s) => {
+        const match = s.match(/^S(\d+)$/);
+        return match ? parseInt(match[1], 10) : null;
+      })
+      .filter((n) => n !== null) as number[];
+    let nuevo = "";
+    if (sNums.length > 0) {
+      const maxNum = Math.max(...sNums);
+      nuevo = `S${String(maxNum + 1).padStart(2, "0")}`;
+    } else {
+      // Si hay nombres personalizados, agrega uno vacío para editar
+      nuevo = "";
+    }
+    setSistemas((prev) => [...prev, nuevo]);
+  };
+
+  // Handler para editar el nombre de un sistema
+  const handleEditarSistema = (idx: number, nuevoNombre: string) => {
+    setSistemas((prev) => prev.map((s, i) => (i === idx ? nuevoNombre : s)));
+  };
 
   // Fetch Users
   useEffect(() => {
@@ -390,7 +460,7 @@ export default function ReportManager() {
   // 2. Agrega la función para fetch dinámico:
   async function fetchSistemasForParametro(param: Parameter) {
     if (!selectedSystem) return;
-    const res = await fetch(`http://localhost:4000/api/mediciones/variable/${encodeURIComponent(param.nombre)}`, {
+    const res = await fetch(`http://localhost:4000/api/mediciones/variable/${param.id}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     })
     const data = await res.json();
@@ -406,7 +476,7 @@ export default function ReportManager() {
     })
     let sistemasSecuencia = Array.from({length: maxNum}, (_, i) => `S${String(i+1).padStart(2, '0')}`)
     if (sistemasSecuencia.length === 0) sistemasSecuencia = ["S01"]
-    setSistemasPorParametro(prev => ({ ...prev, [param.id]: sistemasSecuencia }))
+    // setSistemasPorParametro(prev => ({ ...prev, [param.id]: sistemasSecuencia })) // This line is removed
   }
 
   // 3. En el handler del checkbox, si checked=true, llama a fetchSistemasForParametro(param)
@@ -425,11 +495,16 @@ export default function ReportManager() {
   }
 
   const handleMeasurementDataChange = useCallback((parameterId: string, data: { fecha: string; comentarios: string; valores: { [sistema: string]: string } }) => {
-    setAllMeasurementData(prev => ({
-      ...prev,
-      [parameterId]: data
-    }))
-  }, [])
+    setMedicionesPreview(prev => [...prev, {
+      ...data,
+      nombreParametro: parameters.find(p => p.id === parameterId)?.nombre || '',
+      parametroNombre: parameters.find(p => p.id === parameterId)?.nombre || '',
+      variable_id: parameterId,
+      proceso_id: selectedSystem,
+      usuario_id: selectedUser?.id,
+      planta_id: selectedPlant?.id,
+    }]);
+  }, [parameters, selectedSystem, selectedPlant, selectedUser]);
 
   const handleSaveData = async () => {
     addDebugLog("info", "Guardando datos de mediciones")
@@ -438,12 +513,13 @@ export default function ReportManager() {
       // Collect all measurement data from all parameters
       const allMediciones: any[] = []
       
-      Object.entries(allMeasurementData).forEach(([parameterId, data]) => {
+      Object.entries(parameterValues).forEach(([parameterId, data]: [string, ParameterValue]) => {
+        if (!data.checked) return;
         const parameter = parameters.find(p => p.id === parameterId)
         if (!parameter) return
 
         // Convert data to measurement format
-        Object.entries(data.valores).forEach(([sistema, valor]) => {
+        Object.entries(data.valores || {}).forEach(([sistema, valor]) => {
           if (valor && valor !== "" && data.fecha) { // Validate required fields
             allMediciones.push({
               fecha: data.fecha,
@@ -485,7 +561,7 @@ export default function ReportManager() {
       addDebugLog("success", `Guardadas ${allMediciones.length} mediciones`)
       
       // Clear the form data after successful save
-      setAllMeasurementData({})
+      setParameterValues(prev => Object.fromEntries(Object.entries(prev).map(([id, val]) => [id, { ...val, valores: {} } ])));
       
     } catch (error) {
       addDebugLog("error", `Error guardando datos: ${error}`)
@@ -495,108 +571,49 @@ export default function ReportManager() {
   const handleGenerateReport = async () => {
     addDebugLog("info", "Generando reporte")
 
+    // Recoge la información seleccionada
     const selectedParams = Object.entries(parameterValues)
       .filter(([_, data]) => data.checked)
-      .map(([id, data]) => ({ id, value: data.value }))
-
-    try {
-      // Convert measurement data to the format expected by reports page
-      const systemData: { [systemName: string]: Array<{ name: string; value: string; unit: string; checked: boolean }> } = {}
-      
-      // Group measurements by system
-      const measurementsBySystem: { [system: string]: any[] } = {}
-      
-      // Add saved measurements
-      medicionesPreview.forEach(medicion => {
-        const sistema = medicion.sistema || 'S01'
-        if (!measurementsBySystem[sistema]) {
-          measurementsBySystem[sistema] = []
-        }
-        measurementsBySystem[sistema].push(medicion)
+      .map(([id, data]) => {
+        const param = parameters.find(p => p.id === id);
+        return param ? {
+          id,
+          nombre: param.nombre,
+          unidad: param.unidad,
+          tolerancia: tolerancias[id] || null
+        } : null;
       })
-      
-      // Add current session measurements
-      Object.entries(allMeasurementData).forEach(([parameterId, data]) => {
-        const parameter = parameters.find(p => p.id === parameterId)
-        if (!parameter) return
-        
-        Object.entries(data.valores).forEach(([sistema, valor]) => {
-          if (valor && valor !== "") {
-            const medicion = {
-              fecha: data.fecha,
-              comentarios: data.comentarios,
-              valor: parseFloat(valor),
-              sistema: sistema,
-              nombreParametro: parameter.nombre,
-              parametroNombre: parameter.nombre,
-              variable_id: parameterId
-            }
-            if (!measurementsBySystem[sistema]) {
-              measurementsBySystem[sistema] = []
-            }
-            measurementsBySystem[sistema].push(medicion)
-          }
-        })
-      })
+      .filter(Boolean);
 
-      // Convert to the format expected by reports page
-      Object.entries(measurementsBySystem).forEach(([sistema, mediciones]) => {
-        const systemName = selectedSystemData?.nombre || sistema
-        systemData[systemName] = []
-        
-        // Group by parameter and get the latest measurement for each
-        const paramMap: { [paramName: string]: any } = {}
-        mediciones.forEach(medicion => {
-          const paramName = medicion.nombreParametro || medicion.parametroNombre || 'Parámetro'
-          const param = parameters.find(p => p.id === medicion.variable_id)
-          
-          if (!paramMap[paramName]) {
-            paramMap[paramName] = {
-              name: paramName,
-              value: medicion.valor?.toString() || 'N/A',
-              unit: param?.unidad || '',
-              checked: true
-            }
-          } else {
-            // Keep the latest measurement
-            paramMap[paramName].value = medicion.valor?.toString() || 'N/A'
-          }
-        })
-        
-        systemData[systemName] = Object.values(paramMap)
-      })
+    // Limpiar usuario
+    const userClean = {
+      id: selectedUser?.id,
+      username: selectedUser?.username,
+      email: (selectedUser as any)?.email,
+      puesto: (selectedUser as any)?.puesto,
+    };
+    // Limpiar planta
+    const plantClean = {
+      id: selectedPlant?.id,
+      nombre: selectedPlant?.nombre,
+    };
+    // Limpiar proceso
+    const procesoClean = {
+      id: selectedSystemData?.id,
+      nombre: selectedSystemData?.nombre,
+    };
 
-      // If no measurements, create empty data structure for selected parameters
-      if (Object.keys(systemData).length === 0 && selectedSystemData) {
-        systemData[selectedSystemData.nombre] = selectedParams.map(({ id }) => {
-          const param = parameters.find(p => p.id === id)
-          return {
-            name: param?.nombre || 'Parámetro',
-            value: 'N/A',
-            unit: param?.unidad || '',
-            checked: true
-          }
-        })
-      }
-
-      // Save to localStorage for the reports page
-      localStorage.setItem('savedSystemData', JSON.stringify(systemData))
-      
-      // Save report metadata
-      const reportMetadata = {
-        plantName: selectedPlantData?.nombre || 'Planta',
-        systemName: selectedSystemData?.nombre || 'Sistema',
-        generatedDate: new Date().toISOString(),
-        user: selectedUser?.username || 'Usuario'
-      }
-      localStorage.setItem('reportMetadata', JSON.stringify(reportMetadata))
-
-      addDebugLog("success", `Reporte generado exitosamente con ${Object.keys(systemData).length} sistemas`)
-      addDebugLog("info", `Datos guardados: ${JSON.stringify(systemData, null, 2)}`)
-      router.push("/reports")
-    } catch (error) {
-      addDebugLog("error", `Error generando reporte: ${error}`)
-    }
+    // Guardar todo en un solo objeto
+    const reportSelection = {
+      user: userClean,
+      plant: plantClean,
+      proceso: procesoClean,
+      parameters: selectedParams,
+      mediciones: medicionesPreview, // valores agregados
+    };
+    console.log("Datos para reporte:", reportSelection);
+    localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
+    router.push("/reports");
   }
 
   // Cargar tolerancias al cargar parámetros o sistema
@@ -671,6 +688,37 @@ export default function ReportManager() {
       setTolLoading((prev) => ({ ...prev, [variableId]: false }))
     }
   }
+
+  // A. Estado para sistemas por parámetro
+  const [sistemasPorParametro, setSistemasPorParametro] = useState<Record<string, string[]>>({});
+
+  // B. Efecto para cargar sistemas
+  useEffect(() => {
+    async function fetchAllSistemas() {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
+      const apiBase = "http://localhost:4000";
+      const nuevos: Record<string, string[]> = {};
+      await Promise.all(
+        parameters.filter(p => parameterValues[p.id]?.checked).map(async (parameter) => {
+          const encodedVar = encodeURIComponent(parameter.nombre);
+          const res = await fetch(
+            `${apiBase}/api/mediciones/variable/${encodedVar}`,
+            { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+          );
+          if (!res.ok) {
+            nuevos[parameter.id] = ["S01"];
+            return;
+          }
+          const result = await res.json();
+          const mediciones = result.mediciones || [];
+          const sistemasUnicos = Array.from(new Set(mediciones.map((m: any) => m.sistema))).map(String).sort();
+          nuevos[parameter.id] = sistemasUnicos.length > 0 ? sistemasUnicos : ["S01"];
+        })
+      );
+      setSistemasPorParametro(nuevos);
+    }
+    fetchAllSistemas();
+  }, [parameters, parameterValues]);
 
   if (loading) {
     return (
@@ -820,7 +868,7 @@ export default function ReportManager() {
                 {/* Fin formulario mediciones */}
 
                 {/* Tabla de previsualización justo debajo del formulario de ingreso */}
-                {(medicionesPreview.length > 0 || Object.keys(allMeasurementData).length > 0) && systems.length > 0 && (
+                {(medicionesPreview.length > 0 || Object.keys(parameterValues).some(id => parameterValues[id]?.valores)) && systems.length > 0 && (
                   <div className="mt-6">
                     {/* Agrupar por parámetro */}
                     {(() => {
@@ -835,15 +883,16 @@ export default function ReportManager() {
                       })
                       
                       // Add current session measurements
-                      Object.entries(allMeasurementData).forEach(([parameterId, data]) => {
+                      Object.entries(parameterValues).forEach(([parameterId, data]: [string, ParameterValue]) => {
+                        if (!data.checked) return;
                         const parameter = parameters.find(p => p.id === parameterId)
                         if (!parameter) return
                         
-                        Object.entries(data.valores).forEach(([sistema, valor]) => {
+                        Object.entries(data.valores || {}).forEach(([sistema, valor]) => {
                           if (valor && valor !== "") {
                             const medicion = {
-                              fecha: data.fecha,
-                              comentarios: data.comentarios,
+                              fecha: data.fecha || "",
+                              comentarios: data.comentarios || "",
                               valor: parseFloat(valor),
                               sistema: sistema,
                               nombreParametro: parameter.nombre,
@@ -857,7 +906,7 @@ export default function ReportManager() {
                       
                       // Obtener sistemas dinámicos ordenados
                       const parametro = Object.keys(porParametro)[0]
-                      const sistemasDyn = (parametro && sistemasPorParametro && sistemasPorParametro[parametro] && sistemasPorParametro[parametro].length > 0) ? sistemasPorParametro[parametro] : ["S01"]
+                      const sistemasDyn = (parametro && sistemas.length > 0) ? sistemas : ["S01"]
                       return (
                         <>
                           {Object.entries(porParametro).map(([parametro, mediciones]) => {

@@ -14,7 +14,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { v4 as uuidv4 } from "uuid"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import Navbar from "@/components/Navbar"
-import { getTolerancias, createTolerancia, updateTolerancia } from "@/services/httpService"
 
 interface Parameter {
   id: string;
@@ -397,9 +396,10 @@ export default function ParameterManager() {
     setTolLoading({})
     setTolError({})
     setTolSuccess({})
-    getTolerancias()
+    fetch('http://localhost:4000/api/variables-tolerancia', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
       .then((data: any) => {
-        console.log("Respuesta de getTolerancias:", data)
+        // console.log("Respuesta de getTolerancias:", data)
         const map: Record<string, any> = {}
         if (Array.isArray(data)) {
           data.forEach((tol) => {
@@ -449,10 +449,10 @@ export default function ParameterManager() {
     }
     try {
       if (tol && tol.id) {
-        await updateTolerancia(tol.id, tol)
+        await fetch(`http://localhost:4000/api/variables-tolerancia/${tol.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(tol) })
         setTolSuccess((prev) => ({ ...prev, [variableId]: '¡Guardado!' }))
       } else {
-        await createTolerancia(tol)
+        await fetch('http://localhost:4000/api/variables-tolerancia', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(tol) })
         setTolSuccess((prev) => ({ ...prev, [variableId]: '¡Guardado!' }))
       }
     } catch (e: any) {
