@@ -44,15 +44,19 @@ export default function Profile() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // Corrige el tipo de puesto para updateUser
-    const validPuesto = ["admin", "user", "client"].includes(formData.puesto)
-      ? (formData.puesto as "admin" | "user" | "client")
-      : "user"
-    updateUser({
+    
+    // Solo incluir puesto si el usuario es admin
+    const updateData: any = {
       username: formData.username,
       email: formData.email,
-      puesto: validPuesto,
-    })
+    }
+    
+    // Solo agregar puesto si es admin
+    if (user?.puesto === "admin") {
+      updateData.puesto = formData.puesto
+    }
+    
+    updateUser(updateData)
     setEditing(false)
     alert("Perfil actualizado correctamente")
   }
@@ -171,24 +175,13 @@ export default function Profile() {
                       />
                     </div>
                     <div className="mb-3">
-                      <label htmlFor="puesto" className="form-label">
-                        Rol
-                      </label>
-                      <select
-                        className="form-control"
-                        id="puesto"
-                        name="puesto"
-                        value={formData.puesto}
-                        onChange={handleChange}
-                        disabled={user.puesto !== "admin"}
-                      >
-                        <option value="user">Usuario</option>
-                        <option value="client">Cliente</option>
-                        <option value="admin">Administrador</option>
-                      </select>
-                      {user.puesto !== "admin" && (
-                        <small className="text-muted">Solo los administradores pueden cambiar roles</small>
-                      )}
+                      <label className="form-label">Rol</label>
+                      <div className="form-control-plaintext">
+                        <span className={`badge bg-${user.puesto === "admin" ? "danger" : "primary"}`}>
+                          {user.puesto}
+                        </span>
+                        
+                      </div>
                     </div>
                     <div className="d-flex gap-2">
                       <button type="submit" className="btn btn-success">
