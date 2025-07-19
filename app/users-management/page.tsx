@@ -55,6 +55,12 @@ export default function UsersManagement() {
   const [sistemaSeleccionadoModal, setSistemaSeleccionadoModal] = useState<string>("");
   const [permisoVer, setPermisoVer] = useState(false);
   const [permisoEditar, setPermisoEditar] = useState(false);
+  const [permisosLoading, setPermisosLoading] = useState(false);
+  const [permisosError, setPermisosError] = useState<string | null>(null);
+  const [permisosSuccess, setPermisosSuccess] = useState<string | null>(null);
+
+  // Determinar si el usuario actual es admin
+  const isAdmin = currentUserRole === 'admin'
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -123,59 +129,122 @@ export default function UsersManagement() {
     const token = authService.getToken();
     const usuarioId = getUserId(selectedUserForPermissions)
     if (!usuarioId) return; // No hacer fetch si no hay id
-    fetch("http://localhost:4000/api/plantas/accesibles", {
-      headers: { Authorization: `Bearer ${token}`, "x-usuario-id": usuarioId }
-    })
+    
+    // Si el usuario actual es admin, obtener todas las plantas del sistema
+    // Si no es admin, obtener solo las plantas accesibles para el usuario seleccionado
+    const endpoint = isAdmin 
+      ? "http://localhost:4000/api/plantas/allID" 
+      : "http://localhost:4000/api/plantas/accesibles";
+    
+    const headers: any = { Authorization: `Bearer ${token}` };
+    
+    // Solo agregar x-usuario-id si no es admin (para el endpoint de accesibles)
+    if (!isAdmin) {
+      headers["x-usuario-id"] = usuarioId;
+    }
+    
+    
+    fetch(endpoint, { headers })
       .then(res => res.json())
       .then(data => {
+        console.log("🌱 Datos completos de plantas:", data);
+        console.log("🌱 Estructura de la primera planta:", data.plantas?.[0]);
+        
         setPlantasModal(data.plantas || []);
         if (data.plantas && data.plantas.length > 0) {
-          setPlantaSeleccionadaModal(data.plantas[0].id ?? data.plantas[0]._id);
+          const primeraPlanta = data.plantas[0];
+          const plantaId = primeraPlanta.id ?? primeraPlanta._id;
+          console.log("🌱 ID de la primera planta seleccionada:", plantaId);
+          setPlantaSeleccionadaModal(plantaId);
+        }
+      })
+      .catch(error => {
+        console.error("❌ Error fetching plantas:", error);
+        // Si el endpoint de todas las plantas no existe, fallback al endpoint de accesibles
+        if (isAdmin) {
+          console.log("🔄 Intentando fallback a endpoint de accesibles...");
+          fetch("http://localhost:4000/api/plantas/accesibles", {
+            headers: { Authorization: `Bearer ${token}`, "x-usuario-id": usuarioId }
+          })
+            .then(res => res.json())
+            .then(data => {
+              console.log("✅ Plantas obtenidas (fallback):", data);
+              console.log("✅ Total de plantas (fallback):", data.plantas?.length || 0);
+              
+              setPlantasModal(data.plantas || []);
+              if (data.plantas && data.plantas.length > 0) {
+                setPlantaSeleccionadaModal(data.plantas[0].id ?? data.plantas[0]._id);
+              }
+            })
+            .catch(fallbackError => {
+              console.error("❌ Error en fallback:", fallbackError);
+            });
         }
       });
-  }, [showPermissionModal, selectedUserForPermissions]);
+  }, [showPermissionModal, selectedUserForPermissions, isAdmin]);
 
   // Fetch sistemas al seleccionar planta
   useEffect(() => {
     if (!plantaSeleccionadaModal) return;
     const token = authService.getToken();
+    
+    console.log("🏭 Fetching sistemas for planta ID:", plantaSeleccionadaModal);
+    console.log("🏭 URL:", `http://localhost:4000/api/procesos/planta/${plantaSeleccionadaModal}`);
+    
     fetch(`http://localhost:4000/api/procesos/planta/${plantaSeleccionadaModal}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => {
+        console.log("✅ Sistemas obtenidos:", data);
+        console.log("✅ Total de sistemas:", data.procesos?.length || 0);
+        console.log("✅ Sistemas disponibles:", data.procesos || []);
+        
         setSistemasModal(data.procesos || []);
         if (data.procesos && data.procesos.length > 0) {
           setSistemaSeleccionadoModal(data.procesos[0].id);
         }
+      })
+      .catch(error => {
+        console.error("❌ Error fetching sistemas:", error);
       });
   }, [plantaSeleccionadaModal]);
 
   useEffect(() => {
-    if (!selectedUserForPermissions || !sistemaSeleccionadoModal) {
+    if (!selectedUserForPermissions || !plantaSeleccionadaModal) {
       setPermisoVer(false);
       setPermisoEditar(false);
       return;
     }
     const usuarioId = getUserId(selectedUserForPermissions);
-    const procesoId = sistemaSeleccionadoModal;
+    const plantaId = plantaSeleccionadaModal;
     const token = authService.getToken();
 
-    fetch(`http://localhost:4000/api/accesos/procesos/usuario/${usuarioId}`, {
+    console.log("🔐 Fetching permisos de planta for usuario:", selectedUserForPermissions.username);
+    console.log("🔐 Planta ID:", plantaId);
+    console.log("🔐 URL:", `http://localhost:4000/api/accesos/plantas/usuario/${usuarioId}`);
+
+    fetch(`http://localhost:4000/api/accesos/plantas/usuario/${usuarioId}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => {
-        const procesos = data.procesos || [];
-        const found = procesos.find((p: { proceso_id: string; puede_ver: boolean; puede_editar: boolean }) => String(p.proceso_id) === String(procesoId));
+        console.log("✅ Permisos de planta obtenidos:", data);
+        const plantas = data.plantas || [];
+        const found = plantas.find((p: { planta_id: string; puede_ver: boolean; puede_editar: boolean }) => String(p.planta_id) === String(plantaId));
+        console.log("✅ Permisos encontrados para esta planta:", found);
+        
         setPermisoVer(!!found?.puede_ver);
         setPermisoEditar(!!found?.puede_editar);
+        
+        console.log("✅ Permisos establecidos - Ver:", !!found?.puede_ver, "Editar:", !!found?.puede_editar);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error("❌ Error fetching permisos de planta:", error);
         setPermisoVer(false);
         setPermisoEditar(false);
       });
-  }, [selectedUserForPermissions, sistemaSeleccionadoModal]);
+  }, [selectedUserForPermissions, plantaSeleccionadaModal]);
 
   const getRoleBadge = (role: string) => {
     const roleMap: { [key: string]: { color: string; text: string } } = {
@@ -202,8 +271,6 @@ export default function UsersManagement() {
       minute: '2-digit'
     })
   }
-
-  const isAdmin = currentUserRole === 'admin'
 
   const Dropdown = ({ label = "Selecciona", options = [], onSelect }: {
     label?: string,
@@ -267,12 +334,20 @@ export default function UsersManagement() {
 
   // Modal handler permisos
   const openPermissionModal = (user: User) => {
+    console.log("🚀 Abriendo modal de permisos para:", user.username);
+    console.log("🚀 Usuario completo:", user);
+    console.log("🚀 Rol del usuario actual:", currentUserRole);
+    console.log("🚀 Es admin:", isAdmin);
+    
     setSelectedUserForPermissions(user)
     setShowPermissionModal(true)
   }
   const closePermissionModal = () => {
     setShowPermissionModal(false)
     setSelectedUserForPermissions(null)
+    setPermisosError(null)
+    setPermisosSuccess(null)
+    setPermisosLoading(false)
   }
 
   // Modal handler edición
@@ -367,50 +442,70 @@ export default function UsersManagement() {
     }
   }
 
-  // Handler para guardar permisos de sistema (versión corregida según backend)
+  // Handler para guardar permisos de planta (versión corregida según backend)
   const handleGuardarPermisos = async () => {
-    if (!selectedUserForPermissions || !plantaSeleccionadaModal || !sistemaSeleccionadoModal) {
+    if (!selectedUserForPermissions || !plantaSeleccionadaModal) {
       return;
     }
+    
+    setPermisosLoading(true);
+    setPermisosError(null);
+    setPermisosSuccess(null);
+    
     const usuarioId = getUserId(selectedUserForPermissions);
-    const procesoId = sistemaSeleccionadoModal;
+    const plantaId = plantaSeleccionadaModal;
     const token = authService.getToken();
+    
+    console.log("💾 Guardando permisos de planta...");
+    console.log("💾 Usuario ID:", usuarioId);
+    console.log("💾 Planta ID (plantaSeleccionadaModal):", plantaId);
+    console.log("💾 Tipo de plantaId:", typeof plantaId);
+    console.log("💾 Puede ver:", permisoVer);
+    console.log("💾 Puede editar:", permisoEditar);
+    
     try {
-      // 1. GET para saber si ya existen permisos para este proceso
-      const getRes = await fetch(`http://localhost:4000/api/accesos/procesos/usuario/${usuarioId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const getData = await getRes.json();
-      const procesos = getData.procesos || [];
-      const yaExiste = procesos.some((p: any) => String(p.proceso_id) === String(procesoId));
-      // 2. POST o PATCH según corresponda
+      // POST para asignar permisos de planta
       const payload = {
         usuario_id: usuarioId,
-        proceso_id: procesoId,
+        planta_id: plantaId,
         puede_ver: permisoVer,
         puede_editar: permisoEditar
       };
-      const body = JSON.stringify(payload);
-      let res, data;
-      if (!yaExiste) {
-        // POST asignar
-        res = await fetch("http://localhost:4000/api/accesos/procesos/asignar", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body
-        });
-        data = await res.json();
-        closePermissionModal();
-      } else {
-        // PATCH actualizar
-        res = await fetch("http://localhost:4000/api/accesos/procesos/actualizar", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body
-        });
-        data = await res.json();
+      
+      console.log("💾 Payload:", payload);
+      
+      const res = await fetch("http://localhost:4000/api/accesos/plantas/asignar", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json", 
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      console.log("💾 Response status:", res.status);
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error("💾 Error response:", errorData);
+        throw new Error(errorData.msg || errorData.message || "Error al guardar permisos");
       }
-    } catch (err) {
+      
+      const data = await res.json();
+      console.log("💾 Success response:", data);
+      
+      setPermisosSuccess("Permisos de planta asignados correctamente");
+      
+      // Cerrar modal después de 1.5 segundos
+      setTimeout(() => {
+        closePermissionModal();
+      }, 1500);
+      
+    } catch (err: any) {
+      console.error("💾 Error:", err);
+      setPermisosError(err.message || "Error inesperado al guardar permisos");
+    } finally {
+      setPermisosLoading(false);
     }
   }
 
@@ -647,55 +742,148 @@ export default function UsersManagement() {
                         <span className="material-icons text-red-600 text-3xl">lock</span>
                       </div>
                       <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                        <h3 className="text-base font-semibold text-gray-900" id="dialog-title">Gestionar permisos</h3>
+                        <h3 className="text-base font-semibold text-gray-900" id="dialog-title">
+                          Gestionar permisos - {selectedUserForPermissions?.username}
+                        </h3>
+                        
+                        {/* Información del usuario */}
+                        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center gap-4">
+                            <div>
+                              <span className="text-sm text-gray-600">Usuario:</span>
+                              <div className="font-semibold">{selectedUserForPermissions?.username}</div>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-600">Rol:</span>
+                              <div>{getRoleBadge(selectedUserForPermissions?.puesto || 'user')}</div>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-600">Email:</span>
+                              <div className="text-sm">{selectedUserForPermissions?.email}</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Mensaje informativo para admin */}
+                        {isAdmin && (
+                          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <span className="material-icons text-blue-600 text-sm">info</span>
+                              <span className="text-sm text-blue-800">
+                                Como administrador, puedes asignar permisos a cualquier planta del sistema para este usuario.
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="mt-4">
                           {/* Dropdown de plantas */}
                           <label className="block text-sm font-medium mb-2">Planta</label>
-                          <select
-                            className="w-full border rounded px-3 py-2 mb-4"
-                            value={plantaSeleccionadaModal}
-                            onChange={e => setPlantaSeleccionadaModal(e.target.value)}
-                          >
-                            {plantasModal.map((planta: any) => (
-                              <option key={planta.id ?? planta._id} value={planta.id ?? planta._id}>{planta.nombre}</option>
-                            ))}
-                          </select>
-                          {/* Tabs de sistemas */}
-                          {sistemasModal.length > 0 && (
-                            <div className="mb-4">
-                              <div className="flex gap-2 border-b mb-2">
-                                {sistemasModal.map((sistema: any) => (
-                                  <button
-                                    key={sistema.id}
-                                    className={`px-4 py-2 font-semibold ${sistemaSeleccionadoModal === sistema.id ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500'}`}
-                                    onClick={() => setSistemaSeleccionadoModal(sistema.id)}
-                                  >
-                                    {sistema.nombre} 
-                                  </button>
-                                ))}
-                              </div>
-                              {/* Mostrar nombre y descripción del sistema seleccionado */}
-                              {sistemasModal.map((sistema: any) => (
-                                sistema.id === sistemaSeleccionadoModal && (
-                                  <div key={sistema.id} className="mt-2">
-                                    <h4 className="text-lg font-semibold mb-1">{sistema.nombre}</h4>
-                                    <p className="text-gray-600 mb-2">{sistema.descripcion}</p>
-                                    {/* Permisos: Ver, Editar, Guardar */}
-                                    <div className="flex items-center gap-4 mt-4">
-                                      <span className="font-semibold text-gray-700 mr-2">Permisos:</span>
-                                      <label className="flex items-center gap-1">
-                                        <input type="checkbox" checked={permisoVer} onChange={e => setPermisoVer(e.target.checked)} />
-                                        <span>Ver</span>
-                                      </label>
-                                      <label className="flex items-center gap-1">
-                                        <input type="checkbox" checked={permisoEditar} onChange={e => setPermisoEditar(e.target.checked)} />
-                                        <span>Editar</span>
-                                      </label>
-                                    </div>
-                                  </div>
-                                )
+                          {plantasModal.length > 0 ? (
+                            <select
+                              className="w-full border rounded px-3 py-2 mb-4"
+                              value={plantaSeleccionadaModal}
+                              onChange={e => {
+                                console.log("🌱 Planta seleccionada del dropdown:", e.target.value);
+                                setPlantaSeleccionadaModal(e.target.value);
+                              }}
+                            >
+                              {plantasModal.map((planta: any) => (
+                                <option key={planta.id ?? planta._id} value={planta.id ?? planta._id}>{planta.nombre}</option>
                               ))}
+                            </select>
+                          ) : (
+                            <div className="w-full border rounded px-3 py-2 mb-4 bg-gray-50 text-gray-500">
+                              {isAdmin ? "No hay plantas disponibles en el sistema" : "Este usuario no tiene acceso a ninguna planta"}
                             </div>
+                          )}
+                          {/* Tabs de sistemas */}
+                          {plantasModal.length > 0 && (
+                            <>
+                              {sistemasModal.length > 0 ? (
+                                <div className="mb-4">
+                                  <label className="block text-sm font-medium mb-2">Sistema</label>
+                                  <select
+                                    className="w-full border rounded px-3 py-2 mb-4"
+                                    value={sistemaSeleccionadoModal}
+                                    onChange={e => setSistemaSeleccionadoModal(e.target.value)}
+                                  >
+                                    {sistemasModal.map((sistema: any) => (
+                                      <option key={sistema.id} value={sistema.id}>
+                                        {sistema.nombre}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  
+                                  {/* Mostrar información del sistema seleccionado */}
+                                  {sistemasModal.map((sistema: any) => (
+                                    sistema.id === sistemaSeleccionadoModal && (
+                                      <div key={sistema.id} className="mt-4 p-4 bg-gray-50 rounded-lg">
+                                        <h4 className="text-lg font-semibold mb-2 text-gray-800">{sistema.nombre}</h4>
+                                        {sistema.descripcion && (
+                                          <p className="text-gray-600 mb-4">{sistema.descripcion}</p>
+                                        )}
+                                        
+                                        {/* Permisos: Ver, Editar */}
+                                        <div className="space-y-3">
+                                          <h5 className="font-semibold text-gray-700 mb-3">Permisos para esta planta:</h5>
+                                          
+                                          <div className="flex items-center gap-3">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                              <input 
+                                                type="checkbox" 
+                                                checked={permisoVer} 
+                                                onChange={e => setPermisoVer(e.target.checked)}
+                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                              />
+                                              <span className="text-sm font-medium text-gray-700">Permiso para Ver</span>
+                                            </label>
+                                          </div>
+                                          
+                                          <div className="flex items-center gap-3">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                              <input 
+                                                type="checkbox" 
+                                                checked={permisoEditar} 
+                                                onChange={e => setPermisoEditar(e.target.checked)}
+                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                              />
+                                              <span className="text-sm font-medium text-gray-700">Permiso para Editar</span>
+                                            </label>
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Mensajes de error y éxito */}
+                                        {permisosError && (
+                                          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                            <div className="flex items-center gap-2">
+                                              <span className="material-icons text-red-600 text-sm">error</span>
+                                              <span className="text-sm text-red-800">{permisosError}</span>
+                                            </div>
+                                          </div>
+                                        )}
+                                        
+                                        {permisosSuccess && (
+                                          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                            <div className="flex items-center gap-2">
+                                              <span className="material-icons text-green-600 text-sm">check_circle</span>
+                                              <span className="text-sm text-green-800">{permisosSuccess}</span>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="mb-4">
+                                  <label className="block text-sm font-medium mb-2">Sistema</label>
+                                  <div className="w-full border rounded px-3 py-2 mb-4 bg-gray-50 text-gray-500">
+                                    No hay sistemas disponibles en esta planta
+                                  </div>
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
@@ -703,8 +891,23 @@ export default function UsersManagement() {
                   </div>
                   <div className="bg-gray-50 px-4 py-3 flex justify-end gap-2 sm:px-2">
                     <button type="button" className="inline-flex w-32 items-center justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-red-500 sm:ml-3 sm:w-auto" onClick={closePermissionModal}>Cerrar</button>
-                    <button className="ml-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition" onClick={handleGuardarPermisos}>
-                      Guardar
+                    <button 
+                      className={`ml-4 px-4 py-2 rounded transition ${
+                        plantasModal.length > 0 && !permisosLoading
+                          ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                          : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                      }`} 
+                      onClick={handleGuardarPermisos}
+                      disabled={plantasModal.length === 0 || permisosLoading}
+                    >
+                      {permisosLoading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-white"></div>
+                          Guardando...
+                        </div>
+                      ) : (
+                        "Guardar"
+                      )}
                     </button>
                   </div>
                 </div>
