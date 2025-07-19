@@ -315,36 +315,109 @@ export default function ReportManager() {
       if (storedUser) {
         userData = JSON.parse(storedUser)
         setUserRole(userData.puesto || "user")
+        // Log puesto aquí
+        if (typeof window !== "undefined") {
+          console.log("Puesto:", userData.puesto);
+        }
       }
     }
 
-    const fetchUsers = async () => {
+    // Función para obtener el id real del usuario por username
+    const fetchUserIdByUsername = async (username: string) => {
+      const res = await fetch(`http://localhost:4000/api/auth/user-by-name/${encodeURIComponent(username)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("No se pudo obtener el id del usuario");
+      const data = await res.json();
+      if (typeof window !== "undefined") {
+        console.log("ID del usuario desde backend:", data.usuario?.id);
+      }
+      return data.usuario?.id;
+    };
+
+    // Función para obtener accesos de plantas por id de usuario
+    const fetchUsuarioPlantas = async (userId: string) => {
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch("http://localhost:4000/api/auth/users", {
+        // 1. Obtener accesos de plantas
+        const res = await fetch(`http://localhost:4000/api/accesos/plantas/usuario/${userId}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (!res.ok) {
           const errorData = await res.json()
-          throw new Error(errorData.message || "Failed to fetch users")
+          throw new Error(errorData.message || "Failed to fetch user plant access")
         }
         const data = await res.json()
-        setUsers(data.usuarios || [])
+        
+        // 2. Filtrar plantas donde puede_ver: true
+        const plantasAccesibles = data.plantas?.filter((planta: any) => planta.puede_ver) || []
+        
+        if (plantasAccesibles.length > 0) {
+          // 3. Hacer llamada a /api/plantas/accesibles con el id del usuario
+          const plantasRes = await fetch(`http://localhost:4000/api/plantas/accesibles`, {
+            headers: { 
+              Authorization: `Bearer ${token}`, 
+              "x-usuario-id": userId 
+            },
+          })
+          if (!plantasRes.ok) {
+            const errorData = await plantasRes.json()
+            throw new Error(errorData.message || "No se pudieron cargar las plantas para el usuario.")
+          }
+          const plantasData = await plantasRes.json()
+          setPlants(plantasData.plantas || [])
+          
+          // 4. Continuar con el flujo normal
+          if (plantasData.plantas && plantasData.plantas.length > 0) {
+            const firstPlant = plantasData.plantas[0]
+            handleSelectPlant(firstPlant.id)
+          }
+        } else {
+          setError("No tienes acceso a ninguna planta")
+        }
       } catch (e: any) {
-        setError(`Error al cargar usuarios: ${e.message}`)
-        addDebugLog("error", `Error al cargar usuarios: ${e.message}`)
+        setError(`Error al cargar accesos de plantas: ${e.message}`)
       } finally {
         setLoading(false)
       }
     }
 
     if (userRole === "admin") {
-      fetchUsers()
+      // Admin: flujo normal
+      (async () => {
+        setLoading(true)
+        setError(null)
+        try {
+          const res = await fetch("http://localhost:4000/api/auth/users", {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (!res.ok) {
+            const errorData = await res.json()
+            throw new Error(errorData.message || "Failed to fetch users")
+          }
+          const data = await res.json()
+          setUsers(data.usuarios || [])
+        } catch (e: any) {
+          setError(`Error al cargar usuarios: ${e.message}`)
+          addDebugLog("error", `Error al cargar usuarios: ${e.message}`)
+        } finally {
+          setLoading(false)
+        }
+      })();
     } else if (userRole === "user" && userData) {
+      // User: obtener id real y luego accesos
+      fetchUserIdByUsername(userData.username)
+        .then((userId) => {
+          if (userId) {
+            fetchUsuarioPlantas(userId)
+          } else {
+            setError("No se pudo obtener el id del usuario")
+          }
+        })
+        .catch((e) => setError(`Error al obtener id de usuario: ${e.message}`))
       setUsers([userData])
       setSelectedUser(userData)
-      handleSelectUser(userData.id)
       setLoading(false)
     }
   }, [token, userRole, addDebugLog])
@@ -1047,3 +1120,4 @@ export default function ReportManager() {
     </ProtectedRoute>
   )
 }
+
