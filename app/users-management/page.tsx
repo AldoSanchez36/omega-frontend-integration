@@ -147,14 +147,10 @@ export default function UsersManagement() {
     fetch(endpoint, { headers })
       .then(res => res.json())
       .then(data => {
-        console.log("🌱 Datos completos de plantas:", data);
-        console.log("🌱 Estructura de la primera planta:", data.plantas?.[0]);
-        
         setPlantasModal(data.plantas || []);
         if (data.plantas && data.plantas.length > 0) {
           const primeraPlanta = data.plantas[0];
           const plantaId = primeraPlanta.id ?? primeraPlanta._id;
-          console.log("🌱 ID de la primera planta seleccionada:", plantaId);
           setPlantaSeleccionadaModal(plantaId);
         }
       })
@@ -162,15 +158,11 @@ export default function UsersManagement() {
         console.error("❌ Error fetching plantas:", error);
         // Si el endpoint de todas las plantas no existe, fallback al endpoint de accesibles
         if (isAdmin) {
-          console.log("🔄 Intentando fallback a endpoint de accesibles...");
           fetch("http://localhost:4000/api/plantas/accesibles", {
             headers: { Authorization: `Bearer ${token}`, "x-usuario-id": usuarioId }
           })
             .then(res => res.json())
             .then(data => {
-              console.log("✅ Plantas obtenidas (fallback):", data);
-              console.log("✅ Total de plantas (fallback):", data.plantas?.length || 0);
-              
               setPlantasModal(data.plantas || []);
               if (data.plantas && data.plantas.length > 0) {
                 setPlantaSeleccionadaModal(data.plantas[0].id ?? data.plantas[0]._id);
@@ -188,18 +180,11 @@ export default function UsersManagement() {
     if (!plantaSeleccionadaModal) return;
     const token = authService.getToken();
     
-    console.log("🏭 Fetching sistemas for planta ID:", plantaSeleccionadaModal);
-    console.log("🏭 URL:", `http://localhost:4000/api/procesos/planta/${plantaSeleccionadaModal}`);
-    
     fetch(`http://localhost:4000/api/procesos/planta/${plantaSeleccionadaModal}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => {
-        console.log("✅ Sistemas obtenidos:", data);
-        console.log("✅ Total de sistemas:", data.procesos?.length || 0);
-        console.log("✅ Sistemas disponibles:", data.procesos || []);
-        
         setSistemasModal(data.procesos || []);
         if (data.procesos && data.procesos.length > 0) {
           setSistemaSeleccionadoModal(data.procesos[0].id);
@@ -220,24 +205,16 @@ export default function UsersManagement() {
     const plantaId = plantaSeleccionadaModal;
     const token = authService.getToken();
 
-    console.log("🔐 Fetching permisos de planta for usuario:", selectedUserForPermissions.username);
-    console.log("🔐 Planta ID:", plantaId);
-    console.log("🔐 URL:", `http://localhost:4000/api/accesos/plantas/usuario/${usuarioId}`);
-
     fetch(`http://localhost:4000/api/accesos/plantas/usuario/${usuarioId}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => {
-        console.log("✅ Permisos de planta obtenidos:", data);
         const plantas = data.plantas || [];
         const found = plantas.find((p: { planta_id: string; puede_ver: boolean; puede_editar: boolean }) => String(p.planta_id) === String(plantaId));
-        console.log("✅ Permisos encontrados para esta planta:", found);
         
         setPermisoVer(!!found?.puede_ver);
         setPermisoEditar(!!found?.puede_editar);
-        
-        console.log("✅ Permisos establecidos - Ver:", !!found?.puede_ver, "Editar:", !!found?.puede_editar);
       })
       .catch((error) => {
         console.error("❌ Error fetching permisos de planta:", error);
@@ -334,11 +311,6 @@ export default function UsersManagement() {
 
   // Modal handler permisos
   const openPermissionModal = (user: User) => {
-    console.log("🚀 Abriendo modal de permisos para:", user.username);
-    console.log("🚀 Usuario completo:", user);
-    console.log("🚀 Rol del usuario actual:", currentUserRole);
-    console.log("🚀 Es admin:", isAdmin);
-    
     setSelectedUserForPermissions(user)
     setShowPermissionModal(true)
   }
@@ -456,13 +428,6 @@ export default function UsersManagement() {
     const plantaId = plantaSeleccionadaModal;
     const token = authService.getToken();
     
-    console.log("💾 Guardando permisos de planta...");
-    console.log("💾 Usuario ID:", usuarioId);
-    console.log("💾 Planta ID (plantaSeleccionadaModal):", plantaId);
-    console.log("💾 Tipo de plantaId:", typeof plantaId);
-    console.log("💾 Puede ver:", permisoVer);
-    console.log("💾 Puede editar:", permisoEditar);
-    
     try {
       // POST para asignar permisos de planta
       const payload = {
@@ -471,8 +436,6 @@ export default function UsersManagement() {
         puede_ver: permisoVer,
         puede_editar: permisoEditar
       };
-      
-      console.log("💾 Payload:", payload);
       
       const res = await fetch("http://localhost:4000/api/accesos/plantas/asignar", {
         method: "POST",
@@ -483,16 +446,12 @@ export default function UsersManagement() {
         body: JSON.stringify(payload)
       });
       
-      console.log("💾 Response status:", res.status);
-      
       if (!res.ok) {
         const errorData = await res.json();
-        console.error("💾 Error response:", errorData);
         throw new Error(errorData.msg || errorData.message || "Error al guardar permisos");
       }
       
       const data = await res.json();
-      console.log("💾 Success response:", data);
       
       setPermisosSuccess("Permisos de planta asignados correctamente");
       
@@ -502,7 +461,6 @@ export default function UsersManagement() {
       }, 1500);
       
     } catch (err: any) {
-      console.error("💾 Error:", err);
       setPermisosError(err.message || "Error inesperado al guardar permisos");
     } finally {
       setPermisosLoading(false);
@@ -783,10 +741,7 @@ export default function UsersManagement() {
                             <select
                               className="w-full border rounded px-3 py-2 mb-4"
                               value={plantaSeleccionadaModal}
-                              onChange={e => {
-                                console.log("🌱 Planta seleccionada del dropdown:", e.target.value);
-                                setPlantaSeleccionadaModal(e.target.value);
-                              }}
+                              onChange={e => setPlantaSeleccionadaModal(e.target.value)}
                             >
                               {plantasModal.map((planta: any) => (
                                 <option key={planta.id ?? planta._id} value={planta.id ?? planta._id}>{planta.nombre}</option>
