@@ -119,8 +119,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     dispatch({ type: "SET_LANGUAGE", payload: savedLanguage })
     dispatch({ type: "SET_HYDRATED", payload: true })
 
-    return
-    
     // Prevenir múltiples inicializaciones
     if (initializationRef.current) {
       console.log("⚠️ Inicialización ya ejecutada, saltando...")

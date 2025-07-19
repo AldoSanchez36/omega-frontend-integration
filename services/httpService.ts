@@ -40,23 +40,32 @@ class HttpService {
     }) */
 
     if (!response.ok) {
-      if (response.status === 401) {
-        console.log("🔒 Token expirado o inválido")
-
-        // Solo limpiar localStorage y redirigir si estamos en el cliente
+      const errorData = await response.json().catch(() => ({}))
+      // Detectar token inválido por mensaje
+      if (
+        errorData.message &&
+        errorData.message.toLowerCase().includes("token inválido")
+      ) {
         if (typeof window !== "undefined") {
           localStorage.removeItem("Organomex_token")
           localStorage.removeItem("Organomex_user")
-
-          // Solo redirigir si no estamos ya en login
+          if (!window.location.pathname.includes("/logout")) {
+            window.location.href = "/logout"
+          }
+        }
+        throw new Error("Token inválido")
+      }
+      if (response.status === 401) {
+        console.log("🔒 Token expirado o inválido")
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("Organomex_token")
+          localStorage.removeItem("Organomex_user")
           if (!window.location.pathname.includes("/login")) {
             window.location.href = "/login"
           }
         }
         throw new Error("Session expired")
       }
-
-      const errorData = await response.json().catch(() => ({}))
       console.error("❌ Error HTTP:", errorData)
       throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
     }

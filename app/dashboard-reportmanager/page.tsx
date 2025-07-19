@@ -15,6 +15,7 @@ import { SensorTimeSeriesChart } from "@/components/SensorTimeSeriesChart"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import MesureTable from "@/components/MesureTable"
 import { getTolerancias, createTolerancia, updateTolerancia } from "@/services/httpService"
+import { httpService } from "@/services/httpService";
 
 // Interfaces
 interface User {
@@ -51,6 +52,14 @@ interface Parameter {
   value?: number
   minValue?: number
   maxValue?: number
+}
+
+interface UsuarioPlanta {
+  id: string
+  usuario_id: string
+  planta_id: string
+  puede_ver: boolean
+  puede_editar: boolean
 }
 
 // Componente para ingreso de mediciones por parámetro seleccionado
@@ -225,6 +234,7 @@ export default function ReportManager() {
   const [plants, setPlants] = useState<Plant[]>([])
   const [systems, setSystems] = useState<System[]>([])
   const [parameters, setParameters] = useState<Parameter[]>([])
+  const [usuarioPlantas, setUsuarioPlantas] = useState<UsuarioPlanta[]>([])
 
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null)
@@ -322,18 +332,37 @@ export default function ReportManager() {
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch("http://localhost:4000/api/auth/users", {
-          headers: { Authorization: `Bearer ${token}` },
-        })
+        const res = await httpService.get("/api/auth/users");
         if (!res.ok) {
-          const errorData = await res.json()
-          throw new Error(errorData.message || "Failed to fetch users")
+          const errorData = res.data;
+          throw new Error(errorData.message || "Failed to fetch users");
         }
-        const data = await res.json()
+        const data = res.data;
         setUsers(data.usuarios || [])
       } catch (e: any) {
         setError(`Error al cargar usuarios: ${e.message}`)
         addDebugLog("error", `Error al cargar usuarios: ${e.message}`)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    const fetchUsuarioPlantas = async (userId: string) => {
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await httpService.get(`/api/accesos/plantas/usuario/${userId}`);
+        if (!res.ok) {
+          const errorData = res.data;
+          throw new Error(errorData.message || "Failed to fetch user plant access");
+        }
+        const data = res.data;
+        setUsuarioPlantas(data.usuario_plantas || [])
+        console.log("Datos de usuarios_plantas:", data.usuario_plantas || [])
+        addDebugLog("success", `Cargados ${data.usuario_plantas?.length || 0} accesos de plantas para usuario ${userId}`)
+      } catch (e: any) {
+        setError(`Error al cargar accesos de plantas: ${e.message}`)
+        addDebugLog("error", `Error al cargar accesos de plantas: ${e.message}`)
       } finally {
         setLoading(false)
       }
@@ -344,8 +373,10 @@ export default function ReportManager() {
     } else if (userRole === "user" && userData) {
       setUsers([userData])
       setSelectedUser(userData)
+      // Primero cargar los accesos de plantas del usuario
+      fetchUsuarioPlantas(userData.id)
+      // Luego cargar las plantas accesibles
       handleSelectUser(userData.id)
-      setLoading(false)
     }
   }, [token, userRole, addDebugLog])
 
@@ -365,14 +396,12 @@ export default function ReportManager() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`http://localhost:4000/api/plantas/accesibles`, {
-        headers: { Authorization: `Bearer ${token}`, "x-usuario-id": user.id },
-      })
+      const res = await httpService.get(`/api/plantas/accesibles`, { headers: { "x-usuario-id": user.id } });
       if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.message || "No se pudieron cargar las plantas para el usuario.")
+        const errorData = res.data;
+        throw new Error(errorData.message || "No se pudieron cargar las plantas para el usuario.");
       }
-      const data = await res.json()
+      const data = res.data;
       setPlants(data.plantas || [])
       addDebugLog("success", `Cargadas ${data.plantas?.length || 0} plantas para usuario ${user.username}`)
       if (data.plantas.length > 0) {
@@ -402,14 +431,12 @@ export default function ReportManager() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`http://localhost:4000/api/procesos/planta/${plant.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const res = await httpService.get(`/api/procesos/planta/${plant.id}`);
       if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.message || "No se pudieron cargar los sistemas para la planta.")
+        const errorData = res.data;
+        throw new Error(errorData.message || "No se pudieron cargar los sistemas para la planta.");
       }
-      const data = await res.json()
+      const data = res.data;
       setSystems(data.procesos || [])
       addDebugLog("success", `Cargados ${data.procesos?.length || 0} sistemas para planta ${plant.nombre}`)
       if (data.procesos.length > 0) {
@@ -432,14 +459,12 @@ export default function ReportManager() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`http://localhost:4000/api/variables/proceso/${selectedSystem}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const res = await httpService.get(`/api/variables/proceso/${selectedSystem}`);
       if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.message || "No se pudieron cargar los parámetros para el sistema.")
+        const errorData = res.data;
+        throw new Error(errorData.message || "No se pudieron cargar los parámetros para el sistema.");
       }
-      const data = await res.json()
+      const data = res.data;
       setParameters(data.variables || [])
       addDebugLog("success", `Cargados ${data.variables?.length || 0} parámetros para sistema ${selectedSystem}`)
     } catch (e: any) {
@@ -460,10 +485,8 @@ export default function ReportManager() {
   // 2. Agrega la función para fetch dinámico:
   async function fetchSistemasForParametro(param: Parameter) {
     if (!selectedSystem) return;
-    const res = await fetch(`http://localhost:4000/api/mediciones/variable/${param.id}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
-    })
-    const data = await res.json();
+    const res = await httpService.get(`/api/mediciones/variable/${param.id}`);
+    const data = res.data;
     const medicionesFiltradas = (data.mediciones || []).filter((m: any) => m.proceso_id === selectedSystem)
     const sistemasRaw = medicionesFiltradas.map((m: any) => String(m.sistema))
     let maxNum = 1
@@ -544,11 +567,7 @@ export default function ReportManager() {
 
       // Save all measurements to backend
       for (const medicion of allMediciones) {
-        const response = await fetch("http://localhost:4000/api/mediciones", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(medicion),
-        })
+        const response = await httpService.post("/api/mediciones", medicion);
         
         if (!response.ok) {
           throw new Error(`Error saving measurement: ${response.status} ${response.statusText}`)
@@ -701,15 +720,14 @@ export default function ReportManager() {
       await Promise.all(
         parameters.filter(p => parameterValues[p.id]?.checked).map(async (parameter) => {
           const encodedVar = encodeURIComponent(parameter.nombre);
-          const res = await fetch(
-            `${apiBase}/api/mediciones/variable/${encodedVar}`,
-            { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+          const res = await httpService.get(
+            `${apiBase}/api/mediciones/variable/${encodedVar}`
           );
           if (!res.ok) {
             nuevos[parameter.id] = ["S01"];
             return;
           }
-          const result = await res.json();
+          const result = res.data;
           const mediciones = result.mediciones || [];
           const sistemasUnicos = Array.from(new Set(mediciones.map((m: any) => m.sistema))).map(String).sort();
           nuevos[parameter.id] = sistemasUnicos.length > 0 ? sistemasUnicos : ["S01"];
@@ -732,20 +750,30 @@ export default function ReportManager() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <div className="bg-red-50 border border-red-200 rounded-md p-4">
-            <div className="flex">
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">Error</h3>
-                <div className="mt-2 text-sm text-red-700">
-                  <p>{error}</p>
+      <ProtectedRoute>
+        <div className="min-h-screen bg-gray-50">
+          <Navbar role={userRole} />
+          <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+            <div className="bg-red-50 border border-red-200 rounded-md p-4">
+              <div className="flex">
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">Error</h3>
+                  <div className="mt-2 text-sm text-red-700">
+                    <p>{error}</p>
+                  </div>
+                  {/* Botón para volver al dashboard */}
+                  <button
+                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
+                    onClick={() => router.push('/dashboard')}
+                  >
+                    Ir al Dashboard
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </ProtectedRoute>
     )
   }
 
@@ -1033,15 +1061,17 @@ export default function ReportManager() {
             ))}
           </div>
 
-          {/* <DebugPanel
+          <DebugPanel
             debugInfo={debugInfo}
             currentState={{
               plantsCount: plants.length,
               reportsCount: 0,
               dataLoading: loading,
               userRole: selectedUser?.role || "guest",
+              usuarioPlantasCount: usuarioPlantas.length,
+              usuarioPlantas: usuarioPlantas,
             }}
-          /> */}
+          />
         </div>
       </div>
     </ProtectedRoute>

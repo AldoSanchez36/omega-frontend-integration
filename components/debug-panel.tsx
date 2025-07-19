@@ -13,6 +13,8 @@ interface CurrentState {
   reportsCount: number
   dataLoading: boolean
   userRole: string
+  usuarioPlantasCount?: number
+  usuarioPlantas?: any[]
 }
 
 interface DebugPanelProps {
@@ -51,6 +53,9 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugInfo, currentState 
               <li>📊 Plantas: {currentState.plantsCount}</li>
               <li>📋 Reportes: {currentState.reportsCount}</li>
               <li>🔄 Cargando: {currentState.dataLoading ? "Sí" : "No"}</li>
+              {currentState.usuarioPlantasCount !== undefined && (
+                <li>🔐 Accesos de plantas: {currentState.usuarioPlantasCount}</li>
+              )}
             </ul>
           </div>
           <div className="col-md-6">
@@ -69,6 +74,24 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugInfo, currentState 
                 <div className="text-muted">No hay logs aún...</div>
               )}
             </div>
+            {currentState.usuarioPlantas && currentState.usuarioPlantas.length > 0 && (
+              <>
+                <h6 className="mt-3">Accesos de Plantas:</h6>
+                <div
+                  className="bg-dark text-light p-2 rounded"
+                  style={{ fontSize: "0.8rem", maxHeight: "150px", overflowY: "auto" }}
+                >
+                  {currentState.usuarioPlantas.map((access, index) => (
+                    <div key={index} className="text-light">
+                      <small>
+                        ID: {access.id} | Usuario: {access.usuario_id} | Planta: {access.planta_id} | 
+                        Ver: {access.puede_ver ? "✅" : "❌"} | Editar: {access.puede_editar ? "✅" : "❌"}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
