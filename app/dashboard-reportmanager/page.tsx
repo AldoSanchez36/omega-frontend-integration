@@ -15,6 +15,7 @@ import { SensorTimeSeriesChart } from "@/components/SensorTimeSeriesChart"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import MesureTable from "@/components/MesureTable"
 import { getTolerancias, createTolerancia, updateTolerancia } from "@/services/httpService"
+import { useUserAccess } from "@/hooks/useUserAccess"
 
 // Interfaces
 interface User {
@@ -220,17 +221,32 @@ export default function ReportManager() {
   const { debugInfo, addDebugLog } = useDebugLogger()
   const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
 
-  // State
-  const [users, setUsers] = useState<User[]>([])
-  const [plants, setPlants] = useState<Plant[]>([])
-  const [systems, setSystems] = useState<System[]>([])
+  // Use the reusable hook for user access
+  const {
+    users,
+    plants,
+    systems,
+    selectedUser,
+    selectedPlant,
+    selectedSystem,
+    userRole,
+    loading,
+    error,
+    setSelectedUser,
+    setSelectedPlant,
+    setSelectedSystem,
+    handleSelectUser,
+    handleSelectPlant,
+    fetchParameters: fetchParametersFromHook
+  } = useUserAccess(token)
+
   const [parameters, setParameters] = useState<Parameter[]>([])
 
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null)
-  const [selectedSystem, setSelectedSystem] = useState<string>("")
-  // 1. Define un tipo ParameterValue para el estado parameterValues
+  // Local loading and error states for this component
+  const [localLoading, setLocalLoading] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
 
+  // 1. Define un tipo ParameterValue para el estado parameterValues
   type ParameterValue = {
     checked: boolean;
     value?: number;
@@ -245,11 +261,6 @@ export default function ReportManager() {
   const selectedParameters = parameters.filter(param => parameterValues[param.id]?.checked);
   const variablefiltro = selectedParameters.length > 0 ? selectedParameters[0].nombre : "";
   const labelLeftText = selectedParameters.length > 0 ? `${selectedParameters[0].nombre} (${selectedParameters[0].unidad})` : "";
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  // Estado para el usuario y el rol
-  const [userRole, setUserRole] = useState<"admin" | "user" | "client">("client")
 
   // Estado para tolerancias por parámetro
   const [tolerancias, setTolerancias] = useState<Record<string, any>>({})
@@ -302,199 +313,29 @@ export default function ReportManager() {
     setSistemas((prev) => prev.map((s, i) => (i === idx ? nuevoNombre : s)));
   };
 
-  // Fetch Users
+  // Initialize user data for compatibility
   useEffect(() => {
-    if (!token) {
-      setError("Token de autenticación no encontrado. Por favor, inicie sesión.")
-      return
-    }
-
-    let userData: any = null
     if (typeof window !== 'undefined') {
       const storedUser = localStorage.getItem('Organomex_user')
       if (storedUser) {
-        userData = JSON.parse(storedUser)
-        setUserRole(userData.puesto || "user")
-        // Log puesto aquí
-        if (typeof window !== "undefined") {
-          console.log("Puesto:", userData.puesto);
-        }
+        const userData = JSON.parse(storedUser)
+        console.log("Puesto:", userData.puesto);
       }
     }
+  }, [])
 
-    // Función para obtener el id real del usuario por username
-    const fetchUserIdByUsername = async (username: string) => {
-      const res = await fetch(`http://localhost:4000/api/auth/user-by-name/${encodeURIComponent(username)}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error("No se pudo obtener el id del usuario");
-      const data = await res.json();
-      if (typeof window !== "undefined") {
-        console.log("ID del usuario desde backend:", data.usuario?.id);
-      }
-      return data.usuario?.id;
-    };
-
-    // Función para obtener accesos de plantas por id de usuario
-    const fetchUsuarioPlantas = async (userId: string) => {
-      setLoading(true)
-      setError(null)
-      try {
-        // 1. Obtener accesos de plantas
-        const res = await fetch(`http://localhost:4000/api/accesos/plantas/usuario/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!res.ok) {
-          const errorData = await res.json()
-          throw new Error(errorData.message || "Failed to fetch user plant access")
-        }
-        const data = await res.json()
-        
-        // 2. Filtrar plantas donde puede_ver: true
-        const plantasAccesibles = data.plantas?.filter((planta: any) => planta.puede_ver) || []
-        
-        if (plantasAccesibles.length > 0) {
-          // 3. Hacer llamada a /api/plantas/accesibles con el id del usuario
-          const plantasRes = await fetch(`http://localhost:4000/api/plantas/accesibles`, {
-            headers: { 
-              Authorization: `Bearer ${token}`, 
-              "x-usuario-id": userId 
-            },
-          })
-          if (!plantasRes.ok) {
-            const errorData = await plantasRes.json()
-            throw new Error(errorData.message || "No se pudieron cargar las plantas para el usuario.")
-          }
-          const plantasData = await plantasRes.json()
-          setPlants(plantasData.plantas || [])
-          
-          // 4. Continuar con el flujo normal
-          if (plantasData.plantas && plantasData.plantas.length > 0) {
-            const firstPlant = plantasData.plantas[0]
-            handleSelectPlant(firstPlant.id)
-          }
-        } else {
-          setError("No tienes acceso a ninguna planta")
-        }
-      } catch (e: any) {
-        setError(`Error al cargar accesos de plantas: ${e.message}`)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (userRole === "admin") {
-      // Admin: flujo normal
-      (async () => {
-        setLoading(true)
-        setError(null)
-        try {
-          const res = await fetch("http://localhost:4000/api/auth/users", {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-          if (!res.ok) {
-            const errorData = await res.json()
-            throw new Error(errorData.message || "Failed to fetch users")
-          }
-          const data = await res.json()
-          setUsers(data.usuarios || [])
-        } catch (e: any) {
-          setError(`Error al cargar usuarios: ${e.message}`)
-          addDebugLog("error", `Error al cargar usuarios: ${e.message}`)
-        } finally {
-          setLoading(false)
-        }
-      })();
-    } else if (userRole === "user" && userData) {
-      // User: obtener id real y luego accesos
-      fetchUserIdByUsername(userData.username)
-        .then((userId) => {
-          if (userId) {
-            fetchUsuarioPlantas(userId)
-          } else {
-            setError("No se pudo obtener el id del usuario")
-          }
-        })
-        .catch((e) => setError(`Error al obtener id de usuario: ${e.message}`))
-      setUsers([userData])
-      setSelectedUser(userData)
-      setLoading(false)
-    }
-  }, [token, userRole, addDebugLog])
-
-  // Handlers for selection changes
-  const handleSelectUser = useCallback(async (userId: string) => {
-    const user = users.find((u) => u.id === userId)
-    if (!user) return
-
-    setSelectedUser(user)
-    setSelectedPlant(null)
-    setSelectedSystem("")
-    setPlants([])
-    setSystems([])
+  // Custom handlers that extend the hook functionality
+  const handleSelectUserWithReset = useCallback(async (userId: string) => {
     setParameters([])
     setParameterValues({})
+    await handleSelectUser(userId)
+  }, [handleSelectUser])
 
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(`http://localhost:4000/api/plantas/accesibles`, {
-        headers: { Authorization: `Bearer ${token}`, "x-usuario-id": user.id },
-      })
-      if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.message || "No se pudieron cargar las plantas para el usuario.")
-      }
-      const data = await res.json()
-      setPlants(data.plantas || [])
-      addDebugLog("success", `Cargadas ${data.plantas?.length || 0} plantas para usuario ${user.username}`)
-      if (data.plantas.length > 0) {
-        const firstPlant = data.plantas[0]
-        handleSelectPlant(firstPlant.id)
-      } else {
-        setSelectedPlant(null)
-      }
-    } catch (e: any) {
-      setError(`Error al cargar plantas: ${e.message}`)
-      addDebugLog("error", `Error al cargar plantas: ${e.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }, [users, token, addDebugLog])
-
-  const handleSelectPlant = useCallback(async (plantId: string) => {
-    const plant = plants.find((p) => p.id === plantId)
-    if (!plant) return
-
-    setSelectedPlant(plant)
-    setSelectedSystem("")
-    setSystems([])
+  const handleSelectPlantWithReset = useCallback(async (plantId: string) => {
     setParameters([])
     setParameterValues({})
-
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(`http://localhost:4000/api/procesos/planta/${plant.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.message || "No se pudieron cargar los sistemas para la planta.")
-      }
-      const data = await res.json()
-      setSystems(data.procesos || [])
-      addDebugLog("success", `Cargados ${data.procesos?.length || 0} sistemas para planta ${plant.nombre}`)
-      if (data.procesos.length > 0) {
-        setSelectedSystem(data.procesos[0].id)
-      }
-    } catch (e: any) {
-      setError(`Error al cargar sistemas: ${e.message}`)
-      addDebugLog("error", `Error al cargar sistemas: ${e.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }, [plants, token, addDebugLog])
+    await handleSelectPlant(plantId)
+  }, [handleSelectPlant])
 
   const fetchParameters = useCallback(async () => {
     if (!selectedSystem) {
@@ -502,8 +343,8 @@ export default function ReportManager() {
       setParameterValues({})
       return
     }
-    setLoading(true)
-    setError(null)
+    setLocalLoading(true)
+    setLocalError(null)
     try {
       const res = await fetch(`http://localhost:4000/api/variables/proceso/${selectedSystem}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -516,10 +357,10 @@ export default function ReportManager() {
       setParameters(data.variables || [])
       addDebugLog("success", `Cargados ${data.variables?.length || 0} parámetros para sistema ${selectedSystem}`)
     } catch (e: any) {
-      setError(`Error al cargar parámetros: ${e.message}`)
+      setLocalError(`Error al cargar parámetros: ${e.message}`)
       addDebugLog("error", `Error al cargar parámetros: ${e.message}`)
     } finally {
-      setLoading(false)
+      setLocalLoading(false)
     }
   }, [selectedSystem, token, addDebugLog])
 
@@ -841,7 +682,7 @@ export default function ReportManager() {
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Usuario</label>
-                  <Select value={selectedUser?.id} onValueChange={handleSelectUser}>
+                  <Select value={selectedUser?.id} onValueChange={handleSelectUserWithReset}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Seleccionar usuario" />
                     </SelectTrigger>
@@ -857,7 +698,7 @@ export default function ReportManager() {
 
                 <div>
                   <label className="block text-sm font-medium mb-2">Planta</label>
-                  <Select value={selectedPlant?.id} onValueChange={handleSelectPlant} disabled={!selectedUser}>
+                  <Select value={selectedPlant?.id} onValueChange={handleSelectPlantWithReset} disabled={!selectedUser}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Seleccionar planta" />
                     </SelectTrigger>
@@ -913,14 +754,16 @@ export default function ReportManager() {
                   <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-yellow-100 border border-yellow-400"></span><span className="font-semibold text-yellow-700">Lim-(min,max)</span>: Cerca del límite recomendado</div>
                     <div className="flex items-center gap-1"><span className="font-semibold text-green-700">Bien</span>: Dentro de rango</div>
                   </div>
-                  <Button 
-                    onClick={() => router.push('/dashboard-parameters')} 
-                    variant="secondary"
-                    size="sm"
-                    className="bg-orange-100 text-orange-700 hover:bg-orange-200 border-orange-300 text-xs"
-                  >
-                    ⚙️ Configurar Límites
-                  </Button>
+                  {(userRole === "admin" || userRole === "user") && (
+                    <Button 
+                      onClick={() => router.push('/dashboard-parameters')} 
+                      variant="secondary"
+                      size="sm"
+                      className="bg-orange-100 text-orange-700 hover:bg-orange-200 border-orange-300 text-xs"
+                    >
+                      ⚙️ Configurar Límites
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>

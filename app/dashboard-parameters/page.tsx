@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { v4 as uuidv4 } from "uuid"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import Navbar from "@/components/Navbar"
+import { useUserAccess } from "@/hooks/useUserAccess"
 
 interface Parameter {
   id: string;
@@ -56,18 +57,30 @@ export default function ParameterManager() {
   const router = useRouter()
   const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
 
-  // State
-  const [users, setUsers] = useState<User[]>([])
-  const [plants, setPlants] = useState<Plant[]>([])
-  const [systems, setSystems] = useState<System[]>([])
+  // Use the reusable hook for user access
+  const {
+    users,
+    plants,
+    systems,
+    selectedUser,
+    selectedPlant,
+    selectedSystem: selectedSystemId,
+    userRole,
+    loading,
+    error,
+    setSelectedUser,
+    setSelectedPlant,
+    setSelectedSystem: setSelectedSystemId,
+    handleSelectUser,
+    handleSelectPlant,
+    fetchParameters: fetchParametersFromHook
+  } = useUserAccess(token, { autoSelectFirstPlant: false, autoSelectFirstSystem: false })
+
   const [parameters, setParameters] = useState<Parameter[]>([])
 
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null)
-  const [selectedSystemId, setSelectedSystemId] = useState<string | null>(null)
-
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Local loading and error states for this component
+  const [localLoading, setLocalLoading] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
 
   // Form states
   const [showCreatePlant, setShowCreatePlant] = useState(false)
@@ -116,9 +129,8 @@ export default function ParameterManager() {
     }
   }
 
-  // Estado para el usuario y el rol
+  // Estado para el usuario (mantenido para compatibilidad)
   const [user, setUser] = useState<any>(null)
-  const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
 
   // Estado para tolerancias por parámetro
   const [tolerancias, setTolerancias] = useState<Record<string, any>>({})
@@ -126,121 +138,24 @@ export default function ParameterManager() {
   const [tolError, setTolError] = useState<Record<string, string | null>>({})
   const [tolSuccess, setTolSuccess] = useState<Record<string, string | null>>({})
 
-  // Fetch Users
+  // Initialize user data for compatibility
   useEffect(() => {
-    if (!token) {
-      setError("Token de autenticación no encontrado. Por favor, inicie sesión.")
-      return
-    }
     if (typeof window !== 'undefined') {
       const storedUser = localStorage.getItem('Organomex_user')
       if (storedUser) {
         const userData = JSON.parse(storedUser)
         setUser(userData)
-        setUserRole(userData.puesto || "user")
       }
     }
-    const fetchUsers = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const res = await fetch("http://localhost:4000/api/auth/users", {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!res.ok) {
-          const errorData = await res.json()
-          throw new Error(errorData.message || "Failed to fetch users")
-        }
-        const data = await res.json()
-        setUsers(data.usuarios || [])
-      } catch (e: any) {
-        setError(`Error al cargar usuarios: ${e.message}`)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchUsers()
-  }, [token])
-
-  // Handlers for selection changes
-  const handleSelectUser = async (userId: string) => {
-    const user = users.find((u) => u.id === userId)
-    if (!user) return
-
-    setSelectedUser(user)
-    setSelectedPlant(null)
-    setSelectedSystemId(null)
-    setPlants([])
-    setSystems([])
-    setParameters([])
-    if (!user) return
-
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(`http://localhost:4000/api/plantas/accesibles`, {
-        headers: { Authorization: `Bearer ${token}`, "x-usuario-id": user.id },
-      })
-      if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.message || "No se pudieron cargar las plantas para el usuario.")
-      }
-      const data = await res.json()
-      setPlants(data.plantas || [])
-      if (data.plantas.length > 0) {
-        const firstPlant = data.plantas[0]
-        handleSelectPlant(firstPlant.id)
-      } else {
-        setSelectedPlant(null)
-      }
-    } catch (e: any) {
-      setError(`Error al cargar plantas: ${e.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleSelectPlant = async (plantId: string) => {
-    const plant = plants.find((p) => p.id === plantId)
-    if (!plant) return
-
-    setSelectedPlant(plant)
-    setSelectedSystemId(null)
-    setSystems([])
-    setParameters([])
-    if (!plant) return
-
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(`http://localhost:4000/api/procesos/planta/${plant.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.message || "No se pudieron cargar los sistemas para la planta.")
-      }
-      const data = await res.json()
-      setSystems(data.procesos || [])
-      if (data.procesos.length > 0 && !data.procesos.some((sys: System) => sys.id === selectedSystemId)) {
-        setSelectedSystemId(data.procesos[0].id) // Select the first system by default if current is invalid
-      } else if (data.procesos.length === 0) {
-        setSelectedSystemId(null)
-      }
-    } catch (e: any) {
-      setError(`Error al cargar sistemas: ${e.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [])
 
   const handleCreatePlant = async () => {
     if (!newPlantName.trim() || !selectedUser) {
       alert("Por favor, ingrese un nombre para la planta y seleccione un usuario.")
       return
     }
-    setLoading(true)
-    setError(null)
+    setLocalLoading(true)
+    setLocalError(null)
     try {
       const res = await fetch("http://localhost:4000/api/plantas/crear", {
         method: "POST",
@@ -258,9 +173,9 @@ export default function ParameterManager() {
       setNewPlantName("")
       await handleSelectUser(selectedUser.id) // Refetch plants for the selected user
     } catch (e: any) {
-      setError(`Error al crear planta: ${e.message}`)
+      setLocalError(`Error al crear planta: ${e.message}`)
     } finally {
-      setLoading(false)
+      setLocalLoading(false)
     }
   }
 
@@ -269,8 +184,8 @@ export default function ParameterManager() {
       setParameters([])
       return
     }
-    setLoading(true)
-    setError(null)
+    setLocalLoading(true)
+    setLocalError(null)
     try {
       const res = await fetch(`http://localhost:4000/api/variables/proceso/${selectedSystemId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -282,9 +197,9 @@ export default function ParameterManager() {
       const data = await res.json()
       setParameters(data.variables || [])
     } catch (e: any) {
-      setError(`Error al cargar parámetros: ${e.message}`)
+      setLocalError(`Error al cargar parámetros: ${e.message}`)
     } finally {
-      setLoading(false)
+      setLocalLoading(false)
     }
   }, [selectedSystemId, token])
 
@@ -297,8 +212,8 @@ export default function ParameterManager() {
       alert("Por favor, ingrese un nombre para el sistema y seleccione una planta.")
       return
     }
-    setLoading(true)
-    setError(null)
+    setLocalLoading(true)
+    setLocalError(null)
     try {
       const res = await fetch("http://localhost:4000/api/procesos/crear", {
         method: "POST",
@@ -318,9 +233,9 @@ export default function ParameterManager() {
       setNewSystemDescription("")
       await handleSelectPlant(selectedPlant.id) // Refetch systems for the selected plant
     } catch (e: any) {
-      setError(`Error al crear sistema: ${e.message}`)
+      setLocalError(`Error al crear sistema: ${e.message}`)
     } finally {
-      setLoading(false)
+      setLocalLoading(false)
     }
   }
 
@@ -358,8 +273,8 @@ export default function ParameterManager() {
       alert("No hay nuevos parámetros para guardar.")
       return
     }
-    setLoading(true)
-    setError(null)
+    setLocalLoading(true)
+    setLocalError(null)
     try {
       for (const param of newParamsToSave) {
         const res = await fetch("http://localhost:4000/api/variables/crear", {
@@ -379,9 +294,9 @@ export default function ParameterManager() {
       alert("Nuevos parámetros guardados exitosamente.")
       await fetchParameters() // Refetch all parameters to update their 'isNew' status and get server IDs
     } catch (e: any) {
-      setError(`Error al guardar cambios: ${e.message}`)
+      setLocalError(`Error al guardar cambios: ${e.message}`)
     } finally {
-      setLoading(false)
+      setLocalLoading(false)
     }
   }
 
@@ -555,9 +470,21 @@ export default function ParameterManager() {
                 {selectedSystemId && (
                   <div className="border-t border-gray-200 pt-6">
                     <h2 className="text-lg font-medium leading-6 text-gray-900">Parámetros del Sistema</h2>
-                    <div className="flex flex-row gap-4 mt-2 text-xs items-center">
-                      <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-yellow-100 border border-yellow-400"></span><span className="font-semibold text-yellow-700">Limite-(min,max)</span>: Cerca del límite recomendado</div>
-                      <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-green-100 border-green-400"></span><span className="font-semibold text-green-700">Bien</span>: Dentro de rango</div>
+                    <div className="flex flex-row gap-4 mt-2 text-xs items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-yellow-100 border border-yellow-400"></span><span className="font-semibold text-yellow-700">Limite-(min,max)</span>: Cerca del límite recomendado</div>
+                        <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-green-100 border-green-400"></span><span className="font-semibold text-green-700">Bien</span>: Dentro de rango</div>
+                      </div>
+                      {(userRole === "admin" || userRole === "user") && (
+                        <Button 
+                          onClick={() => router.push('/dashboard-parameters')} 
+                          variant="secondary"
+                          size="sm"
+                          className="bg-orange-100 text-orange-700 hover:bg-orange-200 border-orange-300 text-xs"
+                        >
+                          ⚙️ Configurar Límites
+                        </Button>
+                      )}
                     </div>
                     <p className="mt-1 text-sm text-gray-500">
                       Parámetros para el sistema seleccionado: {" "}
@@ -685,7 +612,7 @@ export default function ParameterManager() {
                         />
                       </div>
                     </div>
-                    <Button type="button" onClick={handleAddParameter} className="mt-4" disabled={!selectedSystemId || loading}>
+                    <Button type="button" onClick={handleAddParameter} className="mt-4" disabled={!selectedSystemId || localLoading}>
                       <Plus className="mr-2 h-4 w-4" /> Agregar Parámetro a la lista
                     </Button>
                     <p className="mt-2 text-sm text-gray-500">
@@ -702,8 +629,8 @@ export default function ParameterManager() {
                     <Button type="button" variant="outline" onClick={() => router.back()}>
                       Cancelar
                     </Button>
-                    <Button type="submit" disabled={loading || parameters.filter((p) => p.isNew).length === 0}>
-                      {loading ? "Guardando..." : "Guardar Cambios"}
+                    <Button type="submit" disabled={localLoading || parameters.filter((p) => p.isNew).length === 0}>
+                      {localLoading ? "Guardando..." : "Guardar Cambios"}
                     </Button>
                   </div>
                 </div>
