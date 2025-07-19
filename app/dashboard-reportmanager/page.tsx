@@ -1025,46 +1025,62 @@ export default function ReportManager() {
                 )}
 
                 <div className="space-y-4">
-                  {parameters.map((parameter) => (
-                    <div key={parameter.id} className="flex items-center space-x-4 p-4 border rounded-lg">
-                      <Checkbox
-                        checked={parameterValues[parameter.id]?.checked || false}
-                        onCheckedChange={(checked) => handleParameterChange(parameter.id, "checked", checked as boolean)}
-                      />
-                      <div className="flex-1">
-                        <div className="font-medium">{parameter.nombre}</div>
-                        <div className="text-sm text-gray-500">
-                          Unidad: {parameter.unidad}
-                        </div>
-                      </div>
-                      <div className="text-sm text-gray-500 w-16">{parameter.unidad}</div>
-                      {/* Inputs de tolerancia en una sola fila */}
-                      <div className="flex flex-row items-end gap-2 ml-2">
-                        <div className="flex flex-col items-center">
-                          <span className="text-xs font-semibold text-yellow-700">Lim-min</span>
-                          <Input type="number" className="w-14 bg-yellow-100 border-yellow-400 text-yellow-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[parameter.id]?.limite_min ?? ''} onChange={e => handleTolChange(parameter.id, 'limite_min', e.target.value)} />
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-xs font-semibold text-yellow-700">Lim-max</span>
-                          <Input type="number" className="w-14 bg-yellow-100 border-yellow-400 text-yellow-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[parameter.id]?.limite_max ?? ''} onChange={e => handleTolChange(parameter.id, 'limite_max', e.target.value)} />
-                        </div>
-                        <div className="flex flex-col items-center col-span-2" style={{minWidth: '60px'}}>
-                          <span className="text-xs font-semibold text-green-700 text-center w-full">Bien</span>
-                          <div className="flex flex-row gap-1">
-                            <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[parameter.id]?.bien_min ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_min', e.target.value)} />
-                            <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[parameter.id]?.bien_max ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_max', e.target.value)} />
+                  {parameters.map((parameter) => {
+                    const usarLimiteMin = tolerancias[parameter.id]?.usar_limite_min;
+                    const usarLimiteMax = tolerancias[parameter.id]?.usar_limite_max;
+                    return (
+                      <div key={parameter.id} className="flex items-center space-x-4 p-4 border rounded-lg">
+                        <Checkbox
+                          checked={parameterValues[parameter.id]?.checked || false}
+                          onCheckedChange={(checked) => handleParameterChange(parameter.id, "checked", checked as boolean)}
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium">{parameter.nombre}</div>
+                          <div className="text-sm text-gray-500">
+                            Unidad: {parameter.unidad}
                           </div>
                         </div>
-                        <Button size="icon" className="ml-2 h-7 w-7 p-0 flex items-center justify-center" onClick={() => handleTolSave(parameter.id)} disabled={tolLoading[parameter.id]} title="Guardar límites">
-                          <span className="material-icons text-base">save</span>
-                        </Button>
-                        <div className="flex flex-col items-center justify-end">
-                          {tolError[parameter.id] && <div className="text-xs text-red-600">{tolError[parameter.id]}</div>}
-                          {tolSuccess[parameter.id] && <div className="text-xs text-green-600">{tolSuccess[parameter.id]}</div>}
+                        <div className="text-sm text-gray-500 w-16">{parameter.unidad}</div>
+                        {/* Inputs de tolerancia en una sola fila */}
+                        <div className="flex flex-row items-end gap-2 ml-2">
+                          {/* Lim-min - Solo mostrar si usar_limite_min es true */}
+                          {usarLimiteMin && (
+                            <div className="flex flex-col items-center">
+                              <div className="flex items-center gap-1 mb-0.5">
+                                <span className="text-xs font-semibold text-yellow-700">Lim-min</span>
+                                <button type="button" onClick={() => handleTolChange(parameter.id, 'usar_limite_min', String(!usarLimiteMin))} className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${usarLimiteMin ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'}`}>{usarLimiteMin ? <span className="material-icons text-yellow-700 text-xs">check</span> : null}</button>
+                              </div>
+                              <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMin ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="min" value={tolerancias[parameter.id]?.limite_min ?? ''} onChange={e => handleTolChange(parameter.id, 'limite_min', e.target.value)} disabled={!usarLimiteMin} />
+                            </div>
+                          )}
+                          {/* Lim-max - Solo mostrar si usar_limite_max es true */}
+                          {usarLimiteMax && (
+                            <div className="flex flex-col items-center">
+                              <div className="flex items-center gap-1 mb-0.5">
+                                <span className="text-xs font-semibold text-yellow-700">Lim-max</span>
+                                <button type="button" onClick={() => handleTolChange(parameter.id, 'usar_limite_max', String(!usarLimiteMax))} className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${usarLimiteMax ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'}`}>{usarLimiteMax ? <span className="material-icons text-yellow-700 text-xs">check</span> : null}</button>
+                              </div>
+                              <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMax ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="max" value={tolerancias[parameter.id]?.limite_max ?? ''} onChange={e => handleTolChange(parameter.id, 'limite_max', e.target.value)} disabled={!usarLimiteMax} />
+                            </div>
+                          )}
+                          <div className="flex flex-col items-center col-span-2" style={{minWidth: '60px'}}>
+                            <span className="text-xs font-semibold text-green-700 text-center w-full">Bien</span>
+                            <div className="flex flex-row gap-1">
+                              <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[parameter.id]?.bien_min ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_min', e.target.value)} />
+                              <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[parameter.id]?.bien_max ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_max', e.target.value)} />
+                            </div>
+                          </div>
+                          <Button size="icon" className="ml-2 h-7 w-7 p-0 flex items-center justify-center" onClick={() => handleTolSave(parameter.id)} disabled={tolLoading[parameter.id]} title="Guardar límites">
+                            <span className="material-icons text-base">save</span>
+                          </Button>
+                          <div className="flex flex-col items-center justify-end">
+                            {tolError[parameter.id] && <div className="text-xs text-red-600">{tolError[parameter.id]}</div>}
+                            {tolSuccess[parameter.id] && <div className="text-xs text-green-600">{tolSuccess[parameter.id]}</div>}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>
