@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Navbar } from "@/components/Navbar"
 import { Eye, Download } from "lucide-react";
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants";
 
 interface ReportePDF {
   id: number;
@@ -32,7 +33,7 @@ export default function ReportList() {
     const fetchReportes = async () => {
       let data: ReportePDF[] = [];
       try {
-        const response = await axios.get("http://localhost:4000/api/documentos-pdf");
+        const response = await axios.get(`${API_BASE_URL}${API_ENDPOINTS.PDF_DOCUMENTS}`);
         data = response.data;
       } catch (error) {
         console.error("Error fetching reportes:", error);
@@ -137,7 +138,7 @@ export default function ReportList() {
                       <Eye className="w-5 h-5" />
                     </button>
                     <button
-                      onClick={() => window.open(`/api/documentos-pdf/${reporte.id}`, '_blank')}
+                      onClick={() => window.open(`${API_BASE_URL}${API_ENDPOINTS.PDF_DOCUMENT_BY_ID(String(reporte.id))}`, '_blank')}
                       className="border border-gray-300 p-2 rounded hover:bg-gray-100"
                       title="Descargar PDF"
                     >

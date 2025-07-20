@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Navbar from "@/components/Navbar"
 import ProtectedRoute from "@/components/ProtectedRoute"
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 
 // Interfaces
 interface Variable {
@@ -35,7 +36,7 @@ function DropdownProceso({ value, onChange, token }: { value: string, onChange: 
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch("http://localhost:4000/api/procesos/", {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_ALL}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         })
         if (!res.ok) throw new Error("No se pudieron cargar los procesos")
@@ -147,8 +148,8 @@ export default function VariablesPage() {
       
       try {
         const url = selectedProceso 
-          ? `http://localhost:4000/api/variables/proceso/${selectedProceso}`
-          : "http://localhost:4000/api/variables/"
+          ? `${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(selectedProceso)}`
+          : `${API_BASE_URL}${API_ENDPOINTS.VARIABLES_ALL}`
         
         const response = await fetch(url, {
           headers: {
@@ -228,8 +229,8 @@ export default function VariablesPage() {
 
     try {
       const url = modalMode === 'create' 
-        ? 'http://localhost:4000/api/variables/crear'
-        : `http://localhost:4000/api/variables/${editingVariable?.id}`
+        ? `${API_BASE_URL}${API_ENDPOINTS.VARIABLE_CREATE}`
+        : `${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE(editingVariable?.id ?? "")}`
 
       const method = modalMode === 'create' ? 'POST' : 'PATCH'
       
@@ -253,8 +254,8 @@ export default function VariablesPage() {
       // Recargar variables después de guardar
       const fetchVariables = async () => {
         const url = selectedProceso 
-          ? `http://localhost:4000/api/variables/proceso/${selectedProceso}`
-          : "http://localhost:4000/api/variables/"
+          ? `${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(selectedProceso)}`
+          : `${API_BASE_URL}${API_ENDPOINTS.VARIABLES_ALL}`
         
         const response = await fetch(url, {
           headers: {
@@ -287,7 +288,7 @@ export default function VariablesPage() {
   const confirmDeleteVariable = async () => {
     if (!deleteConfirm.variable) return
     try {
-      const response = await fetch(`http://localhost:4000/api/variables/${deleteConfirm.variable.id}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE(deleteConfirm.variable.id)}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`
@@ -298,8 +299,8 @@ export default function VariablesPage() {
       }
       // Recargar variables después de eliminar
       const url = selectedProceso 
-        ? `http://localhost:4000/api/variables/proceso/${selectedProceso}`
-        : "http://localhost:4000/api/variables/"
+        ? `${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(selectedProceso)}`
+        : `${API_BASE_URL}${API_ENDPOINTS.VARIABLES_ALL}`
       const reloadResponse = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
