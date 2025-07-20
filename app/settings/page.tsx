@@ -489,7 +489,7 @@ export default function Settings() {
           </div>
 
           {/* Debug Info */}
-          <div className="row">
+          {/* <div className="row">
             <div className="col-12">
               <div className="card">
                 <div className="card-header">
@@ -533,7 +533,7 @@ export default function Settings() {
                 </div>
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
     </ProtectedRoute>
