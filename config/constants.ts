@@ -56,6 +56,7 @@ export const API_ENDPOINTS = {
   // Tolerances
   TOLERANCES: '/api/variables-tolerancia',
   TOLERANCE_BY_ID: (id: string) => `/api/variables-tolerancia/${id}`,
+  TOLERANCE_BY_NAME: (id: string) => `/api/variables-tolerancia/nombre/${id}`,
   TOLERANCE_UPDATE: (id: string) => `/api/variables-tolerancia/${id}`,
   TOLERANCE_DELETE: (id: string) => `/api/variables-tolerancia/${id}`,
   
@@ -64,7 +65,7 @@ export const API_ENDPOINTS = {
   MEASUREMENT_BY_ID: (id: string) => `/api/mediciones/${id}`,
   MEASUREMENT_UPDATE: (id: string) => `/api/mediciones/${id}`,
   MEASUREMENT_DELETE: (id: string) => `/api/mediciones/${id}`,
-  MEASUREMENTS_BY_VARIABLE: (variable: string) => `/api/mediciones/variable/${encodeURIComponent(variable)}`,
+  MEASUREMENTS_BY_VARIABLEID: (variable: string) => `/api/mediciones/variable-id/${encodeURIComponent(variable)}`,//nombre
   MEASUREMENTS_BY_SYSTEM: (sistema: string) => `/api/mediciones/sistema/${encodeURIComponent(sistema)}`,
   MEASUREMENTS_BY_PROCESS: (processName: string) => `/api/mediciones/proceso/${encodeURIComponent(processName)}`,
   MEASUREMENTS_BY_CLIENT: (clientName: string) => `/api/mediciones/cliente/${encodeURIComponent(clientName)}`,

@@ -46,6 +46,7 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
       setLoading(true)
       setError(null)
       try {
+        //console.log("[MesureTable] Fetch mediciones para variable:", variable, "URL:", `${apiBase}/api/mediciones/variable/${encodedVar}`)
         const res = await fetch(
           `${apiBase}/api/mediciones/variable/${encodedVar}`,
           { headers: token ? { Authorization: `Bearer ${token}` } : {} }
@@ -95,13 +96,8 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
   useEffect(() => {
     async function fetchTolerancia() {
       try {
-        const res = await fetch(`${apiBase}/api/variables-tolerancia/${encodedVar}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-        if (!res.ok) return;
-        const result = await res.json();
-        setTolerancia(result.tolerancia || null)
-        setLeyendaEditable(result.tolerancia?.leyenda || "Segun NOM-127-SSA1-2021")
+        setTolerancia(  null)
+        setLeyendaEditable( "Segun NOM-127-SSA1-2021")
       } catch {
         setTolerancia(null)
       }

@@ -12,7 +12,7 @@ const NAV_LINKS = [
   // Solo para admin
   { path: "/agregar-formula",       label: "Agregar fórmula", icon: "ƒₓ", roles: ["admin"] },
   { path: "/dashboard-parameters",  label: "Admi. de variables(parametros)", icon: "tune", roles: ["admin"] },
-  { path: "/dashboard-agregarplanta",  label: "Agregar plantas o Sistema", icon: "factory", roles: ["admin"] },
+  { path: "/dashboard-agregarsistema",  label: "Agregar plantas o Sistema", icon: "factory", roles: ["admin"] },
   // Para admin y user
   { path: "/users-management",      label: "Gestión de usuarios", icon: "people", roles: ["admin", "user"] },
   { path: "/dashboard-reportmanager",  label: "Reportes", icon: "article", roles: ["admin", "user"] },

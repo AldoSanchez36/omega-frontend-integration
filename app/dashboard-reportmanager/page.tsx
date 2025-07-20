@@ -198,9 +198,10 @@ function useSistemasDeMediciones(variable: string, apiBase: string, token: strin
     async function fetchSistemas() {
       const encodedVar = encodeURIComponent(variable);
       const res = await fetch(
-        `${apiBase}/api/mediciones/variable/${encodedVar}`,
+        `${apiBase}/api/mediciones/${encodedVar}`,
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       );
+      
       if (!res.ok) return setSistemas([]);
       const result = await res.json();
       const mediciones = result.mediciones || [];
@@ -320,7 +321,7 @@ export default function ReportManager() {
       const storedUser = localStorage.getItem('Organomex_user')
       if (storedUser) {
         const userData = JSON.parse(storedUser)
-        console.log("Puesto:", userData.puesto);
+        
       }
     }
   }, [])
@@ -375,7 +376,7 @@ export default function ReportManager() {
   // 2. Agrega la función para fetch dinámico:
   async function fetchSistemasForParametro(param: Parameter) {
     if (!selectedSystem) return;
-    const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE(param.id)}`, {
+    const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLEID(param.id)}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     })
     const data = await res.json();
@@ -526,7 +527,7 @@ export default function ReportManager() {
       parameters: selectedParams,
       mediciones: medicionesPreview, // valores agregados
     };
-    console.log("Datos para reporte:", reportSelection);
+    
     localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
     router.push("/reports");
   }
@@ -617,7 +618,7 @@ export default function ReportManager() {
         parameters.filter(p => parameterValues[p.id]?.checked).map(async (parameter) => {
           const encodedVar = encodeURIComponent(parameter.nombre);
           const res = await fetch(
-            `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE(encodedVar)}`,
+            `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLEID(parameter.id)}`,
             { headers: token ? { Authorization: `Bearer ${token}` } : {} }
           );
           if (!res.ok) {
@@ -634,6 +635,9 @@ export default function ReportManager() {
     }
     fetchAllSistemas();
   }, [parameters, parameterValues]);
+
+  // Estado para tolerancias por variable_id
+  const [toleranciasPorVariable, setToleranciasPorVariable] = useState<Record<string, any>>({})
 
   if (loading) {
     return (
@@ -824,6 +828,8 @@ export default function ReportManager() {
                       // Obtener sistemas dinámicos ordenados
                       const parametro = Object.keys(porParametro)[0]
                       const sistemasDyn = (parametro && sistemas.length > 0) ? sistemas : ["S01"]
+                      // Estado de tab por parámetro
+                      const [sistemaTabs, setSistemaTabs] = useState<{ [param: string]: string }>({})
                       return (
                         <>
                           {Object.entries(porParametro).map(([parametro, mediciones]) => {
@@ -836,25 +842,52 @@ export default function ReportManager() {
                               if (!data[m.fecha]) data[m.fecha] = {}
                               data[m.fecha][m.sistema] = m.valor
                             })
+                            // Tab activo para este parámetro
+                            const tab = sistemaTabs[parametro] || sistemasDyn[0]
+
+                            // Obtener variable_id de la primera medición
+                            const variableId = mediciones[0]?.variable_id
+
+                            // Si no tenemos tolerancia para este variable_id, hacer fetch
+                            useEffect(() => {
+                              if (variableId && !toleranciasPorVariable[variableId]) {
+                                fetch(`${API_BASE_URL}/api/variables-tolerancia/${variableId}`)
+                                  .then(res => res.ok ? res.json() : null)
+                                  .then(data => {
+                                    if (data) {
+                                      setToleranciasPorVariable(prev => ({ ...prev, [variableId]: data }))
+                                    }
+                                  })
+                              }
+                            }, [variableId])
                             return (
                               <div key={parametro} className="mb-8">
                                 <div className="font-bold text-lg text-center mb-1">{parametro}</div>
+                                {/* Tabs de sistemas */}
+                                <div className="mb-2 flex gap-2 justify-center">
+                                  {sistemasDyn.map(s => (
+                                    <button
+                                      key={s}
+                                      className={`px-3 py-1 rounded ${tab === s ? "bg-blue-600 text-white" : "bg-gray-200"}`}
+                                      onClick={() => setSistemaTabs(prev => ({ ...prev, [parametro]: s }))}
+                                    >
+                                      {s}
+                                    </button>
+                                  ))}
+                                </div>
+                                {/* Tabla solo para el sistema seleccionado */}
                                 <table className="min-w-full border text-xs bg-white">
                                   <thead>
                                     <tr className="bg-gray-100">
                                       <th className="border px-2 py-1">Fecha</th>
-                                      {sistemasDyn.map(s => (
-                                        <th key={s} className="border px-2 py-1">{s}</th>
-                                      ))}
+                                      <th className="border px-2 py-1">{tab}</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {fechas.map(fecha => (
                                       <tr key={fecha}>
                                         <td className="border px-2 py-1 font-semibold">{fecha}</td>
-                                        {sistemasDyn.map(s => (
-                                          <td key={s} className="border px-2 py-1 text-center">{data[fecha][s] !== undefined ? data[fecha][s] : ''}</td>
-                                        ))}
+                                        <td className="border px-2 py-1 text-center">{data[fecha][tab] !== undefined ? data[fecha][tab] : ''}</td>
                                       </tr>
                                     ))}
                                   </tbody>
