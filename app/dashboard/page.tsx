@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { authService } from "@/services/authService"
 import { httpService } from "@/services/httpService"
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 
 import Navbar from "@/components/Navbar"
 import { QuickActions as AdminQuickActions } from "@/app/dashboard/buttons/admin"
@@ -204,10 +205,9 @@ export default function Dashboard() {
     if (!user) return;
     setDataLoading(true);
     const token = authService.getToken();
-    const apiBase = "http://localhost:4000";
 
     const fetchPlants = async (): Promise<Plant[]> => {
-      const res = await fetch(`${apiBase}/api/plantas/accesibles`, {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -215,7 +215,7 @@ export default function Dashboard() {
     };
 
     const fetchProcesos = async (plantaId: string): Promise<any[]> => {
-      const res = await fetch(`${apiBase}/api/procesos/planta/${plantaId}`, {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(plantaId)}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -223,7 +223,7 @@ export default function Dashboard() {
     };
 
     const fetchVariables = async (procesoId: string): Promise<any[]> => {
-      const res = await fetch(`${apiBase}/api/variables/proceso/${procesoId}`, {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(procesoId)}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -357,12 +357,9 @@ export default function Dashboard() {
       /* console.log("👤 Puesto del usuario:", puesto) */
       
       // Determinar el endpoint según el puesto
-      let endpoint = "/api/dashboard/resumen"
-      if (puesto === "admin") {
-        endpoint = "/api/dashboard/resumen-admin"
-      } else{
-        endpoint = "/api/dashboard/resumen"
-      }
+      const endpoint = puesto === "admin" 
+        ? API_ENDPOINTS.DASHBOARD_RESUMEN_ADMIN 
+        : API_ENDPOINTS.DASHBOARD_RESUMEN
       
       try {
         const res = await httpService.get(endpoint, {
@@ -387,7 +384,6 @@ export default function Dashboard() {
   useEffect(() => {
     if (!plants.length) return;
     const token = authService.getToken();
-    const apiBase = "http://localhost:4000";
 
     const fetchAllHistoricalData = async () => {
       const allData: Record<string, any[]> = {};
@@ -395,9 +391,8 @@ export default function Dashboard() {
         if (!plant.systems) continue;
         for (const system of plant.systems) {
           for (const param of system.parameters) {
-            const encodedVar = encodeURIComponent(param.name);
             const res = await fetch(
-              `${apiBase}/api/mediciones/variable/${encodedVar}`,
+              `${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE(param.name)}`,
               { headers: token ? { Authorization: `Bearer ${token}` } : {} }
             );
             const result = await res.json();
