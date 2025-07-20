@@ -11,11 +11,12 @@ interface NavbarProps {
 const NAV_LINKS = [
   // Solo para admin
   { path: "/agregar-formula",       label: "Agregar fórmula", icon: "science", roles: ["admin"] },
+  //{ path: "/settings",       label: "Settings", icon: "science", roles: ["admin"] },
   { path: "/dashboard-parameters",  label: "Admi. de variables(parametros)", icon: "tune", roles: ["admin"] },
   { path: "/dashboard-agregarplanta",  label: "Agregar plantas o Sistema", icon: "tune", roles: ["admin"] },
-  { path: "/dashboard-reportmanager",  label: "Reportes", icon: "tune", roles: ["admin", "user"] },
   // Para admin y user
   { path: "/users-management",      label: "Gestión de usuarios", icon: "people", roles: ["admin", "user"] },
+  { path: "/dashboard-reportmanager",  label: "Reportes", icon: "tune", roles: ["admin", "user"] },
   //{ path: "/reports", label: "Reporte", icon: "assessment", roles: ["admin", "user"/* , "client" */] },
   // Para admin, user y client
 

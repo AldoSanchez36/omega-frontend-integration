@@ -7,6 +7,7 @@ import Link from "next/link"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import axios from "axios"
 import { useRouter } from "next/navigation"
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("")
@@ -26,7 +27,7 @@ export default function ForgotPassword() {
     setIsLoading(true)
     setMessage("")
     try {
-      const res = await axios.post("http://localhost:4000/api/auth/forgot-password", { email })
+      const res = await axios.post(`${API_BASE_URL}${API_ENDPOINTS.FORGOT_PASSWORD}`, { email })
       if (res.data.ok) {
         setShowModal(true)
         setStep(2)
@@ -52,7 +53,7 @@ export default function ForgotPassword() {
       return
     }
     try {
-      const res = await axios.post("http://localhost:4000/api/auth/reset-password", {
+      const res = await axios.post(`${API_BASE_URL}${API_ENDPOINTS.RESET_PASSWORD}`, {
         email,
         codigo: code.trim(),
         nuevaPassword: newPassword

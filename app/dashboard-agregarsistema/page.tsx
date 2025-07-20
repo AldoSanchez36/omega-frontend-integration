@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { v4 as uuidv4 } from "uuid"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import Navbar from "@/components/Navbar"
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 
 interface Parameter {
   id: string;
@@ -93,7 +94,7 @@ export default function ParameterManager() {
 
   const handleSaveEdit = async () => {
     if (!editingParam) return
-    const res = await fetch(`http://localhost:4000/api/variables/${editingParam.id}`, {
+    const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE(editingParam.id)}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -139,7 +140,7 @@ export default function ParameterManager() {
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch("http://localhost:4000/api/auth/users", {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USERS}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (!res.ok) {
@@ -148,11 +149,7 @@ export default function ParameterManager() {
         }
         const data = await res.json()
         setUsers(data.usuarios || [])
-        if (data.usuarios.length > 0 && !selectedUser) {
-          const firstUser = data.usuarios[0]
-          setSelectedUser(firstUser)
-          handleSelectUser(firstUser.id)
-        }
+        // NO SE DEBE SELECCIONAR USUARIO AQUÍ
       } catch (e: any) {
         setError(`Error al cargar usuarios: ${e.message}`)
       } finally {
@@ -178,7 +175,7 @@ export default function ParameterManager() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`http://localhost:4000/api/plantas/accesibles`, {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
         headers: { Authorization: `Bearer ${token}`, "x-usuario-id": user.id },
       })
       if (!res.ok) {
@@ -213,7 +210,7 @@ export default function ParameterManager() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`http://localhost:4000/api/procesos/planta/${plant.id}`, {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(plant.id)}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) {
@@ -242,7 +239,7 @@ export default function ParameterManager() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("http://localhost:4000/api/plantas/crear", {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_CREATE}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -272,7 +269,7 @@ export default function ParameterManager() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`http://localhost:4000/api/variables/proceso/${selectedSystemId}`, {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(selectedSystemId)}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) {
@@ -300,7 +297,7 @@ export default function ParameterManager() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("http://localhost:4000/api/procesos/crear", {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEM_CREATE}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -362,7 +359,7 @@ export default function ParameterManager() {
     setError(null)
     try {
       for (const param of newParamsToSave) {
-        const res = await fetch("http://localhost:4000/api/variables/crear", {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_CREATE}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({
@@ -407,7 +404,7 @@ export default function ParameterManager() {
                     <div className="grid grid-cols-[150px_1fr] items-start gap-4">
                       <Label className="pt-2 text-sm font-medium text-gray-700">Cliente (Usuario)</Label>
                       <div className="flex flex-col">
-                        <Select value={selectedUser?.id} onValueChange={handleSelectUser}>
+                        <Select value={selectedUser?.id ?? ""} onValueChange={handleSelectUser}>
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder="Seleccione un usuario" />
                           </SelectTrigger>

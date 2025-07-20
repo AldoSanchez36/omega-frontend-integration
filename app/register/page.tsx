@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { useLanguage } from "../../Elements/LanguageContext"
 import "./RegisterScreen.css"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 
 export default function RegisterScreen() {
   const { translations, changeLanguage, language } = useLanguage()
@@ -40,7 +41,7 @@ export default function RegisterScreen() {
       return
     }
     try {
-      const response = await axios.post("http://localhost:4000/api/auth/register", {
+      const response = await axios.post(`${API_BASE_URL}${API_ENDPOINTS.REGISTER}`, {
         username: formData.username.trim(),
         email: formData.email.trim(),
         password: formData.password,
@@ -63,7 +64,7 @@ export default function RegisterScreen() {
     setVerifyError("")
     setVerifySuccess(false)
     try {
-      const response = await axios.post("http://localhost:4000/api/auth/verificar", {
+      const response = await axios.post(`${API_BASE_URL}${API_ENDPOINTS.VERIFY_EMAIL}`, {
         email: pendingEmail,
         codigo: verifyCode.trim(),
       })

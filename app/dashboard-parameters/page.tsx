@@ -15,6 +15,7 @@ import { v4 as uuidv4 } from "uuid"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import Navbar from "@/components/Navbar"
 import { useUserAccess } from "@/hooks/useUserAccess"
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 
 interface Parameter {
   id: string;
@@ -106,7 +107,7 @@ export default function ParameterManager() {
 
   const handleSaveEdit = async () => {
     if (!editingParam) return
-    const res = await fetch(`http://localhost:4000/api/variables/${editingParam.id}`, {
+    const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE(editingParam.id)}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -157,7 +158,7 @@ export default function ParameterManager() {
     setLocalLoading(true)
     setLocalError(null)
     try {
-      const res = await fetch("http://localhost:4000/api/plantas/crear", {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_CREATE}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -187,7 +188,7 @@ export default function ParameterManager() {
     setLocalLoading(true)
     setLocalError(null)
     try {
-      const res = await fetch(`http://localhost:4000/api/variables/proceso/${selectedSystemId}`, {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(selectedSystemId)}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) {
@@ -215,7 +216,7 @@ export default function ParameterManager() {
     setLocalLoading(true)
     setLocalError(null)
     try {
-      const res = await fetch("http://localhost:4000/api/procesos/crear", {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEM_CREATE}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -277,7 +278,7 @@ export default function ParameterManager() {
     setLocalError(null)
     try {
       for (const param of newParamsToSave) {
-        const res = await fetch("http://localhost:4000/api/variables/crear", {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_CREATE}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({
@@ -306,10 +307,17 @@ export default function ParameterManager() {
     setTolLoading({})
     setTolError({})
     setTolSuccess({})
-    fetch('http://localhost:4000/api/variables-tolerancia', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then((data: any) => {
-        // console.log("Respuesta de getTolerancias:", data)
+    const loadTolerances = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) {
+          throw new Error("No se pudieron cargar las tolerancias")
+        }
+        const data = await res.json()
+        
+        // Filtrar solo las tolerancias del sistema y parámetros actuales
         const map: Record<string, any> = {}
         if (Array.isArray(data)) {
           data.forEach((tol) => {
@@ -325,12 +333,13 @@ export default function ParameterManager() {
           })
         }
         setTolerancias(map)
-      })
-      .catch((e) => {
+      } catch (e: any) {
         setTolError((prev) => ({ ...prev, global: e.message }))
-      })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSystemId, parameters])
+      }
+    }
+    
+    loadTolerances()
+  }, [selectedSystemId, parameters, token])
 
   const handleTolChange = (variableId: string, field: string, value: string) => {
     setTolerancias((prev) => ({
@@ -359,10 +368,20 @@ export default function ParameterManager() {
     }
     try {
       if (tol && tol.id) {
-        await fetch(`http://localhost:4000/api/variables-tolerancia/${tol.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(tol) })
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCE_UPDATE(tol.id)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(tol),
+        })
+        if (!res.ok) throw new Error("Error al actualizar tolerancia")
         setTolSuccess((prev) => ({ ...prev, [variableId]: '¡Guardado!' }))
       } else {
-        await fetch('http://localhost:4000/api/variables-tolerancia', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(tol) })
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(tol),
+        })
+        if (!res.ok) throw new Error("Error al crear tolerancia")
         setTolSuccess((prev) => ({ ...prev, [variableId]: '¡Guardado!' }))
       }
     } catch (e: any) {

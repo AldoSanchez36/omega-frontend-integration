@@ -1,38 +1,101 @@
-// Configuración centralizada de la aplicación
-export const CONFIG = {
-  // URLs
-  API_BASE_URL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000",
-  FRONTEND_URL: process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000",
+// API Configuration
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"
 
-  // Puertos
-  BACKEND_PORT: 4000,
-  FRONTEND_PORT: 3000,
-
-  // Endpoints principales
-  ENDPOINTS: {
-    AUTH: {
-      LOGIN: "/api/auth/login",
-      REGISTER: "/api/auth/register",
-      LOGOUT: "/api/auth/logout",
-    },
-    PLANTAS: {
-      CREATE: "/api/plantas/crear",
-      MY_PLANTS: "/api/plantas/mis-plantas",
-    },
-    REPORTES: {
-      CREATE: "/api/reportes",
-      BY_USER: "/api/reportes/usuario",
-    },
-  },
-
-  // Configuración de desarrollo
-  IS_DEVELOPMENT: process.env.NODE_ENV === "development",
-  IS_PRODUCTION: process.env.NODE_ENV === "production",
+// Helper function to get full API URL
+export const getApiUrl = (endpoint: string): string => {
+  return `${API_BASE_URL}${endpoint}`
 }
 
-// Validación de configuración
-if (CONFIG.IS_DEVELOPMENT) {
-  console.log("🔧 Configuración de desarrollo:")
-  console.log("   Backend:", CONFIG.API_BASE_URL)
-  console.log("   Frontend:", CONFIG.FRONTEND_URL)
-}
+// Common API endpoints
+export const API_ENDPOINTS = {
+  // Auth
+  LOGIN: '/api/auth/login',
+  REGISTER: '/api/auth/register',
+  LOGOUT: '/api/auth/logout',
+  USERS: '/api/auth/users',
+  USER_BY_ID: (userId: string) => `/api/auth/user/${userId}`,
+  USER_BY_NAME: (username: string) => `/api/auth/user-by-name/${username}`,
+  FORGOT_PASSWORD: '/api/auth/forgot-password',
+  RESET_PASSWORD: '/api/auth/reset-password',
+  VERIFY_EMAIL: '/api/auth/verificar',
+  USER_UPDATE: (userId: string) => `/api/auth/update/${userId}`,
+  USER_DELETE: (userId: string) => `/api/auth/delete/${userId}`,
+  
+  // Plants
+  PLANTS_CREATE: '/api/plantas/crear',
+  PLANTS_ACCESSIBLE: '/api/plantas/accesibles',
+  PLANTS_ALL_ID: '/api/plantas/allID',
+  PLANTS_BY_USER: (userId: string) => `/api/plantas/mis-plantas/${userId}`,
+  PLANTS_ACCESS_BY_USER: (userId: string) => `/api/accesos/plantas/usuario/${userId}`,
+  PLANTS_ASSIGN_ACCESS: '/api/accesos/plantas/asignar',
+  PLANTS_UPDATE_ACCESS: '/api/accesos/plantas/actualizar',
+  PLANTS_REVOKE_ACCESS: '/api/accesos/plantas/revocar',
+  
+  // Systems/Processes
+  SYSTEMS_BY_PLANT: (plantId: string) => `/api/procesos/planta/${plantId}`,
+  SYSTEMS_ALL: '/api/procesos',
+  SYSTEM_CREATE: '/api/procesos/crear',
+  
+  // Variables/Parameters
+  VARIABLES_BY_SYSTEM: (systemId: string) => `/api/variables/proceso/${systemId}`,
+  VARIABLES_ALL: '/api/variables',
+  VARIABLE_CREATE: '/api/variables/crear',
+  VARIABLE_UPDATE: (id: string) => `/api/variables/${id}`,
+  
+  // Formulas
+  FORMULAS_CREATE: '/api/formulas/crear',
+  FORMULAS_BY_PROCESS: (processId: string) => `/api/formulas/proceso/${processId}`,
+  FORMULAS_ALL: '/api/formulas',
+  
+  // Process Access Control
+  PROCESS_ACCESS_ASSIGN: '/api/accesos/procesos/asignar',
+  PROCESS_ACCESS_BY_USER: (userId: string) => `/api/accesos/procesos/usuario/${userId}`,
+  PROCESS_ACCESS_UPDATE: '/api/accesos/procesos/actualizar',
+  PROCESS_ACCESS_REVOKE: '/api/accesos/procesos/revocar',
+  
+  // Tolerances
+  TOLERANCES: '/api/variables-tolerancia',
+  TOLERANCE_BY_ID: (id: string) => `/api/variables-tolerancia/${id}`,
+  TOLERANCE_UPDATE: (id: string) => `/api/variables-tolerancia/${id}`,
+  TOLERANCE_DELETE: (id: string) => `/api/variables-tolerancia/${id}`,
+  
+  // Measurements
+  MEASUREMENTS: '/api/mediciones',
+  MEASUREMENT_BY_ID: (id: string) => `/api/mediciones/${id}`,
+  MEASUREMENT_UPDATE: (id: string) => `/api/mediciones/${id}`,
+  MEASUREMENT_DELETE: (id: string) => `/api/mediciones/${id}`,
+  MEASUREMENTS_BY_VARIABLE: (variable: string) => `/api/mediciones/variable/${encodeURIComponent(variable)}`,
+  MEASUREMENTS_BY_SYSTEM: (sistema: string) => `/api/mediciones/sistema/${encodeURIComponent(sistema)}`,
+  MEASUREMENTS_BY_PROCESS: (processName: string) => `/api/mediciones/proceso/${encodeURIComponent(processName)}`,
+  MEASUREMENTS_BY_CLIENT: (clientName: string) => `/api/mediciones/cliente/${encodeURIComponent(clientName)}`,
+  
+  // Reports
+  REPORTS: '/api/reportes',
+  REPORT_BY_ID: (id: string) => `/api/reportes/${id}`,
+  REPORTS_BY_USER: (userId: string) => `/api/reportes/usuario/${userId}`,
+  
+  // File Upload
+  FILE_UPLOAD: '/api/upload',
+  
+  // PDF Documents
+  PDF_DOCUMENTS: '/api/documentos-pdf',
+  PDF_DOCUMENT_BY_ID: (id: string) => `/api/documentos-pdf/${id}`,
+  PDF_DOCUMENT_DELETE: (id: string) => `/api/documentos-pdf/${id}`,
+  PDF_DOCUMENTS_DASHBOARD: '/api/documentos-pdf/dashboard',
+  
+  // PDF Document Permissions
+  PDF_PERMISSIONS: '/api/documentos-pdf-permisos',
+  PDF_PERMISSION_BY_ID: (id: string) => `/api/documentos-pdf-permisos/${id}`,
+  PDF_PERMISSION_DELETE: (id: string) => `/api/documentos-pdf-permisos/${id}`,
+  
+  // Dashboard
+  DASHBOARD_RESUMEN: '/api/dashboard/resumen',
+  DASHBOARD_RESUMEN_ADMIN: '/api/dashboard/resumen-admin',
+} as const
+
+// Environment configuration
+export const ENV_CONFIG = {
+  IS_DEVELOPMENT: process.env.NODE_ENV === 'development',
+  IS_PRODUCTION: process.env.NODE_ENV === 'production',
+  API_BASE_URL,
+} as const

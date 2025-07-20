@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import Navbar from "@/components/Navbar"
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 
 interface User {
   id?: string
@@ -85,7 +86,7 @@ export default function UsersManagement() {
         }
         
         // Hacer la petición con axios
-        const response = await axios.get("http://localhost:4000/api/auth/users", {
+        const response = await axios.get(`${API_BASE_URL}${API_ENDPOINTS.USERS}`, {
           headers: {
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -133,8 +134,8 @@ export default function UsersManagement() {
     // Si el usuario actual es admin, obtener todas las plantas del sistema
     // Si no es admin, obtener solo las plantas accesibles para el usuario seleccionado
     const endpoint = isAdmin 
-      ? "http://localhost:4000/api/plantas/allID" 
-      : "http://localhost:4000/api/plantas/accesibles";
+      ? `${API_BASE_URL}${API_ENDPOINTS.PLANTS_ALL_ID}`
+      : `${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`;
     
     const headers: any = { Authorization: `Bearer ${token}` };
     
@@ -158,7 +159,7 @@ export default function UsersManagement() {
         console.error("❌ Error fetching plantas:", error);
         // Si el endpoint de todas las plantas no existe, fallback al endpoint de accesibles
         if (isAdmin) {
-          fetch("http://localhost:4000/api/plantas/accesibles", {
+          fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
             headers: { Authorization: `Bearer ${token}`, "x-usuario-id": usuarioId }
           })
             .then(res => res.json())
@@ -180,7 +181,7 @@ export default function UsersManagement() {
     if (!plantaSeleccionadaModal) return;
     const token = authService.getToken();
     
-    fetch(`http://localhost:4000/api/procesos/planta/${plantaSeleccionadaModal}`, {
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(String(plantaSeleccionadaModal ?? '') || '')}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -205,7 +206,7 @@ export default function UsersManagement() {
     const plantaId = plantaSeleccionadaModal;
     const token = authService.getToken();
 
-    fetch(`http://localhost:4000/api/accesos/plantas/usuario/${usuarioId}`, {
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESS_BY_USER(String(usuarioId ?? '') || '')}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -347,7 +348,7 @@ export default function UsersManagement() {
     setEditSuccess(null)
     try {
       const token = authService.getToken()
-      const res = await fetch(`http://localhost:4000/api/auth/update/${selectedUserForEdit._id}`, {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USER_UPDATE(String(selectedUserForEdit._id || ""))}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -395,7 +396,7 @@ export default function UsersManagement() {
     setEditError(null)
     setEditSuccess(null)
     try {
-      const res = await fetch(`http://localhost:4000/api/auth/delete/${selectedUserForEdit._id}`, {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USER_DELETE(String(selectedUserForEdit._id || ""))}`, {
         method: "DELETE",
       })
       if (!res.ok) {
@@ -437,7 +438,7 @@ export default function UsersManagement() {
         puede_editar: permisoEditar
       };
       
-      const res = await fetch("http://localhost:4000/api/accesos/plantas/asignar", {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ASSIGN_ACCESS}`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json", 

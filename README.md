@@ -28,7 +28,7 @@ Este proyecto es un sistema de gestión industrial desarrollado con **Next.js** 
 ### 2. **Dashboard y Gestión**
 - `/dashboard`: Página principal tras login, muestra resumen y accesos rápidos según el rol.
   - `/dashboard/buttons/`: Botones de acciones rápidas, modularizados por rol (admin, user, client).
-- `/dashboard-parameters`: Gestión y visualización de parámetros industriales.
+- `/dashboard-parameters`: Gestión avanzada de parámetros industriales con configuración de tolerancias.
 - `/dashboard-agregarsistema`: Agregar nuevos sistemas industriales.
 - `/dashboard-agregarplanta`: Agregar nuevas plantas industriales.
 
@@ -38,8 +38,10 @@ Este proyecto es un sistema de gestión industrial desarrollado con **Next.js** 
   - Filtro por fecha.
   - Acciones: ver y descargar (con íconos profesionales).
 - `/dashboard-reportmanager`:  
-  - Gestión avanzada de reportes.
+  - Gestión avanzada de reportes con entrada manual de mediciones.
   - Visualización de tablas de medidas (`MesureTable`) y gráficos de series temporales (`SensorTimeSeriesChart`).
+  - Configuración de tolerancias por parámetro.
+  - Sistema de mediciones por múltiples sistemas (S01, S02, etc.).
 - `/reports`:  
   - Visualización detallada de un reporte específico (accede desde la lista).
 
@@ -67,24 +69,80 @@ Este proyecto es un sistema de gestión industrial desarrollado con **Next.js** 
 - **SensorTimeSeriesChart**: Gráficos de series temporales para análisis visual.
 - **ProtectedRoute**: Componente para proteger rutas según autenticación.
 - **Quick Actions**: Botones de acciones rápidas, adaptados al rol.
+- **MedicionInputBox**: Componente para entrada manual de mediciones por parámetro.
+- **DebugPanel**: Panel de depuración para desarrollo.
 
 ---
 
-## 🔒 Seguridad y UX
+## 🔒 Seguridad y Control de Acceso
 
-- **Rutas protegidas**: Solo usuarios autenticados pueden acceder a páginas sensibles.
-- **Role-based UI**: La interfaz y las acciones disponibles cambian según el rol .
+### **Sistema de Roles**
+- **Admin**: Acceso completo a todas las funcionalidades
+- **User**: Acceso limitado a plantas asignadas, puede configurar parámetros
+- **Client**: Acceso solo de lectura a datos de sus plantas
+
+### **Rutas Protegidas**
+- Solo usuarios autenticados pueden acceder a páginas sensibles.
+- **Role-based UI**: La interfaz y las acciones disponibles cambian según el rol.
+- **Botones condicionales**: El botón "⚙️ Configurar Límites" solo aparece para admin y user.
 - **Logout robusto**: Limpieza de sesión y redirección segura, sin loops infinitos.
 - **Feedback visual**: Mensajes claros de carga, error y éxito.
 
 ---
 
-## 🛠️ Buenas Prácticas
+## 🛠️ Arquitectura y Hooks Personalizados
 
-- Uso de contextos y hooks para manejo de usuario y lógica compartida.
-- Componentes UI desacoplados y reutilizables.
-- Estilo moderno con Tailwind y componentes tipo V0/shadcn.
-- Internacionalización preparada (archivos en Elements/).
+### **useUserAccess Hook**
+Hook reutilizable que centraliza toda la lógica de autenticación y acceso:
+
+```typescript
+const {
+  users, plants, systems,
+  selectedUser, selectedPlant, selectedSystem,
+  userRole, loading, error,
+  handleSelectUser, handleSelectPlant,
+  fetchParameters
+} = useUserAccess(token, { 
+  autoSelectFirstPlant: false, 
+  autoSelectFirstSystem: false 
+})
+```
+
+**Características:**
+- Manejo automático de roles (admin, user, client)
+- Carga dinámica de plantas según permisos del usuario
+- Opciones configurables para selección automática
+- Gestión centralizada de estados de carga y error
+
+### **Gestión de Tolerancias**
+Sistema completo para configurar límites de parámetros:
+- **Límites mínimos y máximos** por parámetro
+- **Rangos "Bien"** para valores óptimos
+- **Guardado automático** de configuraciones
+- **Validación visual** con colores (verde, amarillo)
+
+### **Sistema de Mediciones**
+- **Entrada manual** de mediciones por parámetro
+- **Múltiples sistemas** (S01, S02, S03, etc.)
+- **Previsualización** de datos antes de guardar
+- **Validación** de campos requeridos
+
+---
+
+## 🎨 UI/UX Moderna
+
+### **Componentes shadcn/ui**
+- Interfaz moderna y consistente
+- Componentes accesibles y responsivos
+- Tema personalizado con colores corporativos
+- Iconografía profesional con Lucide React
+
+### **Experiencia de Usuario**
+- **Navegación intuitiva** con breadcrumbs
+- **Estados de carga** con spinners
+- **Mensajes de error** claros y contextuales
+- **Feedback visual** inmediato en todas las acciones
+- **Responsive design** para diferentes dispositivos
 
 ---
 
@@ -93,10 +151,16 @@ Este proyecto es un sistema de gestión industrial desarrollado con **Next.js** 
 - El frontend se conecta a un backend Express (por defecto en `http://localhost:4000`).
 - Endpoints principales:
   - `/api/auth/login`, `/api/auth/register`, `/api/auth/logout`
+  - `/api/auth/user-by-name/:username` - Obtener ID de usuario por username
+  - `/api/accesos/plantas/usuario/:userId` - Accesos de plantas por usuario
+  - `/api/plantas/accesibles` - Plantas accesibles para el usuario
   - `/api/plantas/crear`, `/api/plantas/mis-plantas/:userId`
+  - `/api/procesos/planta/:plantaId` - Sistemas por planta
+  - `/api/variables/proceso/:procesoId` - Parámetros por sistema
+  - `/api/variables-tolerancia` - Gestión de tolerancias
+  - `/api/mediciones` - Guardado de mediciones
+  - `/api/mediciones/variable/:variableId` - Mediciones por variable
   - `/api/reportes`, `/api/reportes/usuario/:userId`
-  - `/api/procesos/crear`, `/api/procesos/planta/:plantaId`
-  - `/api/variables/crear`, `/api/variables/proceso/:procesoId`
   - `/api/documentos-pdf` (para reportes PDF)
 
 ---
@@ -129,29 +193,41 @@ Este proyecto es un sistema de gestión industrial desarrollado con **Next.js** 
 
 ---
 
-## 📝 Cambios recientes
+## 📝 Cambios Recientes y Mejoras
 
-### Tabla de Reportes PDF
+### **Refactorización del Código (v2.0)**
+- **Hook reutilizable `useUserAccess`**: Centraliza toda la lógica de autenticación y acceso
+- **Eliminación de código duplicado**: Reducción significativa de líneas de código
+- **Mejor mantenibilidad**: Cambios en lógica de acceso solo en un lugar
+- **Consistencia**: Mismo comportamiento en todas las páginas
 
-- La página de reportes (`/dashboard-reportList`) ahora muestra una tabla moderna con los siguientes campos:
-  - **Título**
-  - **Planta**
-  - **Sistema**
-  - **Estado**
-  - **Fecha**
-  - **Acciones** (ver y descargar)
+### **Sistema de Gestión de Parámetros Avanzado**
+- **Configuración de tolerancias**: Límites mínimos, máximos y rangos óptimos
+- **Interfaz visual intuitiva**: Colores para identificar rangos (verde=bien, amarillo=límite)
+- **Guardado automático**: Configuraciones se guardan inmediatamente
+- **Validación en tiempo real**: Feedback visual para valores fuera de rango
 
-- Los botones de acción ahora usan íconos profesionales de la librería [lucide-react](https://lucide.dev/):
-  - Eye (Ver PDF): Abre el reporte en una nueva pestaña.
-  - Download (Descargar PDF): Descarga el archivo PDF.
+### **Sistema de Mediciones Manuales**
+- **Entrada por parámetro**: Cada parámetro tiene su propio formulario de medición
+- **Múltiples sistemas**: Soporte para S01, S02, S03, etc.
+- **Previsualización**: Tabla que muestra datos antes de guardar
+- **Validación**: Fecha requerida, valores numéricos validados
 
-- Los datos de la tabla se obtienen dinámicamente del backend (`/api/documentos-pdf`).
-- El filtro por fecha permite buscar reportes por día de creación.
+### **Control de Acceso Mejorado**
+- **Botones condicionales**: "⚙️ Configurar Límites" solo para admin y user
+- **Selección automática configurable**: Cada página puede elegir si auto-selecciona plantas
+- **Gestión de roles robusta**: Diferentes flujos para admin, user y client
 
-### Dependencias de íconos
+### **Tabla de Reportes PDF Mejorada**
+- **Tabla moderna** con campos organizados
+- **Íconos profesionales** de Lucide React
+- **Filtro por fecha** funcional
+- **Acciones directas**: Ver y descargar PDFs
 
-- Se utiliza la librería `lucide-react` para los íconos de acción.
-  Si agregas nuevos botones o acciones, usa íconos de esta librería para mantener la coherencia visual.
+### **Optimizaciones de Rendimiento**
+- **Hooks personalizados**: Lógica reutilizable y optimizada
+- **Estados locales**: Loading y error específicos por componente
+- **Callbacks optimizados**: Uso de useCallback para evitar re-renders innecesarios
 
 ---
 
@@ -167,7 +243,6 @@ app.use(cors({
     'http://localhost:3000',
     'http://127.0.0.1:3000'
   ],
-  
 }));
 ```
 
@@ -183,6 +258,11 @@ npm run dev -- -p 3001
 # Actualiza .env.local si cambias el puerto del frontend
 ```
 
+### Problemas con roles de usuario
+1. Verifica que el usuario tenga un `puesto` válido en la base de datos
+2. Roles válidos: "admin", "user", "client"
+3. Revisa los logs del backend para errores de autenticación
+
 ---
 
 ## 📱 URLs Importantes
@@ -190,8 +270,21 @@ npm run dev -- -p 3001
 - **Inicio:** http://localhost:3000
 - **Login:** http://localhost:3000/login
 - **Dashboard:** http://localhost:3000/dashboard
+- **Gestión de Parámetros:** http://localhost:3000/dashboard-parameters
+- **Gestor de Reportes:** http://localhost:3000/dashboard-reportmanager
 - **API Backend:** http://localhost:4000
 
 ---
 
-¡Tu aplicación debería estar funcionando perfectamente con esta configuración!
+## 🎯 Próximas Posibles Mejoras
+
+- [ ] Exportación de datos a Excel
+- [ ] Notificaciones en tiempo real
+- [ ] Dashboard con métricas en tiempo real
+- [ ] Sistema de alertas automáticas
+- [ ] Integración con dispositivos IoT
+- [ ] App móvil React Native
+
+---
+
+¡Tu aplicación está funcionando perfectamente con todas las mejoras implementadas! 🚀
