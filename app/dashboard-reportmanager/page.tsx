@@ -16,6 +16,7 @@ import ProtectedRoute from "@/components/ProtectedRoute"
 import MesureTable from "@/components/MesureTable"
 import { getTolerancias, createTolerancia, updateTolerancia } from "@/services/httpService"
 import { useUserAccess } from "@/hooks/useUserAccess"
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 
 // Interfaces
 interface User {
@@ -217,7 +218,7 @@ export default function ReportManager() {
   // Parámetros de fechas y URL para SensorTimeSeriesChart
   const startDate = "2025-04-04"
   const endDate   = "2025-06-04"
-  const apiBase   = "http://localhost:4000"
+  const apiBase   = API_BASE_URL
   const { debugInfo, addDebugLog } = useDebugLogger()
   const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
 
@@ -346,7 +347,7 @@ export default function ReportManager() {
     setLocalLoading(true)
     setLocalError(null)
     try {
-      const res = await fetch(`http://localhost:4000/api/variables/proceso/${selectedSystem}`, {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(selectedSystem)}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) {
@@ -374,7 +375,7 @@ export default function ReportManager() {
   // 2. Agrega la función para fetch dinámico:
   async function fetchSistemasForParametro(param: Parameter) {
     if (!selectedSystem) return;
-    const res = await fetch(`http://localhost:4000/api/mediciones/variable/${param.id}`, {
+    const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE(param.id)}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     })
     const data = await res.json();
@@ -458,7 +459,7 @@ export default function ReportManager() {
 
       // Save all measurements to backend
       for (const medicion of allMediciones) {
-        const response = await fetch("http://localhost:4000/api/mediciones", {
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(medicion),
@@ -610,13 +611,13 @@ export default function ReportManager() {
   useEffect(() => {
     async function fetchAllSistemas() {
       const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
-      const apiBase = "http://localhost:4000";
+      const apiBase = API_BASE_URL;
       const nuevos: Record<string, string[]> = {};
       await Promise.all(
         parameters.filter(p => parameterValues[p.id]?.checked).map(async (parameter) => {
           const encodedVar = encodeURIComponent(parameter.nombre);
           const res = await fetch(
-            `${apiBase}/api/mediciones/variable/${encodedVar}`,
+            `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE(encodedVar)}`,
             { headers: token ? { Authorization: `Bearer ${token}` } : {} }
           );
           if (!res.ok) {
@@ -951,14 +952,14 @@ export default function ReportManager() {
                   variable={param.nombre}
                   startDate={startDate}
                   endDate={endDate}
-                  apiBase={apiBase}
+                  apiBase={API_BASE_URL}
                   unidades={param.unidad}
                 />
                 <SensorTimeSeriesChart
                   variable={param.nombre}
                   startDate={startDate}
                   endDate={endDate}
-                  apiBase={apiBase}
+                  apiBase={API_BASE_URL}
                   unidades={param.unidad}
                 />
               </div>
