@@ -3,11 +3,12 @@
 import type React from "react"
 
 import { useState } from "react"
-import Link from "next/link"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import axios from "axios"
 import { useRouter } from "next/navigation"
+import axios from "axios"
+import { useLanguage } from "@/context/LanguageContext"
+import SelectLanguage from "@/components/SelectLanguage";
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("")
@@ -21,6 +22,7 @@ export default function ForgotPassword() {
   const [resetSuccess, setResetSuccess] = useState(false)
   const [step, setStep] = useState(1)
   const router = useRouter ? useRouter() : { push: () => {} }
+  const { translations } = useLanguage();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,15 +80,15 @@ export default function ForgotPassword() {
         <div className="col-md-6 d-flex align-items-center justify-content-center bg-primary">
           <div className="text-center text-white">
             <h1 className="display-4 fw-bold">Organomex</h1>
-            <p className="lead">Recupera tu acceso</p>
+            <p className="lead">{translations.forgotPassword?.subtitle}</p>
           </div>
         </div>
         <div className="col-md-6 d-flex align-items-center justify-content-center">
           <div className="w-100" style={{ maxWidth: "400px" }}>
             <div className="card shadow">
               <div className="card-body p-5">
-                <h2 className="card-title text-center mb-4">Recuperar Contraseña</h2>
-
+                <SelectLanguage />
+                <h2 className="card-title text-center mb-4">{translations.forgotPassword?.title}</h2>
                 {message && (
                   <div className="alert alert-success" role="alert">
                     {message}
@@ -96,7 +98,7 @@ export default function ForgotPassword() {
                 <form onSubmit={handleSubmit}>
                   <div className="mb-3">
                     <label htmlFor="email" className="form-label">
-                      Email
+                      {translations.forgotPassword?.email}
                     </label>
                     <input
                       type="email"
@@ -104,30 +106,31 @@ export default function ForgotPassword() {
                       id="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Ingresa tu email"
+                      placeholder={translations.forgotPassword?.emailPlaceholder}
                       required
                       disabled={isLoading}
                     />
-                    <small className="text-muted">Te enviaremos un código para restablecer tu contraseña.</small>
+                    <small className="text-muted">{translations.forgotPassword?.info}</small>
                   </div>
 
                   <button type="submit" className="btn btn-primary w-100 mb-3" disabled={isLoading || !email.trim()}>
                     {isLoading ? (
                       <>
                         <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Enviando...
+                        {translations.forgotPassword?.loading}
                       </>
                     ) : (
-                      "Enviar código de recuperación"
+                      translations.forgotPassword?.button
                     )}
                   </button>
                 </form>
 
                 <div className="text-center">
                   <p>
-                    ¿Recordaste tu contraseña? <a href="/login">Inicia sesión aquí</a>
+                    {translations.forgotPassword?.remembered}
                   </p>
-                  <a href="/">Volver al inicio</a>
+                  
+                  <a href="/">{translations.forgotPassword?.backHome}</a>
                 </div>
               </div>
             </div>
@@ -138,14 +141,14 @@ export default function ForgotPassword() {
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Restablecer contraseña</DialogTitle>
+            <DialogTitle>{translations.forgotPassword?.modalTitle}</DialogTitle>
           </DialogHeader>
           <div style={{ marginBottom: 12 }}>
-            <p>Ingresa el código que recibiste en tu correo y tu nueva contraseña.</p>
+            <p>{translations.forgotPassword?.modalText}</p>
             <div style={{ marginTop: 16 }}>
               <input
                 type="text"
-                placeholder="Código de verificación"
+                placeholder={translations.forgotPassword?.codePlaceholder}
                 value={code}
                 onChange={e => setCode(e.target.value)}
                 style={{ width: '100%', padding: 8, fontSize: 16, border: '1px solid #ccc', borderRadius: 4, marginBottom: 8 }}
@@ -153,21 +156,27 @@ export default function ForgotPassword() {
               />
               <input
                 type="input"
-                placeholder="Nueva contraseña"
+                placeholder={translations.forgotPassword?.newPassword}
                 value={newPassword}
                 onChange={e => setNewPassword(e.target.value)}
                 style={{ width: '100%', padding: 8, fontSize: 16, border: '1px solid #ccc', borderRadius: 4, marginBottom: 8 }}
               />
               <input
                 type="password"
-                placeholder="Confirmar nueva contraseña"
+                placeholder={translations.forgotPassword?.confirmNewPassword}
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
                 style={{ width: '100%', padding: 8, fontSize: 16, border: '1px solid #ccc', borderRadius: 4 }}
               />
             </div>
-            {resetError && <div style={{ color: 'red', marginTop: 8 }}>{resetError}</div>}
-            {resetSuccess && <div style={{ color: 'green', marginTop: 8 }}>¡Contraseña actualizada! Redirigiendo...</div>}
+            {resetError && <div style={{ color: 'red', marginTop: 8 }}>{
+              resetError === "Completa todos los campos."
+                ? translations.forgotPassword?.errorFields
+                : resetError === "Las contraseñas no coinciden."
+                  ? translations.forgotPassword?.errorPasswordMismatch
+                  : translations.forgotPassword?.errorCode || resetError
+            }</div>}
+            {resetSuccess && <div style={{ color: 'green', marginTop: 8 }}>{translations.forgotPassword?.success}</div>}
           </div>
           <DialogFooter>
             <button
@@ -176,7 +185,7 @@ export default function ForgotPassword() {
               style={{ background: '#2563eb', color: 'white', padding: '8px 20px', borderRadius: 4, border: 'none', fontWeight: 600, fontSize: 16 }}
               disabled={resetSuccess}
             >
-              Restablecer
+              {translations.forgotPassword?.resetButton}
             </button>
           </DialogFooter>
         </DialogContent>

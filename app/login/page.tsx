@@ -4,8 +4,8 @@ import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useUser } from "@/context/UserContext"
-import { useLanguage } from "../../Elements/LanguageContext"
-import { LanguageProvider } from "../../Elements/LanguageContext"
+import { useLanguage } from "@/context/LanguageContext"
+import SelectLanguage from "@/components/SelectLanguage";
 
 
 export default function Login() {
@@ -63,7 +63,7 @@ export default function Login() {
         <div className="col-md-6 d-flex align-items-center justify-content-center bg-primary">
           <div className="text-center text-white">
             <h1 className="display-4 fw-bold">Organomex</h1>
-            <p className="lead">Sistema de Gestión Industrial</p>
+            <p className="lead">{translations.login?.OrganomexSubtitle} </p>
           </div>
         </div>
         <div className="col-md-6 d-flex align-items-center justify-content-center">
@@ -73,29 +73,20 @@ export default function Login() {
                 <div className="login-container">
                   <div className="login-card">
                     <div className="login-header">
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', width: '70px', position: 'relative', left: '250px' }}>🌐&nbsp;
-                        <select
-                          onChange={e => changeLanguage(e.target.value)}
-                          value={language}
-                          style={{ padding: '4px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '14px' }}
-                        >
-                          <option value="en">En</option>
-                          <option value="es">Es</option>
-                        </select>
-                      </div>
-                      <h2>{translations.login}</h2>
-                      <p>{language === "es" ? "Accede a tu cuenta de Organomex" : "Access your Organomex account"}</p>
+                      <SelectLanguage />
+                      <h2>{translations.login?.title}</h2>
+                      <p>{translations.login?.subtitle}</p>
                     </div>
 
                     {error && (
                       <div className="alert alert-danger" role="alert">
-                        {translations.errorEmailOrUser}
+                        {translations.login?.errorEmailOrUser}
                       </div>
                     )}
 
                     <form onSubmit={handleSubmit} className="login-form">
-                      <div className="form-group">
-                        <label htmlFor="email">{translations.email}</label>
+                      <div className="form-group ">
+                        <label htmlFor="email" className="mb-1 ">{translations.login?.email}</label>
                         <input
                           type="email"
                           id="email"
@@ -103,7 +94,7 @@ export default function Login() {
                           value={formData.email}
                           onChange={handleChange}
                           className="form-control"
-                          placeholder={translations.emailPlaceholder || "Ingresa tu email"}
+                          placeholder={translations.login?.emailPlaceholder}
                           required
                           disabled={isLoading}
                         />
@@ -111,10 +102,10 @@ export default function Login() {
 
                       <div className="form-group">
                         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                          <label htmlFor="password" style={{ marginBottom: 0, marginRight: 8 }}>{translations.password}</label>
+                          <label htmlFor="password" className="mb-1 mt-3" style={{ marginBottom: 0, marginRight: 8 }}>{translations.login?.password}</label>
                           <button
                             type="button"
-                            className="password-toggle"
+                            className="password-toggle mb-1 mt-3"
                             onClick={() => setShowPassword(!showPassword)}
                             disabled={isLoading}
                             style={{ background: 'none', border: 'none', padding: 0, marginLeft: 4, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
@@ -133,13 +124,13 @@ export default function Login() {
                             value={formData.password}
                             onChange={handleChange}
                             className="form-control"
-                            placeholder={translations.passwordPlaceholder || "Ingresa tu contraseña"}
+                            placeholder={translations.login?.passwordPlaceholder}
                             required
                             disabled={isLoading}
                           />
                         </div>
                       </div>
-
+                      <center className="p-3">
                       <button
                         type="submit"
                         className="btn btn-primary btn-block"
@@ -148,22 +139,23 @@ export default function Login() {
                         {isLoading ? (
                           <>
                             <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                            {language === "es" ? "Iniciando sesión..." : "Logging in..."}
+                            {translations.login?.loading}
                           </>
                         ) : (
-                          translations.login
+                          translations.login?.button
                         )}
                       </button>
+                      </center>
                     </form>
 
-                    <div className="login-footer">
+                    <div className="login-footer text-start">
                       <Link href="/forgot-password" className="forgot-password-link">
-                        {translations.forgotPassword || "¿Olvidaste tu contraseña?"}
+                        {translations.login?.forgotPassword}
                       </Link>
                       <p>
-                        {language === "es" ? "¿No tienes cuenta?" : "Don't have an account?"} {" "}
+                        {translations.login?.noAccount} {" "}
                         <Link href="/register" className="register-link">
-                          {language === "es" ? "Regístrate aquí" : "Register here"}
+                          {translations.login?.registerHere}
                         </Link>
                       </p>
                     </div>

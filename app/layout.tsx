@@ -4,7 +4,7 @@ import "bootstrap/dist/css/bootstrap.min.css"
 import "./globals.css"
 import { UserProvider } from "@/context/UserContext"
 import AuthDebug from "@/components/AuthDebug"
-import { LanguageProvider } from "Elements/LanguageContext"
+import { LanguageProvider } from "@/context/LanguageContext";
 
 import BootstrapScript from "@/components/BootstrapScript"
 import { Inter } from "next/font/google"

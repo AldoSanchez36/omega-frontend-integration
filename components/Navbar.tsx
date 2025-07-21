@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { useUser } from "@/context/UserContext"
+import { useLanguage } from "@/context/LanguageContext"
+import SelectLanguage from "@/components/SelectLanguage";
 
 interface NavbarProps {
   role: "admin" | "user" | "client" | "guest"
@@ -92,12 +94,20 @@ export const Navbar: React.FC<NavbarProps> = ({ role }) => {
               style={{ minWidth: 240, left: 'auto', right: 0 }}
             >
               {isAuthenticated && (
-                <div className="dropdown-item-text text-muted small mb-2">
-                  Signed in as<br />
-                  <strong>{user?.email}</strong>
+                <div
+                  className="dropdown-item-text text-muted small mb-2"
+                  style={{ display: "flex", alignItems: "center", gap: 8 }}
+                >
+                  <div>
+                    Signed in as<br />
+                    <strong>{user?.email}</strong>
+                  </div>
+                  <hr/>
+                  <SelectLanguage variant="menu" />
                 </div>
               )}
               <div className="dropdown-divider"></div>
+              
               {visibleLinks.map(link => (
                 <Link className="dropdown-item" href={link.path} key={link.path}>
                   <span className="material-icons me-2 align-middle">{link.icon}</span>

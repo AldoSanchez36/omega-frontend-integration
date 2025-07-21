@@ -3,10 +3,11 @@
 import React, { useState } from "react"
 import axios from "axios"
 import { useRouter } from "next/navigation"
-import { useLanguage } from "../../Elements/LanguageContext"
+import { useLanguage } from "@/context/LanguageContext"
 import "./RegisterScreen.css"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
+import SelectLanguage from "@/components/SelectLanguage";
 
 export default function RegisterScreen() {
   const { translations, changeLanguage, language } = useLanguage()
@@ -85,20 +86,11 @@ export default function RegisterScreen() {
   return (
     <div className="register-container">
       <form className="register-form" onSubmit={handleSubmit}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', width: '70px', position: 'relative', left: '250px' }}>🌐&nbsp;
-          <select
-            onChange={e => changeLanguage(e.target.value)}
-            value={language}
-            style={{ padding: '4px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '14px' }}
-          >
-            <option value="en">En</option>
-            <option value="es">Es</option>
-          </select>
-        </div>
-        <h1>{translations.register}</h1>
+        <SelectLanguage />
+        <h1>{translations.register?.title}</h1>
         {error && <p className="error-message">{error}</p>}
         <div className="form-group">
-          <label htmlFor="username">{translations.username}:</label>
+          <label htmlFor="username">{translations.register?.username}:</label>
           <input
             type="text"
             id="username"
@@ -109,7 +101,7 @@ export default function RegisterScreen() {
           />
         </div>
         <div className="form-group">
-          <label htmlFor="email">{translations.email}:</label>
+          <label htmlFor="email">{translations.register?.email}:</label>
           <input
             type="email"
             id="email"
@@ -120,7 +112,7 @@ export default function RegisterScreen() {
           />
         </div>
         <div className="form-group">
-          <label htmlFor="password">{translations.password}:
+          <label htmlFor="password">{translations.register?.password}:
             <span className="toggle-password material-icons"
               onClick={() => setShowPassword(!showPassword)}
               style={{ position: 'relative', top: '7px', left: '2px', cursor: 'pointer' }}>
@@ -139,7 +131,7 @@ export default function RegisterScreen() {
           </div>
         </div>
         <div className="form-group">
-          <label htmlFor="confirmPassword">{translations.password}:</label>
+          <label htmlFor="confirmPassword">{translations.register?.confirmPassword}:</label>
           <input
             type={showPassword ? 'text' : 'password'}
             id="confirmPassword"
@@ -150,7 +142,7 @@ export default function RegisterScreen() {
           />
         </div>
         <button type="submit" className="register-button">
-          {translations.registerButton}
+          {translations.register?.button}
         </button>
         <br />
         <button
@@ -158,31 +150,29 @@ export default function RegisterScreen() {
           type="button"
           onClick={() => router.push("/login")}
         >
-          ← {translations.loginButton}
+          ← {translations.register?.loginButton}
         </button>
       </form>
       {/* Modal de verificación de código */}
       <Dialog open={showVerifyModal} onOpenChange={setShowVerifyModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{language === "es" ? "Verifica tu correo" : "Verify your email"}</DialogTitle>
+            <DialogTitle>{translations.register?.modalTitle}</DialogTitle>
           </DialogHeader>
           <div style={{ marginBottom: 12 }}>
-            <p>{language === "es"
-              ? "Hemos enviado un código de verificación a tu correo. Ingresa el código para activar tu cuenta."
-              : "We have sent a verification code to your email. Enter the code to activate your account."}</p>
+            <p>{translations.register?.modalText}</p>
             <div style={{ marginTop: 16 }}>
               <input
                 type="text"
-                placeholder={language === "es" ? "Código de verificación" : "Verification code"}
+                placeholder={translations.register?.codePlaceholder}
                 value={verifyCode}
                 onChange={e => setVerifyCode(e.target.value)}
                 style={{ width: '100%', padding: 8, fontSize: 16, border: '1px solid #ccc', borderRadius: 4 }}
                 maxLength={8}
               />
             </div>
-            {verifyError && <div style={{ color: 'red', marginTop: 8 }}>{verifyError}</div>}
-            {verifySuccess && <div style={{ color: 'green', marginTop: 8 }}>{language === "es" ? "¡Cuenta verificada! Redirigiendo..." : "Account verified! Redirecting..."}</div>}
+            {verifyError && <div style={{ color: 'red', marginTop: 8 }}>{translations.register?.codeError || verifyError}</div>}
+            {verifySuccess && <div style={{ color: 'green', marginTop: 8 }}>{translations.register?.codeSuccess}</div>}
           </div>
           <DialogFooter>
             <button
@@ -191,7 +181,7 @@ export default function RegisterScreen() {
               style={{ background: '#2563eb', color: 'white', padding: '8px 20px', borderRadius: 4, border: 'none', fontWeight: 600, fontSize: 16 }}
               disabled={verifySuccess}
             >
-              {language === "es" ? "Verificar" : "Verify"}
+              {translations.register?.verifyButton}
             </button>
           </DialogFooter>
         </DialogContent>
