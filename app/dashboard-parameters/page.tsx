@@ -17,6 +17,8 @@ import Navbar from "@/components/Navbar"
 import { useUserAccess } from "@/hooks/useUserAccess"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 
+import { getTolerancias, createTolerancia, updateTolerancia } from '@/services/httpService';
+
 interface Parameter {
   id: string;
   nombre: string;
@@ -307,39 +309,24 @@ export default function ParameterManager() {
     setTolLoading({})
     setTolError({})
     setTolSuccess({})
-    const loadTolerances = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!res.ok) {
-          throw new Error("No se pudieron cargar las tolerancias")
-        }
-        const data = await res.json()
-        
-        // Filtrar solo las tolerancias del sistema y parámetros actuales
+
+    // Usar helper del httpService
+    getTolerancias()
+      .then((resp) => {
+        // resp tiene forma { ok: true, tolerancias: [...] }
+        const lista = Array.isArray(resp) ? resp : resp.tolerancias
         const map: Record<string, any> = {}
-        if (Array.isArray(data)) {
-          data.forEach((tol) => {
-            if (parameters.some(p => p.id === tol.variable_id) && tol.proceso_id === selectedSystemId) {
-              map[tol.variable_id] = tol
-            }
-          })
-        } else if (Array.isArray(data.tolerancias)) {
-          data.tolerancias.forEach((tol: any) => {
-            if (parameters.some(p => p.id === tol.variable_id) && tol.proceso_id === selectedSystemId) {
-              map[tol.variable_id] = tol
-            }
-          })
-        }
+        lista.forEach((tol) => {
+          if (tol.proceso_id === selectedSystemId && parameters.some(p => p.id === tol.variable_id)) {
+            map[tol.variable_id] = tol
+          }
+        })
         setTolerancias(map)
-      } catch (e: any) {
-        setTolError((prev) => ({ ...prev, global: e.message }))
-      }
-    }
-    
-    loadTolerances()
-  }, [selectedSystemId, parameters, token])
+      })
+      .catch((err) => {
+        setTolError((prev) => ({ ...prev, global: err.message }))
+      })
+  }, [selectedSystemId, parameters])
 
   const handleTolChange = (variableId: string, field: string, value: string) => {
     setTolerancias((prev) => ({
@@ -368,20 +355,10 @@ export default function ParameterManager() {
     }
     try {
       if (tol && tol.id) {
-        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCE_UPDATE(tol.id)}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify(tol),
-        })
-        if (!res.ok) throw new Error("Error al actualizar tolerancia")
+        await updateTolerancia(tol.id, tol)
         setTolSuccess((prev) => ({ ...prev, [variableId]: '¡Guardado!' }))
       } else {
-        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify(tol),
-        })
-        if (!res.ok) throw new Error("Error al crear tolerancia")
+        await createTolerancia(tol)
         setTolSuccess((prev) => ({ ...prev, [variableId]: '¡Guardado!' }))
       }
     } catch (e: any) {

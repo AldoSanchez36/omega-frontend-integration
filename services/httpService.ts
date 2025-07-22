@@ -153,6 +153,27 @@ class HttpService {
 export const httpService = new HttpService(API_BASE_URL)
 
 // Helpers para variables_tolerancia
-export const getTolerancias = () => httpService.get('/api/variables-tolerancia')
-export const createTolerancia = (data: any) => httpService.post('/api/variables-tolerancia', data)
-export const updateTolerancia = (id: string, data: any) => httpService.patch(`/api/variables-tolerancia/${id}`, data)
+export const getTolerancias = () => {
+  console.log('📡 Llamada HTTP: getTolerancias -> GET /api/variables-tolerancia')
+  return httpService.get('/api/variables-tolerancia')
+    .then(resp => {
+      console.log('📦 Respuesta getTolerancias:', resp)
+      return resp
+    })
+}
+export const createTolerancia = (data: any) => {
+  console.log('📡 Llamada HTTP: createTolerancia -> POST /api/variables-tolerancia', data)
+  return httpService.post('/api/variables-tolerancia', data)
+    .then(resp => {
+      console.log('📦 Respuesta createTolerancia:', resp)
+      return resp
+    })
+}
+export const updateTolerancia = (id: string, data: any) => {
+  console.log(`📡 Llamada HTTP: updateTolerancia -> PATCH /api/variables-tolerancia/${id}`, data)
+  return httpService.patch(`/api/variables-tolerancia/${id}`, data)
+    .then(resp => {
+      console.log('📦 Respuesta updateTolerancia:', resp)
+      return resp
+    })
+}
