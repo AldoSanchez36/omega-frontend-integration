@@ -102,6 +102,21 @@ function MedicionInputBox({ parameter, userId, plantId, procesoId, sistemas, onD
     }
   }
 
+  // Remueve el sistema actual si hay más de uno
+  const handleRemoveSistema = () => {
+    const nuevos = localSistemas.filter(s => s !== tab);
+    setLocalSistemas(nuevos);
+    if (!nuevos.includes(tab)) {
+      setTab(nuevos[0] || "S01");
+    }
+    // También limpia el valor asociado al sistema eliminado
+    setValores(prev => {
+      const copy = { ...prev };
+      delete copy[tab];
+      return copy;
+    });
+  };
+
   // Notify parent component when data changes
   useEffect(() => {
     if (onDataChange && parameter?.id) {
@@ -164,6 +179,15 @@ function MedicionInputBox({ parameter, userId, plantId, procesoId, sistemas, onD
             title="Agregar sistema"
           >
             +
+          </button>
+          <button
+            type="button"
+            onClick={handleRemoveSistema}
+            disabled={localSistemas.length <= 1}
+            className="ml-1 px-2 py-1 rounded bg-red-100 text-red-700 font-bold hover:bg-red-200 border border-red-200 disabled:opacity-50"
+            title="Eliminar sistema actual"
+          >
+            −
           </button>
         </div>
         <div>
@@ -420,6 +444,7 @@ export default function ReportManager() {
       usuario_id: selectedUser?.id,
       planta_id: selectedPlant?.id,
     }]);
+    console.log("📥 Medición ingresada:", parameterId, data);
   }, [parameters, selectedSystem, selectedPlant, selectedUser]);
 
   const handleSaveData = async () => {
@@ -608,6 +633,9 @@ export default function ReportManager() {
   // A. Estado para sistemas por parámetro
   const [sistemasPorParametro, setSistemasPorParametro] = useState<Record<string, string[]>>({});
 
+  // Estado para pestañas de sistema por parámetro
+  const [sistemaTabs, setSistemaTabs] = useState<Record<string, string>>({});
+
   // B. Efecto para cargar sistemas
   useEffect(() => {
     async function fetchAllSistemas() {
@@ -788,118 +816,43 @@ export default function ReportManager() {
                 </div>
                 {/* Fin formulario mediciones */}
 
-                {/* Tabla de previsualización justo debajo del formulario de ingreso */}
-                {(medicionesPreview.length > 0 || Object.keys(parameterValues).some(id => parameterValues[id]?.valores)) && systems.length > 0 && (
-                  <div className="mt-6">
-                    {/* Agrupar por parámetro */}
-                    {(() => {
-                      // Agrupar por parámetro
-                      const porParametro: Record<string, any[]> = {}
-                      
-                      // Add saved measurements
-                      medicionesPreview.forEach(m => {
-                        const nombre = m.nombreParametro || m.parametroNombre || ''
-                        if (!porParametro[nombre]) porParametro[nombre] = []
-                        porParametro[nombre].push(m)
-                      })
-                      
-                      // Add current session measurements
-                      Object.entries(parameterValues).forEach(([parameterId, data]: [string, ParameterValue]) => {
-                        if (!data.checked) return;
-                        const parameter = parameters.find(p => p.id === parameterId)
-                        if (!parameter) return
-                        
-                        Object.entries(data.valores || {}).forEach(([sistema, valor]) => {
-                          if (valor && valor !== "") {
-                            const medicion = {
-                              fecha: data.fecha || "",
-                              comentarios: data.comentarios || "",
-                              valor: parseFloat(valor),
-                              sistema: sistema,
-                              nombreParametro: parameter.nombre,
-                              parametroNombre: parameter.nombre
-                            }
-                            if (!porParametro[parameter.nombre]) porParametro[parameter.nombre] = []
-                            porParametro[parameter.nombre].push(medicion)
-                          }
-                        })
-                      })
-                      
-                      // Obtener sistemas dinámicos ordenados
-                      const parametro = Object.keys(porParametro)[0]
-                      const sistemasDyn = (parametro && sistemas.length > 0) ? sistemas : ["S01"]
-                      // Estado de tab por parámetro
-                      const [sistemaTabs, setSistemaTabs] = useState<{ [param: string]: string }>({})
-                      return (
-                        <>
-                          {Object.entries(porParametro).map(([parametro, mediciones]) => {
-                            // Agrupar por fecha
-                            const fechasSet = new Set(mediciones.map(m => m.fecha))
-                            const fechas = Array.from(fechasSet).sort()
-                            // Mapa fecha -> sistema -> valor
-                            const data: Record<string, Record<string, any>> = {}
-                            mediciones.forEach(m => {
-                              if (!data[m.fecha]) data[m.fecha] = {}
-                              data[m.fecha][m.sistema] = m.valor
-                            })
-                            // Tab activo para este parámetro
-                            const tab = sistemaTabs[parametro] || sistemasDyn[0]
-
-                            // Obtener variable_id de la primera medición
-                            const variableId = mediciones[0]?.variable_id
-
-                            // Si no tenemos tolerancia para este variable_id, hacer fetch
-                            useEffect(() => {
-                              if (variableId && !toleranciasPorVariable[variableId]) {
-                                fetch(`${API_BASE_URL}/api/variables-tolerancia/${variableId}`)
-                                  .then(res => res.ok ? res.json() : null)
-                                  .then(data => {
-                                    if (data) {
-                                      setToleranciasPorVariable(prev => ({ ...prev, [variableId]: data }))
-                                    }
-                                  })
-                              }
-                            }, [variableId])
-                            return (
-                              <div key={parametro} className="mb-8">
-                                <div className="font-bold text-lg text-center mb-1">{parametro}</div>
-                                {/* Tabs de sistemas */}
-                                <div className="mb-2 flex gap-2 justify-center">
-                                  {sistemasDyn.map(s => (
-                                    <button
-                                      key={s}
-                                      className={`px-3 py-1 rounded ${tab === s ? "bg-blue-600 text-white" : "bg-gray-200"}`}
-                                      onClick={() => setSistemaTabs(prev => ({ ...prev, [parametro]: s }))}
-                                    >
-                                      {s}
-                                    </button>
-                                  ))}
-                                </div>
-                                {/* Tabla solo para el sistema seleccionado */}
-                                <table className="min-w-full border text-xs bg-white">
-                                  <thead>
-                                    <tr className="bg-gray-100">
-                                      <th className="border px-2 py-1">Fecha</th>
-                                      <th className="border px-2 py-1">{tab}</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {fechas.map(fecha => (
-                                      <tr key={fecha}>
-                                        <td className="border px-2 py-1 font-semibold">{fecha}</td>
-                                        <td className="border px-2 py-1 text-center">{data[fecha][tab] !== undefined ? data[fecha][tab] : ''}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )
-                          })}
-                        </>
-                      )
-                    })()}
-                  </div>
-                )}
+                {/* Previsualización por parámetro */}
+                {parameters.filter(p => parameterValues[p.id]?.checked).map(parameter => {
+                  // Obtener la última entrada para este parámetro
+                  const entries = medicionesPreview.filter(m => m.variable_id === parameter.id);
+                  if (entries.length === 0) return null;
+                  const latest = entries[entries.length - 1];
+                  const { fecha, valores } = latest;
+                  // Cabeceras dinámicas según valores ingresados
+                  const sistemasTabla = Object.keys(valores).length > 0
+                    ? Object.keys(valores)
+                    : sistemasPorParametro[parameter.id] || ["S01"];
+                  return (
+                    <div key={parameter.id} className="mt-6 overflow-x-auto">
+                      <h3 className="text-lg font-semibold mb-2">{parameter.nombre}</h3>
+                      <table className="min-w-full border text-xs bg-white">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="border px-2 py-1">Fecha</th>
+                            {sistemasTabla.map(s => (
+                              <th key={s} className="border px-2 py-1 text-center">{s}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td className="border px-2 py-1 font-semibold">{fecha}</td>
+                            {sistemasTabla.map(s => (
+                              <td key={s} className="border px-2 py-1 text-center">
+                                {valores[s] ?? ""}
+                              </td>
+                            ))}
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
 
                 <div className="space-y-4">
                   {parameters.map((parameter) => {
