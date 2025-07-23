@@ -126,7 +126,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const initAuth = async () => {
-      console.log("🚀 Inicializando autenticación (ÚNICA VEZ)...")
+      // console.log("🚀 Inicializando autenticación (ÚNICA VEZ)...")
       initializationRef.current = true
 
       try {
@@ -145,16 +145,16 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const user = authService.getCurrentUser()
         const token = authService.getToken()
 
-        console.log("🔍 Verificando auth existente:", {
-          user: user?.username || null,
-          hasToken: !!token,
-        })
+        // console.log("🔍 Verificando auth existente:", {
+        //   user: user?.username || null,
+        //   hasToken: !!token,
+        // })
 
         if (user && token && mountedRef.current) {
           console.log("✅ Usuario encontrado, autenticando...")
           dispatch({ type: "LOGIN_SUCCESS", payload: user })
         } else {
-          console.log("❌ No hay usuario autenticado")
+          // console.log("❌ No hay usuario autenticado")
           if (mountedRef.current) {
             dispatch({ type: "SET_LOADING", payload: false })
           }

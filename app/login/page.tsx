@@ -88,14 +88,15 @@ export default function Login() {
                       <div className="form-group ">
                         <label htmlFor="email" className="mb-1 ">{translations.login?.email}</label>
                         <input
-                          type="email"
                           id="email"
+                          type="email"
                           name="email"
                           value={formData.email}
                           onChange={handleChange}
                           className="form-control"
                           placeholder={translations.login?.emailPlaceholder}
                           required
+                          autoComplete="email"
                           disabled={isLoading}
                         />
                       </div>
@@ -127,6 +128,7 @@ export default function Login() {
                             placeholder={translations.login?.passwordPlaceholder}
                             required
                             disabled={isLoading}
+                            autoComplete="current-password"
                           />
                         </div>
                       </div>
