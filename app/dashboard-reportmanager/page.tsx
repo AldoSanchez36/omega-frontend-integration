@@ -323,8 +323,8 @@ export default function ReportManager() {
     }
   }, [medicionesPreview]);
 
-  // Handler para agregar un nuevo sistema
-  const handleAgregarSistema = () => {
+  // Handler para agregar un nuevo sistema (renombrado para evitar colisión)
+  const handleAgregarSistemaGlobal = () => {
     // Si hay sistemas con nombre SXX, agrega el siguiente SXX
     const sNums = sistemas
       .map((s) => {
@@ -341,6 +341,25 @@ export default function ReportManager() {
       nuevo = "";
     }
     setSistemas((prev) => [...prev, nuevo]);
+  };
+
+  // Permite agregar sistemas persistentes por parámetro (para tabs)
+  const handleAgregarSistemaPorParametro = (parameterId: string) => {
+    setSistemasPorParametro(prev => {
+      const actuales = prev[parameterId] || ["S01"];
+      const max = actuales
+        .map(s => parseInt(s.replace("S", ""), 10))
+        .filter(n => !isNaN(n))
+        .reduce((a, b) => Math.max(a, b), 0);
+      const nuevo = `S${String(max + 1).padStart(2, "0")}`;
+
+      const nuevos = [...actuales, nuevo];
+      sistemasPorParametroRef.current[parameterId] = nuevos;
+      return {
+        ...prev,
+        [parameterId]: nuevos,
+      };
+    });
   };
 
   // Handler para editar el nombre de un sistema
@@ -630,20 +649,21 @@ export default function ReportManager() {
     }
   }
 
-  // A. Estado para sistemas por parámetro
+  // Estado para sistemas por parámetro
   const [sistemasPorParametro, setSistemasPorParametro] = useState<Record<string, string[]>>({});
-
-  // Estado para pestañas de sistema por parámetro
-  const [sistemaTabs, setSistemaTabs] = useState<Record<string, string>>({});
-
-  // B. Efecto para cargar sistemas
+  const sistemasPorParametroRef = useRef<Record<string, string[]>>({});
+  // Efecto para cargar sistemas
   useEffect(() => {
     async function fetchAllSistemas() {
       const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
       const apiBase = API_BASE_URL;
       const nuevos: Record<string, string[]> = {};
+
       await Promise.all(
         parameters.filter(p => parameterValues[p.id]?.checked).map(async (parameter) => {
+          // Evita refetch si ya fue cargado
+          if (sistemasPorParametroRef.current[parameter.id]) return;
+
           const encodedVar = encodeURIComponent(parameter.nombre);
           const res = await fetch(
             `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLEID(parameter.id)}`,
@@ -651,15 +671,17 @@ export default function ReportManager() {
           );
           if (!res.ok) {
             nuevos[parameter.id] = ["S01"];
+            sistemasPorParametroRef.current[parameter.id] = ["S01"];
             return;
           }
           const result = await res.json();
           const mediciones = result.mediciones || [];
           const sistemasUnicos = Array.from(new Set(mediciones.map((m: any) => m.sistema))).map(String).sort();
           nuevos[parameter.id] = sistemasUnicos.length > 0 ? sistemasUnicos : ["S01"];
+          sistemasPorParametroRef.current[parameter.id] = nuevos[parameter.id];
         })
       );
-      setSistemasPorParametro(nuevos);
+      setSistemasPorParametro(prev => ({ ...prev, ...nuevos }));
     }
     fetchAllSistemas();
   }, [parameters, parameterValues]);
