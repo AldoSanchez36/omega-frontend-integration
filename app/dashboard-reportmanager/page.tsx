@@ -780,37 +780,7 @@ export default function ReportManager() {
           {/* Parameters List */}
           {selectedSystemData && parameters.length > 0 && (
             <>
-              {/* Información Global Card */}
-              {Object.values(parameterValues).some(p => p.checked) && (
-                <Card className="mb-6">
-                  <CardHeader>
-                    <CardTitle>Información Global</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-col md:flex-row gap-4">
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium mb-1">Fecha</label>
-                        <Input
-                          type="date"
-                          className="w-full"
-                          value={globalFecha}
-                          onChange={(e) => setGlobalFecha(e.target.value)}
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium mb-1">Comentarios</label>
-                        <Input
-                          type="text"
-                          className="w-full"
-                          placeholder="Comentarios generales"
-                          value={globalComentarios}
-                          onChange={(e) => setGlobalComentarios(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              
               {/* Parámetros del Sistema Card */}
               <Card className="mb-6">
                 <CardHeader>
@@ -831,6 +801,37 @@ export default function ReportManager() {
                       </Button>
                     )}
                   </div>
+                  {/* Información Global Card */}
+                  {Object.values(parameterValues).some(p => p.checked) && (
+                    <Card className="mb-6">
+                      <CardHeader>
+                        <CardTitle>Información Global</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex flex-col md:flex-row gap-4">
+                          <div className="flex-1">
+                            <label className="block text-sm font-medium mb-1">Fecha</label>
+                            <Input
+                              type="date"
+                              className="w-full"
+                              value={globalFecha}
+                              onChange={(e) => setGlobalFecha(e.target.value)}
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-sm font-medium mb-1">Comentarios</label>
+                            <Input
+                              type="text"
+                              className="w-full"
+                              placeholder="Comentarios generales"
+                              value={globalComentarios}
+                              onChange={(e) => setGlobalComentarios(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </CardHeader>
                 <CardContent>
                   {/* Formulario de ingreso de mediciones por parámetro seleccionado */}
