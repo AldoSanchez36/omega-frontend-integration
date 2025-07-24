@@ -56,23 +56,41 @@ interface Parameter {
 }
 
 // Componente para ingreso de mediciones por parámetro seleccionado
+
 import { useRef } from "react"
 
-function MedicionInputBox({ parameter, userId, plantId, procesoId, sistemas, onDataChange }: {
+// Debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+function MedicionInputBox({ parameter, userId, plantId, procesoId, sistemas, onDataChange, fecha, comentarios }: {
   parameter: any,
   userId?: string,
   plantId?: string,
   procesoId?: string,
   sistemas: string[],
+  fecha: string,
+  comentarios: string,
   onDataChange?: (parameterId: string, data: { fecha: string; comentarios: string; valores: { [sistema: string]: string } }) => void
 }) {
-  const [fecha, setFecha] = useState<string>("")
-  const [comentarios, setComentarios] = useState<string>("")
   const [tab, setTab] = useState<string>(sistemas[0] || "S01")
   const [valores, setValores] = useState<{ [sistema: string]: string }>({})
   const [localSistemas, setLocalSistemas] = useState<string[]>(sistemas)
   const prevDataRef = useRef<{ fecha: string; comentarios: string; valores: { [sistema: string]: string } }>({ fecha: "", comentarios: "", valores: {} })
   // Removed unused state variables
+
+  // Debounced valores
+  const debouncedValores = useDebounce(valores, 500);
 
   // Sincronizar localSistemas si cambia el prop sistemas
   useEffect(() => {
@@ -120,39 +138,28 @@ function MedicionInputBox({ parameter, userId, plantId, procesoId, sistemas, onD
   // Notify parent component when data changes
   useEffect(() => {
     if (onDataChange && parameter?.id) {
-      const currentData = { fecha, comentarios, valores }
+      const currentData = { fecha, comentarios, valores: debouncedValores }
       const prevData = prevDataRef.current
       
       // Only call onDataChange if data has actually changed
       const hasChanged = 
         prevData.fecha !== fecha ||
         prevData.comentarios !== comentarios ||
-        JSON.stringify(prevData.valores) !== JSON.stringify(valores)
+        JSON.stringify(prevData.valores) !== JSON.stringify(debouncedValores)
       
       if (hasChanged) {
         prevDataRef.current = currentData
         onDataChange(parameter.id, currentData)
       }
     }
-  }, [fecha, comentarios, valores, parameter?.id]) // Removed onDataChange from dependencies
+  }, [debouncedValores, parameter?.id, fecha, comentarios])
 
   return (
     <div className="border rounded-lg p-4 bg-gray-50">
       <div className="flex items-center mb-2">
         <span className="text-gray-400 font-semibold text-base w-48">{parameter.nombre}</span>
-        <input
-          type="date"
-          className="border rounded px-2 py-1 ml-2 text-sm"
-          value={fecha}
-          onChange={e => setFecha(e.target.value)}
-        />
-        <input
-          type="text"
-          className="border rounded px-2 py-1 ml-2 text-sm flex-1"
-          placeholder="Comentarios"
-          value={comentarios}
-          onChange={e => setComentarios(e.target.value)}
-        />
+        <span className="ml-2 text-sm text-gray-600">Fecha: {fecha || "Sin fecha"}</span>
+        <span className="ml-4 text-sm text-gray-600">Comentarios: {comentarios || "Sin comentarios"}</span>
       </div>
       <div className="mt-2">
         <div className="flex flex-row gap-1 border-b mb-2 items-center">
@@ -246,6 +253,8 @@ export default function ReportManager() {
   const apiBase   = API_BASE_URL
   const { debugInfo, addDebugLog } = useDebugLogger()
   const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
+  const [globalFecha, setGlobalFecha] = useState<string>("");
+  const [globalComentarios, setGlobalComentarios] = useState<string>("");
 
   // Use the reusable hook for user access
   const {
@@ -779,141 +788,177 @@ export default function ReportManager() {
 
           {/* Parameters List */}
           {selectedSystemData && parameters.length > 0 && (
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>Parámetros del Sistema</CardTitle>
-                <div className="flex flex-row gap-4 mt-2 text-xs items-center justify-between">
-                  <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-yellow-100 border border-yellow-400"></span><span className="font-semibold text-yellow-700">Lim-(min,max)</span>: Cerca del límite recomendado</div>
-                    <div className="flex items-center gap-1"><span className="font-semibold text-green-700">Bien</span>: Dentro de rango</div>
-                  </div>
-                  {(userRole === "admin" || userRole === "user") && (
-                    <Button 
-                      onClick={() => router.push('/dashboard-parameters')} 
-                      variant="secondary"
-                      size="sm"
-                      className="bg-orange-100 text-orange-700 hover:bg-orange-200 border-orange-300 text-xs"
-                    >
-                      ⚙️ Configurar Límites
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                {/* Formulario de ingreso de mediciones por parámetro seleccionado */}
-                <div className="space-y-6 mb-8">
-                  {parameters.filter(p => parameterValues[p.id]?.checked).map((parameter) => (
-                    <MedicionInputBox
-                      key={parameter.id}
-                      parameter={parameter}
-                      userId={selectedUser?.id}
-                      plantId={selectedPlant?.id}
-                      procesoId={selectedSystem}
-                      sistemas={sistemasPorParametro[parameter.id] || ["S01"]}
-                      onDataChange={handleMeasurementDataChange}
-                    />
-                  ))}
-                </div>
-                {/* Fin formulario mediciones */}
-
-                {/* Previsualización por parámetro */}
-                {parameters.filter(p => parameterValues[p.id]?.checked).map(parameter => {
-                  // Obtener la última entrada para este parámetro
-                  const entries = medicionesPreview.filter(m => m.variable_id === parameter.id);
-                  if (entries.length === 0) return null;
-                  const latest = entries[entries.length - 1];
-                  const { fecha, valores } = latest;
-                  // Cabeceras dinámicas según valores ingresados
-                  const sistemasTabla = Object.keys(valores).length > 0
-                    ? Object.keys(valores)
-                    : sistemasPorParametro[parameter.id] || ["S01"];
-                  return (
-                    <div key={parameter.id} className="mt-6 overflow-x-auto">
-                      <h3 className="text-lg font-semibold mb-2">{parameter.nombre}</h3>
-                      <table className="min-w-full border text-xs bg-white">
-                        <thead>
-                          <tr className="bg-gray-100">
-                            <th className="border px-2 py-1">Fecha</th>
-                            {sistemasTabla.map(s => (
-                              <th key={s} className="border px-2 py-1 text-center">{s}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td className="border px-2 py-1 font-semibold">{fecha}</td>
-                            {sistemasTabla.map(s => (
-                              <td key={s} className="border px-2 py-1 text-center">
-                                {valores[s] ?? ""}
-                              </td>
-                            ))}
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })}
-
-                <div className="space-y-4">
-                  {parameters.map((parameter) => {
-                    const usarLimiteMin = tolerancias[parameter.id]?.usar_limite_min;
-                    const usarLimiteMax = tolerancias[parameter.id]?.usar_limite_max;
-                    return (
-                      <div key={parameter.id} className="flex items-center space-x-4 p-4 border rounded-lg">
-                        <Checkbox
-                          checked={parameterValues[parameter.id]?.checked || false}
-                          onCheckedChange={(checked) => handleParameterChange(parameter.id, "checked", checked as boolean)}
+            <>
+              {/* Información Global Card */}
+              {Object.values(parameterValues).some(p => p.checked) && (
+                <Card className="mb-6">
+                  <CardHeader>
+                    <CardTitle>Información Global</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-col md:flex-row gap-4">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium mb-1">Fecha</label>
+                        <Input
+                          type="date"
+                          className="w-full"
+                          value={globalFecha}
+                          onChange={(e) => setGlobalFecha(e.target.value)}
                         />
-                        <div className="flex-1">
-                          <div className="font-medium">{parameter.nombre}</div>
-                          <div className="text-sm text-gray-500">
-                            Unidad: {parameter.unidad}
-                          </div>
-                        </div>
-                        <div className="text-sm text-gray-500 w-16">{parameter.unidad}</div>
-                        {/* Inputs de tolerancia en una sola fila */}
-                        <div className="flex flex-row items-end gap-2 ml-2">
-                          {/* Lim-min - Solo mostrar si usar_limite_min es true */}
-                          {usarLimiteMin && (
-                            <div className="flex flex-col items-center">
-                              <div className="flex items-center gap-1 mb-0.5">
-                                <span className="text-xs font-semibold text-yellow-700">Lim-min</span>
-                                <button type="button" onClick={() => handleTolChange(parameter.id, 'usar_limite_min', String(!usarLimiteMin))} className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${usarLimiteMin ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'}`}>{usarLimiteMin ? <span className="material-icons text-yellow-700 text-xs">check</span> : null}</button>
-                              </div>
-                              <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMin ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="min" value={tolerancias[parameter.id]?.limite_min ?? ''} onChange={e => handleTolChange(parameter.id, 'limite_min', e.target.value)} disabled={!usarLimiteMin} />
-                            </div>
-                          )}
-                          {/* Lim-max - Solo mostrar si usar_limite_max es true */}
-                          {usarLimiteMax && (
-                            <div className="flex flex-col items-center">
-                              <div className="flex items-center gap-1 mb-0.5">
-                                <span className="text-xs font-semibold text-yellow-700">Lim-max</span>
-                                <button type="button" onClick={() => handleTolChange(parameter.id, 'usar_limite_max', String(!usarLimiteMax))} className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${usarLimiteMax ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'}`}>{usarLimiteMax ? <span className="material-icons text-yellow-700 text-xs">check</span> : null}</button>
-                              </div>
-                              <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMax ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="max" value={tolerancias[parameter.id]?.limite_max ?? ''} onChange={e => handleTolChange(parameter.id, 'limite_max', e.target.value)} disabled={!usarLimiteMax} />
-                            </div>
-                          )}
-                          <div className="flex flex-col items-center col-span-2" style={{minWidth: '60px'}}>
-                            <span className="text-xs font-semibold text-green-700 text-center w-full">Bien</span>
-                            <div className="flex flex-row gap-1">
-                              <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[parameter.id]?.bien_min ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_min', e.target.value)} />
-                              <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[parameter.id]?.bien_max ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_max', e.target.value)} />
-                            </div>
-                          </div>
-                          <Button size="icon" className="ml-2 h-7 w-7 p-0 flex items-center justify-center" onClick={() => handleTolSave(parameter.id)} disabled={tolLoading[parameter.id]} title="Guardar límites">
-                            <span className="material-icons text-base">save</span>
-                          </Button>
-                          <div className="flex flex-col items-center justify-end">
-                            {tolError[parameter.id] && <div className="text-xs text-red-600">{tolError[parameter.id]}</div>}
-                            {tolSuccess[parameter.id] && <div className="text-xs text-green-600">{tolSuccess[parameter.id]}</div>}
-                          </div>
-                        </div>
                       </div>
-                    )
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium mb-1">Comentarios</label>
+                        <Input
+                          type="text"
+                          className="w-full"
+                          placeholder="Comentarios generales"
+                          value={globalComentarios}
+                          onChange={(e) => setGlobalComentarios(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              {/* Parámetros del Sistema Card */}
+              <Card className="mb-6">
+                <CardHeader>
+                  <CardTitle>Parámetros del Sistema</CardTitle>
+                  <div className="flex flex-row gap-4 mt-2 text-xs items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-yellow-100 border border-yellow-400"></span><span className="font-semibold text-yellow-700">Lim-(min,max)</span>: Cerca del límite recomendado</div>
+                      <div className="flex items-center gap-1"><span className="font-semibold text-green-700">Bien</span>: Dentro de rango</div>
+                    </div>
+                    {(userRole === "admin" || userRole === "user") && (
+                      <Button 
+                        onClick={() => router.push('/dashboard-parameters')} 
+                        variant="secondary"
+                        size="sm"
+                        className="bg-orange-100 text-orange-700 hover:bg-orange-200 border-orange-300 text-xs"
+                      >
+                        ⚙️ Configurar Límites
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {/* Formulario de ingreso de mediciones por parámetro seleccionado */}
+                  <div className="space-y-6 mb-8">
+                    {parameters.filter(p => parameterValues[p.id]?.checked).map((parameter) => (
+                      <MedicionInputBox
+                        key={parameter.id}
+                        parameter={parameter}
+                        userId={selectedUser?.id}
+                        plantId={selectedPlant?.id}
+                        procesoId={selectedSystem}
+                        sistemas={sistemasPorParametro[parameter.id] || ["S01"]}
+                        fecha={globalFecha}
+                        comentarios={globalComentarios}
+                        onDataChange={handleMeasurementDataChange}
+                      />
+                    ))}
+                  </div>
+                  {/* Fin formulario mediciones */}
+
+                  {/* Previsualización por parámetro */}
+                  {parameters.filter(p => parameterValues[p.id]?.checked).map(parameter => {
+                    // Obtener la última entrada para este parámetro
+                    const entries = medicionesPreview.filter(m => m.variable_id === parameter.id);
+                    if (entries.length === 0) return null;
+                    const latest = entries[entries.length - 1];
+                    const { fecha, valores } = latest;
+                    // Cabeceras dinámicas según valores ingresados
+                    const sistemasTabla = Object.keys(valores).length > 0
+                      ? Object.keys(valores)
+                      : sistemasPorParametro[parameter.id] || ["S01"];
+                    return (
+                      <div key={parameter.id} className="mt-6 overflow-x-auto">
+                        <h3 className="text-lg font-semibold mb-2">{parameter.nombre}</h3>
+                        <table className="min-w-full border text-xs bg-white">
+                          <thead>
+                            <tr className="bg-gray-100">
+                              <th className="border px-2 py-1">Fecha</th>
+                              {sistemasTabla.map(s => (
+                                <th key={s} className="border px-2 py-1 text-center">{s}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td className="border px-2 py-1 font-semibold">{fecha}</td>
+                              {sistemasTabla.map(s => (
+                                <td key={s} className="border px-2 py-1 text-center">
+                                  {valores[s] ?? ""}
+                                </td>
+                              ))}
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    );
                   })}
-                </div>
-              </CardContent>
-            </Card>
+
+                  <div className="space-y-4">
+                    {parameters.map((parameter) => {
+                      const usarLimiteMin = tolerancias[parameter.id]?.usar_limite_min;
+                      const usarLimiteMax = tolerancias[parameter.id]?.usar_limite_max;
+                      return (
+                        <div key={parameter.id} className="flex items-center space-x-4 p-4 border rounded-lg">
+                          <Checkbox
+                            checked={parameterValues[parameter.id]?.checked || false}
+                            onCheckedChange={(checked) => handleParameterChange(parameter.id, "checked", checked as boolean)}
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium">{parameter.nombre}</div>
+                            <div className="text-sm text-gray-500">
+                              Unidad: {parameter.unidad}
+                            </div>
+                          </div>
+                          <div className="text-sm text-gray-500 w-16">{parameter.unidad}</div>
+                          {/* Inputs de tolerancia en una sola fila */}
+                          <div className="flex flex-row items-end gap-2 ml-2">
+                            {/* Lim-min - Solo mostrar si usar_limite_min es true */}
+                            {usarLimiteMin && (
+                              <div className="flex flex-col items-center">
+                                <div className="flex items-center gap-1 mb-0.5">
+                                  <span className="text-xs font-semibold text-yellow-700">Lim-min</span>
+                                  <button type="button" onClick={() => handleTolChange(parameter.id, 'usar_limite_min', String(!usarLimiteMin))} className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${usarLimiteMin ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'}`}>{usarLimiteMin ? <span className="material-icons text-yellow-700 text-xs">check</span> : null}</button>
+                                </div>
+                                <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMin ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="min" value={tolerancias[parameter.id]?.limite_min ?? ''} onChange={e => handleTolChange(parameter.id, 'limite_min', e.target.value)} disabled={!usarLimiteMin} />
+                              </div>
+                            )}
+                            {/* Lim-max - Solo mostrar si usar_limite_max es true */}
+                            {usarLimiteMax && (
+                              <div className="flex flex-col items-center">
+                                <div className="flex items-center gap-1 mb-0.5">
+                                  <span className="text-xs font-semibold text-yellow-700">Lim-max</span>
+                                  <button type="button" onClick={() => handleTolChange(parameter.id, 'usar_limite_max', String(!usarLimiteMax))} className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${usarLimiteMax ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'}`}>{usarLimiteMax ? <span className="material-icons text-yellow-700 text-xs">check</span> : null}</button>
+                                </div>
+                                <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMax ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="max" value={tolerancias[parameter.id]?.limite_max ?? ''} onChange={e => handleTolChange(parameter.id, 'limite_max', e.target.value)} disabled={!usarLimiteMax} />
+                              </div>
+                            )}
+                            <div className="flex flex-col items-center col-span-2" style={{minWidth: '60px'}}>
+                              <span className="text-xs font-semibold text-green-700 text-center w-full">Bien</span>
+                              <div className="flex flex-row gap-1">
+                                <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[parameter.id]?.bien_min ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_min', e.target.value)} />
+                                <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[parameter.id]?.bien_max ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_max', e.target.value)} />
+                              </div>
+                            </div>
+                            <Button size="icon" className="ml-2 h-7 w-7 p-0 flex items-center justify-center" onClick={() => handleTolSave(parameter.id)} disabled={tolLoading[parameter.id]} title="Guardar límites">
+                              <span className="material-icons text-base">save</span>
+                            </Button>
+                            <div className="flex flex-col items-center justify-end">
+                              {tolError[parameter.id] && <div className="text-xs text-red-600">{tolError[parameter.id]}</div>}
+                              {tolSuccess[parameter.id] && <div className="text-xs text-green-600">{tolSuccess[parameter.id]}</div>}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
           )}
 
           {/* Action Buttons */}
