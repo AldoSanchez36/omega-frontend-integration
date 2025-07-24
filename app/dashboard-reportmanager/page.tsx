@@ -444,17 +444,17 @@ export default function ReportManager() {
   }
 
   const handleMeasurementDataChange = useCallback((parameterId: string, data: { fecha: string; comentarios: string; valores: { [sistema: string]: string } }) => {
-    setMedicionesPreview(prev => [...prev, {
-      ...data,
-      nombreParametro: parameters.find(p => p.id === parameterId)?.nombre || '',
-      parametroNombre: parameters.find(p => p.id === parameterId)?.nombre || '',
-      variable_id: parameterId,
-      proceso_id: selectedSystem,
-      usuario_id: selectedUser?.id,
-      planta_id: selectedPlant?.id,
-    }]);
+    setParameterValues((prev: Record<string, ParameterValue>) => ({
+      ...prev,
+      [parameterId]: {
+        ...prev[parameterId],
+        valores: data.valores,
+        fecha: data.fecha,
+        comentarios: data.comentarios,
+      }
+    }));
     console.log("📥 Medición ingresada:", parameterId, data);
-  }, [parameters, selectedSystem, selectedPlant, selectedUser]);
+  }, []);
 
   const handleSaveData = async () => {
     addDebugLog("info", "Guardando datos de mediciones")
@@ -522,46 +522,37 @@ export default function ReportManager() {
     addDebugLog("info", "Generando reporte")
 
     // Recoge la información seleccionada
-    const selectedParams = Object.entries(parameterValues)
-      .filter(([_, data]) => data.checked)
-      .map(([id, data]) => {
-        const param = parameters.find(p => p.id === id);
-        return param ? {
-          id,
-          nombre: param.nombre,
-          unidad: param.unidad,
-          tolerancia: tolerancias[id] || null
-        } : null;
-      })
-      .filter(Boolean);
+    const mediciones = parameters
+      .filter(param => parameterValues[param.id]?.checked)
+      .map(param => ({
+        variable_id: param.id,
+        nombre: param.nombre,
+        unidad: param.unidad,
+        valores: parameterValues[param.id]?.valores || {},
+        fecha: globalFecha,
+        comentarios: globalComentarios,
+      }));
 
-    // Limpiar usuario
-    const userClean = {
-      id: selectedUser?.id,
-      username: selectedUser?.username,
-      email: (selectedUser as any)?.email,
-      puesto: (selectedUser as any)?.puesto,
-    };
-    // Limpiar planta
-    const plantClean = {
-      id: selectedPlant?.id,
-      nombre: selectedPlant?.nombre,
-    };
-    // Limpiar proceso
-    const procesoClean = {
-      id: selectedSystemData?.id,
-      nombre: selectedSystemData?.nombre,
-    };
-
-    // Guardar todo en un solo objeto
     const reportSelection = {
-      user: userClean,
-      plant: plantClean,
-      proceso: procesoClean,
-      parameters: selectedParams,
-      mediciones: medicionesPreview, // valores agregados
+      user: selectedUser ? { id: selectedUser.id, username: selectedUser.username, email: selectedUser.email, puesto: selectedUser.puesto } : null,
+      plant: selectedPlant ? { id: selectedPlant.id, nombre: selectedPlant.nombre } : null,
+      systemName: selectedSystemData?.nombre,
+      parameters: parameters.filter(param => parameterValues[param.id]?.checked).map(param => ({
+        id: param.id,
+        nombre: param.nombre,
+        unidad: param.unidad,
+        limite_min: tolerancias[param.id]?.limite_min ?? null,
+        limite_max: tolerancias[param.id]?.limite_max ?? null,
+        bien_min: tolerancias[param.id]?.bien_min ?? null,
+        bien_max: tolerancias[param.id]?.bien_max ?? null,
+        usar_limite_min: tolerancias[param.id]?.usar_limite_min ?? false,
+        usar_limite_max: tolerancias[param.id]?.usar_limite_max ?? false,
+      })),
+      mediciones,
+      fecha: globalFecha,
+      comentarios: globalComentarios,
+      generatedDate: new Date().toISOString(),
     };
-    
     localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
     router.push("/reports");
   }

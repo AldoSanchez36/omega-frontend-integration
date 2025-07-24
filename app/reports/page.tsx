@@ -266,7 +266,57 @@ export default function Reporte() {
     return ""
   }
 
-  const sistemasUnicos = Array.from(new Set((reportSelection?.mediciones || []).map((m: any) => m.sistema)));
+  // Función para obtener el color de celda según los límites
+  function getCellColor(valorStr: string, param: any) {
+    if (valorStr === undefined || valorStr === null || valorStr === "") return "";
+    const valor = parseFloat(valorStr);
+    if (isNaN(valor)) return "";
+    const {
+      bien_min,
+      bien_max,
+      limite_min,
+      limite_max,
+      usar_limite_min,
+      usar_limite_max,
+    } = param;
+    // Verde: bien
+    if (bien_min !== null && bien_max !== null && valor >= bien_min && valor <= bien_max) {
+      return "#C5EECE";
+    }
+    // Amarillo: cerca de límite inferior
+    if (
+      usar_limite_min &&
+      limite_min !== null && bien_min !== null &&
+      valor >= limite_min && valor < bien_min
+    ) {
+      return "#FFEB9C";
+    }
+    // Amarillo: cerca de límite superior
+    if (
+      usar_limite_max &&
+      limite_max !== null && bien_max !== null &&
+      valor > bien_max && valor <= limite_max
+    ) {
+      return "#FFEB9C";
+    }
+    // Rojo: fuera de rango
+    if (
+      (bien_min !== null && valor < bien_min && (!usar_limite_min || limite_min === null || valor < limite_min)) ||
+      (bien_max !== null && valor > bien_max && (!usar_limite_max || limite_max === null || valor > limite_max)) ||
+      (usar_limite_min && limite_min !== null && valor < limite_min) ||
+      (usar_limite_max && limite_max !== null && valor > limite_max)
+    ) {
+      return "#FFC6CE";
+    }
+    return "";
+  }
+
+  // Obtener todos los sistemas únicos de las mediciones
+  const sistemasUnicos = Array.from(
+    new Set(
+      (reportSelection?.mediciones || []).flatMap((med: any) => Object.keys(med.valores || {}))
+    )
+  ).sort();
 
   return (
     <ProtectedRoute>
@@ -449,27 +499,36 @@ export default function Reporte() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(reportSelection?.parameters as any[] || []).map((param: any) => (
-                        <tr key={param.id}>
-                          <td><strong>{param.nombre}</strong></td>
-                          {sistemasUnicos.map((sis: any) => {
-                            // Busca la medición para este sistema y parámetro
-                            const med = (reportSelection?.mediciones || []).find((m: any) =>
-                              m.sistema === sis &&
-                              m.variable_id === param.id
-                            );
-                            return (
-                              <td key={sis}>
-                                {med ? med.valor : "—"}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
+                      {(reportSelection?.mediciones || []).map((med: any) => {
+                        const param = (reportSelection?.parameters || []).find((p: any) => p.id === med.variable_id) || {};
+                        return (
+                          <tr key={med.variable_id}>
+                            <td><strong>{med.nombre}</strong></td>
+                            {sistemasUnicos.map((sis: any) => {
+                              const valor = med.valores?.[sis] ?? "";
+                              const bgColor = getCellColor(valor, param);
+                              return (
+                                <td key={sis} style={{ backgroundColor: bgColor }}>{valor}</td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </div>
+
+              {reportSelection?.fecha && (
+                <div className="mb-2">
+                  <strong>Fecha de muestra global:</strong> {reportSelection.fecha}
+                </div>
+              )}
+              {reportSelection?.comentarios && (
+                <div className="mb-2">
+                  <strong>Comentarios globales:</strong> {reportSelection.comentarios}
+                </div>
+              )}
 
               {/* Detailed Measurements Section */}
               {reportSelection?.user && (
