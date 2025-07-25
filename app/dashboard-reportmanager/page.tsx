@@ -564,8 +564,8 @@ export default function ReportManager() {
         limite_max: tolerancias[param.id]?.limite_max ?? null,
         bien_min: tolerancias[param.id]?.bien_min ?? null,
         bien_max: tolerancias[param.id]?.bien_max ?? null,
-        usar_limite_min: tolerancias[param.id]?.usar_limite_min ?? false,
-        usar_limite_max: tolerancias[param.id]?.usar_limite_max ?? false,
+        usar_limite_min: !!tolerancias[param.id]?.usar_limite_min,
+        usar_limite_max: !!tolerancias[param.id]?.usar_limite_max,
       })),
       mediciones,
       fecha: globalFecha,
@@ -914,8 +914,8 @@ export default function ReportManager() {
 
                   <div className="space-y-4">
                     {parameters.map((parameter) => {
-                      const usarLimiteMin = tolerancias[parameter.id]?.usar_limite_min;
-                      const usarLimiteMax = tolerancias[parameter.id]?.usar_limite_max;
+                      const usarLimiteMin = !!tolerancias[parameter.id]?.usar_limite_min;
+                      const usarLimiteMax = !!tolerancias[parameter.id]?.usar_limite_max;
                       return (
                         <div key={parameter.id} className="flex items-center space-x-4 p-4 border rounded-lg">
                           <Checkbox
@@ -938,7 +938,18 @@ export default function ReportManager() {
                                   <span className="text-xs font-semibold text-yellow-700">Lim-min</span>
                                   <button type="button" onClick={() => handleTolChange(parameter.id, 'usar_limite_min', String(!usarLimiteMin))} className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${usarLimiteMin ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'}`}>{usarLimiteMin ? <span className="material-icons text-yellow-700 text-xs">check</span> : null}</button>
                                 </div>
-                                <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMin ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="min" value={tolerancias[parameter.id]?.limite_min ?? ''} onChange={e => handleTolChange(parameter.id, 'limite_min', e.target.value)} disabled={!usarLimiteMin} />
+                                <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMin ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="min"
+                                  value={
+                                    tolerancias[parameter.id]?.limite_min === undefined ||
+                                    tolerancias[parameter.id]?.limite_min === null ||
+                                    tolerancias[parameter.id]?.limite_min === '' ||
+                                    Number.isNaN(Number(tolerancias[parameter.id]?.limite_min))
+                                      ? ''
+                                      : tolerancias[parameter.id]?.limite_min
+                                  }
+                                  onChange={e => handleTolChange(parameter.id, 'limite_min', e.target.value)}
+                                  disabled={!usarLimiteMin}
+                                />
                               </div>
                             )}
                             {/* Lim-max - Solo mostrar si usar_limite_max es true */}
@@ -948,7 +959,18 @@ export default function ReportManager() {
                                   <span className="text-xs font-semibold text-yellow-700">Lim-max</span>
                                   <button type="button" onClick={() => handleTolChange(parameter.id, 'usar_limite_max', String(!usarLimiteMax))} className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${usarLimiteMax ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'}`}>{usarLimiteMax ? <span className="material-icons text-yellow-700 text-xs">check</span> : null}</button>
                                 </div>
-                                <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMax ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="max" value={tolerancias[parameter.id]?.limite_max ?? ''} onChange={e => handleTolChange(parameter.id, 'limite_max', e.target.value)} disabled={!usarLimiteMax} />
+                                <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMax ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="max"
+                                  value={
+                                    tolerancias[parameter.id]?.limite_max === undefined ||
+                                    tolerancias[parameter.id]?.limite_max === null ||
+                                    tolerancias[parameter.id]?.limite_max === '' ||
+                                    Number.isNaN(Number(tolerancias[parameter.id]?.limite_max))
+                                      ? ''
+                                      : tolerancias[parameter.id]?.limite_max
+                                  }
+                                  onChange={e => handleTolChange(parameter.id, 'limite_max', e.target.value)}
+                                  disabled={!usarLimiteMax}
+                                />
                               </div>
                             )}
                             <div className="flex flex-col items-center col-span-2" style={{minWidth: '60px'}}>
