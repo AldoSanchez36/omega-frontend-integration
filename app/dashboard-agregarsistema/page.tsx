@@ -474,7 +474,7 @@ export default function ParameterManager() {
 
                     {selectedPlant && systems.length > 0 && (
                       <div className="mt-4">
-                        <div className="flex border rounded overflow-hidden">
+                        {/*<div className="flex border rounded overflow-x-auto whitespace-nowrap no-scrollbar max-w-full">
                           {systems.map((system) => (
                             <button
                               key={system.id}
@@ -488,7 +488,23 @@ export default function ParameterManager() {
                               {system.nombre}
                             </button>
                           ))}
+                        </div>*/}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                          {systems.map((system) => (
+                            <button
+                              key={system.id}
+                              onClick={() => setSelectedSystemId(system.id)}
+                              className={`px-4 py-2 text-sm font-medium rounded border ${
+                                selectedSystemId === system.id
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                              }`}
+                            >
+                              {system.nombre}
+                            </button>
+                          ))}
                         </div>
+
                       </div>
                     )}
 
