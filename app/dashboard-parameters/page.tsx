@@ -139,6 +139,69 @@ export default function ParameterManager() {
   const [tolError, setTolError] = useState<Record<string, string | null>>({})
   const [tolSuccess, setTolSuccess] = useState<Record<string, string | null>>({})
 
+  // Estado para importar variable
+  const [selectedImportParamId, setSelectedImportParamId] = useState<string>("");
+
+  // Estado para variables globales
+  const [allVariables, setAllVariables] = useState<Parameter[]>([]);
+  const [selectedImportVariableId, setSelectedImportVariableId] = useState<string>("");
+
+  // Recolecta todas las variables de otros sistemas de la planta seleccionada (excepto el sistema actual)
+  const existingParams: Parameter[] = [];
+  if (selectedPlant && selectedSystemId) {
+    systems.forEach((sys) => {
+      if (sys.id !== selectedSystemId) {
+        parameters.forEach((param) => {
+          // Solo agrega si no existe ya en el sistema actual
+          if (!parameters.some(p => p.nombre === param.nombre && p.proceso_id === selectedSystemId)) {
+            existingParams.push(param);
+          }
+        });
+      }
+    });
+  }
+
+  const handleImportParameter = () => {
+    const param = existingParams.find(p => p.id === selectedImportParamId);
+    if (!param) return;
+    setParameters((prev) => [
+      ...prev,
+      {
+        id: uuidv4(),
+        nombre: param.nombre,
+        unidad: param.unidad,
+        proceso_id: selectedSystemId,
+        isNew: true,
+      }
+    ]);
+    setSelectedImportParamId("");
+  };
+
+  // Cargar todas las variables existentes (de todos los sistemas)
+  useEffect(() => {
+    const fetchAllVariables = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_ALL}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setAllVariables(data.variables || data || []);
+      } catch {}
+    };
+    fetchAllVariables();
+  }, [token]);
+
+  // Al seleccionar una variable existente, copia nombre y unidad al formulario
+  useEffect(() => {
+    if (!selectedImportVariableId) return;
+    const variable = allVariables.find(v => v.id === selectedImportVariableId);
+    if (variable) {
+      setNewParameterName(variable.nombre);
+      setNewParameterUnit(variable.unidad);
+    }
+  }, [selectedImportVariableId, allVariables]);
+
   // Initialize user data for compatibility
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -271,7 +334,7 @@ export default function ParameterManager() {
     e.preventDefault() // Prevent default form submission
     const newParamsToSave = parameters.filter((p) => p.isNew)
     if (newParamsToSave.length === 0) {
-      alert("No hay nuevos parámetros para guardar.")
+      // alert("No hay nuevos parámetros para guardar.")
       return
     }
     setLocalLoading(true)
@@ -465,12 +528,12 @@ export default function ParameterManager() {
 
                     {selectedPlant && systems.length > 0 && (
                       <div className="mt-4">
-                        <div className="flex border rounded overflow-hidden">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                           {systems.map((system) => (
                             <button
                               key={system.id}
                               onClick={() => setSelectedSystemId(system.id)}
-                              className={`px-4 py-2 text-sm font-medium ${
+                              className={`px-4 py-2 text-sm font-medium rounded border ${
                                 selectedSystemId === system.id
                                   ? 'bg-blue-600 text-white'
                                   : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
@@ -494,7 +557,7 @@ export default function ParameterManager() {
                         <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-yellow-100 border border-yellow-400"></span><span className="font-semibold text-yellow-700">Limite-(min,max)</span>: Cerca del límite recomendado</div>
                         <div className="flex items-center gap-1"><span className="w-4 h-4 inline-block rounded bg-green-100 border-green-400"></span><span className="font-semibold text-green-700">Bien</span>: Dentro de rango</div>
                       </div>
-                      {(userRole === "admin" || userRole === "user") && (
+                      {/* {(userRole === "admin" || userRole === "user") && (
                         <Button 
                           onClick={() => router.push('/dashboard-parameters')} 
                           variant="secondary"
@@ -503,7 +566,7 @@ export default function ParameterManager() {
                         >
                           ⚙️ Configurar Límites
                         </Button>
-                      )}
+                      )} */}
                     </div>
                     <p className="mt-1 text-sm text-gray-500">
                       Parámetros para el sistema seleccionado: {" "}
@@ -611,6 +674,29 @@ export default function ParameterManager() {
                   <div className="border-t border-gray-200 pt-6">
                     <h2 className="text-lg font-medium leading-6 text-gray-900">Agregar Nuevo Parámetro</h2>
                     <p className="mt-1 text-sm text-gray-500">Añada un nuevo parámetro al sistema seleccionado.</p>
+                    {/* Droplist de variables existentes */}
+                    {allVariables.length > 0 && (
+                      <div className="mb-4">
+                        <Label htmlFor="import-variable">Importar variable existente</Label>
+                        <Select
+                          value={selectedImportVariableId}
+                          onValueChange={setSelectedImportVariableId}
+                        >
+                          <SelectTrigger className="w-full bg-[#f6f6f6] text-gray-900 border border-gray-300 rounded-md">
+                            <SelectValue placeholder="Selecciona una variable existente" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                            {allVariables
+                              .filter(v => v.proceso_id !== selectedSystemId && !parameters.some(p => p.nombre === v.nombre && p.proceso_id === selectedSystemId))
+                              .map((variable) => (
+                                <SelectItem key={variable.id} value={variable.id}>
+                                  {variable.nombre} ({variable.unidad})
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <div className="mt-6 grid md:grid-cols-2 gap-6">
                       <div className="grid gap-2">
                         <Label htmlFor="new-param-name">Nombre del Parámetro</Label>

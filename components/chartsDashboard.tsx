@@ -1,5 +1,6 @@
 import React from "react";
 import { SensorTimeSeriesChart } from "./SensorTimeSeriesChart";
+import { API_BASE_URL } from "@/config/constants";
 
 interface HistoricalDataPoint {
   timestamp: string;
@@ -174,7 +175,7 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                   variable={param.name}
                                   startDate={startDate}
                                   endDate={endDate}
-                                  apiBase="http://localhost:4000"
+                                  apiBase={API_BASE_URL}
                                   unidades={param.unit}
                                   hideXAxisLabels={true}
                                 />

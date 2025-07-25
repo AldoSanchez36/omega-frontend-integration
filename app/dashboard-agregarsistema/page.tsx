@@ -352,7 +352,7 @@ export default function ParameterManager() {
     e.preventDefault() // Prevent default form submission
     const newParamsToSave = parameters.filter((p) => p.isNew)
     if (newParamsToSave.length === 0) {
-      alert("No hay nuevos parámetros para guardar.")
+      // alert("No hay nuevos parámetros para guardar.")
       return
     }
     setLoading(true)

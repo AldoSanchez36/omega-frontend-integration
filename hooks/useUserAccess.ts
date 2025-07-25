@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
+import { API_BASE_URL } from "@/config/constants"
 
 interface User {
   id: string
@@ -82,7 +83,7 @@ export function useUserAccess(token: string | null, options: UseUserAccessOption
 
     // Function to get real user ID by username
     const fetchUserIdByUsername = async (username: string) => {
-      const res = await fetch(`http://localhost:4000/api/auth/user-by-name/${encodeURIComponent(username)}`, {
+      const res = await fetch(`${API_BASE_URL}/api/auth/user-by-name/${encodeURIComponent(username)}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (!res.ok) throw new Error("No se pudo obtener el id del usuario")
@@ -97,7 +98,7 @@ export function useUserAccess(token: string | null, options: UseUserAccessOption
       setError(null)
       try {
         // 1. Get plant access
-        const res = await fetch(`http://localhost:4000/api/accesos/plantas/usuario/${userId}`, {
+        const res = await fetch(`${API_BASE_URL}/api/accesos/plantas/usuario/${userId}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (!res.ok) {
@@ -111,7 +112,7 @@ export function useUserAccess(token: string | null, options: UseUserAccessOption
         
         if (plantasAccesibles.length > 0) {
           // 3. Call /api/plantas/accesibles with user id
-          const plantasRes = await fetch(`http://localhost:4000/api/plantas/accesibles`, {
+          const plantasRes = await fetch(`${API_BASE_URL}/api/plantas/accesibles`, {
             headers: { 
               Authorization: `Bearer ${token}`, 
               "x-usuario-id": userId 
@@ -145,7 +146,7 @@ export function useUserAccess(token: string | null, options: UseUserAccessOption
         setLoading(true)
         setError(null)
         try {
-          const res = await fetch("http://localhost:4000/api/auth/users", {
+          const res = await fetch(`${API_BASE_URL}/api/auth/users`, {
             headers: { Authorization: `Bearer ${token}` },
           })
           if (!res.ok) {
@@ -191,7 +192,7 @@ export function useUserAccess(token: string | null, options: UseUserAccessOption
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`http://localhost:4000/api/plantas/accesibles`, {
+      const res = await fetch(`${API_BASE_URL}/api/plantas/accesibles`, {
         headers: { Authorization: `Bearer ${token}`, "x-usuario-id": user.id },
       })
       if (!res.ok) {
@@ -224,7 +225,7 @@ export function useUserAccess(token: string | null, options: UseUserAccessOption
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`http://localhost:4000/api/procesos/planta/${plant.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/procesos/planta/${plant.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) {
@@ -250,7 +251,7 @@ export function useUserAccess(token: string | null, options: UseUserAccessOption
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`http://localhost:4000/api/variables/proceso/${selectedSystem}`, {
+      const res = await fetch(`${API_BASE_URL}/api/variables/proceso/${selectedSystem}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) {
