@@ -8,6 +8,8 @@ import Image from "next/image"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import Navbar from "@/components/Navbar"
+import html2canvas from "html2canvas";
+
 
 interface SystemData {
   [systemName: string]: Array<{
@@ -266,6 +268,27 @@ export default function Reporte() {
     return ""
   }
 
+  // Función para descargar el reporte en PDF
+  const handleDownloadPDF = async () => {
+    const doc = new jsPDF("p", "pt", "a4");
+  
+    const reportElement = document.getElementById("reporte-pdf");
+    if (!reportElement) return;
+  
+    const canvas = await html2canvas(reportElement, {
+      scale: 2,
+      useCORS: true,
+    });
+  
+    const imgData = canvas.toDataURL("image/png");
+    const imgProps = doc.getImageProperties(imgData);
+    const pdfWidth = doc.internal.pageSize.getWidth();
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+  
+    doc.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+    doc.save("reporte.pdf");
+  };
+  
   // Función para obtener el color de celda según los límites
   function getCellColor(valorStr: string, param: any) {
     if (valorStr === undefined || valorStr === null || valorStr === "") return "";
@@ -366,7 +389,7 @@ export default function Reporte() {
         </div>
 
         {/* Report Content */}
-        <div id="report-container" className="container py-4">
+        <div id="reporte-pdf" className="container py-4">
           <div className="card shadow">
             <div className="card-body">
               {/* Report Header */}
@@ -630,10 +653,7 @@ export default function Reporte() {
                 <i className="material-icons me-2">bug_report</i>
                 Prueba PDF
               </button>
-              <button className="btn btn-danger" onClick={generatePDF}>
-                <i className="material-icons me-2">picture_as_pdf</i>
-                Descargar PDF
-              </button>
+              <button onClick={handleDownloadPDF}>Descargar PDF</button>
             </div>
           </div>
         </div>

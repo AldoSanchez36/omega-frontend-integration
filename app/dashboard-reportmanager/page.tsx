@@ -102,6 +102,8 @@ function MedicionInputBox({ parameter, userId, plantId, procesoId, sistemas, onD
     setValores(prev => ({ ...prev, [s]: v }))
   }
 
+  
+
   // Agregar nuevo sistema secuencial
   const handleAgregarSistema = () => {
     // Buscar el mayor SXX actual
@@ -362,6 +364,8 @@ export default function ReportManager() {
     });
   };
 
+
+
   // Handler para editar el nombre de un sistema
   const handleEditarSistema = (idx: number, nuevoNombre: string) => {
     setSistemas((prev) => prev.map((s, i) => (i === idx ? nuevoNombre : s)));
@@ -417,6 +421,11 @@ export default function ReportManager() {
       setLocalLoading(false)
     }
   }, [selectedSystem, token, addDebugLog])
+
+  const isGenerateDisabled =
+  !globalFecha || Object.values(parameterValues).every((param) => {
+    return !param.value || param.value === 0;
+  });
 
   useEffect(() => {
     fetchParameters()
@@ -1005,7 +1014,9 @@ export default function ReportManager() {
                   <Button onClick={handleSaveData} variant="outline">
                     💾 Guardar Datos
                   </Button>
-                  <Button onClick={handleGenerateReport}>📊 Generar Reporte</Button>
+                  <Button onClick={handleGenerateReport} disabled={isGenerateDisabled} className={
+                    `bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 ${isGenerateDisabled ? "opacity-50 cursor-not-allowed" : ""}`}>
+                      📊 Generar Reporte</Button>
                 </div>
               </CardContent>
             </Card>
