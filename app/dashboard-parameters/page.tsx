@@ -303,14 +303,35 @@ export default function ParameterManager() {
     }
   }
 
-  const handleDeleteParameter = (idToDelete: string) => {
-    setParameters((prev) => prev.filter((p) => p.id !== idToDelete))
+  const handleDeleteParameter = async (idToDelete: string) => {
+    /* setParameters((prev) => prev.filter((p) => p.id !== idToDelete))
     // Nota: Para una eliminación persistente en la base de datos,
     // necesitarías un endpoint DELETE en tu API (ej. DELETE /api/variables/:id)
     // y llamar a ese endpoint aquí.
     alert(
       "Parámetro eliminado del lado del cliente. Para una eliminación persistente, se requiere un endpoint DELETE en el backend.",
-    )
+    ) */
+      if (!idToDelete) return;
+      if (!token) { return; }
+    
+      try {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE(idToDelete)}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+    
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message || "Error al eliminar parámetro.");
+        }
+    
+        // Eliminación exitosa, actualiza el estado local
+        setParameters((prev) => prev.filter((p) => p.id !== idToDelete));
+      } catch (e: any) {
+        alert(`Error al eliminar parámetro: ${e.message}`);
+      }
   }
 
   const handleAddParameter = () => {
@@ -341,14 +362,16 @@ export default function ParameterManager() {
     setLocalError(null)
     try {
       for (const param of newParamsToSave) {
+        const payload = {
+          nombre: param.nombre,
+          unidad: param.unidad,
+          proceso_id: param.proceso_id,
+        };
+        console.log("Enviando parámetro:", payload);
         const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_CREATE}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            nombre: param.nombre,
-            unidad: param.unidad,
-            proceso_id: param.proceso_id,
-          }),
+          body: JSON.stringify(payload),
         })
         if (!res.ok) {
           const errorData = await res.json()

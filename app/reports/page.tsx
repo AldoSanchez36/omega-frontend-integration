@@ -38,15 +38,73 @@ interface Medicion {
   comentarios?: string;
 }
 
+// Estructura para la fecha en formato día, mes (texto), año
+interface FormattedDate {
+  day: number;
+  month: string;
+  year: number;
+}
+
+// Interfaz para los parámetros del sistema
+interface SystemParameter {
+  id: string;
+  nombre: string;
+  unidad: string;
+  valor: number;
+  fecha: string;
+  comentarios?: string;
+  checked: boolean;
+}
+
+// Interfaz para el usuario
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  puesto: string;
+  planta_id: string;
+}
+
+// Interfaz para la planta
+interface Plant {
+  id: string;
+  nombre: string;
+}
+
+// Interfaz para los parámetros en el reporte
+interface ReportParameter {
+  id: string;
+  nombre: string;
+  unidad: string;
+  limite_min: number | null;
+  limite_max: number | null;
+  bien_min: number | null;
+  bien_max: number | null;
+  usar_limite_min: boolean;
+  usar_limite_max: boolean;
+}
+
+// Interfaz principal para reportSelection
+interface ReportSelection {
+  fecha: string;
+  comentarios: string;
+  user: User;
+  plant: Plant;
+  systemName: string;
+  generatedDate: string;
+  parameters: ReportParameter[];
+  mediciones: Medicion[];
+}
+
 export default function Reporte() {
   const router = useRouter()
   const [reportNotes, setReportNotes] = useState<{ [key: string]: string }>({})
   const [currentDate, setCurrentDate] = useState("")
   const [isEditing, setIsEditing] = useState(true)
   const [imagesLoaded, setImagesLoaded] = useState(false)
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
-  const [reportSelection, setReportSelection] = useState<any>(null);
+  const [reportSelection, setReportSelection] = useState<ReportSelection | null>(null);
 
   const [rangeLimits] = useState<RangeLimits>({
     pH: {
@@ -130,7 +188,7 @@ export default function Reporte() {
       doc.text(`Fecha: ${currentDate}`, 20, 35)
       doc.text(`Dirigido a: ${reportNotes["dirigido"] || "ING. ABDIEL ZENTELLA"}`, 20, 45)
       doc.text(`Asunto: ${reportNotes["asunto"] || "REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS"}`, 20, 55)
-      doc.text(`Sistema Evaluado: ${reportNotes["sistema"] || "Todos los sistemas"}`, 20, 65)
+      doc.text(`Sistema Evaluado: ${reportNotes["sistema"] || (reportSelection ? reportSelection.systemName : "Todos los sistemas") || "Todos los sistemas"}`, 20, 65)
       doc.text(`Ubicación: ${reportNotes["ubicacion"] || "San Luis Potosí, S.L.P."}`, 20, 75)
       
       // Add metadata if available
@@ -171,20 +229,24 @@ export default function Reporte() {
 
       // Crear tabla comparativa
       const allParams = new Set<string>();
-      (Object.values(reportSelection?.parameters || {}) as any[]).forEach((system: any) => {
-        (system as any[]).forEach((param: any) => {
-          if (param.checked) allParams.add(param.name);
-        });
+      (reportSelection?.parameters || []).forEach((param: any) => {
+        if (param.checked) allParams.add(param.nombre);
       });
 
-      const systemNames = Object.keys(reportSelection?.parameters || {});
+      // Since parameters is an array, we need to group by system
+      // This is a placeholder - you'll need to adjust based on your actual data structure
+      const systemNames: string[] = [];
       const tableHeaders = ["Parámetro", ...systemNames.map((_, idx) => `S${idx + 1}`)];
       const tableData = Array.from(allParams).map((paramName: string) => {
         const row: string[] = [paramName];
         systemNames.forEach((systemName: string) => {
-          const systemParams = reportSelection?.parameters?.[systemName] || [];
-          const param = (systemParams as any[]).find((p: any) => p.name === paramName);
-          const value = param ? param.value || "N/A" : "—";
+          // Find parameters for this specific system
+          // This is a placeholder - adjust based on how your data is structured
+          const systemParam = reportSelection?.parameters?.find((param: ReportParameter) => 
+            param.nombre === paramName
+            // && param.systemName === systemName // Add system identification if available
+          );
+          const value = systemParam ? systemParam.limite_min?.toString() || systemParam.limite_max?.toString() || "N/A" : "—";
           row.push(value);
         });
         return row;
@@ -341,6 +403,45 @@ export default function Reporte() {
     )
   ).sort();
 
+  // Función auxiliar para agrupar mediciones por parámetro
+  const agruparMedicionesPorParametro = () => {
+    const mediciones = reportSelection?.mediciones || [];
+    const parametrosAgrupados: Record<string, any[]> = {};
+    
+    // Agrupar mediciones por variable_id
+    mediciones.forEach((med: any) => {
+      if (!parametrosAgrupados[med.variable_id]) {
+        parametrosAgrupados[med.variable_id] = [];
+      }
+      parametrosAgrupados[med.variable_id].push(med);
+    });
+    
+    // Convertir a array de objetos con valores combinados
+    return Object.entries(parametrosAgrupados).map(([variableId, medicionesParam]) => {
+      // Combinar todos los valores de sistema
+      const valoresCombinados: Record<string, any> = {};
+      medicionesParam.forEach((med: any) => {
+        Object.assign(valoresCombinados, med.valores || {});
+      });
+      
+      // Obtener información del parámetro
+      const param = (reportSelection?.parameters || []).find(
+        (p) => p.id === variableId
+      ) || {};
+      
+      const primerMedicion = medicionesParam[0];
+      
+      return {
+        variable_id: variableId,
+        nombre: primerMedicion?.nombre || "Parámetro desconocido",
+        valores: valoresCombinados,
+        param: param
+      };
+    });
+  };
+  
+  const parametrosAgrupados = agruparMedicionesPorParametro();
+
   return (
     <ProtectedRoute>
       <div className="min-vh-100 bg-light">
@@ -366,27 +467,7 @@ export default function Reporte() {
           </div>
         </div>
 
-        {/* Header Image */}
-        <div id="header-img" className="text-center">
-          {imagesLoaded ? (
-            <Image
-              src="/images/header.jpeg"
-              alt="Header del reporte"
-              width={800}
-              height={150}
-              className="w-100"
-              style={{ height: "auto", maxHeight: "200px", objectFit: "cover" }}
-              priority
-            />
-          ) : (
-            <div className="bg-secondary text-white py-4" style={{ minHeight: "150px" }}>
-              <div className="d-flex flex-column justify-content-center h-100">
-                <h5>HEADER IMAGE</h5>
-                <small>Coloca header.jpeg en /public/images/reports/</small>
-              </div>
-            </div>
-          )}
-        </div>
+        
 
         {/* Report Content */}
         <div id="reporte-pdf" className="container py-4">
@@ -394,24 +475,29 @@ export default function Reporte() {
             <div className="card-body">
               {/* Report Header */}
               <div className="mb-4">
-                <div className="text-end mb-3">
-                  <strong>Ubicación y fecha: </strong>
-                  <span
-                    contentEditable={isEditing}
-                    suppressContentEditableWarning={true}
-                    onBlur={(e) => handleNoteChange("ubicacion", e.currentTarget.innerText)}
-                    className="border-bottom"
-                    style={{ minWidth: "200px", display: "inline-block" }}
-                  >
-                    {reportNotes["ubicacion"] || "San Luis Potosí, S.L.P. a 28 de Mayo 2024"}
-                  </span>
+                {/* Header Image */}
+                <div id="header-img" className="text-center">
+                  {imagesLoaded ? (
+                    <Image
+                      src="/images/header.jpeg"
+                      alt="Header del reporte"
+                      width={800}
+                      height={150}
+                      className="w-100"
+                      style={{ width: "auto", height: "auto", objectFit: "cover" }}
+                      priority
+                    />
+                  ) : (
+                    <div className="bg-secondary text-white py-4" style={{ minHeight: "150px" }}>
+                      <div className="d-flex flex-column justify-content-center h-100">
+                        <h5>HEADER IMAGE</h5>
+                        <small>Coloca header.jpeg en /public/images/reports/</small>
+                      </div>
+                    </div>
+                  )}
                 </div>
-
-                <h3 className="text-center mb-4">
-                  <strong>{reportSelection?.user?.username?.toUpperCase() || "NOMBRE DEL CLIENTE"}</strong>
-                </h3>
-
-                <div className="row">
+                <div className="mb-4 ml-10 mr-10">
+                  <div className="row">
                   <div className="col-12">
                     <p>
                       <strong>Dirigido a: </strong>
@@ -436,7 +522,7 @@ export default function Reporte() {
                         style={{ minWidth: "400px", display: "inline-block" }}
                       >
                         {reportNotes["asunto"] ||
-                          `REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE ${reportSelection?.plant?.nombre || "NOMBRE DE LA PLANTA"}`}
+                          `REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE ${(reportSelection ? reportSelection.plant.nombre : "NOMBRE DE LA PLANTA") || "NOMBRE DE LA PLANTA"}`}
                       </span>
                     </p>
 
@@ -449,7 +535,7 @@ export default function Reporte() {
                         className="border-bottom"
                         style={{ minWidth: "300px", display: "inline-block" }}
                       >
-                        {reportNotes["sistema"] || reportSelection?.plant?.nombre || "Todos los sistemas"}
+                        {reportNotes["sistema"] || (reportSelection?.systemName ?? "Todos los sistemas")}
                       </span>
                     </p>
 
@@ -462,7 +548,7 @@ export default function Reporte() {
                         className="border-bottom"
                         style={{ minWidth: "200px", display: "inline-block" }}
                       >
-                        {reportNotes["fecha_muestra"] || currentDate}
+                        {reportSelection?.fecha || currentDate}
                       </span>
                     </p>
                   </div>
@@ -470,7 +556,7 @@ export default function Reporte() {
               </div>
 
               {/* Legend Table */}
-              <div className="mb-4">
+              <div className="mb-4 ml-10 mr-10">
                 <h5>
                   <strong>Leyenda de colores</strong>
                 </h5>
@@ -509,7 +595,7 @@ export default function Reporte() {
               </div>
 
               {/* Comparative Analysis Table */}
-              <div className="mb-4">
+              <div className="mb-4 ml-10 mr-10">
                 <h5>Análisis Comparativo por Parámetro</h5>
                 <div className="table-responsive">
                   <table className="table table-bordered">
@@ -522,14 +608,13 @@ export default function Reporte() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(reportSelection?.mediciones || []).map((med: any) => {
-                        const param = (reportSelection?.parameters || []).find((p: any) => p.id === med.variable_id) || {};
+                      {parametrosAgrupados.map((paramGroup: any) => {
                         return (
-                          <tr key={med.variable_id}>
-                            <td><strong>{med.nombre}</strong></td>
+                          <tr key={paramGroup.variable_id}>
+                            <td><strong>{paramGroup.nombre}</strong></td>
                             {sistemasUnicos.map((sis: any) => {
-                              const valor = med.valores?.[sis] ?? "";
-                              const bgColor = getCellColor(valor, param);
+                              const valor = paramGroup.valores?.[sis] ?? "";
+                              const bgColor = getCellColor(valor, paramGroup.param);
                               return (
                                 <td key={sis} style={{ backgroundColor: bgColor }}>{valor}</td>
                               );
@@ -543,19 +628,19 @@ export default function Reporte() {
               </div>
 
               {reportSelection?.fecha && (
-                <div className="mb-2">
+                <div className="mb-2 ml-10 mr-10">
                   <strong>Fecha de muestra global:</strong> {reportSelection.fecha}
                 </div>
               )}
               {reportSelection?.comentarios && (
-                <div className="mb-2">
+                <div className="mb-2 ml-10 mr-10">
                   <strong>Comentarios globales:</strong> {reportSelection.comentarios}
                 </div>
               )}
 
               {/* Detailed Measurements Section */}
               {reportSelection?.user && (
-                <div className="mb-4">
+                <div className="mb-4 ml-10 mr-10">
                   <h5>Detalles de Mediciones</h5>
                   <div className="card">
                     <div className="card-body">
@@ -573,7 +658,27 @@ export default function Reporte() {
                   </div>
                 </div>
               )}
-
+              </div>
+               {/* Footer Image */}
+                <div id="footer-img" className="text-center">
+                  {imagesLoaded ? (
+                    <Image
+                      src="/images/footer-textless.png"
+                      alt="Footer del reporte"
+                      width={800}
+                      height={100}
+                      className="w-100"
+                      style={{ width: "100%", height: "auto", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <div className="bg-secondary text-white py-4" style={{ minHeight: "100px" }}>
+                      <div className="d-flex flex-column justify-content-center h-100">
+                        <h6>FOOTER IMAGE</h6>
+                        <small>Coloca footer-textless.png en /public/images/reports/</small>
+                      </div>
+                    </div>
+                  )}
+                </div>
               {/* Instructions for images */}
               {!imagesLoaded && (
                 <div className="alert alert-info">
@@ -603,26 +708,7 @@ export default function Reporte() {
           </div>
         </div>
 
-        {/* Footer Image */}
-        <div id="footer-img" className="text-center">
-          {imagesLoaded ? (
-            <Image
-              src="/images/footer-textless.png"
-              alt="Footer del reporte"
-              width={800}
-              height={100}
-              className="w-100"
-              style={{ height: "auto", maxHeight: "150px", objectFit: "cover" }}
-            />
-          ) : (
-            <div className="bg-secondary text-white py-4" style={{ minHeight: "100px" }}>
-              <div className="d-flex flex-column justify-content-center h-100">
-                <h6>FOOTER IMAGE</h6>
-                <small>Coloca footer-textless.png en /public/images/reports/</small>
-              </div>
-            </div>
-          )}
-        </div>
+       
 
         {/* Action Buttons */}
         <div className="container py-4">

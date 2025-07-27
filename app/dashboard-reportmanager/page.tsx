@@ -423,9 +423,8 @@ export default function ReportManager() {
   }, [selectedSystem, token, addDebugLog])
 
   const isGenerateDisabled =
-  !globalFecha || Object.values(parameterValues).every((param) => {
-    return !param.value || param.value === 0;
-  });
+    !globalFecha || 
+    (!medicionesPreview || medicionesPreview.length === 0);
 
   useEffect(() => {
     fetchParameters()
@@ -522,9 +521,13 @@ export default function ReportManager() {
 
       // Save all measurements to backend
       for (const medicion of allMediciones) {
+        console.log('📤 Enviando medición:', medicion)
         const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
           body: JSON.stringify(medicion),
         })
         
@@ -550,22 +553,23 @@ export default function ReportManager() {
     addDebugLog("info", "Generando reporte")
 
     // Recoge la información seleccionada
-    const mediciones = parameters
-      .filter(param => parameterValues[param.id]?.checked)
-      .map(param => ({
-        variable_id: param.id,
-        nombre: param.nombre,
-        unidad: param.unidad,
-        valores: parameterValues[param.id]?.valores || {},
-        fecha: globalFecha,
-        comentarios: globalComentarios,
-      }));
+    // Usar los datos guardados en medicionesPreview en lugar de los valores del formulario
+    const mediciones = medicionesPreview.map(medicion => ({
+      variable_id: medicion.variable_id,
+      nombre: parameters.find(p => p.id === medicion.variable_id)?.nombre || '',
+      unidad: parameters.find(p => p.id === medicion.variable_id)?.unidad || '',
+      valores: { [medicion.sistema]: medicion.valor },
+      fecha: medicion.fecha,
+      comentarios: medicion.comentarios || '',
+    }));
 
     const reportSelection = {
       user: selectedUser ? { id: selectedUser.id, username: selectedUser.username, email: selectedUser.email, puesto: selectedUser.puesto } : null,
       plant: selectedPlant ? { id: selectedPlant.id, nombre: selectedPlant.nombre } : null,
       systemName: selectedSystemData?.nombre,
-      parameters: parameters.filter(param => parameterValues[param.id]?.checked).map(param => ({
+      parameters: parameters.filter(param => 
+        medicionesPreview.some(med => med.variable_id === param.id)
+      ).map(param => ({
         id: param.id,
         nombre: param.nombre,
         unidad: param.unidad,
@@ -779,31 +783,36 @@ export default function ReportManager() {
             </CardContent>
           </Card>
 
-          {/* System Tabs */}
+          {/* System Selection */}
           {selectedPlantData && systems.length > 0 && (
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle>Sistemas de {selectedPlantData.nombre}</CardTitle>
               </CardHeader>
               <CardContent>
-                <Tabs value={selectedSystem} onValueChange={setSelectedSystem}>
-                  <TabsList className="grid w-full grid-cols-1 md:grid-cols-3">
+                <div className="mt-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {systems.map((system) => (
-                      <TabsTrigger key={system.id} value={system.id}>
+                      <button
+                        key={system.id}
+                        onClick={() => setSelectedSystem(system.id)}
+                        className={`px-4 py-2 text-sm font-medium rounded border ${
+                          selectedSystem === system.id
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
+                      >
                         {system.nombre}
-                      </TabsTrigger>
+                      </button>
                     ))}
-                  </TabsList>
-
-                  {systems.map((system) => (
-                    <TabsContent key={system.id} value={system.id}>
-                      <div className="mt-4">
-                        <h3 className="text-lg font-semibold mb-2">{system.nombre}</h3>
-                        <p className="text-gray-600 mb-4">{system.descripcion}</p>
-                      </div>
-                    </TabsContent>
-                  ))}
-                </Tabs>
+                  </div>
+                </div>
+                {selectedSystemData && (
+                  <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <h3 className="text-lg font-semibold mb-2">{selectedSystemData.nombre}</h3>
+                    <p className="text-gray-600">{selectedSystemData.descripcion}</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -884,16 +893,28 @@ export default function ReportManager() {
                   {/* Fin formulario mediciones */}
 
                   {/* Previsualización por parámetro */}
-                  {parameters.filter(p => parameterValues[p.id]?.checked).map(parameter => {
-                    // Obtener la última entrada para este parámetro
-                    const entries = medicionesPreview.filter(m => m.variable_id === parameter.id);
-                    if (entries.length === 0) return null;
-                    const latest = entries[entries.length - 1];
-                    const { fecha, valores } = latest;
-                    // Cabeceras dinámicas según valores ingresados
-                    const sistemasTabla = Object.keys(valores).length > 0
-                      ? Object.keys(valores)
-                      : sistemasPorParametro[parameter.id] || ["S01"];
+                  {parameters.filter(p => 
+                    medicionesPreview.some(m => m.variable_id === p.id)
+                  ).map(parameter => {
+                    // Agrupar mediciones por fecha para este parámetro
+                    const medicionesParam = medicionesPreview.filter(m => m.variable_id === parameter.id);
+                    if (medicionesParam.length === 0) return null;
+                    
+                    // Agrupar por fecha y sistema
+                    const groupedByFecha: Record<string, Record<string, number>> = {};
+                    medicionesParam.forEach(med => {
+                      if (!groupedByFecha[med.fecha]) {
+                        groupedByFecha[med.fecha] = {};
+                      }
+                      groupedByFecha[med.fecha][med.sistema] = med.valor;
+                    });
+                    
+                    // Obtener todas las fechas únicas
+                    const fechas = Object.keys(groupedByFecha);
+                    
+                    // Obtener todos los sistemas únicos para este parámetro
+                    const sistemasUnicos = [...new Set(medicionesParam.map(m => m.sistema))];
+                    
                     return (
                       <div key={parameter.id} className="mt-6 overflow-x-auto">
                         <h3 className="text-lg font-semibold mb-2">{parameter.nombre}</h3>
@@ -901,20 +922,22 @@ export default function ReportManager() {
                           <thead>
                             <tr className="bg-gray-100">
                               <th className="border px-2 py-1">Fecha</th>
-                              {sistemasTabla.map(s => (
+                              {sistemasUnicos.map(s => (
                                 <th key={s} className="border px-2 py-1 text-center">{s}</th>
                               ))}
                             </tr>
                           </thead>
                           <tbody>
-                            <tr>
-                              <td className="border px-2 py-1 font-semibold">{fecha}</td>
-                              {sistemasTabla.map(s => (
-                                <td key={s} className="border px-2 py-1 text-center">
-                                  {valores[s] ?? ""}
-                                </td>
-                              ))}
-                            </tr>
+                            {fechas.map(fecha => (
+                              <tr key={fecha}>
+                                <td className="border px-2 py-1 font-semibold">{fecha}</td>
+                                {sistemasUnicos.map(sistema => (
+                                  <td key={sistema} className="border px-2 py-1 text-center">
+                                    {groupedByFecha[fecha][sistema] ?? ""}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
                           </tbody>
                         </table>
                       </div>
