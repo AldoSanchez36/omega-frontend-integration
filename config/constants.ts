@@ -43,6 +43,7 @@ export const API_ENDPOINTS = {
   VARIABLE_CREATE: '/api/variables/crear',
   VARIABLE_UPDATE: (id: string) => `/api/variables/${id}`,
   VARIABLE_DELETE: (id: string) => `/api/variables/${id}`,
+  VARIABLE_DELETE_BY_PROCESS: (variableId: string, processId: string) => `/api/variables/${variableId}/proceso/${processId}`,
   
   // Formulas
   FORMULAS_CREATE: '/api/formulas/crear',

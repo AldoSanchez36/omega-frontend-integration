@@ -315,7 +315,7 @@ export default function ParameterManager() {
       if (!token) { return; }
     
       try {
-        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE(idToDelete)}`, {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_DELETE_BY_PROCESS(idToDelete, selectedSystemId )}`, {
           method: "DELETE",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -323,14 +323,22 @@ export default function ParameterManager() {
         });
     
         if (!res.ok) {
-          const errorData = await res.json();
-          throw new Error(errorData.message || "Error al eliminar parámetro.");
+          if (res.status === 400) {
+            const errorData = await res.json();
+            // Display the error message to the user
+            alert(errorData.msg || "No se puede eliminar la variable porque tiene mediciones asociadas");
+          } else {
+            // Handle other error statuses
+            alert("Error al eliminar la variable");
+          }
+          return;
         }
     
         // Eliminación exitosa, actualiza el estado local
         setParameters((prev) => prev.filter((p) => p.id !== idToDelete));
-      } catch (e: any) {
-        alert(`Error al eliminar parámetro: ${e.message}`);
+      } catch (error) {
+        console.error("Error en la solicitud:", error);
+        alert("Error de conexión");
       }
   }
 
@@ -710,7 +718,7 @@ export default function ParameterManager() {
                           </SelectTrigger>
                           <SelectContent className="bg-[#f6f6f6] text-gray-900">
                             {allVariables
-                              .filter(v => v.proceso_id !== selectedSystemId && !parameters.some(p => p.nombre === v.nombre && p.proceso_id === selectedSystemId))
+                              .filter(v => v.proceso_id !== selectedSystemId && !parameters.some(p => p.nombre === v.nombre && p.proceso_id === selectedSystemId) && v.proceso_id !== null)
                               .map((variable) => (
                                 <SelectItem key={variable.id} value={variable.id}>
                                   {variable.nombre} ({variable.unidad})

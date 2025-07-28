@@ -193,13 +193,6 @@ export default function VariablesPage() {
     }
   }
 
-  // Abrir modal para crear nueva variable
-  const handleCreateVariable = () => {
-    setModalMode('create')
-    setEditingVariable(null)
-    setFormData({ nombre: '', unidad: '' })
-    setShowModal(true)
-  }
 
   // Abrir modal para editar variable
   const handleEditVariable = (variable: Variable) => {
@@ -328,7 +321,6 @@ export default function VariablesPage() {
             <h1 className="text-2xl font-bold">Parámetros</h1>
             <div className="flex items-center gap-2">
               <DropdownProceso value={selectedProceso} onChange={setSelectedProceso} token={token} />
-              <Button onClick={handleCreateVariable} className="ml-2">+ Agregar</Button>
             </div>
           </div>
 

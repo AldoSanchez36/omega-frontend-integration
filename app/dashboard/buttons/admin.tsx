@@ -40,8 +40,8 @@ const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport, handleNewS
                   <div className="action-icon bg-success">
                     <i className="material-icons">factory</i>
                   </div>
-                  <h6 className="action-title">Nueva Planta o editar Sistema</h6>
-                  <p className="action-description">Agregar plantas o sistemas</p>
+                  <h6 className="action-title"> Planta y Sistema</h6>
+                  <p className="action-description">Agregar plantas y sistemas</p>
                 </div>
               </div>
             </div>
@@ -53,8 +53,8 @@ const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport, handleNewS
                   <div className="action-icon bg-info">
                     <i className="material-icons">science</i>
                   </div>
-                  <h6 className="action-title">Agregar Variable</h6>
-                  <p className="action-description">Crear nuevas variables</p>
+                  <h6 className="action-title">Variables</h6>
+                  <p className="action-description">Editar variables</p>
                 </div>
               </div>
             </div>
