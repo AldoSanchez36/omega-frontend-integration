@@ -690,187 +690,234 @@ export default function UsersManagement() {
         )}
         {/* Modal de permisos */}
         {showPermissionModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="fixed inset-0 bg-gray-500/75 transition-opacity" aria-hidden="true" onClick={closePermissionModal}></div>
-            <div className="relative z-10 w-full max-w-4xl mx-auto">
-              <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-                <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-4xl">
-                  <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                    <div className="sm:flex sm:items-start">
-                      <div className="mx-auto flex size-12 shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:size-10">
-                        <span className="material-icons text-red-600 text-3xl">lock</span>
-                      </div>
-                      <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                        <h3 className="text-base font-semibold text-gray-900" id="dialog-title">
-                          Gestionar permisos - {selectedUserForPermissions?.username}
-                        </h3>
-                        
-                        {/* Información del usuario */}
-                        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                          <div className="flex items-center gap-4">
-                            <div>
-                              <span className="text-sm text-gray-600">Usuario:</span>
-                              <div className="font-semibold">{selectedUserForPermissions?.username}</div>
-                            </div>
-                            <div>
-                              <span className="text-sm text-gray-600">Rol:</span>
-                              <div>{getRoleBadge(selectedUserForPermissions?.puesto || 'user')}</div>
-                            </div>
-                            <div>
-                              <span className="text-sm text-gray-600">Email:</span>
-                              <div className="text-sm">{selectedUserForPermissions?.email}</div>
-                            </div>
-                          </div>
-                        </div>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Overlay de fondo */}
+            <div 
+              className="fixed inset-0 bg-gray-500/75 transition-opacity" 
+              aria-hidden="true" 
+              onClick={closePermissionModal}
+            />
+            
+            {/* Contenedor del modal centrado con ancho máximo */}
+            <div className="relative w-full max-w-[1000px] max-h-[90vh] bg-white rounded-lg shadow-xl overflow-hidden flex flex-col">
+              {/* Header del modal */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-100">
+                    <span className="material-icons text-red-600 text-xl">lock</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Gestionar permisos - {selectedUserForPermissions?.username}
+                    </h3>
+                    <p className="text-sm text-gray-600">Configurar acceso a plantas y sistemas</p>
+                  </div>
+                </div>
+                <button
+                  onClick={closePermissionModal}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                  aria-label="Cerrar modal"
+                >
+                  <span className="material-icons text-xl">close</span>
+                </button>
+              </div>
 
-                        {/* Mensaje informativo para admin */}
-                        {isAdmin && (
-                          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                            <div className="flex items-center gap-2">
-                              <span className="material-icons text-blue-600 text-sm">info</span>
-                              <span className="text-sm text-blue-800">
-                                Como administrador, puedes asignar permisos a cualquier planta del sistema para este usuario.
-                              </span>
-                            </div>
-                          </div>
-                        )}
+              {/* Contenido scrolleable del modal */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+                {/* Información del usuario */}
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Usuario</span>
+                      <div className="font-semibold text-gray-900 mt-1">{selectedUserForPermissions?.username}</div>
+                    </div>
+                    <div>
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Rol</span>
+                      <div className="mt-1">{getRoleBadge(selectedUserForPermissions?.puesto || 'user')}</div>
+                    </div>
+                    <div>
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</span>
+                      <div className="text-sm text-gray-700 mt-1 break-all">{selectedUserForPermissions?.email}</div>
+                    </div>
+                  </div>
+                </div>
 
-                        <div className="mt-4">
-                          {/* Dropdown de plantas */}
-                          <label className="block text-sm font-medium mb-2">Planta</label>
-                          {plantasModal.length > 0 ? (
-                            <select
-                              className="w-full border rounded px-3 py-2 mb-4"
-                              value={plantaSeleccionadaModal}
-                              onChange={e => setPlantaSeleccionadaModal(e.target.value)}
-                            >
-                              {plantasModal.map((planta: any) => (
-                                <option key={planta.id ?? planta._id} value={planta.id ?? planta._id}>{planta.nombre}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <div className="w-full border rounded px-3 py-2 mb-4 bg-gray-50 text-gray-500">
-                              {isAdmin ? "No hay plantas disponibles en el sistema" : "Este usuario no tiene acceso a ninguna planta"}
-                            </div>
-                          )}
-                          {/* Tabs de sistemas */}
-                          {plantasModal.length > 0 && (
-                            <>
-                              {sistemasModal.length > 0 ? (
-                                <div className="mb-4">
-                                  <label className="block text-sm font-medium mb-2">Sistema</label>
-                                  <select
-                                    className="w-full border rounded px-3 py-2 mb-4"
-                                    value={sistemaSeleccionadoModal}
-                                    onChange={e => setSistemaSeleccionadoModal(e.target.value)}
-                                  >
-                                    {sistemasModal.map((sistema: any) => (
-                                      <option key={sistema.id} value={sistema.id}>
-                                        {sistema.nombre}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  
-                                  {/* Mostrar información del sistema seleccionado */}
-                                  {sistemasModal.map((sistema: any) => (
-                                    sistema.id === sistemaSeleccionadoModal && (
-                                      <div key={sistema.id} className="mt-4 p-4 bg-gray-50 rounded-lg">
-                                        <h4 className="text-lg font-semibold mb-2 text-gray-800">{sistema.nombre}</h4>
-                                        {sistema.descripcion && (
-                                          <p className="text-gray-600 mb-4">{sistema.descripcion}</p>
-                                        )}
-                                        
-                                        {/* Permisos: Ver, Editar */}
-                                        <div className="space-y-3">
-                                          <h5 className="font-semibold text-gray-700 mb-3">Permisos para esta planta:</h5>
-                                          
-                                          <div className="flex items-center gap-3">
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                              <input 
-                                                type="checkbox" 
-                                                checked={permisoVer} 
-                                                onChange={e => setPermisoVer(e.target.checked)}
-                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                              />
-                                              <span className="text-sm font-medium text-gray-700">Permiso para Ver</span>
-                                            </label>
-                                          </div>
-                                          
-                                          <div className="flex items-center gap-3">
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                              <input 
-                                                type="checkbox" 
-                                                checked={permisoEditar} 
-                                                onChange={e => setPermisoEditar(e.target.checked)}
-                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                              />
-                                              <span className="text-sm font-medium text-gray-700">Permiso para Editar</span>
-                                            </label>
-                                          </div>
-                                        </div>
-                                        
-                                        {/* Mensajes de error y éxito */}
-                                        {permisosError && (
-                                          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                                            <div className="flex items-center gap-2">
-                                              <span className="material-icons text-red-600 text-sm">error</span>
-                                              <span className="text-sm text-red-800">{permisosError}</span>
-                                            </div>
-                                          </div>
-                                        )}
-                                        
-                                        {permisosSuccess && (
-                                          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                                            <div className="flex items-center gap-2">
-                                              <span className="material-icons text-green-600 text-sm">check_circle</span>
-                                              <span className="text-sm text-green-800">{permisosSuccess}</span>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="mb-4">
-                                  <label className="block text-sm font-medium mb-2">Sistema</label>
-                                  <div className="w-full border rounded px-3 py-2 mb-4 bg-gray-50 text-gray-500">
-                                    No hay sistemas disponibles en esta planta
-                                  </div>
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </div>
+                {/* Mensaje informativo para admin */}
+                {isAdmin && (
+                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <span className="material-icons text-blue-600 text-lg mt-0.5">info</span>
+                      <div>
+                        <h4 className="font-medium text-blue-900 mb-1">Permisos de Administrador</h4>
+                        <p className="text-sm text-blue-800">
+                          Como administrador, puedes asignar permisos a cualquier planta del sistema para este usuario.
+                        </p>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-gray-50 px-4 py-3 flex justify-end gap-2 sm:px-2">
-                    <button type="button" className="inline-flex w-32 items-center justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-red-500 sm:ml-3 sm:w-auto" onClick={closePermissionModal}>Cerrar</button>
-                    <button 
-                      className={`ml-4 px-4 py-2 rounded transition ${
-                        plantasModal.length > 0 && !permisosLoading
-                          ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                          : 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                      }`} 
-                      onClick={handleGuardarPermisos}
-                      disabled={plantasModal.length === 0 || permisosLoading}
-                    >
-                      {permisosLoading ? (
-                        <div className="flex items-center gap-2">
-                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-white"></div>
-                          Guardando...
-                        </div>
-                      ) : (
-                        "Guardar"
-                      )}
-                    </button>
+                )}
+
+                {/* Sección de configuración de permisos */}
+                <div className="space-y-6">
+                  {/* Dropdown de plantas */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Planta
+                    </label>
+                    {plantasModal.length > 0 ? (
+                      <select
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                        value={plantaSeleccionadaModal}
+                        onChange={e => setPlantaSeleccionadaModal(e.target.value)}
+                      >
+                        {plantasModal.map((planta: any) => (
+                          <option key={planta.id ?? planta._id} value={planta.id ?? planta._id}>
+                            {planta.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 text-sm">
+                        {isAdmin ? "No hay plantas disponibles en el sistema" : "Este usuario no tiene acceso a ninguna planta"}
+                      </div>
+                    )}
                   </div>
+
+                  {/* Dropdown de sistemas */}
+                  {plantasModal.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Sistema
+                      </label>
+                      {sistemasModal.length > 0 ? (
+                        <select
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                          value={sistemaSeleccionadoModal}
+                          onChange={e => setSistemaSeleccionadoModal(e.target.value)}
+                        >
+                          {sistemasModal.map((sistema: any) => (
+                            <option key={sistema.id} value={sistema.id}>
+                              {sistema.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 text-sm">
+                          No hay sistemas disponibles en esta planta
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Información del sistema seleccionado y permisos */}
+                  {plantasModal.length > 0 && sistemasModal.length > 0 && (
+                    sistemasModal.map((sistema: any) => (
+                      sistema.id === sistemaSeleccionadoModal && (
+                        <div key={sistema.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="mb-4">
+                            <h4 className="text-lg font-semibold text-gray-900 mb-1">{sistema.nombre}</h4>
+                            {sistema.descripcion && (
+                              <p className="text-sm text-gray-600">{sistema.descripcion}</p>
+                            )}
+                          </div>
+                          
+                          {/* Permisos */}
+                          <div className="space-y-4">
+                            <h5 className="font-medium text-gray-900 border-b border-gray-200 pb-2">
+                              Permisos para esta planta
+                            </h5>
+                            
+                            <div className="space-y-3">
+                              <label className="flex items-center gap-3 p-3 bg-white rounded-md border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                                <input 
+                                  type="checkbox" 
+                                  checked={permisoVer} 
+                                  onChange={e => setPermisoVer(e.target.checked)}
+                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                                <div>
+                                  <span className="text-sm font-medium text-gray-700">Permiso para Ver</span>
+                                  <p className="text-xs text-gray-500 mt-1">Permite visualizar datos y reportes de esta planta</p>
+                                </div>
+                              </label>
+                              
+                              <label className="flex items-center gap-3 p-3 bg-white rounded-md border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                                <input 
+                                  type="checkbox" 
+                                  checked={permisoEditar} 
+                                  onChange={e => setPermisoEditar(e.target.checked)}
+                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                                <div>
+                                  <span className="text-sm font-medium text-gray-700">Permiso para Editar</span>
+                                  <p className="text-xs text-gray-500 mt-1">Permite modificar configuraciones y datos de esta planta</p>
+                                </div>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    ))
+                  )}
+
+                  {/* Mensajes de error y éxito */}
+                  {permisosError && (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <span className="material-icons text-red-600 text-lg">error</span>
+                        <div>
+                          <h4 className="font-medium text-red-900 mb-1">Error</h4>
+                          <p className="text-sm text-red-800">{permisosError}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {permisosSuccess && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <span className="material-icons text-green-600 text-lg">check_circle</span>
+                        <div>
+                          <h4 className="font-medium text-green-900 mb-1">Éxito</h4>
+                          <p className="text-sm text-green-800">{permisosSuccess}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
+              </div>
+
+              {/* Footer del modal con botones */}
+              <div className="flex flex-col sm:flex-row justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+                <button 
+                  type="button" 
+                  className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors" 
+                  onClick={closePermissionModal}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className={`w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                    plantasModal.length > 0 && !permisosLoading
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500' 
+                      : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                  }`} 
+                  onClick={handleGuardarPermisos}
+                  disabled={plantasModal.length === 0 || permisosLoading}
+                >
+                  {permisosLoading ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      Guardando...
+                    </div>
+                  ) : (
+                    "Guardar Permisos"
+                  )}
+                </button>
               </div>
             </div>
           </div>
-        )}
+        )} 
       </div>
     </ProtectedRoute>
   )
