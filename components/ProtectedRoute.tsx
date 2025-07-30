@@ -21,27 +21,35 @@ export default function ProtectedRoute({ children, adminOnly = false, redirectTo
     // Solo verificar autenticación después de la hidratación
     if (!isHydrated) return
 
+    // Si está cargando, esperar
     if (isLoading) return
 
-    if (!isAuthenticated) {
+    // Si no está autenticado, redirigir
+    if (isAuthenticated === false) {
       router.push(redirectTo)
       return
     }
 
+    // Si está autenticado pero es null (aún no se ha verificado), esperar
+    if (isAuthenticated === null) return
+
+    // Verificar permisos de admin si es necesario
     if (adminOnly && user?.puesto !== "admin") {
       router.push("/dashboard")
       return
     }
 
+    // Todo está bien, renderizar
     setShouldRender(true)
   }, [isAuthenticated, user, isLoading, isHydrated, adminOnly, router, redirectTo])
 
   // Mostrar loading mientras se hidrata o se verifica autenticación
   if (!isHydrated || isLoading || !shouldRender) {
     return (
-      <div className="d-flex justify-content-center align-items-center vh-100">
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Cargando...</span>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500 mx-auto mb-3"></div>
+          <h5 className="text-gray-700 text-lg">Verificando autenticación...</h5>
         </div>
       </div>
     )

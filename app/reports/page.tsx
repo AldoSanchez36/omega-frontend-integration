@@ -8,7 +8,9 @@ import Image from "next/image"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import Navbar from "@/components/Navbar"
-import html2canvas from "html2canvas";
+import html2canvas from "html2canvas"
+import { SensorTimeSeriesChart } from "@/components/SensorTimeSeriesChart"
+import { API_BASE_URL } from "@/config/constants"
 
 
 interface SystemData {
@@ -104,7 +106,10 @@ export default function Reporte() {
   const [imagesLoaded, setImagesLoaded] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
-  const [reportSelection, setReportSelection] = useState<ReportSelection | null>(null);
+  const [reportSelection, setReportSelection] = useState<ReportSelection | null>(null)
+  
+  // Estado para gráficos
+  const [selectedVariableForChart, setSelectedVariableForChart] = useState<string>("")
 
   const [rangeLimits] = useState<RangeLimits>({
     pH: {
@@ -249,6 +254,7 @@ export default function Reporte() {
           const value = systemParam ? systemParam.limite_min?.toString() || systemParam.limite_max?.toString() || "N/A" : "—";
           row.push(value);
         });
+        
         return row;
       });
       autoTable(doc, {
@@ -442,6 +448,12 @@ export default function Reporte() {
   
   const parametrosAgrupados = agruparMedicionesPorParametro();
 
+  // Obtener variables disponibles para gráficos
+  const variablesDisponibles = parametrosAgrupados.map(param => ({
+    id: param.variable_id,
+    nombre: param.nombre
+  }));
+
   return (
     <ProtectedRoute>
       <div className="min-vh-100 bg-light">
@@ -466,8 +478,6 @@ export default function Reporte() {
             )}
           </div>
         </div>
-
-        
 
         {/* Report Content */}
         <div id="reporte-pdf" className="container py-4">
@@ -627,11 +637,48 @@ export default function Reporte() {
                 </div>
               </div>
 
-              {reportSelection?.fecha && (
-                <div className="mb-2 ml-10 mr-10">
-                  <strong>Fecha de muestra global:</strong> {reportSelection.fecha}
+              {/* Gráficos de Series Temporales */}
+              {variablesDisponibles.length > 0 && (
+                <div className="mb-4 ml-10 mr-10">
+                  <h5>Gráficos de Series Temporales</h5>
+                  
+                  {/* Selector de variable */}
+                  <div className="mb-4">
+                    <label htmlFor="variable-select" className="form-label">
+                      Selecciona una variable para visualizar su gráfico:
+                    </label>
+                    <select
+                      id="variable-select"
+                      className="form-select"
+                      value={selectedVariableForChart}
+                      onChange={(e) => setSelectedVariableForChart(e.target.value)}
+                    >
+                      <option value="">Selecciona una variable...</option>
+                      {variablesDisponibles.map((variable) => (
+                        <option key={variable.id} value={variable.id}>
+                          {variable.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Gráfico */}
+                  {selectedVariableForChart && (
+                    <div className="card">
+                      <div className="card-body">
+                        <SensorTimeSeriesChart
+                          variable={variablesDisponibles.find(v => v.id === selectedVariableForChart)?.nombre || ""}
+                          startDate={reportSelection?.fecha || new Date().toISOString().split('T')[0]}
+                          endDate={new Date().toISOString().split('T')[0]}
+                          apiBase={API_BASE_URL}
+                          unidades=""
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
+
               {reportSelection?.comentarios && (
                 <div className="mb-2 ml-10 mr-10">
                   <strong>Comentarios globales:</strong> {reportSelection.comentarios}
@@ -718,11 +765,11 @@ export default function Reporte() {
                 <i className="material-icons me-2">arrow_back</i>
                 Volver
               </Link>
-              <button className="btn btn-warning" onClick={enableEditing}>
-                <i className="material-icons me-2">edit</i>
-                Editar
-              </button>
-              <button
+                {/* <button className="btn btn-warning" onClick={enableEditing}>
+                  <i className="material-icons me-2">edit</i>
+                  Editar
+                </button> */}
+              {/* <button
                 className="btn btn-info me-2"
                 onClick={() => {
                   try {
@@ -738,7 +785,7 @@ export default function Reporte() {
               >
                 <i className="material-icons me-2">bug_report</i>
                 Prueba PDF
-              </button>
+              </button> */}
               <button onClick={handleDownloadPDF}>Descargar PDF</button>
             </div>
           </div>
