@@ -25,6 +25,7 @@ export const API_ENDPOINTS = {
   // Plants
   PLANTS_CREATE: '/api/plantas/crear',
   PLANTS_ACCESSIBLE: '/api/plantas/accesibles',
+  PLANTS_ALL: '/api/plantas/all', 
   PLANTS_ALL_ID: '/api/plantas/allID',
   PLANTS_BY_USER: (userId: string) => `/api/plantas/mis-plantas/${userId}`,
   PLANTS_ACCESS_BY_USER: (userId: string) => `/api/accesos/plantas/usuario/${userId}`,
@@ -34,8 +35,10 @@ export const API_ENDPOINTS = {
   
   // Systems/Processes
   SYSTEMS_BY_PLANT: (plantId: string) => `/api/procesos/planta/${plantId}`,
+  SYSTEMS_BY_PLANT_NAME: (plantName: string) => `/api/procesos/planta-nombre/${encodeURIComponent(plantName)}`, 
   SYSTEMS_ALL: '/api/procesos',
   SYSTEM_CREATE: '/api/procesos/crear',
+  SYSTEM_UPDATE: (processId: string) => `/api/procesos/${processId}`, 
   
   // Variables/Parameters
   VARIABLES_BY_SYSTEM: (systemId: string) => `/api/variables/proceso/${systemId}`,
@@ -68,7 +71,8 @@ export const API_ENDPOINTS = {
   MEASUREMENT_BY_ID: (id: string) => `/api/mediciones/${id}`,
   MEASUREMENT_UPDATE: (id: string) => `/api/mediciones/${id}`,
   MEASUREMENT_DELETE: (id: string) => `/api/mediciones/${id}`,
-  MEASUREMENTS_BY_VARIABLEID: (variable: string) => `/api/mediciones/variable-id/${encodeURIComponent(variable)}`,//nombre
+  MEASUREMENTS_BY_VARIABLEID: (variable: string) => `/api/mediciones/variable-id/${encodeURIComponent(variable)}`,
+  MEASUREMENTS_BY_VARIABLE_NAME: (variableName: string) => `/api/mediciones/variable/${encodeURIComponent(variableName)}`, 
   MEASUREMENTS_BY_SYSTEM: (sistema: string) => `/api/mediciones/sistema/${encodeURIComponent(sistema)}`,
   MEASUREMENTS_BY_PROCESS: (processName: string) => `/api/mediciones/proceso/${encodeURIComponent(processName)}`,
   MEASUREMENTS_BY_CLIENT: (clientName: string) => `/api/mediciones/cliente/${encodeURIComponent(clientName)}`,
