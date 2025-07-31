@@ -390,21 +390,52 @@ export default function Dashboard() {
       for (const plant of plants) {
         if (!plant.systems) continue;
         for (const system of plant.systems) {
-          for (const param of system.parameters) {
-            const res = await fetch(
-              `${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE(param.name)}`,
+          // Primero verificar si hay datos en el proceso
+          try {
+            const processRes = await fetch(
+              `${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_PROCESS(system.name)}`,
               { headers: token ? { Authorization: `Bearer ${token}` } : {} }
             );
-            const result = await res.json();
-            const json: any[] = result.mediciones || [];
-            const filtered = json.filter(m => {
+            
+            if (!processRes.ok) {
+              console.error(`Error verificando datos del proceso ${system.name}:`, processRes.status);
+              continue;
+            }
+            
+            const processResult = await processRes.json();
+            const processData = processResult.mediciones || [];
+            
+            // Filtrar datos del proceso por fecha
+            const filteredProcessData = processData.filter((m: any) => {
               const d = new Date(m.fecha);
               return d >= new Date(startDate) && d <= new Date(endDate);
             });
-            allData[param.id] = filtered.map(m => ({
-              timestamp: m.fecha,
-              value: Number(m.valor)
-            }));
+            
+            // Si no hay datos en el proceso, saltar a la siguiente variable
+            if (filteredProcessData.length === 0) {
+              console.log(`No hay datos en el proceso ${system.name} para el rango de fechas`);
+              continue;
+            }
+            
+            // Ahora obtener datos por variable
+            for (const param of system.parameters) {
+              const res = await fetch(
+                `${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_NAME(param.name)}`,
+                { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+              );
+              const result = await res.json();
+              const json: any[] = result.mediciones || [];
+              const filtered = json.filter(m => {
+                const d = new Date(m.fecha);
+                return d >= new Date(startDate) && d <= new Date(endDate);
+              });
+              allData[param.id] = filtered.map(m => ({
+                timestamp: m.fecha,
+                value: Number(m.valor)
+              }));
+            }
+          } catch (error) {
+            console.error(`Error procesando sistema ${system.name}:`, error);
           }
         }
       }

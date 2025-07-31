@@ -178,6 +178,7 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                   apiBase={API_BASE_URL}
                                   unidades={param.unit}
                                   hideXAxisLabels={true}
+                                  processName={system.name}
                                 />
                               </div>
                             );

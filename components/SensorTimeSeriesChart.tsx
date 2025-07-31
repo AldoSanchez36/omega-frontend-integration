@@ -42,10 +42,11 @@ interface Props {
   apiBase: string              // "http://localhost:4000"
   unidades: string             // p.ej. "ppm", "mg/L", etc.
   hideXAxisLabels?: boolean
+  processName?: string         // Nombre del proceso para verificar datos primero
 }
 
 export function SensorTimeSeriesChart({
-  variable, startDate, endDate, apiBase, unidades, hideXAxisLabels
+  variable, startDate, endDate, apiBase, unidades, hideXAxisLabels, processName
 }: Props) {
   // Paleta de 10 colores aleatorios
   const colorPalette: string[] = useMemo(() =>
@@ -58,6 +59,7 @@ export function SensorTimeSeriesChart({
   const [sensors, setSensors] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null);
+  const [hasProcessData, setHasProcessData] = useState<boolean | null>(null);
   const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
   const encodedVar = encodeURIComponent(variable)
 
@@ -65,7 +67,42 @@ export function SensorTimeSeriesChart({
     async function load() {
       setLoading(true)
       setError(null)
+      
       try {
+        // Si tenemos processName, primero verificar si hay datos en el proceso
+        if (processName) {
+          const processRes = await fetch(
+            `${apiBase}/api/mediciones/proceso/${encodeURIComponent(processName)}`,
+            { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+          )
+          
+          if (!processRes.ok) {
+            const err = await processRes.json();
+            console.error("SensorTimeSeriesChart process check error:", err);
+            setError(err.message || "Error verificando datos del proceso");
+            setLoading(false);
+            return;
+          }
+          
+          const processResult = await processRes.json();
+          const processData = processResult.mediciones || [];
+          
+          // Filtrar datos del proceso por fecha
+          const filteredProcessData = processData.filter((m: any) => {
+            const d = new Date(m.fecha);
+            return d >= new Date(startDate) && d <= new Date(endDate);
+          });
+          
+          if (filteredProcessData.length === 0) {
+            setHasProcessData(false);
+            setLoading(false);
+            return; // No hay datos en el proceso, no continuar
+          }
+          
+          setHasProcessData(true);
+        }
+
+        // Ahora hacer la llamada a MEASUREMENTS_BY_VARIABLE_NAME
         const res = await fetch(
           `${apiBase}/api/mediciones/variable/${encodedVar}`,
           { headers: token ? { Authorization: `Bearer ${token}` } : {} }
@@ -119,10 +156,11 @@ export function SensorTimeSeriesChart({
       }
     }
     load()
-  }, [variable, startDate, endDate, apiBase, token])
+  }, [variable, startDate, endDate, apiBase, token, processName])
 
   if (error) return <div className="text-red-600">Error: {error}</div>;
   if (loading) return <div>Cargando…</div>
+  if (hasProcessData === false) return <div>No hay datos en el proceso para este rango de fechas.</div>;
   if (data.length === 0) return <div>No hay datos en ese rango.</div>
 
   // Config dinámico de líneas
