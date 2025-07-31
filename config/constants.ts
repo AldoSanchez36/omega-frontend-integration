@@ -76,6 +76,14 @@ export const API_ENDPOINTS = {
   MEASUREMENTS_BY_SYSTEM: (sistema: string) => `/api/mediciones/sistema/${encodeURIComponent(sistema)}`,
   MEASUREMENTS_BY_PROCESS: (processName: string) => `/api/mediciones/proceso/${encodeURIComponent(processName)}`,
   MEASUREMENTS_BY_CLIENT: (clientName: string) => `/api/mediciones/cliente/${encodeURIComponent(clientName)}`,
+  MEASUREMENTS_BY_VARIABLE_AND_BY_SISTEM: (variableId: string, sistem_name: string) => `/api/variables/${variableId}/sistema/${sistem_name}`,
+  MEASUREMENTS_BY_VARIABLE_AND_BY_PROCESS: (variableId: string, process_name: string) => `/api/variables/${variableId}/proceso/${process_name}`,
+  MEASUREMENTS_BY_VARIABLE_AND_BY_NAME: (variableId: string, client: string) => `/api/variables/${variableId}/proceso/${client}`,
+  
+  // Nuevos endpoints correctos según la documentación
+  MEASUREMENTS_BY_VARIABLE_AND_SYSTEM: (variableName: string, systemName: string) => `/api/mediciones/variable/${encodeURIComponent(variableName)}/sistema/${encodeURIComponent(systemName)}`,
+  MEASUREMENTS_BY_VARIABLE_AND_PROCESS: (variableName: string, processName: string) => `/api/mediciones/variable/${encodeURIComponent(variableName)}/proceso/${encodeURIComponent(processName)}`,
+  MEASUREMENTS_BY_VARIABLE_AND_CLIENT: (variableName: string, clientName: string) => `/api/mediciones/variable/${encodeURIComponent(variableName)}/cliente/${encodeURIComponent(clientName)}`,
   
   // Reports
   REPORTS: '/api/reportes',
