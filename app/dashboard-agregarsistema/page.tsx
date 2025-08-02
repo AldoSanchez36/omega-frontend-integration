@@ -76,6 +76,11 @@ export default function ParameterManager() {
   const [showCreateSystem, setShowCreateSystem] = useState(false)
   const [newSystemName, setNewSystemName] = useState("")
   const [newSystemDescription, setNewSystemDescription] = useState("")
+  
+  // States for system editing
+  const [editingSystem, setEditingSystem] = useState<System | null>(null)
+  const [editSystemName, setEditSystemName] = useState("")
+  const [showEditSystemDialog, setShowEditSystemDialog] = useState(false)
   const [newParameterName, setNewParameterName] = useState("")
   const [newParameterUnit, setNewParameterUnit] = useState("")
 
@@ -289,6 +294,64 @@ export default function ParameterManager() {
     fetchParameters()
   }, [fetchParameters])
 
+  // Function to open edit dialog
+  const handleOpenEditSystem = (system: System) => {
+    setEditingSystem(system)
+    setEditSystemName(system.nombre)
+    setShowEditSystemDialog(true)
+  }
+  
+  // Function to update system name
+  const handleUpdateSystem = async () => {
+    if (!editSystemName.trim() || !editingSystem) {
+      alert("Por favor, ingrese un nombre para el sistema.")
+      return
+    }
+    
+    setLoading(true)
+    setError(null)
+    try {
+      // Using the generic systems endpoint with PATCH method
+      const res = await fetch(`${API_BASE_URL}/api/procesos/${editingSystem.id}`, {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json', 
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          nombre: editSystemName,
+          descripcion: editingSystem.descripcion, // Keep the existing description
+          planta_id: editingSystem.planta_id // Keep the existing plant association
+        }),
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "No se pudo actualizar el sistema.")
+      }
+      
+      // Update the systems list with the new name
+      setSystems(systems.map(sys => 
+        sys.id === editingSystem.id 
+          ? { ...sys, nombre: editSystemName } 
+          : sys
+      ))
+      
+      // If this is the selected system, update that too
+      if (selectedSystemId === editingSystem.id) {
+        // Just update the UI, no need to change selection
+      }
+      
+      setShowEditSystemDialog(false)
+      setEditingSystem(null)
+      setEditSystemName("")
+    } catch (e: any) {
+      setError(`Error al actualizar sistema: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+  
   const handleCreateSystem = async () => {
     if (!newSystemName.trim() || !selectedPlant) {
       alert("Por favor, ingrese un nombre para el sistema y seleccione una planta.")
@@ -491,17 +554,31 @@ export default function ParameterManager() {
                         </div>*/}
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                           {systems.map((system) => (
-                            <button
-                              key={system.id}
-                              onClick={() => setSelectedSystemId(system.id)}
-                              className={`px-4 py-2 text-sm font-medium rounded border ${
-                                selectedSystemId === system.id
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                              }`}
-                            >
-                              {system.nombre}
-                            </button>
+                            <div key={system.id} className="flex flex-col h-full">
+                              <button
+                                onClick={() => setSelectedSystemId(system.id)}
+                                className={`flex flex-col h-full justify-between px-4 py-3 text-sm font-medium rounded border ${
+                                  selectedSystemId === system.id
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                                }`}
+                              >
+                                <div className="flex-grow flex items-center justify-center text-center">{system.nombre}</div>
+                                <div className="flex justify-center mt-2 pt-2 border-t border-gray-300 border-opacity-30">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation(); // Prevent triggering the parent button
+                                      handleOpenEditSystem(system);
+                                    }}
+                                    className="px-2 py-1 text-xs font-medium rounded bg-gray-200 text-gray-700 hover:bg-gray-300 flex items-center"
+                                    aria-label={`Editar nombre de ${system.nombre}`}
+                                  >
+                                    <Edit className="h-3 w-3 mr-1" />
+                                    Editar
+                                  </button>
+                                </div>
+                              </button>
+                            </div>
                           ))}
                         </div>
 
@@ -525,6 +602,45 @@ export default function ParameterManager() {
                         </Button>
                       </div>
                     )}
+                    
+                    {/* Edit System Dialog */}
+                    <Dialog open={showEditSystemDialog} onOpenChange={setShowEditSystemDialog}>
+                      <DialogContent className="bg-[#f6f6f6] text-gray-900">
+                        <DialogHeader>
+                          <DialogTitle>Editar Nombre del Sistema</DialogTitle>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="edit-system-name" className="text-right">
+                              Nombre
+                            </Label>
+                            <Input
+                              id="edit-system-name"
+                              value={editSystemName}
+                              onChange={(e) => setEditSystemName(e.target.value)}
+                              className="col-span-3"
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            onClick={() => setShowEditSystemDialog(false)}
+                            disabled={loading}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button 
+                            type="button" 
+                            onClick={handleUpdateSystem}
+                            disabled={loading || !editSystemName.trim()}
+                          >
+                            {loading ? "Guardando..." : "Guardar Cambios"}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
 
@@ -587,7 +703,7 @@ export default function ParameterManager() {
                 )}
                 
                 {/* --- Add New Parameter Form --- */}
-                {selectedSystemId && (
+                {/*{selectedSystemId && (
                   <div className="border-t border-gray-200 pt-6">
                     <h2 className="text-lg font-medium leading-6 text-gray-900">Agregar Nuevo Parámetro</h2>
                     <p className="mt-1 text-sm text-gray-500">Añada un nuevo parámetro al sistema seleccionado.</p>
@@ -618,11 +734,11 @@ export default function ParameterManager() {
                       ⚠️ Recuerde hacer clic en <strong>"Guardar Cambios"</strong> al final del formulario para guardar los parámetros en la base de datos.
                     </p>
                   </div>
-                )}
+                )}*/}
               </div>
               
               {/* --- Action Buttons --- */}
-              {selectedSystemId && (
+              {/*{selectedSystemId && (
                 <div className="mt-8 pt-5 border-t border-gray-200">
                   <div className="flex justify-end space-x-3">
                     <Button type="button" variant="outline" onClick={() => router.back()}>
@@ -633,7 +749,7 @@ export default function ParameterManager() {
                     </Button>
                   </div>
                 </div>
-              )}
+              )}*/}
             </form>
           </div>
         </div>

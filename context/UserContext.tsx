@@ -112,21 +112,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, [])
 
   useEffect(() => {
-    /* console.log("⚠️ UserContext: Inicialización de auth deshabilitada para desarrollo") */
-
-    // Solo configurar idioma
-    const savedLanguage = localStorage.getItem("Organomex_language") || "es"
-    dispatch({ type: "SET_LANGUAGE", payload: savedLanguage })
-    dispatch({ type: "SET_HYDRATED", payload: true })
-
     // Prevenir múltiples inicializaciones
     if (initializationRef.current) {
-      console.log("⚠️ Inicialización ya ejecutada, saltando...")
       return
     }
 
     const initAuth = async () => {
-      // console.log("🚀 Inicializando autenticación (ÚNICA VEZ)...")
       initializationRef.current = true
 
       try {
@@ -145,16 +136,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const user = authService.getCurrentUser()
         const token = authService.getToken()
 
-        // console.log("🔍 Verificando auth existente:", {
-        //   user: user?.username || null,
-        //   hasToken: !!token,
-        // })
-
         if (user && token && mountedRef.current) {
-          console.log("✅ Usuario encontrado, autenticando...")
           dispatch({ type: "LOGIN_SUCCESS", payload: user })
         } else {
-          // console.log("❌ No hay usuario autenticado")
           if (mountedRef.current) {
             dispatch({ type: "SET_LOADING", payload: false })
           }

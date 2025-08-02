@@ -17,12 +17,16 @@ import MesureTable from "@/components/MesureTable"
 import { getTolerancias, createTolerancia, updateTolerancia } from "@/services/httpService"
 import { useUserAccess } from "@/hooks/useUserAccess"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
+import ReactSelect from 'react-select'
 
 // Interfaces
 interface User {
   id: string
   username: string
-  role: string
+  email?: string
+  puesto?: string
+  role?: string
+  verificado?: boolean
 }
 
 interface Plant {
@@ -223,29 +227,6 @@ function MedicionInputBox({ parameter, userId, plantId, procesoId, sistemas, onD
   )
 }
 
-// Custom hook para obtener sistemas únicos de mediciones para una variable
-function useSistemasDeMediciones(variable: string, apiBase: string, token: string | null) {
-  const [sistemas, setSistemas] = useState<string[]>([]);
-
-  useEffect(() => {
-    async function fetchSistemas() {
-      const encodedVar = encodeURIComponent(variable);
-      const res = await fetch(
-        `${apiBase}/api/mediciones/${encodedVar}`,
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
-      
-      if (!res.ok) return setSistemas([]);
-      const result = await res.json();
-      const mediciones = result.mediciones || [];
-      const sistemasUnicos = Array.from(new Set(mediciones.map((m: any) => m.sistema))).map(String).sort();
-      setSistemas(sistemasUnicos.length > 0 ? sistemasUnicos : ["S01"]);
-    }
-    if (variable) fetchSistemas();
-  }, [variable, apiBase, token]);
-
-  return sistemas;
-}
 
 export default function ReportManager() {
   const router = useRouter()
@@ -269,13 +250,61 @@ export default function ReportManager() {
     userRole,
     loading,
     error,
-    setSelectedUser,
-    setSelectedPlant,
     setSelectedSystem,
     handleSelectUser,
     handleSelectPlant,
     fetchParameters: fetchParametersFromHook
   } = useUserAccess(token)
+
+  // Local state for conditional plants/users
+  const [displayedPlants, setDisplayedPlants] = useState<Plant[]>([]);
+  const [displayedUsers, setDisplayedUsers] = useState<User[]>([]);
+
+  // Load all plants if no user selected, else use hook plants
+  useEffect(() => {
+    async function loadPlants() {
+      if (!selectedUser) {
+        try {
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ALL}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setDisplayedPlants(data.plantas || data);
+          }
+        } catch (err) {
+          console.error('Error al cargar todas las plantas:', err);
+          setDisplayedPlants([]);
+        }
+      } else {
+        setDisplayedPlants(plants);
+      }
+    }
+    loadPlants();
+  }, [selectedUser, plants, token]);
+
+  // Load users by selected plant, else use hook users
+  useEffect(() => {
+    async function loadUsers() {
+      if (selectedPlant) {
+        try {
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USER_BY_PLANT(selectedPlant.id)}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setDisplayedUsers(data.usuarios || data);
+          }
+        } catch (err) {
+          console.error('Error al cargar usuarios por planta:', err);
+          setDisplayedUsers([]);
+        }
+      } else {
+        setDisplayedUsers(users);
+      }
+    }
+    loadUsers();
+  }, [selectedPlant, users, token]);
 
   const [parameters, setParameters] = useState<Parameter[]>([])
 
@@ -325,62 +354,6 @@ export default function ReportManager() {
     }
   }, [medicionesPreview]);
 
-  // Handler para agregar un nuevo sistema (renombrado para evitar colisión)
-  const handleAgregarSistemaGlobal = () => {
-    // Si hay sistemas con nombre SXX, agrega el siguiente SXX
-    const sNums = sistemas
-      .map((s) => {
-        const match = s.match(/^S(\d+)$/);
-        return match ? parseInt(match[1], 10) : null;
-      })
-      .filter((n) => n !== null) as number[];
-    let nuevo = "";
-    if (sNums.length > 0) {
-      const maxNum = Math.max(...sNums);
-      nuevo = `S${String(maxNum + 1).padStart(2, "0")}`;
-    } else {
-      // Si hay nombres personalizados, agrega uno vacío para editar
-      nuevo = "";
-    }
-    setSistemas((prev) => [...prev, nuevo]);
-  };
-
-  // Permite agregar sistemas persistentes por parámetro (para tabs)
-  const handleAgregarSistemaPorParametro = (parameterId: string) => {
-    setSistemasPorParametro(prev => {
-      const actuales = prev[parameterId] || ["S01"];
-      const max = actuales
-        .map(s => parseInt(s.replace("S", ""), 10))
-        .filter(n => !isNaN(n))
-        .reduce((a, b) => Math.max(a, b), 0);
-      const nuevo = `S${String(max + 1).padStart(2, "0")}`;
-
-      const nuevos = [...actuales, nuevo];
-      sistemasPorParametroRef.current[parameterId] = nuevos;
-      return {
-        ...prev,
-        [parameterId]: nuevos,
-      };
-    });
-  };
-
-
-
-  // Handler para editar el nombre de un sistema
-  const handleEditarSistema = (idx: number, nuevoNombre: string) => {
-    setSistemas((prev) => prev.map((s, i) => (i === idx ? nuevoNombre : s)));
-  };
-
-  // Initialize user data for compatibility
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedUser = localStorage.getItem('Organomex_user')
-      if (storedUser) {
-        const userData = JSON.parse(storedUser)
-        
-      }
-    }
-  }, [])
 
   // Custom handlers that extend the hook functionality
   const handleSelectUserWithReset = useCallback(async (userId: string) => {
@@ -423,9 +396,8 @@ export default function ReportManager() {
   }, [selectedSystem, token, addDebugLog])
 
   const isGenerateDisabled =
-  !globalFecha || Object.values(parameterValues).every((param) => {
-    return !param.value || param.value === 0;
-  });
+    !globalFecha || 
+    (!medicionesPreview || medicionesPreview.length === 0);
 
   useEffect(() => {
     fetchParameters()
@@ -522,9 +494,13 @@ export default function ReportManager() {
 
       // Save all measurements to backend
       for (const medicion of allMediciones) {
+        console.log('📤 Enviando medición:', medicion)
         const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
           body: JSON.stringify(medicion),
         })
         
@@ -550,22 +526,23 @@ export default function ReportManager() {
     addDebugLog("info", "Generando reporte")
 
     // Recoge la información seleccionada
-    const mediciones = parameters
-      .filter(param => parameterValues[param.id]?.checked)
-      .map(param => ({
-        variable_id: param.id,
-        nombre: param.nombre,
-        unidad: param.unidad,
-        valores: parameterValues[param.id]?.valores || {},
-        fecha: globalFecha,
-        comentarios: globalComentarios,
-      }));
+    // Usar los datos guardados en medicionesPreview en lugar de los valores del formulario
+    const mediciones = medicionesPreview.map(medicion => ({
+      variable_id: medicion.variable_id,
+      nombre: parameters.find(p => p.id === medicion.variable_id)?.nombre || '',
+      unidad: parameters.find(p => p.id === medicion.variable_id)?.unidad || '',
+      valores: { [medicion.sistema]: medicion.valor },
+      fecha: medicion.fecha,
+      comentarios: medicion.comentarios || '',
+    }));
 
     const reportSelection = {
       user: selectedUser ? { id: selectedUser.id, username: selectedUser.username, email: selectedUser.email, puesto: selectedUser.puesto } : null,
       plant: selectedPlant ? { id: selectedPlant.id, nombre: selectedPlant.nombre } : null,
       systemName: selectedSystemData?.nombre,
-      parameters: parameters.filter(param => parameterValues[param.id]?.checked).map(param => ({
+      parameters: parameters.filter(param => 
+        medicionesPreview.some(med => med.variable_id === param.id)
+      ).map(param => ({
         id: param.id,
         nombre: param.nombre,
         unidad: param.unidad,
@@ -744,66 +721,81 @@ export default function ReportManager() {
             </CardHeader>
             <CardContent>
               <div className="grid md:grid-cols-2 gap-4">
+                {/* Usuario selector second */}
                 <div>
                   <label className="block text-sm font-medium mb-2">Usuario</label>
-                  <Select value={selectedUser?.id} onValueChange={handleSelectUserWithReset}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Seleccionar usuario" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#f6f6f6] text-gray-900">
-                      {users.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.username}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ReactSelect
+                    options={displayedUsers.map((user: any) => ({ value: user.id, label: user.username }))}
+                    value={
+                      selectedUser
+                        ? { value: selectedUser.id, label: selectedUser.username }
+                        : null
+                    }
+                    onChange={(option: any) =>
+                      option
+                        ? handleSelectUserWithReset(option.value)
+                        : handleSelectUserWithReset('')
+                    }
+                    placeholder="Seleccionar usuario"
+                    isClearable
+                    className="w-full"
+                  />
                 </div>
-
+                {/* Planta selector first */}
                 <div>
                   <label className="block text-sm font-medium mb-2">Planta</label>
-                  <Select value={selectedPlant?.id} onValueChange={handleSelectPlantWithReset} disabled={!selectedUser}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Seleccionar planta" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#f6f6f6] text-gray-900">
-                      {plants.map((plant) => (
-                        <SelectItem key={plant.id} value={plant.id}>
-                          {plant.nombre}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ReactSelect
+                    options={displayedPlants.map((plant: any) => ({ value: plant.id, label: plant.nombre }))}
+                    value={
+                      selectedPlant
+                        ? { value: selectedPlant.id, label: selectedPlant.nombre }
+                        : null
+                    }
+                    onChange={(option: any) =>
+                      option
+                        ? handleSelectPlantWithReset(option.value)
+                        : handleSelectPlantWithReset('')
+                    }
+                    placeholder="Seleccionar planta"
+                    isClearable
+                    isDisabled={!selectedUser}
+                    className="w-full"
+                  />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* System Tabs */}
+          {/* System Selection */}
           {selectedPlantData && systems.length > 0 && (
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle>Sistemas de {selectedPlantData.nombre}</CardTitle>
               </CardHeader>
               <CardContent>
-                <Tabs value={selectedSystem} onValueChange={setSelectedSystem}>
-                  <TabsList className="grid w-full grid-cols-1 md:grid-cols-3">
+                <div className="mt-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {systems.map((system) => (
-                      <TabsTrigger key={system.id} value={system.id}>
+                      <button
+                        key={system.id}
+                        onClick={() => setSelectedSystem(system.id)}
+                        className={`px-4 py-2 text-sm font-medium rounded border ${
+                          selectedSystem === system.id
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
+                      >
                         {system.nombre}
-                      </TabsTrigger>
+                      </button>
                     ))}
-                  </TabsList>
-
-                  {systems.map((system) => (
-                    <TabsContent key={system.id} value={system.id}>
-                      <div className="mt-4">
-                        <h3 className="text-lg font-semibold mb-2">{system.nombre}</h3>
-                        <p className="text-gray-600 mb-4">{system.descripcion}</p>
-                      </div>
-                    </TabsContent>
-                  ))}
-                </Tabs>
+                  </div>
+                </div>
+                {selectedSystemData && (
+                  <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <h3 className="text-lg font-semibold mb-2">{selectedSystemData.nombre}</h3>
+                    <p className="text-gray-600">{selectedSystemData.descripcion}</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -884,16 +876,28 @@ export default function ReportManager() {
                   {/* Fin formulario mediciones */}
 
                   {/* Previsualización por parámetro */}
-                  {parameters.filter(p => parameterValues[p.id]?.checked).map(parameter => {
-                    // Obtener la última entrada para este parámetro
-                    const entries = medicionesPreview.filter(m => m.variable_id === parameter.id);
-                    if (entries.length === 0) return null;
-                    const latest = entries[entries.length - 1];
-                    const { fecha, valores } = latest;
-                    // Cabeceras dinámicas según valores ingresados
-                    const sistemasTabla = Object.keys(valores).length > 0
-                      ? Object.keys(valores)
-                      : sistemasPorParametro[parameter.id] || ["S01"];
+                  {parameters.filter(p => 
+                    medicionesPreview.some(m => m.variable_id === p.id)
+                  ).map(parameter => {
+                    // Agrupar mediciones por fecha para este parámetro
+                    const medicionesParam = medicionesPreview.filter(m => m.variable_id === parameter.id);
+                    if (medicionesParam.length === 0) return null;
+                    
+                    // Agrupar por fecha y sistema
+                    const groupedByFecha: Record<string, Record<string, number>> = {};
+                    medicionesParam.forEach(med => {
+                      if (!groupedByFecha[med.fecha]) {
+                        groupedByFecha[med.fecha] = {};
+                      }
+                      groupedByFecha[med.fecha][med.sistema] = med.valor;
+                    });
+                    
+                    // Obtener todas las fechas únicas
+                    const fechas = Object.keys(groupedByFecha);
+                    
+                    // Obtener todos los sistemas únicos para este parámetro
+                    const sistemasUnicos = [...new Set(medicionesParam.map(m => m.sistema))];
+                    
                     return (
                       <div key={parameter.id} className="mt-6 overflow-x-auto">
                         <h3 className="text-lg font-semibold mb-2">{parameter.nombre}</h3>
@@ -901,20 +905,22 @@ export default function ReportManager() {
                           <thead>
                             <tr className="bg-gray-100">
                               <th className="border px-2 py-1">Fecha</th>
-                              {sistemasTabla.map(s => (
+                              {sistemasUnicos.map(s => (
                                 <th key={s} className="border px-2 py-1 text-center">{s}</th>
                               ))}
                             </tr>
                           </thead>
                           <tbody>
-                            <tr>
-                              <td className="border px-2 py-1 font-semibold">{fecha}</td>
-                              {sistemasTabla.map(s => (
-                                <td key={s} className="border px-2 py-1 text-center">
-                                  {valores[s] ?? ""}
-                                </td>
-                              ))}
-                            </tr>
+                            {fechas.map(fecha => (
+                              <tr key={fecha}>
+                                <td className="border px-2 py-1 font-semibold">{fecha}</td>
+                                {sistemasUnicos.map(sistema => (
+                                  <td key={sistema} className="border px-2 py-1 text-center">
+                                    {groupedByFecha[fecha][sistema] ?? ""}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
                           </tbody>
                         </table>
                       </div>
@@ -922,6 +928,38 @@ export default function ReportManager() {
                   })}
 
                   <div className="space-y-4">
+                    {/* Checkbox "Seleccionar todas" - solo mostrar si hay más de una variable */}
+                    {parameters.length > 1 && (
+                      <div className="flex items-center space-x-4 p-4 border rounded-lg bg-blue-50 border-blue-200">
+                        <Checkbox
+                          checked={parameters.length > 0 && parameters.every(param => parameterValues[param.id]?.checked)}
+                          onCheckedChange={(checked) => {
+                            // Si está marcado, seleccionar todas las variables
+                            if (checked) {
+                              parameters.forEach(param => {
+                                if (!parameterValues[param.id]?.checked) {
+                                  handleParameterChange(param.id, "checked", true);
+                                }
+                              });
+                            } else {
+                              // Si está desmarcado, deseleccionar todas las variables
+                              parameters.forEach(param => {
+                                if (parameterValues[param.id]?.checked) {
+                                  handleParameterChange(param.id, "checked", false);
+                                }
+                              });
+                            }
+                          }}
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium text-blue-800">Seleccionar todas las variables</div>
+                          <div className="text-sm text-blue-600">
+                            {parameters.filter(param => parameterValues[param.id]?.checked).length} de {parameters.length} variables seleccionadas
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                     {parameters.map((parameter) => {
                       const usarLimiteMin = !!tolerancias[parameter.id]?.usar_limite_min;
                       const usarLimiteMax = !!tolerancias[parameter.id]?.usar_limite_max;
@@ -1022,27 +1060,62 @@ export default function ReportManager() {
             </Card>
           )}
 
-          {/* Gráfico de series de tiempo de sensores */}
-          <div className="mb-6">
-            {selectedParameters.length > 0 && selectedParameters.map(param => (
-              <div key={param.id} className="mb-8">
-                <MesureTable
-                  variable={param.nombre}
-                  startDate={startDate}
-                  endDate={endDate}
-                  apiBase={API_BASE_URL}
-                  unidades={param.unidad}
-                />
-                <SensorTimeSeriesChart
-                  variable={param.nombre}
-                  startDate={startDate}
-                  endDate={endDate}
-                  apiBase={API_BASE_URL}
-                  unidades={param.unidad}
-                />
-              </div>
-            ))}
-          </div>
+          {/* Gráficos de Series Temporales */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Gráficos de Series Temporales</CardTitle>
+              <p className="text-sm text-gray-600">
+                Visualización de datos históricos para las variables seleccionadas
+              </p>
+            </CardHeader>
+            <CardContent>
+              {selectedParameters.length > 0 ? (
+                <div className="space-y-8">
+                  {selectedParameters.map(param => (
+                    <div key={param.id} className="border rounded-lg p-4">
+                      <h3 className="text-lg font-semibold mb-4">{param.nombre} ({param.unidad})</h3>
+                      
+                      {/* Tabla de mediciones */}
+                      <div className="mb-6">
+                        <h4 className="text-md font-medium mb-2">Tabla de Mediciones</h4>
+                        <MesureTable
+                          variable={param.nombre}
+                          startDate={startDate}
+                          endDate={endDate}
+                          apiBase={API_BASE_URL}
+                          unidades={param.unidad}
+                        />
+                      </div>
+                      
+                      {/* Gráfico de series temporales */}
+                      <div>
+                        <h4 className="text-md font-medium mb-2">Gráfico de Series Temporales</h4>
+                        <SensorTimeSeriesChart
+                          variable={param.nombre}
+                          startDate={startDate}
+                          endDate={endDate}
+                          apiBase={API_BASE_URL}
+                          unidades={param.unidad}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 mb-4">
+                    <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No hay variables seleccionadas</h3>
+                  <p className="text-gray-500">
+                    Selecciona variables del sistema usando los checkboxes arriba para ver sus gráficos y datos históricos.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* <DebugPanel
             debugInfo={debugInfo}

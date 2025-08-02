@@ -146,6 +146,24 @@ export default function ParameterManager() {
   const [allVariables, setAllVariables] = useState<Parameter[]>([]);
   const [selectedImportVariableId, setSelectedImportVariableId] = useState<string>("");
 
+  // Función para obtener variables disponibles (no asociadas al sistema actual)
+  const getAvailableVariables = useCallback(() => {
+    if (!selectedSystemId) return [];
+    
+    return allVariables.filter(variable => {
+      // Obtener los nombres de parámetros ya existentes en el sistema actual
+      const existingParameterNames = parameters.map(p => p.nombre.toLowerCase());
+      
+      // Una variable está disponible si:
+      // 1. No está ya en el sistema actual (por nombre)
+      // 2. No está asociada específicamente a otro sistema (o es global)
+      const isNotInCurrentSystem = !existingParameterNames.includes(variable.nombre.toLowerCase());
+      const isGlobalOrFromOtherSystem = !variable.proceso_id || variable.proceso_id !== selectedSystemId;
+      
+      return isNotInCurrentSystem && isGlobalOrFromOtherSystem;
+    });
+  }, [allVariables, parameters, selectedSystemId]);
+
   // Recolecta todas las variables de otros sistemas de la planta seleccionada (excepto el sistema actual)
   const existingParams: Parameter[] = [];
   if (selectedPlant && selectedSystemId) {
@@ -303,15 +321,68 @@ export default function ParameterManager() {
     }
   }
 
-  const handleDeleteParameter = (idToDelete: string) => {
-    setParameters((prev) => prev.filter((p) => p.id !== idToDelete))
-    // Nota: Para una eliminación persistente en la base de datos,
-    // necesitarías un endpoint DELETE en tu API (ej. DELETE /api/variables/:id)
-    // y llamar a ese endpoint aquí.
-    alert(
-      "Parámetro eliminado del lado del cliente. Para una eliminación persistente, se requiere un endpoint DELETE en el backend.",
-    )
-  }
+  const handleDeleteParameter = async (idToDelete: string) => {
+    if (!idToDelete) return;
+    if (!token) return;
+    if (!selectedSystemId) {
+      alert("No hay sistema seleccionado");
+      return;
+    }
+
+    // Confirmar antes de eliminar
+    const confirmDelete = window.confirm(
+      "¿Estás seguro de que quieres eliminar este parámetro del sistema? Esta acción solo eliminará la relación entre el parámetro y el sistema, no eliminará el parámetro completamente."
+    );
+    
+    if (!confirmDelete) return;
+
+    try {
+      console.log("🗑️ Eliminando relación variable-proceso:", {
+        variableId: idToDelete,
+        processId: selectedSystemId
+      });
+
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_DELETE_BY_PROCESS(idToDelete, selectedSystemId)}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+      });
+
+      console.log("🗑️ Eliminando relación variable-proceso:", {
+        url: `${API_BASE_URL}${API_ENDPOINTS.VARIABLE_DELETE_BY_PROCESS(idToDelete, selectedSystemId)}`,
+        variableId: idToDelete,
+        processId: selectedSystemId
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error("❌ Error al eliminar relación:", errorData);
+        
+        if (res.status === 400) {
+          alert(errorData.msg || "No se puede eliminar la variable porque tiene mediciones asociadas");
+        } else if (res.status === 404) {
+          alert("La relación variable-proceso no fue encontrada");
+        } else {
+          alert(`Error al eliminar la relación: ${errorData.message || "Error desconocido"}`);
+        }
+        return;
+      }
+
+      console.log("✅ Relación variable-proceso eliminada exitosamente");
+
+      // Actualizar el estado local - eliminar solo del sistema actual
+      setParameters((prev) => prev.filter((p) => p.id !== idToDelete));
+      
+      // Mostrar mensaje de éxito
+      alert("Parámetro eliminado del sistema exitosamente");
+      
+    } catch (error) {
+      console.error("❌ Error en la solicitud:", error);
+      alert("Error de conexión al eliminar el parámetro");
+    }
+  };
 
   const handleAddParameter = () => {
     if (!newParameterName.trim() || !selectedSystemId) {
@@ -341,14 +412,16 @@ export default function ParameterManager() {
     setLocalError(null)
     try {
       for (const param of newParamsToSave) {
+        const payload = {
+          nombre: param.nombre,
+          unidad: param.unidad,
+          proceso_id: param.proceso_id,
+        };
+        console.log("Enviando parámetro:", payload);
         const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_CREATE}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            nombre: param.nombre,
-            unidad: param.unidad,
-            proceso_id: param.proceso_id,
-          }),
+          body: JSON.stringify(payload),
         })
         if (!res.ok) {
           const errorData = await res.json()
@@ -686,15 +759,20 @@ export default function ParameterManager() {
                             <SelectValue placeholder="Selecciona una variable existente" />
                           </SelectTrigger>
                           <SelectContent className="bg-[#f6f6f6] text-gray-900">
-                            {allVariables
-                              .filter(v => v.proceso_id !== selectedSystemId && !parameters.some(p => p.nombre === v.nombre && p.proceso_id === selectedSystemId))
-                              .map((variable) => (
-                                <SelectItem key={variable.id} value={variable.id}>
-                                  {variable.nombre} ({variable.unidad})
-                                </SelectItem>
-                              ))}
+                            {getAvailableVariables().map((variable) => (
+                              <SelectItem key={variable.id} value={variable.id}>
+                                {variable.nombre} ({variable.unidad})
+                                {!variable.proceso_id && " - Global"}
+                                {variable.proceso_id && variable.proceso_id !== selectedSystemId && " - De otro sistema"}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
+                        {getAvailableVariables().length === 0 && (
+                          <p className="text-sm text-gray-500 mt-1">
+                            No hay variables disponibles para importar. Todas las variables ya están en este sistema o no hay variables globales.
+                          </p>
+                        )}
                       </div>
                     )}
                     <div className="mt-6 grid md:grid-cols-2 gap-6">

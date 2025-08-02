@@ -200,7 +200,7 @@ export default function VariablesPage() {
     setFormData({ nombre: '', unidad: '' })
     setShowModal(true)
   }
-
+  
   // Abrir modal para editar variable
   const handleEditVariable = (variable: Variable) => {
     setModalMode('edit')
@@ -234,17 +234,25 @@ export default function VariablesPage() {
 
       const method = modalMode === 'create' ? 'POST' : 'PATCH'
       
+      // Solo incluir proceso_id si se selecciona específicamente un proceso
+      const requestBody: any = {
+        nombre: formData.nombre.trim(),
+        unidad: formData.unidad.trim()
+      }
+      
+      // Solo agregar proceso_id si se selecciona un proceso específico
+      if (selectedProceso) {
+        requestBody.proceso_id = selectedProceso
+      }
+      
+      
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({
-          nombre: formData.nombre.trim(),
-          unidad: formData.unidad.trim(), // puede ser vacío
-          proceso_id: selectedProceso || variables[0]?.proceso_id
-        })
+        body: JSON.stringify(requestBody)
       })
 
       if (!response.ok) {
@@ -273,6 +281,7 @@ export default function VariablesPage() {
       await fetchVariables()
       handleCloseModal()
     } catch (err: any) {
+      console.error('❌ Error al guardar variable:', err)
       setError(`Error al ${modalMode === 'create' ? 'crear' : 'actualizar'} variable: ${err.message}`)
     } finally {
       setSaving(false)
