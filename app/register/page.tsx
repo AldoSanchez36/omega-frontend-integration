@@ -13,9 +13,12 @@ export default function RegisterScreen() {
   const { translations, changeLanguage, language } = useLanguage()
   const [formData, setFormData] = useState({
     username: "",
+    empresa: "",
     email: "",
     password: "",
-    confirmPassword: ""
+    confirmPassword: "",
+    newPassword: "",
+    confirmNewPassword: ""
   })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
@@ -37,13 +40,59 @@ export default function RegisterScreen() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+
+    // Validate initial password and confirmPassword match
     if (formData.password !== formData.confirmPassword) {
       setError(language === "es" ? "Las contraseñas no coinciden" : "Passwords do not match")
       return
     }
+
+    // If verification modal is shown and verification is successful, validate new password fields
+    if (showVerifyModal && verifySuccess) {
+      // Validate new password length
+      if (formData.newPassword.length < 8) {
+        setError(language === "es" ? "La nueva contraseña debe tener al menos 8 caracteres" : "New password must be at least 8 characters")
+        return
+      }
+      // Validate new password contains at least one special character from the set .!"#$%&/()=?|´+{},.-;:_
+      const hasSpecial = /[.!\"#$%&/()=?|´+{},.\-;:_]/.test(formData.newPassword)
+      if (!hasSpecial) {
+        setError(language === "es" ? "La nueva contraseña debe contener al menos un carácter especial como .!\"#$%&/()=?|´+{},.-;:_" : "New password must contain at least one special character like .!\"#$%&/()=?|´+{},.-;:_")
+        return
+      }
+      // Validate new password and confirmNewPassword match
+      if (formData.newPassword !== formData.confirmNewPassword) {
+        setError(language === "es" ? "Las nuevas contraseñas no coinciden" : "New passwords do not match")
+        return
+      }
+
+      // Submit new password to backend or finalize registration here
+      try {
+        const response = await axios.post(`${API_BASE_URL}${API_ENDPOINTS.REGISTER}`, {
+          username: formData.username.trim(),
+          empresa: formData.empresa.trim(),
+          email: formData.email.trim(),
+          password: formData.newPassword,
+          confirmPassword: formData.confirmNewPassword,
+        })
+        if (response.status === 201) {
+          router.push("/login")
+        }
+      } catch (error: any) {
+        if (error.response) {
+          setError(error.response.data.msg || (language === "es" ? "Error al registrar el usuario" : "Error registering user"))
+        } else {
+          setError(language === "es" ? "Error del servidor" : "Server error")
+        }
+      }
+      return
+    }
+
+    // Initial registration request
     try {
       const response = await axios.post(`${API_BASE_URL}${API_ENDPOINTS.REGISTER}`, {
         username: formData.username.trim(),
+        empresa: formData.empresa.trim(),
         email: formData.email.trim(),
         password: formData.password,
         confirmPassword: formData.confirmPassword,
@@ -54,6 +103,12 @@ export default function RegisterScreen() {
       }
     } catch (error: any) {
       if (error.response) {
+        if (error.response.data.pendienteVerificacion) {
+          setPendingEmail(formData.email.trim());
+          setShowVerifyModal(true);
+          alert("Ya existe una cuenta pendiente de verificación. ¿Deseas reenviar el código?");
+          return;
+        }
         setError(error.response.data.msg || (language === "es" ? "Error al registrar el usuario" : "Error registering user"))
       } else {
         setError(language === "es" ? "Error del servidor" : "Server error")
@@ -72,9 +127,8 @@ export default function RegisterScreen() {
       if (response.data.ok) {
         setVerifySuccess(true)
         setTimeout(() => {
-          setShowVerifyModal(false)
           router.push("/login")
-        }, 1500)
+        }, 2000)
       } else {
         setVerifyError(response.data.msg || (language === "es" ? "Código incorrecto" : "Incorrect code"))
       }
@@ -96,6 +150,17 @@ export default function RegisterScreen() {
             id="username"
             name="username"
             value={formData.username}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor="empresa">{translations.register?.empresa || "Empresa"}:</label>
+          <input
+            type="text"
+            id="empresa"
+            name="empresa"
+            value={formData.empresa}
             onChange={handleChange}
             required
           />
@@ -141,9 +206,77 @@ export default function RegisterScreen() {
             required
           />
         </div>
-        <button type="submit" className="register-button">
-          {translations.register?.button}
-        </button>
+        <div className="password-hint-wrapper">
+          <p>{translations.register?.passwordHintTitle}</p>
+          <div className={`condition is-long-enough ${formData.password.length >= 8 ? 'valid' : 'invalid'}`}>
+            <span className="icon">{formData.password.length >= 8 ? "✅" : "❌"}</span>
+            <span>La contraseña tiene al menos 8 caracteres</span>
+          </div>
+          <div className={`condition has-all-characters ${
+            /[.!\"#$%&/()=?|´+{},.\-;:_]/.test(formData.password) ? 'valid' : 'invalid'}`}>
+            <span className="icon">{
+              /[.!\"#$%&/()=?|´+{},.\-;:_]/.test(formData.password) ? "✅" : "❌"
+            }</span>
+            <span>La contraseña contiene al menos un carácter especial como .!"#$%&/()=?|´+{},.-;:_</span>
+          </div>
+          <div className={`condition passwords-match ${formData.password === formData.confirmPassword && formData.password !== "" ? 'valid' : 'invalid'}`}>
+            <span className="icon">{formData.password === formData.confirmPassword && formData.password !== "" ? "✅" : "❌"}</span>
+            <span>Las contraseñas coinciden</span>
+          </div>
+        </div>
+
+        {showVerifyModal && verifySuccess && (
+          <>
+            <div className="form-group">
+              <label htmlFor="newPassword">{translations.register?.newPasswordLabel}</label>
+              <input
+                type="password"
+                id="newPassword"
+                name="newPassword"
+                value={formData.newPassword}
+                onChange={handleChange}
+                required
+                placeholder="New password"
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="confirmNewPassword">{translations.register?.confirmNewPasswordLabel}</label>
+              <input
+                type="password"
+                id="confirmNewPassword"
+                name="confirmNewPassword"
+                value={formData.confirmNewPassword}
+                onChange={handleChange}
+                required
+                placeholder="Confirm new password"
+              />
+            </div>
+            <div className="password-hint-wrapper">
+              <p>{translations.register?.passwordHintTitle}</p>
+              <div className={`condition is-long-enough ${formData.newPassword.length >= 8 ? 'valid' : 'invalid'}`}>
+                <span className="icon">{formData.newPassword.length >= 8 ? "✅" : "❌"}</span>
+                <span>La contraseña tiene al menos 8 caracteres</span>
+              </div>
+              <div className={`condition has-all-characters ${
+                /[.!\"#$%&/()=?|´+{},.\-;:_]/.test(formData.newPassword) ? 'valid' : 'invalid'}`}>
+                <span className="icon">{
+                  /[.!\"#$%&/()=?|´+{},.\-;:_]/.test(formData.newPassword) ? "✅" : "❌"
+                }</span>
+                <span>La contraseña contiene al menos un carácter especial como .!"#$%&/()=?|´+{},.-;:_</span>
+              </div>
+              <div className={`condition passwords-match ${formData.newPassword === formData.confirmNewPassword && formData.newPassword !== "" ? 'valid' : 'invalid'}`}>
+                <span className="icon">{formData.newPassword === formData.confirmNewPassword && formData.newPassword !== "" ? "✅" : "❌"}</span>
+                <span>Las contraseñas coinciden</span>
+              </div>
+            </div>
+          </>
+        )}
+
+        {!showVerifyModal && (
+          <button type="submit" className="register-button">
+            {translations.register?.button}
+          </button>
+        )}
         <br />
         <button
           className="back-button"
@@ -154,35 +287,49 @@ export default function RegisterScreen() {
         </button>
       </form>
       {/* Modal de verificación de código */}
-      <Dialog open={showVerifyModal} onOpenChange={setShowVerifyModal}>
-        <DialogContent>
+      <Dialog open={showVerifyModal}>
+        <DialogContent className="bg-gray-100">
           <DialogHeader>
             <DialogTitle>{translations.register?.modalTitle}</DialogTitle>
           </DialogHeader>
           <div style={{ marginBottom: 12 }}>
-            <p>{translations.register?.modalText}</p>
-            <div style={{ marginTop: 16 }}>
-              <input
-                type="text"
-                placeholder={translations.register?.codePlaceholder}
-                value={verifyCode}
-                onChange={e => setVerifyCode(e.target.value)}
-                style={{ width: '100%', padding: 8, fontSize: 16, border: '1px solid #ccc', borderRadius: 4 }}
-                maxLength={8}
-              />
-            </div>
-            {verifyError && <div style={{ color: 'red', marginTop: 8 }}>{translations.register?.codeError || verifyError}</div>}
-            {verifySuccess && <div style={{ color: 'green', marginTop: 8 }}>{translations.register?.codeSuccess}</div>}
+            {!verifySuccess ? (
+              <>
+                <p>{translations.register?.modalText}</p>
+                <div style={{ marginTop: 16 }}>
+                  <input
+                    type="text"
+                    placeholder={translations.register?.codePlaceholder}
+                    value={verifyCode}
+                    onChange={e => setVerifyCode(e.target.value)}
+                    style={{ width: '100%', padding: 8, fontSize: 16, border: '1px solid #ccc', borderRadius: 4 }}
+                    maxLength={8}
+                  />
+                </div>
+                {verifyError && <div style={{ color: 'red', marginTop: 8 }}>{translations.register?.codeError || verifyError}</div>}
+              </>
+            ) : (
+              <div style={{ color: 'green', marginTop: 8 }}>{translations.register?.codeSuccess}</div>
+            )}
           </div>
           <DialogFooter>
-            <button
-              type="button"
-              onClick={handleVerify}
-              style={{ background: '#2563eb', color: 'white', padding: '8px 20px', borderRadius: 4, border: 'none', fontWeight: 600, fontSize: 16 }}
-              disabled={verifySuccess}
-            >
-              {translations.register?.verifyButton}
-            </button>
+            {!verifySuccess ? (
+              <button
+                type="button"
+                onClick={handleVerify}
+                style={{ background: '#2563eb', color: 'white', padding: '8px 20px', borderRadius: 4, border: 'none', fontWeight: 600, fontSize: 16 }}
+              >
+                {translations.register?.verifyButton}
+              </button>
+            ) : (
+              <button
+                type="submit"
+                form="register-form"
+                style={{ background: '#2563eb', color: 'white', padding: '8px 20px', borderRadius: 4, border: 'none', fontWeight: 600, fontSize: 16 }}
+              >
+                {translations.register?.setPasswordButton || translations.register?.verifyButton}
+              </button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
