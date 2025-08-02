@@ -721,26 +721,6 @@ export default function ReportManager() {
             </CardHeader>
             <CardContent>
               <div className="grid md:grid-cols-2 gap-4">
-                {/* Planta selector first */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">Planta</label>
-                  <ReactSelect
-                    options={displayedPlants.map((plant: any) => ({ value: plant.id, label: plant.nombre }))}
-                    value={
-                      selectedPlant
-                        ? { value: selectedPlant.id, label: selectedPlant.nombre }
-                        : null
-                    }
-                    onChange={(option: any) =>
-                      option
-                        ? handleSelectPlantWithReset(option.value)
-                        : handleSelectPlantWithReset('')
-                    }
-                    placeholder="Seleccionar planta"
-                    isClearable
-                    className="w-full"
-                  />
-                </div>
                 {/* Usuario selector second */}
                 <div>
                   <label className="block text-sm font-medium mb-2">Usuario</label>
@@ -758,6 +738,27 @@ export default function ReportManager() {
                     }
                     placeholder="Seleccionar usuario"
                     isClearable
+                    className="w-full"
+                  />
+                </div>
+                {/* Planta selector first */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Planta</label>
+                  <ReactSelect
+                    options={displayedPlants.map((plant: any) => ({ value: plant.id, label: plant.nombre }))}
+                    value={
+                      selectedPlant
+                        ? { value: selectedPlant.id, label: selectedPlant.nombre }
+                        : null
+                    }
+                    onChange={(option: any) =>
+                      option
+                        ? handleSelectPlantWithReset(option.value)
+                        : handleSelectPlantWithReset('')
+                    }
+                    placeholder="Seleccionar planta"
+                    isClearable
+                    isDisabled={!selectedUser}
                     className="w-full"
                   />
                 </div>
