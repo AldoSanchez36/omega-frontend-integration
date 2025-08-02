@@ -73,6 +73,9 @@ export default function ParameterManager() {
   // Form states
   const [showCreatePlant, setShowCreatePlant] = useState(false)
   const [newPlantName, setNewPlantName] = useState("")
+  const [showEditPlantDialog, setShowEditPlantDialog] = useState(false)
+  const [editPlantName, setEditPlantName] = useState("")
+  const [editingPlant, setEditingPlant] = useState<Plant | null>(null)
   const [showCreateSystem, setShowCreateSystem] = useState(false)
   const [newSystemName, setNewSystemName] = useState("")
   const [newSystemDescription, setNewSystemDescription] = useState("")
@@ -266,6 +269,51 @@ export default function ParameterManager() {
     }
   }
 
+  // Function to open edit plant dialog
+  const handleOpenEditPlant = (plant: Plant) => {
+    setEditingPlant(plant)
+    setEditPlantName(plant.nombre)
+    setShowEditPlantDialog(true)
+  }
+
+  // Function to update plant name
+  const handleUpdatePlant = async () => {
+    if (!editPlantName.trim() || !editingPlant) {
+      alert("Por favor, ingrese un nombre para la planta.")
+      return
+    }
+    
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_UPDATE(editingPlant.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          nombre: editPlantName,
+        }),
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "No se pudo actualizar la planta.")
+      }
+      
+      setShowEditPlantDialog(false)
+      setEditPlantName("")
+      setEditingPlant(null)
+      
+      // Refetch plants to update the list
+      if (selectedUser) {
+        await handleSelectUser(selectedUser.id)
+      }
+    } catch (e: any) {
+      setError(`Error al actualizar planta: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const fetchParameters = useCallback(async () => {
     if (!selectedSystemId) {
       setParameters([])
@@ -299,6 +347,24 @@ export default function ParameterManager() {
     setEditingSystem(system)
     setEditSystemName(system.nombre)
     setShowEditSystemDialog(true)
+  }
+
+  const handleDeleteSystem = async (system: System) => {
+    // mostar popup de seguro que desea eliminar el sistema
+    const confirm = window.confirm("¿Está seguro que desea eliminar el sistema?")
+    if (confirm) {
+      // eliminar el sistema
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEM_DELETE_BY_PLANT(system.planta_id, system.id)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      //reload the page
+      window.location.reload()
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "No se pudo eliminar el sistema.")
+      }
+    }
   }
   
   // Function to update system name
@@ -501,9 +567,21 @@ export default function ParameterManager() {
                                 ))}
                               </SelectContent>
                             </Select>
-                            <Button type="button" onClick={() => setShowCreatePlant(true)} variant="secondary">
-                              <Plus className="mr-2 h-4 w-4" /> Crear Planta
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button type="button" onClick={() => setShowCreatePlant(true)} variant="secondary">
+                                <Plus className="mr-2 h-4 w-4" /> Crear Planta
+                              </Button>
+                              {selectedPlant && (
+                                <Button 
+                                  type="button" 
+                                  onClick={() => handleOpenEditPlant(selectedPlant)} 
+                                  variant="outline"
+                                  className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                                >
+                                  <Edit className="mr-2 h-4 w-4" /> Editar Nombre
+                                </Button>
+                              )}
+                            </div>
                           </div>
                           {showCreatePlant && (
                             <div className="grid w-full grid-cols-[1fr_auto] gap-2 rounded-lg border p-3">
@@ -555,9 +633,9 @@ export default function ParameterManager() {
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                           {systems.map((system) => (
                             <div key={system.id} className="flex flex-col h-full">
-                              <button
+                              <div
                                 onClick={() => setSelectedSystemId(system.id)}
-                                className={`flex flex-col h-full justify-between px-4 py-3 text-sm font-medium rounded border ${
+                                className={`flex flex-col h-full justify-between px-4 py-3 text-sm font-medium rounded border cursor-pointer ${
                                   selectedSystemId === system.id
                                     ? 'bg-blue-600 text-white'
                                     : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
@@ -567,17 +645,28 @@ export default function ParameterManager() {
                                 <div className="flex justify-center mt-2 pt-2 border-t border-gray-300 border-opacity-30">
                                   <button
                                     onClick={(e) => {
-                                      e.stopPropagation(); // Prevent triggering the parent button
+                                      e.stopPropagation(); // Prevent triggering the parent div
                                       handleOpenEditSystem(system);
                                     }}
                                     className="px-2 py-1 text-xs font-medium rounded bg-gray-200 text-gray-700 hover:bg-gray-300 flex items-center"
                                     aria-label={`Editar nombre de ${system.nombre}`}
                                   >
                                     <Edit className="h-3 w-3 mr-1" />
-                                    Editar
+                                  </button>
+                                  {/* space between buttons */}
+                                  <div className="w-2"></div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation(); // Prevent triggering the parent div
+                                      handleDeleteSystem(system);
+                                    }}
+                                    className="px-2 py-1 text-xs font-medium rounded bg-gray-200 text-gray-700 hover:bg-gray-300 flex items-center"
+                                    aria-label={`Eliminar ${system.nombre}`}
+                                  >
+                                    <Trash2 className="h-3 w-3 mr-1" />
                                   </button>
                                 </div>
-                              </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -635,6 +724,45 @@ export default function ParameterManager() {
                             type="button" 
                             onClick={handleUpdateSystem}
                             disabled={loading || !editSystemName.trim()}
+                          >
+                            {loading ? "Guardando..." : "Guardar Cambios"}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    
+                    {/* Edit Plant Dialog */}
+                    <Dialog open={showEditPlantDialog} onOpenChange={setShowEditPlantDialog}>
+                      <DialogContent className="bg-[#f6f6f6] text-gray-900">
+                        <DialogHeader>
+                          <DialogTitle>Editar Nombre de la Planta</DialogTitle>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="edit-plant-name" className="text-right">
+                              Nombre
+                            </Label>
+                            <Input
+                              id="edit-plant-name"
+                              value={editPlantName}
+                              onChange={(e) => setEditPlantName(e.target.value)}
+                              className="col-span-3"
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            onClick={() => setShowEditPlantDialog(false)}
+                            disabled={loading}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button 
+                            type="button" 
+                            onClick={handleUpdatePlant}
+                            disabled={loading || !editPlantName.trim()}
                           >
                             {loading ? "Guardando..." : "Guardar Cambios"}
                           </Button>
