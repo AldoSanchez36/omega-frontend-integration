@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2, Plus, Edit } from "lucide-react"
+import { Trash2, Plus, Edit, Save, Check } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { v4 as uuidv4 } from "uuid"
 import ProtectedRoute from "@/components/ProtectedRoute"
@@ -20,6 +20,18 @@ interface Parameter {
   id: string;
   nombre: string;
   unidad: string;
+  /** Valor mínimo dentro del rango recomendado (limite inferior) */
+  limMin?: string;
+  /** Indicador de si el límite inferior está activo */
+  limMinActive?: boolean;
+  /** Valor máximo dentro del rango recomendado (límite superior) */
+  limMax?: string;
+  /** Indicador de si el límite superior está activo */
+  limMaxActive?: boolean;
+  /** Límite inferior del rango "bien" */
+  goodMin?: string;
+  /** Límite superior del rango "bien" */
+  goodMax?: string;
 }
 // Interfaces
 interface User {
@@ -45,6 +57,18 @@ interface Parameter {
   unidad: string
   proceso_id: string
   isNew?: boolean
+  /** Valor mínimo dentro del rango recomendado (limite inferior) */
+  limMin?: string
+  /** Indicador de si el límite inferior está activo */
+  limMinActive?: boolean
+  /** Valor máximo dentro del rango recomendado (limite superior) */
+  limMax?: string
+  /** Indicador de si el límite superior está activo */
+  limMaxActive?: boolean
+  /** Límite inferior del rango "bien" */
+  goodMin?: string
+  /** Límite superior del rango "bien" */
+  goodMax?: string
 }
 
 type UserRole = "admin" | "user" | "client" | "guest"
@@ -120,6 +144,98 @@ export default function ParameterManager() {
     } else {
       alert("Error al actualizar parámetro")
     }
+  }
+
+  // --- Gestores para límites de parámetros ---
+  /**
+   * Alterna el estado de activación del límite inferior para un parámetro concreto.
+   * Cuando se activa por primera vez no establece un valor predeterminado, solo habilita el campo.
+   */
+  const handleToggleMinLimit = (paramId: string) => {
+    setParameters((prev) =>
+      prev.map((p) =>
+        p.id === paramId
+          ? { ...p, limMinActive: !p.limMinActive }
+          : p,
+      ),
+    )
+  }
+
+  /**
+   * Alterna el estado de activación del límite superior para un parámetro concreto.
+   */
+  const handleToggleMaxLimit = (paramId: string) => {
+    setParameters((prev) =>
+      prev.map((p) =>
+        p.id === paramId
+          ? { ...p, limMaxActive: !p.limMaxActive }
+          : p,
+      ),
+    )
+  }
+
+  /**
+   * Maneja el cambio del valor de límite inferior (limMin).
+   */
+  const handleChangeLimMin = (paramId: string, value: string) => {
+    setParameters((prev) =>
+      prev.map((p) =>
+        p.id === paramId
+          ? { ...p, limMin: value }
+          : p,
+      ),
+    )
+  }
+
+  /**
+   * Maneja el cambio del valor de límite superior (limMax).
+   */
+  const handleChangeLimMax = (paramId: string, value: string) => {
+    setParameters((prev) =>
+      prev.map((p) =>
+        p.id === paramId
+          ? { ...p, limMax: value }
+          : p,
+      ),
+    )
+  }
+
+  /**
+   * Maneja el cambio del valor mínimo del rango "bien" (goodMin).
+   */
+  const handleChangeGoodMin = (paramId: string, value: string) => {
+    setParameters((prev) =>
+      prev.map((p) =>
+        p.id === paramId
+          ? { ...p, goodMin: value }
+          : p,
+      ),
+    )
+  }
+
+  /**
+   * Maneja el cambio del valor máximo del rango "bien" (goodMax).
+   */
+  const handleChangeGoodMax = (paramId: string, value: string) => {
+    setParameters((prev) =>
+      prev.map((p) =>
+        p.id === paramId
+          ? { ...p, goodMax: value }
+          : p,
+      ),
+    )
+  }
+
+  /**
+   * Manejador para guardar los límites de un parámetro.
+   * Por ahora muestra una alerta informativa, pero aquí se podría integrar
+   * la llamada a la API para persistir los rangos.
+   */
+  const handleSaveLimit = (paramId: string) => {
+    const param = parameters.find((p) => p.id === paramId)
+    if (!param) return
+    // Aquí se podría incluir la lógica para enviar la información al backend.
+    alert(`Límites guardados para ${param.nombre}`)
   }
 
   // Estado para el usuario y el rol
@@ -282,7 +398,19 @@ export default function ParameterManager() {
         throw new Error(errorData.message || "No se pudieron cargar los parámetros para el sistema.")
       }
       const data = await res.json()
-      setParameters(data.variables || [])
+      // Mapea cada variable para añadir campos de límites con valores predeterminados.
+      const mappedParams =
+        (data.variables || []).map((p: any) => ({
+          ...p,
+          // Si el backend ya devuelve estos campos, se conservarán; de lo contrario se inicializan.
+          limMin: p.limMin ?? "",
+          limMinActive: p.limMinActive ?? false,
+          limMax: p.limMax ?? "",
+          limMaxActive: p.limMaxActive ?? false,
+          goodMin: p.goodMin ?? "",
+          goodMax: p.goodMax ?? "",
+        })) || []
+      setParameters(mappedParams)
     } catch (e: any) {
       setError(`Error al cargar parámetros: ${e.message}`)
     } finally {
@@ -405,6 +533,13 @@ export default function ParameterManager() {
       unidad: newParameterUnit.trim(),
       proceso_id: selectedSystemId,
       isNew: true, // Mark as new for saving later
+      // Inicializa los campos de límites para nuevos parámetros
+      limMin: "",
+      limMinActive: false,
+      limMax: "",
+      limMaxActive: false,
+      goodMin: "",
+      goodMax: "",
     }
     setParameters((prev) => [...prev, newParam])
     setNewParameterName("")
@@ -646,8 +781,21 @@ export default function ParameterManager() {
 
                 {/* --- Parámetros del Sistema --- */}
                 {selectedSystemId && (
-                  <div className="border-t border-gray-200 pt-6">
+                    <div className="border-t border-gray-200 pt-6">
                     <h2 className="text-lg font-medium leading-6 text-gray-900">Parámetros del Sistema</h2>
+                    {/* Leyenda de estados para los parámetros */}
+                    <div className="flex flex-row gap-4 mt-2 text-xs items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1">
+                          <span className="w-4 h-4 inline-block rounded bg-yellow-100 border border-yellow-400"></span>
+                          <span className="font-semibold text-yellow-700">Limite-(min,max)</span>: Cerca del límite recomendado
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="w-4 h-4 inline-block rounded bg-green-100 border-green-400"></span>
+                          <span className="font-semibold text-green-700">Bien</span>: Dentro de rango
+                        </div>
+                      </div>
+                    </div>
                     <p className="mt-1 text-sm text-gray-500">
                       Parámetros para el sistema seleccionado:{" "}
                       <span className="font-semibold">{systems.find((s) => s.id === selectedSystemId)?.nombre || "N/A"}</span>
@@ -667,7 +815,99 @@ export default function ParameterManager() {
                               <TableRow key={param.id}>
                                 <TableCell className="font-medium">{param.nombre}</TableCell>
                                 <TableCell>{param.unidad}</TableCell>
-                                <TableCell className="text-right flex gap-2 justify-end">
+                                <TableCell className="text-right flex flex-wrap gap-2 justify-end">
+                                  {/* Controles para límites y rango "bien" */}
+                                  <div className="flex flex-row items-end gap-2">
+                                    {/* Límite mínimo */}
+                                    <div className="flex flex-col items-center">
+                                      <div className="flex items-center gap-1 mb-0.5">
+                                        <span className="text-xs font-semibold text-yellow-700">Lim-min</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleToggleMinLimit(param.id)}
+                                          className={classNames(
+                                            'rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150',
+                                            param.limMinActive ? 'border-yellow-500 bg-yellow-100' : 'border-gray-300 bg-gray-100',
+                                          )}
+                                        >
+                                          {param.limMinActive && <Check className="h-3 w-3 text-yellow-700" />}
+                                        </button>
+                                      </div>
+                                      <input
+                                        type="number"
+                                        className={classNames(
+                                          'flex h-8 rounded-md border w-14 text-xs py-1 px-1',
+                                          param.limMinActive
+                                            ? 'bg-yellow-100 border-yellow-400 text-yellow-900'
+                                            : 'bg-gray-100 border-gray-300 text-gray-400'
+                                        )}
+                                        placeholder="min"
+                                        disabled={!param.limMinActive}
+                                        value={param.limMin ?? ''}
+                                        onChange={(e) => handleChangeLimMin(param.id, e.target.value)}
+                                      />
+                                    </div>
+                                    {/* Rango bien */}
+                                    <div className="flex flex-col items-center" style={{ minWidth: '60px' }}>
+                                      <span className="text-xs font-semibold text-green-700 text-center w-full mb-0.5">Bien</span>
+                                      <div className="flex flex-row gap-1">
+                                        <input
+                                          type="number"
+                                          className="flex h-8 rounded-md border w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1"
+                                          placeholder="min"
+                                          value={param.goodMin ?? ''}
+                                          onChange={(e) => handleChangeGoodMin(param.id, e.target.value)}
+                                        />
+                                        <input
+                                          type="number"
+                                          className="flex h-8 rounded-md border w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1"
+                                          placeholder="max"
+                                          value={param.goodMax ?? ''}
+                                          onChange={(e) => handleChangeGoodMax(param.id, e.target.value)}
+                                        />
+                                      </div>
+                                    </div>
+                                    {/* Límite máximo */}
+                                    <div className="flex flex-col items-center">
+                                      <div className="flex items-center gap-1 mb-0.5">
+                                        <span className="text-xs font-semibold text-yellow-700">Lim-max</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleToggleMaxLimit(param.id)}
+                                          className={classNames(
+                                            'rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150',
+                                            param.limMaxActive ? 'border-yellow-500 bg-yellow-100' : 'border-gray-300 bg-gray-100'
+                                          )}
+                                        >
+                                          {param.limMaxActive && <Check className="h-3 w-3 text-yellow-700" />}
+                                        </button>
+                                      </div>
+                                      <input
+                                        type="number"
+                                        className={classNames(
+                                          'flex h-8 rounded-md border w-14 text-xs py-1 px-1',
+                                          param.limMaxActive
+                                            ? 'bg-yellow-100 border-yellow-400 text-yellow-900'
+                                            : 'bg-gray-100 border-gray-300 text-gray-400'
+                                        )}
+                                        placeholder="max"
+                                        disabled={!param.limMaxActive}
+                                        value={param.limMax ?? ''}
+                                        onChange={(e) => handleChangeLimMax(param.id, e.target.value)}
+                                      />
+                                    </div>
+                                  </div>
+                                  {/* Botones de acción */}
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleSaveLimit(param.id)}
+                                    className="h-7 w-7 text-green-600 hover:text-green-700"
+                                    title="Guardar límites"
+                                  >
+                                    <Save className="h-4 w-4" />
+                                  </Button>
                                   <Button
                                     type="button"
                                     variant="ghost"
