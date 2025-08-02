@@ -10,7 +10,7 @@ import autoTable from "jspdf-autotable"
 import Navbar from "@/components/Navbar"
 import html2canvas from "html2canvas"
 import { SensorTimeSeriesChart } from "@/components/SensorTimeSeriesChart"
-import { API_BASE_URL } from "@/config/constants"
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 
 
 interface SystemData {
@@ -338,24 +338,197 @@ export default function Reporte() {
 
   // Función para descargar el reporte en PDF
   const handleDownloadPDF = async () => {
-    const doc = new jsPDF("p", "pt", "a4");
-  
-    const reportElement = document.getElementById("reporte-pdf");
-    if (!reportElement) return;
-  
-    const canvas = await html2canvas(reportElement, {
-      scale: 2,
-      useCORS: true,
-    });
-  
-    const imgData = canvas.toDataURL("image/png");
-    const imgProps = doc.getImageProperties(imgData);
-    const pdfWidth = doc.internal.pageSize.getWidth();
-    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-  
-    doc.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-    doc.save("reporte.pdf");
-  };
+    try {
+      console.log("🚀 Iniciando proceso de guardado de reporte...")
+      
+      // Validar que tenemos datos del reporte
+      if (!reportSelection) {
+        alert("No hay datos de reporte disponibles")
+        return
+      }
+
+      // Obtener token de autenticación
+      const token = localStorage.getItem("Organomex_token")
+      if (!token) {
+        alert("No hay token de autenticación")
+        return
+      }
+
+      // Obtener el proceso_id basado en el nombre de la planta
+      let proceso_id = null
+      
+      console.log("🔍 Verificando datos para consulta de procesos:")
+      console.log("reportSelection.plant?.nombre:", reportSelection.plant?.nombre)
+      console.log("reportSelection.systemName:", reportSelection.systemName)
+      console.log("¿Tiene planta?:", !!reportSelection.plant?.nombre)
+      console.log("¿Tiene systemName?:", !!reportSelection.systemName)
+      
+      if (reportSelection.plant?.nombre && reportSelection.systemName) {
+        try {
+          console.log("🔍 Obteniendo proceso_id para:", {
+            planta: reportSelection.plant.nombre,
+            systemName: reportSelection.systemName
+          })
+
+          const endpoint = `${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT_NAME(reportSelection.plant.nombre)}`
+          console.log("🌐 Endpoint a consultar:", endpoint)
+
+          const procesosResponse = await fetch(endpoint, {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          })
+
+          console.log("📡 Respuesta de procesos:", {
+            status: procesosResponse.status,
+            statusText: procesosResponse.statusText,
+            ok: procesosResponse.ok
+          })
+
+          if (procesosResponse.ok) {
+            const procesos = await procesosResponse.json()
+            console.log("📋 Procesos encontrados:", procesos)
+            console.log("🔍 Buscando proceso con nombre:", reportSelection.systemName)
+
+            // Buscar el proceso que coincida con el systemName
+            const procesoEncontrado = procesos.find((proceso: any) => {
+              console.log("Comparando:", {
+                procesoNombre: proceso.nombre,
+                systemName: reportSelection.systemName,
+                coincide: proceso.nombre === reportSelection.systemName
+              })
+              return proceso.nombre === reportSelection.systemName
+            })
+
+            if (procesoEncontrado) {
+              proceso_id = procesoEncontrado.id
+              console.log("✅ Proceso encontrado:", {
+                id: proceso_id,
+                nombre: procesoEncontrado.nombre
+              })
+            } else {
+              console.warn("⚠️ No se encontró proceso con systemName:", reportSelection.systemName)
+              console.log("📋 Procesos disponibles:", procesos.map((p: any) => p.nombre))
+            }
+          } else {
+            console.warn("⚠️ Error obteniendo procesos:", procesosResponse.status)
+            const errorText = await procesosResponse.text()
+            console.error("❌ Error detallado:", errorText)
+          }
+        } catch (error) {
+          console.warn("⚠️ Error consultando procesos:", error)
+        }
+      } else {
+        console.log("⚠️ No se puede consultar procesos - datos faltantes:", {
+          tienePlanta: !!reportSelection.plant?.nombre,
+          tieneSystemName: !!reportSelection.systemName
+        })
+      }
+
+      // Preparar el reportSelection completo para enviar
+      const reportDataToSend = {
+        ...reportSelection,
+        // Asegurar que tenemos todos los campos necesarios
+        plant: {
+          id: reportSelection.plant?.id,
+          nombre: reportSelection.plant?.nombre,
+          systemName: reportSelection.systemName
+        },
+        parameters: reportSelection.parameters || [],
+        mediciones: reportSelection.mediciones || [],
+        comentarios: reportSelection.comentarios || "",
+        fecha: reportSelection.fecha || new Date().toISOString().split('T')[0],
+        generatedDate: reportSelection.generatedDate || new Date().toISOString(),
+        user: {
+          id: reportSelection.user?.id, // Usar el ID del usuario del reporte
+          username: reportSelection.user?.username,
+          email: reportSelection.user?.email,
+          puesto: reportSelection.user?.puesto
+        },
+        proceso_id: proceso_id // Agregar el proceso_id obtenido
+      }
+
+      console.log("👤 Usuario que se enviará:", reportDataToSend.user)
+      console.log("🆔 ID del usuario:", reportDataToSend.user.id)
+      console.log("📄 Datos del reporte a enviar:", reportDataToSend)
+      console.log("🔍 Proceso ID obtenido:", proceso_id)
+      console.log("📋 Payload completo que se enviará al servidor:")
+      console.log(JSON.stringify(reportDataToSend, null, 2))
+
+      // Verificar que el proceso_id esté incluido
+      if (reportDataToSend.proceso_id) {
+        console.log("✅ Proceso ID incluido en el payload:", reportDataToSend.proceso_id)
+      } else {
+        console.warn("⚠️ Proceso ID NO incluido en el payload")
+      }
+
+      // Enviar el reportSelection completo al nuevo endpoint
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(reportDataToSend)
+      })
+
+      console.log("📡 Respuesta del servidor:", {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      })
+
+      if (!response.ok) {
+        let errorData = {}
+        let errorText = ""
+        
+        try {
+          errorData = await response.json()
+          console.error("❌ Error del servidor (JSON):", errorData)
+        } catch {
+          errorText = await response.text()
+          console.error("❌ Error del servidor (texto):", errorText)
+        }
+        
+        throw new Error(`Error del servidor: ${response.status} - ${JSON.stringify(errorData) || errorText}`)
+      }
+
+      const result = await response.json()
+      console.log("✅ Reporte guardado exitosamente:", result)
+
+      // Generar y descargar el PDF
+      const doc = new jsPDF("p", "pt", "a4")
+    
+      const reportElement = document.getElementById("reporte-pdf")
+      if (!reportElement) {
+        throw new Error("Elemento del reporte no encontrado")
+      }
+    
+      const canvas = await html2canvas(reportElement, {
+        scale: 2,
+        useCORS: true,
+      })
+    
+      const imgData = canvas.toDataURL("image/png")
+      const imgProps = doc.getImageProperties(imgData)
+      const pdfWidth = doc.internal.pageSize.getWidth()
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
+    
+      doc.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight)
+      
+      // Generar nombre de archivo con timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5)
+      const fileName = `Reporte_${reportSelection.plant?.nombre || 'General'}_${timestamp}.pdf`
+      
+      //doc.save(fileName)
+      
+      alert("✅ Reporte guardado y PDF descargado exitosamente!")
+      
+    } catch (error) {
+      console.error("❌ Error en handleDownloadPDF:", error)
+      alert(`Error: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
   
   // Función para obtener el color de celda según los límites
   function getCellColor(valorStr: string, param: any) {
@@ -532,7 +705,7 @@ export default function Reporte() {
                         style={{ minWidth: "400px", display: "inline-block" }}
                       >
                         {reportNotes["asunto"] ||
-                          `REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE ${(reportSelection ? reportSelection.plant.nombre : "NOMBRE DE LA PLANTA") || "NOMBRE DE LA PLANTA"}`}
+                          `REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE ${(reportSelection?.plant?.nombre) || "NOMBRE DE LA PLANTA"}`}
                       </span>
                     </p>
 
@@ -672,6 +845,7 @@ export default function Reporte() {
                           endDate={new Date().toISOString().split('T')[0]}
                           apiBase={API_BASE_URL}
                           unidades=""
+                          processName={reportSelection?.systemName}
                         />
                       </div>
                     </div>

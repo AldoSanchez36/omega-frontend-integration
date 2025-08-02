@@ -17,12 +17,16 @@ import MesureTable from "@/components/MesureTable"
 import { getTolerancias, createTolerancia, updateTolerancia } from "@/services/httpService"
 import { useUserAccess } from "@/hooks/useUserAccess"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
+import ReactSelect from 'react-select'
 
 // Interfaces
 interface User {
   id: string
   username: string
-  role: string
+  email?: string
+  puesto?: string
+  role?: string
+  verificado?: boolean
 }
 
 interface Plant {
@@ -223,29 +227,6 @@ function MedicionInputBox({ parameter, userId, plantId, procesoId, sistemas, onD
   )
 }
 
-// Custom hook para obtener sistemas únicos de mediciones para una variable
-function useSistemasDeMediciones(variable: string, apiBase: string, token: string | null) {
-  const [sistemas, setSistemas] = useState<string[]>([]);
-
-  useEffect(() => {
-    async function fetchSistemas() {
-      const encodedVar = encodeURIComponent(variable);
-      const res = await fetch(
-        `${apiBase}/api/mediciones/${encodedVar}`,
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
-      
-      if (!res.ok) return setSistemas([]);
-      const result = await res.json();
-      const mediciones = result.mediciones || [];
-      const sistemasUnicos = Array.from(new Set(mediciones.map((m: any) => m.sistema))).map(String).sort();
-      setSistemas(sistemasUnicos.length > 0 ? sistemasUnicos : ["S01"]);
-    }
-    if (variable) fetchSistemas();
-  }, [variable, apiBase, token]);
-
-  return sistemas;
-}
 
 export default function ReportManager() {
   const router = useRouter()
@@ -269,13 +250,61 @@ export default function ReportManager() {
     userRole,
     loading,
     error,
-    setSelectedUser,
-    setSelectedPlant,
     setSelectedSystem,
     handleSelectUser,
     handleSelectPlant,
     fetchParameters: fetchParametersFromHook
   } = useUserAccess(token)
+
+  // Local state for conditional plants/users
+  const [displayedPlants, setDisplayedPlants] = useState<Plant[]>([]);
+  const [displayedUsers, setDisplayedUsers] = useState<User[]>([]);
+
+  // Load all plants if no user selected, else use hook plants
+  useEffect(() => {
+    async function loadPlants() {
+      if (!selectedUser) {
+        try {
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ALL}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setDisplayedPlants(data.plantas || data);
+          }
+        } catch (err) {
+          console.error('Error al cargar todas las plantas:', err);
+          setDisplayedPlants([]);
+        }
+      } else {
+        setDisplayedPlants(plants);
+      }
+    }
+    loadPlants();
+  }, [selectedUser, plants, token]);
+
+  // Load users by selected plant, else use hook users
+  useEffect(() => {
+    async function loadUsers() {
+      if (selectedPlant) {
+        try {
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USER_BY_PLANT(selectedPlant.id)}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setDisplayedUsers(data.usuarios || data);
+          }
+        } catch (err) {
+          console.error('Error al cargar usuarios por planta:', err);
+          setDisplayedUsers([]);
+        }
+      } else {
+        setDisplayedUsers(users);
+      }
+    }
+    loadUsers();
+  }, [selectedPlant, users, token]);
 
   const [parameters, setParameters] = useState<Parameter[]>([])
 
@@ -325,62 +354,6 @@ export default function ReportManager() {
     }
   }, [medicionesPreview]);
 
-  // Handler para agregar un nuevo sistema (renombrado para evitar colisión)
-  const handleAgregarSistemaGlobal = () => {
-    // Si hay sistemas con nombre SXX, agrega el siguiente SXX
-    const sNums = sistemas
-      .map((s) => {
-        const match = s.match(/^S(\d+)$/);
-        return match ? parseInt(match[1], 10) : null;
-      })
-      .filter((n) => n !== null) as number[];
-    let nuevo = "";
-    if (sNums.length > 0) {
-      const maxNum = Math.max(...sNums);
-      nuevo = `S${String(maxNum + 1).padStart(2, "0")}`;
-    } else {
-      // Si hay nombres personalizados, agrega uno vacío para editar
-      nuevo = "";
-    }
-    setSistemas((prev) => [...prev, nuevo]);
-  };
-
-  // Permite agregar sistemas persistentes por parámetro (para tabs)
-  const handleAgregarSistemaPorParametro = (parameterId: string) => {
-    setSistemasPorParametro(prev => {
-      const actuales = prev[parameterId] || ["S01"];
-      const max = actuales
-        .map(s => parseInt(s.replace("S", ""), 10))
-        .filter(n => !isNaN(n))
-        .reduce((a, b) => Math.max(a, b), 0);
-      const nuevo = `S${String(max + 1).padStart(2, "0")}`;
-
-      const nuevos = [...actuales, nuevo];
-      sistemasPorParametroRef.current[parameterId] = nuevos;
-      return {
-        ...prev,
-        [parameterId]: nuevos,
-      };
-    });
-  };
-
-
-
-  // Handler para editar el nombre de un sistema
-  const handleEditarSistema = (idx: number, nuevoNombre: string) => {
-    setSistemas((prev) => prev.map((s, i) => (i === idx ? nuevoNombre : s)));
-  };
-
-  // Initialize user data for compatibility
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedUser = localStorage.getItem('Organomex_user')
-      if (storedUser) {
-        const userData = JSON.parse(storedUser)
-        
-      }
-    }
-  }, [])
 
   // Custom handlers that extend the hook functionality
   const handleSelectUserWithReset = useCallback(async (userId: string) => {
@@ -748,36 +721,45 @@ export default function ReportManager() {
             </CardHeader>
             <CardContent>
               <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Usuario</label>
-                  <Select value={selectedUser?.id} onValueChange={handleSelectUserWithReset}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Seleccionar usuario" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#f6f6f6] text-gray-900">
-                      {users.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.username}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
+                {/* Planta selector first */}
                 <div>
                   <label className="block text-sm font-medium mb-2">Planta</label>
-                  <Select value={selectedPlant?.id} onValueChange={handleSelectPlantWithReset} disabled={!selectedUser}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Seleccionar planta" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#f6f6f6] text-gray-900">
-                      {plants.map((plant) => (
-                        <SelectItem key={plant.id} value={plant.id}>
-                          {plant.nombre}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ReactSelect
+                    options={displayedPlants.map((plant: any) => ({ value: plant.id, label: plant.nombre }))}
+                    value={
+                      selectedPlant
+                        ? { value: selectedPlant.id, label: selectedPlant.nombre }
+                        : null
+                    }
+                    onChange={(option: any) =>
+                      option
+                        ? handleSelectPlantWithReset(option.value)
+                        : handleSelectPlantWithReset('')
+                    }
+                    placeholder="Seleccionar planta"
+                    isClearable
+                    className="w-full"
+                  />
+                </div>
+                {/* Usuario selector second */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Usuario</label>
+                  <ReactSelect
+                    options={displayedUsers.map((user: any) => ({ value: user.id, label: user.username }))}
+                    value={
+                      selectedUser
+                        ? { value: selectedUser.id, label: selectedUser.username }
+                        : null
+                    }
+                    onChange={(option: any) =>
+                      option
+                        ? handleSelectUserWithReset(option.value)
+                        : handleSelectUserWithReset('')
+                    }
+                    placeholder="Seleccionar usuario"
+                    isClearable
+                    className="w-full"
+                  />
                 </div>
               </div>
             </CardContent>
@@ -945,6 +927,38 @@ export default function ReportManager() {
                   })}
 
                   <div className="space-y-4">
+                    {/* Checkbox "Seleccionar todas" - solo mostrar si hay más de una variable */}
+                    {parameters.length > 1 && (
+                      <div className="flex items-center space-x-4 p-4 border rounded-lg bg-blue-50 border-blue-200">
+                        <Checkbox
+                          checked={parameters.length > 0 && parameters.every(param => parameterValues[param.id]?.checked)}
+                          onCheckedChange={(checked) => {
+                            // Si está marcado, seleccionar todas las variables
+                            if (checked) {
+                              parameters.forEach(param => {
+                                if (!parameterValues[param.id]?.checked) {
+                                  handleParameterChange(param.id, "checked", true);
+                                }
+                              });
+                            } else {
+                              // Si está desmarcado, deseleccionar todas las variables
+                              parameters.forEach(param => {
+                                if (parameterValues[param.id]?.checked) {
+                                  handleParameterChange(param.id, "checked", false);
+                                }
+                              });
+                            }
+                          }}
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium text-blue-800">Seleccionar todas las variables</div>
+                          <div className="text-sm text-blue-600">
+                            {parameters.filter(param => parameterValues[param.id]?.checked).length} de {parameters.length} variables seleccionadas
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                     {parameters.map((parameter) => {
                       const usarLimiteMin = !!tolerancias[parameter.id]?.usar_limite_min;
                       const usarLimiteMax = !!tolerancias[parameter.id]?.usar_limite_max;

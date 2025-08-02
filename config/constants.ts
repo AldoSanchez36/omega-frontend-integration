@@ -16,6 +16,7 @@ export const API_ENDPOINTS = {
   USERS: '/api/auth/users',
   USER_BY_ID: (userId: string) => `/api/auth/user/${userId}`,
   USER_BY_NAME: (username: string) => `/api/auth/user-by-name/${username}`,
+  USER_BY_PLANT: (plantId: string) => `/api/auth/user-by-plant/${plantId}`,
   FORGOT_PASSWORD: '/api/auth/forgot-password',
   RESET_PASSWORD: '/api/auth/reset-password',
   VERIFY_EMAIL: '/api/auth/verificar',
@@ -89,6 +90,8 @@ export const API_ENDPOINTS = {
   REPORTS: '/api/reportes',
   REPORT_BY_ID: (id: string) => `/api/reportes/${id}`,
   REPORTS_BY_USER: (userId: string) => `/api/reportes/usuario/${userId}`,
+  REPORTS_CONSULTAR: '/api/reportes/consultar',
+  REPORTS_DASHBOARD: '/api/reportes/dashboard',
   
   // File Upload
   FILE_UPLOAD: '/api/upload',

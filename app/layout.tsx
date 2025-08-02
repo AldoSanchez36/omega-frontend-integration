@@ -49,7 +49,7 @@ export default function RootLayout({
         <LanguageProvider>
           <UserProvider>
             {children}
-            <AuthDebug />
+            {/* <AuthDebug /> */}
             <BootstrapScript />
           </UserProvider>
         </LanguageProvider>
