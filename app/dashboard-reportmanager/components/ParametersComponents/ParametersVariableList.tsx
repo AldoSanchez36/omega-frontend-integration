@@ -100,8 +100,7 @@ const ParametersVariableList: React.FC<Props> = ({
               <span className="text-sm text-gray-500">{parameter.unidad}</span>
             )}
             <div className="flex flex-row items-end gap-2 justify-end w-full justify-self-end md:flex-row">
-
-            
+              {/* Bajo bajo - solo si usar_limite_min es true */}
               {usarLimiteMin && (
                 <div className="flex flex-col items-center">
                   <div className="flex items-center gap-1 mb-0.5">
@@ -125,6 +124,19 @@ const ParametersVariableList: React.FC<Props> = ({
                   />
                 </div>
               )}
+              
+              {/* Bajo / Alto - siempre presente */}
+              <div className="flex flex-col items-center" style={{ minWidth: '60px' }}>
+                <span className="text-xs font-semibold text-green-700 text-center w-full">Bajo / Alto</span>
+                <div className="flex flex-row gap-1">
+                  <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1"
+                    placeholder="min" value={tolerancias[parameter.id]?.bien_min ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_min', e.target.value)} />
+                  <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1"
+                    placeholder="max" value={tolerancias[parameter.id]?.bien_max ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_max', e.target.value)} />
+                </div>
+              </div>
+              
+              {/* Alto alto - solo si usar_limite_max es true */}
               {usarLimiteMax && (
                 <div className="flex flex-col items-center">
                   <div className="flex items-center gap-1 mb-0.5">
@@ -148,15 +160,6 @@ const ParametersVariableList: React.FC<Props> = ({
                   />
                 </div>
               )}
-              <div className="flex flex-col items-center" style={{ minWidth: '60px' }}>
-                <span className="text-xs font-semibold text-green-700 text-center w-full">Bajo / Alto</span>
-                <div className="flex flex-row gap-1">
-                  <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1"
-                    placeholder="min" value={tolerancias[parameter.id]?.bien_min ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_min', e.target.value)} />
-                  <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1"
-                    placeholder="max" value={tolerancias[parameter.id]?.bien_max ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_max', e.target.value)} />
-                </div>
-              </div>
               <Button size="icon" className="ml-2 h-7 w-7 p-0 flex items-center justify-center"
                 onClick={() => handleTolSave(parameter.id)} disabled={tolLoading[parameter.id]} title="Guardar límites">
                 <span className="material-icons text-base">save</span>
