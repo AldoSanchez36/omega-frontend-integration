@@ -2,28 +2,20 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
-// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-// import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-// import { DebugPanel } from "@/components/debug-panel"
-// import ActionButtons from "./components/ActionButtons";
-import { SensorTimeSeriesChart } from "@/components/SensorTimeSeriesChart"
 import { Navbar } from "@/components/Navbar"
 import { useDebugLogger } from "@/hooks/useDebugLogger"
 import ProtectedRoute from "@/components/ProtectedRoute"
-import MesureTable from "@/components/MesureTable"
+
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import { useUserAccess } from "@/hooks/useUserAccess"
 import { useMeasurements } from "@/hooks/useMeasurements";
 import { useTolerances } from "@/hooks/useTolerances"
-import { getTolerancias, createTolerancia, updateTolerancia } from "@/services/httpService"
+
 import UserPlantSelector from "./components/UserPlantSelector"
 import SystemSelector from "./components/SystemSelector"
 import ParametersList from "./components/ParametersList"
-import MedicionInputBox from "./components/MedicionInputBox"
 import Charts from "./components/Charts"
 
 // Interfaces
@@ -66,23 +58,7 @@ interface Parameter {
   maxValue?: number
 }
 
-// Componente para ingreso de mediciones por parámetro seleccionado
-
 import { useRef } from "react"
-
-// Debounce hook
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => setDebouncedValue(value), delay);
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
 
 
 
@@ -92,8 +68,7 @@ export default function ReportManager() {
   // Parámetros de fechas y URL para SensorTimeSeriesChart
   const startDate = "2025-04-04"
   const endDate   = "2025-06-04"
-  const apiBase   = API_BASE_URL
-  const { debugInfo, addDebugLog } = useDebugLogger()
+  const { addDebugLog } = useDebugLogger()
   const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
   const [globalFecha, setGlobalFecha] = useState<string>("");
   const [globalComentarios, setGlobalComentarios] = useState<string>("");
@@ -111,8 +86,7 @@ export default function ReportManager() {
     error,
     setSelectedSystem,
     handleSelectUser,
-    handleSelectPlant,
-    fetchParameters: fetchParametersFromHook
+    handleSelectPlant
   } = useUserAccess(token)
 
   // Local state for conditional plants/users
@@ -179,7 +153,7 @@ export default function ReportManager() {
     loadUsers();
   }, [selectedPlant, users, token, router]);
 
-  const [parameters, setParameters] = useState<Parameter[]>([])
+    const [parameters, setParameters] = useState<Parameter[]>([])
 
   // Local loading and error states for this component
   const [localLoading, setLocalLoading] = useState(false)
@@ -209,8 +183,6 @@ export default function ReportManager() {
   const [parameterValues, setParameterValues] = useState<Record<string, ParameterValue>>({});
   // Determinar el parámetro seleccionado para el gráfico
   const selectedParameters = parameters.filter(param => parameterValues[param.id]?.checked);
-  const variablefiltro = selectedParameters.length > 0 ? selectedParameters[0].nombre : "";
-  const labelLeftText = selectedParameters.length > 0 ? `${selectedParameters[0].nombre} (${selectedParameters[0].unidad})` : "";
 
   const { 
     tolerancias,
@@ -223,7 +195,6 @@ export default function ReportManager() {
 
     // Estado para sistemas por parámetro
   const [sistemasPorParametro, setSistemasPorParametro] = useState<Record<string, string[]>>({});
-  const sistemasPorParametroRef = useRef<Record<string, string[]>>({});
 
   // Estado para mediciones preview
   const { 

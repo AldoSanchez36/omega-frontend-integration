@@ -1,11 +1,9 @@
 "use client"
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import MedicionInputBox from "./MedicionInputBox";
 import ParametersHeader from "./ParametersComponents/ParametersHeader";
 import ParametersVariableList from "./ParametersComponents/ParametersVariableList";
 
@@ -81,6 +79,7 @@ const ParametersList: React.FC<ParametersListProps> = ({
       <ParametersHeader userRole={userRole} router={router} />
       <CardContent>
         {/* — Inputs globales fecha / comentarios — */}
+        {parameters.filter(param => parameterValues[param.id]?.checked).length > 0 && (
         <div className="mb-6 flex flex-wrap gap-6">
           <div className="flex flex-col">
             <label htmlFor="globalFecha" className="text-sm font-medium">Fecha global</label>
@@ -100,6 +99,7 @@ const ParametersList: React.FC<ParametersListProps> = ({
             />
           </div>
         </div>
+        )}
         {/* Checkbox para seleccionar todas las variables */}
         
         {parameters.length > 1 && (

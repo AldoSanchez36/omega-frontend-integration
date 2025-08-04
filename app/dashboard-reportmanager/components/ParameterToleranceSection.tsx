@@ -106,10 +106,9 @@ const ParameterToleranceSection: React.FC<ParameterToleranceSectionProps> = ({
                     value={
                       tolerancias[parameter.id]?.limite_min === undefined ||
                       tolerancias[parameter.id]?.limite_min === null ||
-                      tolerancias[parameter.id]?.limite_min === '' ||
                       Number.isNaN(Number(tolerancias[parameter.id]?.limite_min))
                         ? ''
-                        : tolerancias[parameter.id]?.limite_min
+                        : String(tolerancias[parameter.id]?.limite_min)
                     }
                     onChange={e => handleTolChange(parameter.id, 'limite_min', e.target.value)}
                     disabled={!usarLimiteMin}
@@ -126,10 +125,9 @@ const ParameterToleranceSection: React.FC<ParameterToleranceSectionProps> = ({
                     value={
                       tolerancias[parameter.id]?.limite_max === undefined ||
                       tolerancias[parameter.id]?.limite_max === null ||
-                      tolerancias[parameter.id]?.limite_max === '' ||
                       Number.isNaN(Number(tolerancias[parameter.id]?.limite_max))
                         ? ''
-                        : tolerancias[parameter.id]?.limite_max
+                        : String(tolerancias[parameter.id]?.limite_max)
                     }
                     onChange={e => handleTolChange(parameter.id, 'limite_max', e.target.value)}
                     disabled={!usarLimiteMax}

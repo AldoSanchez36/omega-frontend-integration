@@ -76,4 +76,4 @@ const Charts: React.FC<ChartsProps> = ({ selectedParameters, startDate, endDate 
   );
 };
 
-export default Charts;
+export default Charts; 
