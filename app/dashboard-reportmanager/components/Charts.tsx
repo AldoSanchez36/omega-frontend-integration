@@ -37,12 +37,18 @@ const Charts: React.FC<ChartsProps> = ({ selectedParameters, startDate, endDate,
               <div key={param.id} className="border rounded-lg p-4">
                 <h3 className="text-lg font-semibold mb-4">{param.nombre} ({param.unidad})</h3>
                 
-                {/* Solo mostrar tabla si hay datos específicos del proceso */}
                 <div className="mb-6">
                   <h4 className="text-md font-medium mb-2">Tabla de Mediciones</h4>
-                  <div className="text-center py-4 text-gray-500">
-                    Los datos de la tabla se muestran solo cuando hay mediciones específicas para este proceso.
-                  </div>
+                  <MesureTable
+                    variable={param.nombre}
+                    startDate={startDate}
+                    endDate={endDate}
+                    apiBase={API_BASE_URL}
+                    unidades={param.unidad}
+                    clientName={clientName}
+                    processName={processName}
+                    userId={userId}
+                  />
                 </div>
                 
                 <div>
