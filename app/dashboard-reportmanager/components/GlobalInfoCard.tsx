@@ -21,7 +21,7 @@ const GlobalInfoCard: React.FC<GlobalInfoCardProps> = ({
 }) => {
   return (
     <>
-      {Object.values(parameterValues).some(p => p.checked) && (
+      {Object.values(parameterValues).some((p:any) => p.checked) && (
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>Información Global</CardTitle>

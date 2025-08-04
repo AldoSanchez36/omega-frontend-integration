@@ -46,43 +46,11 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
       setLoading(true)
       setError(null)
       try {
-        //console.log("[MesureTable] Fetch mediciones para variable:", variable, "URL:", `${apiBase}/api/mediciones/variable/${encodedVar}`)
-        const res = await fetch(
-          `${apiBase}/api/mediciones/variable/${encodedVar}`,
-          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-        )
-        if (!res.ok) {
-          const err = await res.json();
-          setError(err.message || "Error obteniendo datos")
-          setLoading(false)
-          return
-        }
-        const result = await res.json();
-        const json: RawMeasurement[] = result.mediciones || [];
-        // Filtrar registros por fecha
-        const filtered = json.filter(m => {
-          const d = new Date(m.fecha);
-          return d >= new Date(startDate) && d <= new Date(endDate);
-        });
-        // Detectar sensores únicos
-        const sensorSet = new Set(filtered.map(m => m.sistema as string));
-        const sensorList = Array.from(sensorSet).sort();
-        // Detectar fechas únicas y ordenarlas
-        const dateSet = new Set(filtered.map(m => m.fecha));
-        const dateList = Array.from(dateSet).sort(
-          (a, b) => new Date(a).getTime() - new Date(b).getTime()
-        );
-        // Pivotar datos: cada fecha un objeto con valores por sensor
-        const pivotData: PivotData[] = dateList.map(fecha => {
-          const row: PivotData = { fecha };
-          sensorList.forEach(sensor => {
-            const meas = filtered.find(m => m.fecha === fecha && m.sistema === sensor);
-            row[sensor] = meas ? meas.valor : "";
-          });
-          return row;
-        });
-        setSensors(sensorList);
-        setData(pivotData);
+        // No hacer fetch de datos generales - solo mostrar datos específicos del proceso
+        // Los datos deben venir filtrados desde el componente padre
+        console.log("[MesureTable] No se deben mostrar datos generales para:", variable);
+        setData([]);
+        setSensors([]);
       } catch (e) {
         setError("Error obteniendo datos")
       } finally {

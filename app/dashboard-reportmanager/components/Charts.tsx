@@ -16,9 +16,12 @@ interface ChartsProps {
   selectedParameters: Parameter[];
   startDate: string;
   endDate: string;
+  clientName?: string;
+  processName?: string;
+  userId?: string;
 }
 
-const Charts: React.FC<ChartsProps> = ({ selectedParameters, startDate, endDate }) => {
+const Charts: React.FC<ChartsProps> = ({ selectedParameters, startDate, endDate, clientName, processName, userId }) => {
   return (
     <Card className="mb-6">
       <CardHeader>
@@ -34,15 +37,12 @@ const Charts: React.FC<ChartsProps> = ({ selectedParameters, startDate, endDate 
               <div key={param.id} className="border rounded-lg p-4">
                 <h3 className="text-lg font-semibold mb-4">{param.nombre} ({param.unidad})</h3>
                 
+                {/* Solo mostrar tabla si hay datos específicos del proceso */}
                 <div className="mb-6">
                   <h4 className="text-md font-medium mb-2">Tabla de Mediciones</h4>
-                  <MesureTable
-                    variable={param.nombre}
-                    startDate={startDate}
-                    endDate={endDate}
-                    apiBase={API_BASE_URL}
-                    unidades={param.unidad}
-                  />
+                  <div className="text-center py-4 text-gray-500">
+                    Los datos de la tabla se muestran solo cuando hay mediciones específicas para este proceso.
+                  </div>
                 </div>
                 
                 <div>
@@ -53,6 +53,9 @@ const Charts: React.FC<ChartsProps> = ({ selectedParameters, startDate, endDate 
                     endDate={endDate}
                     apiBase={API_BASE_URL}
                     unidades={param.unidad}
+                    clientName={clientName}
+                    processName={processName}
+                    userId={userId}
                   />
                 </div>
               </div>

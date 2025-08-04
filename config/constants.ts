@@ -87,7 +87,7 @@ export const API_ENDPOINTS = {
   MEASUREMENTS_BY_VARIABLE_AND_SYSTEM: (variableName: string, systemName: string) => `/api/mediciones/variable/${encodeURIComponent(variableName)}/sistema/${encodeURIComponent(systemName)}`,
   MEASUREMENTS_BY_VARIABLE_AND_PROCESS: (variableName: string, processName: string) => `/api/mediciones/variable/${encodeURIComponent(variableName)}/proceso/${encodeURIComponent(processName)}`,
   MEASUREMENTS_BY_VARIABLE_AND_CLIENT: (variableName: string, clientName: string) => `/api/mediciones/variable/${encodeURIComponent(variableName)}/cliente/${encodeURIComponent(clientName)}`,
-  
+  MEASUREMENTS_BY_VARIABLE_AND_USER_AND_PROCESS: (variableName: string, userId: string, processName: string) => `/api/mediciones/usuario/${userId}/proceso/${processName}/variable/${encodeURIComponent(variableName)}`,
   // Reports
   REPORTS: '/api/reportes',
   REPORT_BY_ID: (id: string) => `/api/reportes/${id}`,

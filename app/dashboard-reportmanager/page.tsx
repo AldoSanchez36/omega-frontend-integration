@@ -458,11 +458,14 @@ export default function ReportManager() {
             </Card>
           )}
 
-          {/* Gráficos de Series Temporales */}
+                    {/* Gráficos de Series Temporales */}
           <Charts
             selectedParameters={selectedParameters}
             startDate={startDate}
             endDate={endDate}
+            clientName={selectedPlantData?.clientName}
+            processName={selectedSystemData?.nombre}
+            userId={selectedUser?.id}
           />
           
 
