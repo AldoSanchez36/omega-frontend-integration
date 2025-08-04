@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { API_BASE_URL } from "@/config/constants"
+import { useAuthErrorHandler } from "./useAuthErrorHandler"
 
 interface User {
   id: string
@@ -54,6 +55,7 @@ interface UseUserAccessOptions {
 
 export function useUserAccess(token: string | null, options: UseUserAccessOptions = {}): UseUserAccessReturn {
   const { autoSelectFirstPlant = true, autoSelectFirstSystem = true } = options
+  const { handleAuthError } = useAuthErrorHandler()
   const [users, setUsers] = useState<User[]>([])
   const [plants, setPlants] = useState<Plant[]>([])
   const [systems, setSystems] = useState<System[]>([])
