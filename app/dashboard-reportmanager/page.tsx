@@ -196,14 +196,12 @@ export default function ReportManager() {
     // Estado para sistemas por parámetro
   const [sistemasPorParametro, setSistemasPorParametro] = useState<Record<string, string[]>>({});
 
-  // Estado para mediciones preview
-  const { 
-    medicionesPreview,
-    isSaving,
-    saveError,
-    handleSaveData,
-    setMedicionesPreview
-  } = useMeasurements(token, parameters, selectedSystem, selectedPlant?.id, selectedUser?.id);
+  // Estado para mediciones preview - se definirá después de selectedSystemData
+  let medicionesPreview: any[] = [];
+  let isSaving = false;
+  let saveError: string | null = null;
+  let handleSaveData: () => Promise<void> = async () => {};
+  let setMedicionesPreview: (data: any[]) => void = () => {};
 
   // Custom handlers that extend the hook functionality
   const handleSelectUserWithReset = useCallback(async (userId: string) => {
@@ -263,6 +261,67 @@ export default function ReportManager() {
 
   const selectedPlantData = plants.find((p) => p.id === selectedPlant?.id)
   const selectedSystemData = systems.find((s) => s.id === selectedSystem)
+
+  // Función para obtener parámetros de todos los sistemas
+  const [allParameters, setAllParameters] = useState<Record<string, Parameter[]>>({});
+  
+  // Cargar parámetros de todos los sistemas cuando se selecciona una planta
+  useEffect(() => {
+    async function loadAllParameters() {
+      if (!selectedPlant || !systems.length) return;
+      
+      const parametersBySystem: Record<string, Parameter[]> = {};
+      
+      for (const system of systems) {
+        try {
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(system.id)}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            parametersBySystem[system.id] = data.variables || [];
+          }
+        } catch (error) {
+          console.error(`Error loading parameters for system ${system.id}:`, error);
+        }
+      }
+      
+      setAllParameters(parametersBySystem);
+    }
+    
+    loadAllParameters();
+  }, [selectedPlant, systems, token]);
+
+  // Estado para mediciones preview - ahora que selectedSystemData está definido
+  const { 
+    medicionesPreview: medicionesPreviewFromHook,
+    isSaving: isSavingFromHook,
+    saveError: saveErrorFromHook,
+    handleSaveData: handleSaveDataFromHook,
+    setMedicionesPreview: setMedicionesPreviewFromHook
+  } = useMeasurements(
+    token, 
+    parameters, 
+    selectedSystem, 
+    selectedPlant?.id, 
+    selectedUser?.id,
+    selectedUser,
+    selectedPlant,
+    selectedSystemData,
+    tolerancias,
+    globalFecha,
+    globalComentarios,
+    parameterValues,
+    systems, // allSystems
+    allParameters // allParameters - ahora con todos los sistemas
+  );
+
+  // Asignar los valores del hook a las variables locales
+  medicionesPreview = medicionesPreviewFromHook;
+  isSaving = isSavingFromHook;
+  saveError = saveErrorFromHook;
+  handleSaveData = handleSaveDataFromHook;
+  setMedicionesPreview = setMedicionesPreviewFromHook;
 
   // 2. Agrega la función para fetch dinámico:
   async function fetchSistemasForParametro(param: Parameter) {
@@ -353,7 +412,8 @@ export default function ReportManager() {
       generatedDate: new Date().toISOString(),
     };
     localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
-    router.push("/reports");
+    console.log("reportSelection", reportSelection);
+    //router.push("/reports");
   }
 
 
@@ -448,7 +508,7 @@ export default function ReportManager() {
             <Card className="mb-6">
               <CardContent className="pt-6">
                 <div className="flex space-x-4">
-                  <Button onClick={() => handleSaveData(parameterValues)} variant="outline">
+                  <Button onClick={handleSaveData} variant="outline">
                     💾 Guardar Datos
                   </Button>
                   <Button onClick={handleGenerateReport} disabled={isGenerateDisabled} className={
