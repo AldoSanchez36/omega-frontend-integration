@@ -19,6 +19,7 @@ interface SystemSelectorProps {
   globalFecha: string;
   globalComentarios: string;
   handleGlobalFechaChange: (fecha: string) => void;
+  ocultarFecha: boolean;
   handleGlobalComentariosChange: (comentarios: string) => void;
   hasCheckedParameters: boolean;
 }

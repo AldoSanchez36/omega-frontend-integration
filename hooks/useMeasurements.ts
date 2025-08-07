@@ -30,7 +30,10 @@ interface ReportData {
   systemName: string | undefined;
   parameters: {
     [systemName: string]: {
-      [parameterName: string]: number;
+      [parameterName: string]: {
+        valor: number;
+        unidad: string;
+      };
     };
   };
   variablesTolerancia: {
@@ -76,7 +79,8 @@ export function useMeasurements(
   globalComentarios?: string,
   parameterValues?: Record<string, any>,
   allSystems?: any[],
-  allParameters?: Record<string, Parameter[]>
+  allParameters?: Record<string, Parameter[]>,
+  onSaveSuccess?: (reportData: ReportData) => void
 ) {
   const [medicionesPreview, setMedicionesPreview] = useState<Measurement[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -123,7 +127,13 @@ export function useMeasurements(
             systemParameters.forEach(param => {
               const paramValue = parameterValues?.[param.id];
               if (paramValue?.checked && paramValue?.value !== undefined && paramValue?.value !== null) {
-                reportData.parameters[system.nombre][param.nombre] = paramValue.value;
+                // Obtener la unidad seleccionada o usar la primera unidad disponible
+                const unidadSeleccionada = paramValue.unidadSeleccionada || param.unidad.split(',')[0].trim();
+                
+                reportData.parameters[system.nombre][param.nombre] = {
+                  valor: paramValue.value,
+                  unidad: unidadSeleccionada
+                };
               }
             });
           }
@@ -159,13 +169,18 @@ export function useMeasurements(
       
       console.log(`Saved data for ${totalParameters} parameters across ${Object.keys(reportData.parameters).length} systems in plant: ${selectedPlant?.nombre}`);
       
+      // Notificar éxito al componente padre
+      if (onSaveSuccess) {
+        onSaveSuccess(reportData);
+      }
+      
     } catch (error: any) {
       setSaveError(error.message);
       console.error("Error saving report data:", error);
     } finally {
       setIsSaving(false);
     }
-  }, [token, selectedUser, selectedPlant, selectedSystemData, parameters, medicionesPreview, tolerancias, globalFecha, globalComentarios, allSystems, allParameters]);
+  }, [token, selectedUser, selectedPlant, selectedSystemData, parameters, medicionesPreview, tolerancias, globalFecha, globalComentarios, allSystems, allParameters, onSaveSuccess]);
 
   return {
     medicionesPreview,

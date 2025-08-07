@@ -193,6 +193,13 @@ export default function ReportManager() {
     handleTolSave 
   } = useTolerances(parameters, selectedSystem, selectedPlant?.id, selectedUser?.id);
 
+  // Estado para tolerancias globales de todos los sistemas
+  const [allTolerances, setAllTolerances] = useState<Record<string, any>>({});
+  
+  // Estado para controlar la previsualización de datos guardados
+  const [savedReportData, setSavedReportData] = useState<any>(null);
+  const [showPreview, setShowPreview] = useState(false);
+
     // Estado para sistemas por parámetro
   const [sistemasPorParametro, setSistemasPorParametro] = useState<Record<string, string[]>>({});
 
@@ -251,9 +258,7 @@ export default function ReportManager() {
     }
   }, [selectedSystem, token, addDebugLog, router])
 
-  const isGenerateDisabled =
-    !globalFecha || 
-    (!medicionesPreview || medicionesPreview.length === 0);
+  const isGenerateDisabled = !showPreview || !savedReportData;
 
   useEffect(() => {
     fetchParameters()
@@ -292,6 +297,40 @@ export default function ReportManager() {
     loadAllParameters();
   }, [selectedPlant, systems, token]);
 
+  // Cargar tolerancias de todos los parámetros de todos los sistemas
+  useEffect(() => {
+    async function loadAllTolerances() {
+      if (!selectedPlant || Object.keys(allParameters).length === 0) return;
+      
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/variables-tolerancia`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          const toleranceData = Array.isArray(data) ? data : data.tolerancias || [];
+          
+          const allTolerancesMap: Record<string, any> = {};
+          
+          // Agregar tolerancias para todos los parámetros de todos los sistemas
+          Object.values(allParameters).flat().forEach(param => {
+            const tolerance = toleranceData.find((tol: any) => tol.variable_id === param.id);
+            if (tolerance) {
+              allTolerancesMap[param.id] = tolerance;
+            }
+          });
+          
+          setAllTolerances(allTolerancesMap);
+        }
+      } catch (error) {
+        console.error('Error loading all tolerances:', error);
+      }
+    }
+    
+    loadAllTolerances();
+  }, [selectedPlant, allParameters, token]);
+
   // Estado para mediciones preview - ahora que selectedSystemData está definido
   const { 
     medicionesPreview: medicionesPreviewFromHook,
@@ -308,12 +347,17 @@ export default function ReportManager() {
     selectedUser,
     selectedPlant,
     selectedSystemData,
-    tolerancias,
+    allTolerances, // Usar allTolerances en lugar de tolerancias del sistema actual
     globalFecha,
     globalComentarios,
     parameterValues,
     systems, // allSystems
-    allParameters // allParameters - ahora con todos los sistemas
+    allParameters, // allParameters - ahora con todos los sistemas
+    (reportData) => {
+      // Callback cuando se guardan exitosamente los datos
+      setSavedReportData(reportData);
+      setShowPreview(true);
+    }
   );
 
   // Asignar los valores del hook a las variables locales
@@ -413,7 +457,7 @@ export default function ReportManager() {
     };
     localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
     console.log("reportSelection", reportSelection);
-    //router.push("/reports");
+    router.push("/reports");
   }
 
 
@@ -479,6 +523,7 @@ export default function ReportManager() {
               handleGlobalFechaChange={setGlobalFecha}
               handleGlobalComentariosChange={setGlobalComentarios}
               hasCheckedParameters={Object.values(parameterValues).some(value => value.checked)}
+              ocultarFecha={globalFecha !== ""}
             />
           )}
 
@@ -506,15 +551,93 @@ export default function ReportManager() {
           {/* Action Buttons */}
           {selectedSystemData && parameters.length > 0 && (
             <Card className="mb-6">
+              
               <CardContent className="pt-6">
+                {globalFecha == "" && (
+                  <label className="text-sm text-gray-500">Seleccione una fecha para guardar los datos</label>
+                )}
+                <hr className="my-2 invisible" ></hr>
                 <div className="flex space-x-4">
-                  <Button onClick={handleSaveData} variant="outline">
+                  <Button 
+                    onClick={handleSaveData} 
+                    variant="outline"
+                    disabled={!globalFecha}
+                    className={!globalFecha ? "opacity-50 cursor-not-allowed" : ""}
+                  >
                     💾 Guardar Datos
                   </Button>
                   <Button onClick={handleGenerateReport} disabled={isGenerateDisabled} className={
                     `bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 ${isGenerateDisabled ? "opacity-50 cursor-not-allowed" : ""}`}>
                       📊 Generar Reporte</Button>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Previsualización de datos guardados */}
+          {showPreview && savedReportData && (
+            <Card className="mb-6">
+              <CardContent className="pt-6">
+                <h3 className="text-xl font-bold mb-4">Previsualización de Datos Guardados</h3>
+                
+                {/* Fecha de medición */}
+                <div className="mb-6">
+                  <h4 className="text-lg font-semibold text-blue-800">
+                    Fecha de medición: {new Date(savedReportData.fecha).toLocaleDateString('es-ES', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    })}
+                  </h4>
+                </div>
+
+                {/* Tabla de datos */}
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border border-gray-300 bg-white">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="border px-4 py-2 text-left font-semibold">Variable</th>
+                        {Object.keys(savedReportData.parameters).map(systemName => (
+                          <th key={systemName} className="border px-4 py-2 text-center font-semibold">
+                            {systemName}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        // Obtener todas las variables únicas
+                        const allVariables = new Set<string>();
+                        Object.values(savedReportData.parameters).forEach((systemData: any) => {
+                          Object.keys(systemData).forEach(variable => allVariables.add(variable));
+                        });
+                        
+                        return Array.from(allVariables).map(variable => (
+                          <tr key={variable} className="hover:bg-gray-50">
+                            <td className="border px-4 py-2 font-medium">{variable}</td>
+                            {Object.keys(savedReportData.parameters).map(systemName => {
+                              const systemData = savedReportData.parameters[systemName];
+                              const paramData = systemData[variable];
+                              return (
+                                <td key={systemName} className="border px-4 py-2 text-center">
+                                  {paramData ? `${paramData.valor} ${paramData.unidad}` : '—'}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ));
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Comentarios si existen */}
+                {savedReportData.comentarios && (
+                  <div className="mt-4">
+                    <h4 className="text-lg font-semibold mb-2">Comentarios:</h4>
+                    <p className="text-gray-700 bg-gray-50 p-3 rounded">{savedReportData.comentarios}</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
