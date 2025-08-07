@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 interface System {
   id: string;
@@ -15,6 +16,11 @@ interface SystemSelectorProps {
   selectedSystemData: System | undefined;
   setSelectedSystem: (systemId: string) => void;
   plantName: string;
+  globalFecha: string;
+  globalComentarios: string;
+  handleGlobalFechaChange: (fecha: string) => void;
+  handleGlobalComentariosChange: (comentarios: string) => void;
+  hasCheckedParameters: boolean;
 }
 
 const SystemSelector: React.FC<SystemSelectorProps> = ({
@@ -23,6 +29,11 @@ const SystemSelector: React.FC<SystemSelectorProps> = ({
   selectedSystemData,
   setSelectedSystem,
   plantName,
+  globalFecha,
+  globalComentarios,
+  handleGlobalFechaChange,
+  handleGlobalComentariosChange,
+  hasCheckedParameters,
 }) => {
   return (
     <Card className="mb-6">
@@ -51,6 +62,37 @@ const SystemSelector: React.FC<SystemSelectorProps> = ({
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
             <h3 className="text-lg font-semibold mb-2">{selectedSystemData.nombre}</h3>
             <p className="text-gray-600">{selectedSystemData.descripcion}</p>
+          </div>
+        )}
+
+        {/* — Inputs globales fecha / comentarios — */}
+        {hasCheckedParameters && (
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="text-lg font-semibold mb-4 text-blue-800">Configuración Global</h3>
+            <div className="flex flex-wrap gap-6">
+              <div className="flex flex-col">
+                <label htmlFor="globalFecha" className="text-sm font-medium text-blue-700">Fecha global</label>
+                <Input
+                  id="globalFecha"
+                  type="date"
+                  value={globalFecha}
+                  onChange={e => handleGlobalFechaChange(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div className="flex-1 flex flex-col">
+                <label htmlFor="globalComentarios" className="text-sm font-medium text-blue-700">Comentarios globales</label>
+                <Input
+                  id="globalComentarios"
+                  value={globalComentarios}
+                  onChange={e => handleGlobalComentariosChange(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            <p className="text-sm text-blue-600 mt-2">
+              Esta configuración se aplicará a todos los sistemas de {plantName}
+            </p>
           </div>
         )}
       </CardContent>

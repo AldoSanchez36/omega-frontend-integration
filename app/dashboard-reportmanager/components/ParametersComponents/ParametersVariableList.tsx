@@ -34,7 +34,7 @@ interface Props {
   handleParameterChange: (parameterId: string, field: "checked" | "value", value: boolean | number) => void;
   handleUnitChange: (parameterId: string, unidad: string) => void;
   handleTolChange: (variableId: string, field: string, value: string | boolean) => void;
-  handleTolSave: (variableId: string) => Promise<void>;
+  // handleTolSave: (variableId: string) => Promise<void>;
   tolLoading: Record<string, boolean>;
   tolError: Record<string, string | null>;
   tolSuccess: Record<string, string | null>;
@@ -47,11 +47,67 @@ const ParametersVariableList: React.FC<Props> = ({
   handleParameterChange,
   handleUnitChange,
   handleTolChange,
-  handleTolSave,
+  // handleTolSave,
   tolLoading,
   tolError,
   tolSuccess,
 }) => {
+  
+  // Función para determinar el color del input basado en el valor y límites
+  const getInputColor = (parameterId: string, value: number | undefined): string => {
+    if (value === undefined || value === null) return '';
+    
+    const tolerancia = tolerancias[parameterId];
+    if (!tolerancia) return '';
+    
+    const numValue = Number(value);
+    if (isNaN(numValue)) return '';
+    
+    // Verificar si está fuera de todos los rangos (rojo)
+    const usarLimiteMin = !!tolerancia.usar_limite_min;
+    const usarLimiteMax = !!tolerancia.usar_limite_max;
+    
+    // Si está por debajo del límite mínimo (si existe)
+    if (usarLimiteMin && tolerancia.limite_min !== null && tolerancia.limite_min !== undefined) {
+      if (numValue < tolerancia.limite_min) {
+        return '#FFC6CE'; // Rojo
+      }
+    }
+    
+    // Si está por encima del límite máximo (si existe)
+    if (usarLimiteMax && tolerancia.limite_max !== null && tolerancia.limite_max !== undefined) {
+      if (numValue > tolerancia.limite_max) {
+        return '#FFC6CE'; // Rojo
+      }
+    }
+    
+    // Verificar si está en el rango de advertencia (amarillo)
+    const bienMin = tolerancia.bien_min;
+    const bienMax = tolerancia.bien_max;
+    
+    // Si está por debajo del rango bien_min pero por encima del límite_min
+    if (usarLimiteMin && tolerancia.limite_min !== null && tolerancia.limite_min !== undefined) {
+      if (numValue >= tolerancia.limite_min && bienMin !== null && bienMin !== undefined && numValue < bienMin) {
+        return '#FFEB9C'; // Amarillo
+      }
+    }
+    
+    // Si está por encima del rango bien_max pero por debajo del límite_max
+    if (usarLimiteMax && tolerancia.limite_max !== null && tolerancia.limite_max !== undefined) {
+      if (numValue <= tolerancia.limite_max && bienMax !== null && bienMax !== undefined && numValue > bienMax) {
+        return '#FFEB9C'; // Amarillo
+      }
+    }
+    
+    // Si está dentro del rango bien_min y bien_max (verde)
+    if (bienMin !== null && bienMin !== undefined && bienMax !== null && bienMax !== undefined) {
+      if (numValue >= bienMin && numValue <= bienMax) {
+        return '#C6EFCE'; // Verde
+      }
+    }
+    
+    return ''; // Sin color (blanco)
+  };
   return (
     <div className="space-y-4"> 
       {parameters.map(parameter => {
@@ -78,6 +134,10 @@ const ParametersVariableList: React.FC<Props> = ({
                   type="number"
                   placeholder="Valor"
                   className="w-[100px] text-sm"
+                  style={{
+                    backgroundColor: getInputColor(parameter.id, parameterValues[parameter.id]?.value),
+                    borderColor: getInputColor(parameter.id, parameterValues[parameter.id]?.value) ? getInputColor(parameter.id, parameterValues[parameter.id]?.value) : undefined
+                  }}
                   value={parameterValues[parameter.id]?.value ?? ''}
                   onChange={e => handleParameterChange(parameter.id, 'value', Number(e.target.value))}
                 />
@@ -112,7 +172,7 @@ const ParametersVariableList: React.FC<Props> = ({
                       {usarLimiteMin && <span className="material-icons text-yellow-700 text-xs">check</span>}
                     </button>
                   </div>
-                  <Input
+                  {/* <Input
                     type="number"
                     className={`w-14 text-xs py-1 px-1 ${
                       usarLimiteMin ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'
@@ -121,18 +181,33 @@ const ParametersVariableList: React.FC<Props> = ({
                     value={tolerancias[parameter.id]?.limite_min ?? ''}
                     onChange={e => handleTolChange(parameter.id, 'limite_min', e.target.value)}
                     disabled={!usarLimiteMin}
-                  />
+                  />*/}
+                  <span
+                    className={`w-14 text-xs py-1 px-1 text-center rounded h-8 flex items-center justify-center ${
+                      usarLimiteMin ? 'bg-yellow-100 border border-yellow-400 text-yellow-900' : 'bg-gray-100 border border-gray-300 text-gray-400'  
+                    }`}
+                    
+                  >
+                    {tolerancias[parameter.id]?.limite_min ?? '-'}
+                  </span>
                 </div>
               )}
               
               {/* Bajo / Alto - siempre presente */}
-              <div className="flex flex-col items-center" style={{ minWidth: '60px' }}>
-                <span className="text-xs font-semibold text-green-700 text-center w-full">Bajo / Alto</span>
-                <div className="flex flex-row gap-1">
-                  <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1"
-                    placeholder="min" value={tolerancias[parameter.id]?.bien_min ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_min', e.target.value)} />
-                  <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1"
-                    placeholder="max" value={tolerancias[parameter.id]?.bien_max ?? ''} onChange={e => handleTolChange(parameter.id, 'bien_max', e.target.value)} />
+              <div className="flex flex-row gap-1" >
+                <div className="flex flex-col items-center">
+                  <span className="text-xs font-semibold text-green-700 text-center w-full">Bajo</span>
+                  <div className="flex flex-row gap-1">
+                    <span className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1 h-8 flex items-center justify-center"
+                      >{tolerancias[parameter.id]?.bien_min ?? '-'}</span>
+                  </div>
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className="text-xs font-semibold text-green-700 text-center w-full">Alto</span>
+                  <div className="flex flex-row gap-1">
+                    <span className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1 h-8 flex items-center justify-center"
+                      >{tolerancias[parameter.id]?.bien_max ?? '-'}</span>
+                  </div>
                 </div>
               </div>
               
@@ -148,7 +223,7 @@ const ParametersVariableList: React.FC<Props> = ({
                       {usarLimiteMax && <span className="material-icons text-yellow-700 text-xs">check</span>}
                     </button>
                   </div>
-                  <Input
+                  {/* <Input
                     type="number"
                     className={`w-14 text-xs py-1 px-1 ${
                       usarLimiteMax ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'
@@ -157,13 +232,21 @@ const ParametersVariableList: React.FC<Props> = ({
                     value={tolerancias[parameter.id]?.limite_max ?? ''}
                     onChange={e => handleTolChange(parameter.id, 'limite_max', e.target.value)}
                     disabled={!usarLimiteMax}
-                  />
+                  /> */}
+                  <span
+                    className={`w-14 text-xs py-1 px-1 text-center rounded h-8 flex items-center justify-center ${
+                      usarLimiteMax ? 'bg-yellow-100 border border-yellow-400 text-yellow-900' : 'bg-gray-100 border border-gray-300 text-gray-400'  
+                    }`}
+                    
+                  >
+                    {tolerancias[parameter.id]?.limite_max ?? '-'}
+                  </span>
                 </div>
               )}
-              <Button size="icon" className="ml-2 h-7 w-7 p-0 flex items-center justify-center"
+             {/*  <Button size="icon" className="ml-2 h-7 w-7 p-0 flex items-center justify-center"
                 onClick={() => handleTolSave(parameter.id)} disabled={tolLoading[parameter.id]} title="Guardar límites">
                 <span className="material-icons text-base">save</span>
-              </Button>
+              </Button> */}
               <div className="flex flex-col items-center justify-end">
                 {tolError[parameter.id] && <div className="text-xs text-red-600">{tolError[parameter.id]}</div>}
                 {tolSuccess[parameter.id] && <div className="text-xs text-green-600">{tolSuccess[parameter.id]}</div>}

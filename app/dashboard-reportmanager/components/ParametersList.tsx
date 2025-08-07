@@ -44,10 +44,6 @@ interface ParametersListProps {
   tolSuccess: Record<string, string | null>;
   userRole?: string;
   router: any; // NextRouter
-  globalFecha: string;
-  globalComentarios: string;
-  handleGlobalFechaChange: (fecha: string) => void;
-  handleGlobalComentariosChange: (comentarios: string) => void;
   sistemasPorParametro: Record<string, string[]>;
   handleMeasurementDataChange: (parameterId: string, data: { fecha: string; comentarios: string; valores: { [sistema: string]: string } }) => void;
   medicionesPreview: any[];
@@ -60,16 +56,12 @@ const ParametersList: React.FC<ParametersListProps> = ({
   handleParameterChange,
   tolerancias,
   handleTolChange,
-  handleTolSave,
+  // handleTolSave,
   tolLoading,
   tolError,
   tolSuccess,
   userRole,
   router,
-  globalFecha,
-  globalComentarios,
-  handleGlobalFechaChange,
-  handleGlobalComentariosChange,
   sistemasPorParametro,
   handleMeasurementDataChange,
   medicionesPreview,
@@ -79,7 +71,8 @@ const ParametersList: React.FC<ParametersListProps> = ({
       <ParametersHeader userRole={userRole} router={router} />
       <CardContent>
         {/* — Inputs globales fecha / comentarios — */}
-        {parameters.filter(param => parameterValues[param.id]?.checked).length > 0 && (
+        {/* Comentado: Movido a SystemSelector.tsx para ser verdaderamente global */}
+        {/* {parameters.filter(param => parameterValues[param.id]?.checked).length > 0 && (
         <div className="mb-6 flex flex-wrap gap-6">
           <div className="flex flex-col">
             <label htmlFor="globalFecha" className="text-sm font-medium">Fecha global</label>
@@ -99,7 +92,7 @@ const ParametersList: React.FC<ParametersListProps> = ({
             />
           </div>
         </div>
-        )}
+        )} */}
         {/* Checkbox para seleccionar todas las variables */}
         
         {parameters.length > 1 && (
@@ -197,7 +190,7 @@ const ParametersList: React.FC<ParametersListProps> = ({
           handleParameterChange={handleParameterChange}
           handleUnitChange={handleUnitChange}
           handleTolChange={handleTolChange}
-          handleTolSave={handleTolSave}
+          // handleTolSave={handleTolSave}
           tolLoading={tolLoading}
           tolError={tolError}
           tolSuccess={tolSuccess}

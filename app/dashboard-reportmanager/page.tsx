@@ -414,6 +414,11 @@ export default function ReportManager() {
               selectedSystemData={selectedSystemData}
               setSelectedSystem={setSelectedSystem}
               plantName={selectedPlantData.nombre}
+              globalFecha={globalFecha}
+              globalComentarios={globalComentarios}
+              handleGlobalFechaChange={setGlobalFecha}
+              handleGlobalComentariosChange={setGlobalComentarios}
+              hasCheckedParameters={Object.values(parameterValues).some(value => value.checked)}
             />
           )}
 
@@ -422,11 +427,7 @@ export default function ReportManager() {
             <ParametersList
               parameters={parameters}
               parameterValues={parameterValues}
-              globalFecha={globalFecha}
-              globalComentarios={globalComentarios}
               handleUnitChange={handleUnitChange}
-              handleGlobalFechaChange={setGlobalFecha}
-              handleGlobalComentariosChange={setGlobalComentarios}
               handleParameterChange={handleParameterChange}
               handleTolChange={handleTolChange}
               handleTolSave={handleTolSave}
