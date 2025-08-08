@@ -422,42 +422,23 @@ export default function ReportManager() {
   const handleGenerateReport = async () => {
     addDebugLog("info", "Generando reporte")
 
-    // Recoge la información seleccionada
-    // Usar los datos guardados en medicionesPreview en lugar de los valores del formulario
-    const mediciones = medicionesPreview.map(medicion => ({
-      variable_id: medicion.variable_id,
-      nombre: parameters.find(p => p.id === medicion.variable_id)?.nombre || '',
-      unidad: parameters.find(p => p.id === medicion.variable_id)?.unidad || '',
-      valores: { [medicion.sistema]: medicion.valor },
-      fecha: medicion.fecha,
-      comentarios: medicion.comentarios || '',
-    }));
+    // Debe existir un guardado previo (estructura nueva)
+    if (!savedReportData) {
+      console.warn("No hay datos guardados para generar el reporte.")
+      return
+    }
 
-    const reportSelection = {
-      user: selectedUser ? { id: selectedUser.id, username: selectedUser.username, email: selectedUser.email, puesto: selectedUser.puesto } : null,
-      plant: selectedPlant ? { id: selectedPlant.id, nombre: selectedPlant.nombre } : null,
-      systemName: selectedSystemData?.nombre,
-      parameters: parameters.filter(param => 
-        medicionesPreview.some(med => med.variable_id === param.id)
-      ).map(param => ({
-        id: param.id,
-        nombre: param.nombre,
-        unidad: param.unidad,
-        limite_min: tolerancias[param.id]?.limite_min ?? null,
-        limite_max: tolerancias[param.id]?.limite_max ?? null,
-        bien_min: tolerancias[param.id]?.bien_min ?? null,
-        bien_max: tolerancias[param.id]?.bien_max ?? null,
-        usar_limite_min: !!tolerancias[param.id]?.usar_limite_min,
-        usar_limite_max: !!tolerancias[param.id]?.usar_limite_max,
-      })),
-      mediciones,
-      fecha: globalFecha,
-      comentarios: globalComentarios,
-      generatedDate: new Date().toISOString(),
-    };
-    localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
-    console.log("reportSelection", reportSelection);
-    router.push("/reports");
+    // Persistir exactamente la misma estructura generada en Guardar Datos
+    localStorage.setItem("reportSelection", JSON.stringify(savedReportData))
+    console.log("reportSelection (from savedReportData)", savedReportData)
+    try {
+      const persisted = localStorage.getItem("reportSelection")
+      if (persisted) {
+        console.log("reportSelection (persisted)", JSON.parse(persisted))
+      }
+    } catch {}
+
+    router.push("/reports")
   }
 
 
@@ -554,7 +535,7 @@ export default function ReportManager() {
               
               <CardContent className="pt-6">
                 {globalFecha == "" && (
-                  <label className="text-sm text-gray-500">Seleccione una fecha para guardar los datos</label>
+                  <label className="text-sm text-red-500">Seleccione una fecha para guardar los datos</label>
                 )}
                 <hr className="my-2 invisible" ></hr>
                 <div className="flex space-x-4">

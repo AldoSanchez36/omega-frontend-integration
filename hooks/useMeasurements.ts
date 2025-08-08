@@ -140,18 +140,39 @@ export function useMeasurements(
         });
       }
 
-      // Agregar tolerancias de TODOS los parámetros
-      if (allParameters) {
+      // Agregar tolerancias de TODOS los parámetros con checkbox seleccionado
+      if (allParameters && parameterValues) {
         Object.values(allParameters).flat().forEach(param => {
-          if (tolerancias?.[param.id]) {
-            reportData.variablesTolerancia[param.id] = {
-              limite_min: tolerancias[param.id].limite_min ?? null,
-              limite_max: tolerancias[param.id].limite_max ?? null,
-              bien_min: tolerancias[param.id].bien_min ?? null,
-              bien_max: tolerancias[param.id].bien_max ?? null,
-              usar_limite_min: !!tolerancias[param.id].usar_limite_min,
-              usar_limite_max: !!tolerancias[param.id].usar_limite_max,
-            };
+          // ✅ FILTRO: Solo parámetros con checkbox activo
+          const paramValue = parameterValues[param.id];
+          if (paramValue?.checked) {
+            const tolerance = tolerancias?.[param.id];
+            
+            if (tolerance) {
+              // ✅ Guardar tolerancia existente (con o sin límites configurados)
+              reportData.variablesTolerancia[param.id] = {
+                limite_min: tolerance.limite_min ?? null,
+                limite_max: tolerance.limite_max ?? null,
+                bien_min: tolerance.bien_min ?? null,
+                bien_max: tolerance.bien_max ?? null,
+                usar_limite_min: !!tolerance.usar_limite_min,
+                usar_limite_max: !!tolerance.usar_limite_max,
+              };
+              
+              const hasLimits = tolerance.bien_min !== null || tolerance.bien_max !== null;
+              console.log(`📊 Tolerancia incluida para ${param.nombre}: ${hasLimits ? 'CON límites' : 'SIN límites (todo válido)'}`);
+            } else {
+              // ✅ Crear tolerancia "sin límites" para parámetros sin configuración
+              reportData.variablesTolerancia[param.id] = {
+                limite_min: null,
+                limite_max: null,
+                bien_min: null,
+                bien_max: null,
+                usar_limite_min: false,
+                usar_limite_max: false,
+              };
+              console.log(`📊 Tolerancia creada SIN límites para ${param.nombre} (todo es válido)`);
+            }
           }
         });
       }
@@ -160,6 +181,8 @@ export function useMeasurements(
       localStorage.setItem("reportSelection", JSON.stringify(reportData));
       
       console.log("Report data saved successfully:", reportData);
+      console.log("🎯 Tolerancias guardadas (solo parámetros seleccionados):", reportData.variablesTolerancia);
+      console.log("📋 IDs de tolerancias guardadas:", Object.keys(reportData.variablesTolerancia));
       
       // Contar parámetros totales de todos los sistemas
       let totalParameters = 0;

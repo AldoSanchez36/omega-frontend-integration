@@ -62,6 +62,19 @@ body {
   }
 }
 
+/* Color classes for table cells based on tolerances */
+.bg-verde {
+  background-color: #C5EECE !important;
+}
+
+.bg-amarillo {
+  background-color: #FFEB9C !important;
+}
+
+.bg-rojo {
+  background-color: #FFC6CE !important;
+}
+
 .material-symbols-outlined {
   font-variation-settings:
   'FILL' 0,

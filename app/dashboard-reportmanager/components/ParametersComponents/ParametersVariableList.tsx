@@ -63,46 +63,62 @@ const ParametersVariableList: React.FC<Props> = ({
     const numValue = Number(value);
     if (isNaN(numValue)) return '';
     
-    // Verificar si está fuera de todos los rangos (rojo)
+    const bienMin = tolerancia.bien_min;
+    const bienMax = tolerancia.bien_max;
     const usarLimiteMin = !!tolerancia.usar_limite_min;
     const usarLimiteMax = !!tolerancia.usar_limite_max;
     
-    // Si está por debajo del límite mínimo (si existe)
-    if (usarLimiteMin && tolerancia.limite_min !== null && tolerancia.limite_min !== undefined) {
-      if (numValue < tolerancia.limite_min) {
-        return '#FFC6CE'; // Rojo
-      }
+    // ✅ CASO ESPECIAL: Si NO existen bien_min Y bien_max, NO aplicar colores
+    if (bienMin === null && bienMax === null) {
+      return ''; // Sin color (blanco) - todo es válido
     }
     
-    // Si está por encima del límite máximo (si existe)
-    if (usarLimiteMax && tolerancia.limite_max !== null && tolerancia.limite_max !== undefined) {
-      if (numValue > tolerancia.limite_max) {
-        return '#FFC6CE'; // Rojo
-      }
+    // ✅ CASO ESPECIAL: Si falta alguno de bien_min o bien_max, NO aplicar colores
+    if (bienMin === null || bienMax === null) {
+      return ''; // Sin color (blanco) - no hay suficientes parámetros para evaluar
     }
     
-    // Verificar si está en el rango de advertencia (amarillo)
-    const bienMin = tolerancia.bien_min;
-    const bienMax = tolerancia.bien_max;
-    
-    // Si está por debajo del rango bien_min pero por encima del límite_min
-    if (usarLimiteMin && tolerancia.limite_min !== null && tolerancia.limite_min !== undefined) {
-      if (numValue >= tolerancia.limite_min && bienMin !== null && bienMin !== undefined && numValue < bienMin) {
-        return '#FFEB9C'; // Amarillo
-      }
-    }
-    
-    // Si está por encima del rango bien_max pero por debajo del límite_max
-    if (usarLimiteMax && tolerancia.limite_max !== null && tolerancia.limite_max !== undefined) {
-      if (numValue <= tolerancia.limite_max && bienMax !== null && bienMax !== undefined && numValue > bienMax) {
-        return '#FFEB9C'; // Amarillo
-      }
-    }
-    
-    // Si está dentro del rango bien_min y bien_max (verde)
+    // ✅ Solo aplicar colores si AMBOS bien_min y bien_max están definidos
     if (bienMin !== null && bienMin !== undefined && bienMax !== null && bienMax !== undefined) {
+      
+      // 🟢 VERDE: Si está dentro del rango bien_min y bien_max
       if (numValue >= bienMin && numValue <= bienMax) {
         return '#C6EFCE'; // Verde
+      }
+      
+      // 🟡 AMARILLO: Si está en rango de advertencia (entre límites y bien)
+      // Si está por debajo del rango bien_min pero por encima del límite_min
+      if (usarLimiteMin && tolerancia.limite_min !== null && tolerancia.limite_min !== undefined) {
+        if (numValue >= tolerancia.limite_min && numValue < bienMin) {
+          return '#FFEB9C'; // Amarillo
+        }
+      }
+      
+      // Si está por encima del rango bien_max pero por debajo del límite_max
+      if (usarLimiteMax && tolerancia.limite_max !== null && tolerancia.limite_max !== undefined) {
+        if (numValue <= tolerancia.limite_max && numValue > bienMax) {
+          return '#FFEB9C'; // Amarillo
+        }
+      }
+      
+      // 🔴 ROJO: Si está fuera de todos los rangos (solo si existen bien_min Y bien_max)
+      // Si está por debajo del límite mínimo (si existe)
+      if (usarLimiteMin && tolerancia.limite_min !== null && tolerancia.limite_min !== undefined) {
+        if (numValue < tolerancia.limite_min) {
+          return '#FFC6CE'; // Rojo
+        }
+      }
+      
+      // Si está por encima del límite máximo (si existe)
+      if (usarLimiteMax && tolerancia.limite_max !== null && tolerancia.limite_max !== undefined) {
+        if (numValue > tolerancia.limite_max) {
+          return '#FFC6CE'; // Rojo
+        }
+      }
+      
+      // Si está fuera del rango bien pero no hay límites configurados
+      if (numValue < bienMin || numValue > bienMax) {
+        return '#FFC6CE'; // Rojo
       }
     }
     
