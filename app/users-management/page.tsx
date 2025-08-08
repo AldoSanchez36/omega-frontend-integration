@@ -19,6 +19,7 @@ interface User {
   role?: string
   createdAt?: string
   updatedAt?: string
+  empresa?: string
 }
 
 // Helper que devuelve un id robusto (_id o id)
@@ -535,8 +536,9 @@ export default function UsersManagement() {
                   <tr>
                     <th className="border border-gray-300 px-4 py-2 text-left">Usuario</th>
                     <th className="border border-gray-300 px-4 py-2 text-left">Correo</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">Rol</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">Acciones</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Empresa</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -557,6 +559,13 @@ export default function UsersManagement() {
                         </td>
                         <td className="border border-gray-300 px-4 py-2">
                           {getRoleBadge(user.puesto || user.role || 'user')}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          <div className="flex items-center">
+                            <div>
+                              <div className="font-semibold text-gray-800">{user.empresa || "No asignado"}</div>
+                            </div>
+                          </div>
                         </td>
                         <td className="border border-gray-300 px-4 py-2">
                           <div className="flex space-x-2">
