@@ -55,6 +55,7 @@ export const API_ENDPOINTS = {
   FORMULAS_CREATE: '/api/formulas/crear',
   FORMULAS_BY_PROCESS: (processId: string) => `/api/formulas/proceso/${processId}`,
   FORMULAS_ALL: '/api/formulas',
+  FORMULA_CREATE: "/api/formulas/crear",
   
   // Process Access Control
   PROCESS_ACCESS_ASSIGN: '/api/accesos/procesos/asignar',
