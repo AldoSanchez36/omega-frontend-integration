@@ -29,6 +29,8 @@ export const API_ENDPOINTS = {
   PLANTS_ACCESSIBLE: '/api/plantas/accesibles',
   PLANTS_ALL: '/api/plantas/all', 
   PLANTS_ALL_ID: '/api/plantas/allID',
+  PLANTS_DELETE: (plantId: string) => `/api/plantas/delete/${plantId}`,
+
   PLANTS_BY_USER: (userId: string) => `/api/plantas/mis-plantas/${userId}`,
   PLANTS_ACCESS_BY_USER: (userId: string) => `/api/accesos/plantas/usuario/${userId}`,
   PLANTS_ASSIGN_ACCESS: '/api/accesos/plantas/asignar',
@@ -40,7 +42,7 @@ export const API_ENDPOINTS = {
   SYSTEMS_BY_PLANT_NAME: (plantName: string) => `/api/procesos/planta-nombre/${encodeURIComponent(plantName)}`, 
   SYSTEMS_ALL: '/api/procesos',
   SYSTEM_CREATE: '/api/procesos/crear',
-  SYSTEM_UPDATE: (processId: string) => `/api/procesos/${processId}`, 
+  SYSTEM_UPDATE: (id: string) => `/api/procesos/${id}`, 
   SYSTEM_DELETE_BY_PLANT: (plantId: string, processId: string) => `/api/procesos/planta/${plantId}/${processId}`,
   
   // Variables/Parameters
