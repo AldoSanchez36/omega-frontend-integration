@@ -153,26 +153,58 @@ export default function ParameterManager() {
 
   const handleSaveEdit = async () => {
     if (!editingParam) return
-    const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE(editingParam.id)}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        nombre: editName,
-        unidad: editUnit,
-      }),
-    })
-    if (res.ok) {
+    
+    try {
+      // Mostrar estado de carga
+      setLoading(true)
+      setError(null)
+      
+      // Actualizar primero en el estado local para mejor experiencia de usuario
       setParameters((prev) =>
         prev.map((p) =>
           p.id === editingParam.id ? { ...p, nombre: editName, unidad: editUnit } : p
         )
       )
+      
+      // Cerrar el modal inmediatamente para mejorar la experiencia
       setShowEditModal(false)
-    } else {
-      alert("Error al actualizar parámetro")
+      
+      // Luego hacer la llamada al API
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE(editingParam.id)}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          nombre: editName,
+          unidad: editUnit,
+        }),
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.message || "Error al actualizar parámetro")
+      }
+      
+      // No mostrar notificación
+      
+    } catch (e: any) {
+      console.error("Error al actualizar parámetro:", e)
+      
+      // Revertir cambios en caso de error
+      if (editingParam) {
+        setParameters((prev) =>
+          prev.map((p) =>
+            p.id === editingParam.id ? editingParam : p
+          )
+        )
+      }
+      
+      // No mostrar notificación de error
+      
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -203,39 +235,90 @@ export default function ParameterManager() {
   }
 
   const handleTolSave = async (variableId: string) => {
-    setTolLoading((p) => ({ ...p, [variableId]: true }))
-    setTolError((p) => ({ ...p, [variableId]: null }))
-    setTolSuccess((p) => ({ ...p, [variableId]: null }))
-
-    const tol = {
-      ...tolerancias[variableId],
-      variable_id: variableId,
-      proceso_id: selectedSystemId,
-      planta_id: selectedPlant?.id,
-      cliente_id: selectedUser?.id,
-    }
-
     try {
+      // Limpiar estados anteriores
+      setTolLoading((p) => ({ ...p, [variableId]: true }))
+      setTolError((p) => ({ ...p, [variableId]: null }))
+      setTolSuccess((p) => ({ ...p, [variableId]: null }))
+  
+      // Preparar datos de tolerancia
+      const tol = {
+        ...tolerancias[variableId],
+        variable_id: variableId,
+        proceso_id: selectedSystemId,
+        planta_id: selectedPlant?.id,
+        cliente_id: selectedUser?.id,
+      }
+  
+      // Mostrar indicador de carga sin texto
+      setTolSuccess((p) => ({ ...p, [variableId]: "" }))
+  
+      // Ejecutar la operación adecuada según si es actualización o creación
       if (tol && tol.id) {
         const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCE_UPDATE(tol.id)}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify(tol),
         })
-        if (!res.ok) throw new Error("Error al actualizar tolerancia")
-        setTolSuccess((p) => ({ ...p, [variableId]: "¡Guardado!" }))
+        
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}))
+          throw new Error(errorData.message || "Error al actualizar tolerancia")
+        }
+        
+        // Actualizar estado local inmediatamente
+        setTolerancias(prev => ({
+          ...prev,
+          [variableId]: { ...tol }
+        }))
+        
+        // Indicar éxito sin texto
+        setTolSuccess((p) => ({ ...p, [variableId]: null }))
+        
+        // Ocultar indicador después de un tiempo breve
+        setTimeout(() => {
+          setTolSuccess((p) => ({ ...p, [variableId]: null }))
+        }, 300)
       } else {
         const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify(tol),
         })
-        if (!res.ok) throw new Error("Error al crear tolerancia")
-        setTolSuccess((p) => ({ ...p, [variableId]: "¡Guardado!" }))
+        
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}))
+          throw new Error(errorData.message || "Error al crear tolerancia")
+        }
+        
+        // Intentar obtener el ID de la nueva tolerancia de la respuesta
+        const newTol = await res.json().catch(() => ({}))
+        const updatedTol = { ...tol, id: newTol.id || tol.id }
+        
+        // Actualizar estado local inmediatamente
+        setTolerancias(prev => ({
+          ...prev,
+          [variableId]: updatedTol
+        }))
+        
+        // Indicar éxito sin texto
+        setTolSuccess((p) => ({ ...p, [variableId]: null }))
+        
+        // Ocultar indicador después de un tiempo breve
+        setTimeout(() => {
+          setTolSuccess((p) => ({ ...p, [variableId]: null }))
+        }, 300)
       }
     } catch (e: any) {
+      console.error("Error guardando tolerancia:", e)
       setTolError((p) => ({ ...p, [variableId]: e.message }))
+      
+      // Ocultar mensaje de error después de un tiempo
+      setTimeout(() => {
+        setTolError((p) => ({ ...p, [variableId]: null }))
+      }, 2000)
     } finally {
+      // Siempre asegurarse de desactivar el estado de carga
       setTolLoading((p) => ({ ...p, [variableId]: false }))
     }
   }
@@ -587,6 +670,101 @@ export default function ParameterManager() {
     loadTolerances()
   }, [selectedSystemId, parameters, token])
 
+  // Función para importar variables de un sistema existente
+  const handleImportVariablesFromSystem = async (sourceSystemId: string) => {
+    if (!selectedSystemId || !sourceSystemId) return
+    
+    setLoading(true)
+    setError(null)
+    
+    try {
+      // 1. Obtener variables del sistema fuente
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(sourceSystemId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      
+      if (!res.ok) {
+        throw new Error("No se pudieron cargar las variables del sistema fuente")
+      }
+      
+      const data = await res.json()
+      const sourceVariables = data.variables || []
+      
+      if (sourceVariables.length === 0) {
+        toast({
+          title: "Información",
+          description: "El sistema seleccionado no tiene variables para importar.",
+          variant: "default",
+          duration: 500, // Duración de 500 milisegundos
+        })
+        return
+      }
+      
+
+      
+      // 2. Filtrar variables que ya existen en el sistema actual
+      const existingNames = parameters.map(p => p.nombre.toLowerCase())
+      const newVariables = sourceVariables.filter(
+        (v: any) => !existingNames.includes(v.nombre.toLowerCase())
+      )
+      
+      if (newVariables.length === 0) {
+        toast({
+          title: "Información",
+          description: "Todas las variables del sistema fuente ya existen en el sistema actual.",
+          variant: "default",
+          duration: 500, // Duración de 500 milisegundos
+        })
+        return
+      }
+      
+      // 3. Crear nuevas variables para el sistema actual
+      let importedCount = 0
+      let newParameters = [...parameters]; // Crear una copia del array actual
+      
+      for (const sourceVar of newVariables) {
+        const newParam: Parameter = {
+          id: uuidv4(), // Generate a unique ID for client-side tracking
+          nombre: sourceVar.nombre,
+          unidad: sourceVar.unidad,
+          proceso_id: selectedSystemId,
+          isNew: true, // Mark as new for saving later
+          limMin: "",
+          limMinActive: false,
+          limMax: "",
+          limMaxActive: false,
+          goodMin: "",
+          goodMax: "",
+        }
+        
+        // Añadir a la copia del array
+        newParameters.push(newParam);
+        importedCount++;
+      }
+      
+      // Actualizar el estado con todos los parámetros de una vez
+      setParameters(newParameters);
+      
+      toast({
+        title: "Importación exitosa",
+        description: `Se importaron ${importedCount} variables del sistema fuente. Haz clic en "Guardar Cambios" para guardarlas en la base de datos.`,
+        variant: "default",
+        duration: 500, // Duración de 500 milisegundos
+      })
+      
+    } catch (e: any) {
+      setError(`Error al importar variables: ${e.message}`)
+      toast({
+        title: "Error",
+        description: `Error al importar variables: ${e.message}`,
+        variant: "destructive",
+        duration: 500, // Duración de 500 milisegundos
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Función para importar tolerancias de otro sistema
   const handleImportTolerances = async (sourceSystemId: string) => {
     if (!selectedSystemId || !sourceSystemId) return
@@ -627,6 +805,7 @@ export default function ParameterManager() {
           title: "Información",
           description: "El sistema seleccionado no tiene tolerancias configuradas para importar.",
           variant: "default",
+          duration: 500, // Duración de 500 milisegundos
         })
         return
       }
@@ -760,16 +939,18 @@ export default function ParameterManager() {
       
       const totalProcessed = importedCount + updatedCount
       if (totalProcessed > 0) {
-        toast({
-          title: "Importación exitosa",
-          description: `Se procesaron ${totalProcessed} tolerancias: ${importedCount} nuevas y ${updatedCount} actualizadas.`,
-          variant: "default",
-        })
+              toast({
+        title: "Importación exitosa",
+        description: `Se procesaron ${totalProcessed} tolerancias: ${importedCount} nuevas y ${updatedCount} actualizadas.`,
+        variant: "default",
+        duration:500, // Duración de 500 milisegundos
+      })
       } else {
         toast({
           title: "Información",
           description: "No se encontraron parámetros coincidentes para importar tolerancias.",
           variant: "default",
+          duration: 500, // Duración de 500 milisegundos
         })
       }
       
@@ -779,6 +960,7 @@ export default function ParameterManager() {
         title: "Error",
         description: `Error al importar tolerancias: ${e.message}`,
         variant: "destructive",
+        duration: 500, // Duración de 500 milisegundos
       })
     } finally {
       setLoading(false)
@@ -934,14 +1116,84 @@ export default function ParameterManager() {
     }
   }
 
-  const handleDeleteParameter = (idToDelete: string) => {
-    setParameters((prev) => prev.filter((p) => p.id !== idToDelete))
-    // Nota: Para una eliminación persistente en la base de datos,
-    // necesitarías un endpoint DELETE en tu API (ej. DELETE /api/variables/:id)
-    // y llamar a ese endpoint aquí.
-    alert(
-      "Parámetro eliminado del lado del cliente. Para una eliminación persistente, se requiere un endpoint DELETE en el backend.",
-    )
+  const handleDeleteParameter = async (idToDelete: string) => {
+    try {
+      // Verificar si el parámetro es nuevo (solo existe en el cliente)
+      const paramToDelete = parameters.find(p => p.id === idToDelete);
+      if (!paramToDelete) {
+        console.log(`No se encontró el parámetro con ID ${idToDelete}`);
+        return;
+      }
+  
+      // Si el parámetro está explícitamente marcado como nuevo, solo eliminarlo del estado local
+      // NO usamos la verificación de guiones porque los IDs de Supabase son UUIDs que contienen guiones
+      if (paramToDelete.isNew === true) {
+        setParameters((prev) => prev.filter((p) => p.id !== idToDelete));
+        return;
+      }
+  
+      // Si no es nuevo, confirmar la eliminación
+      const confirmDelete = window.confirm(`¿Está seguro que desea eliminar el parámetro "${paramToDelete.nombre}"? Esta acción no se puede deshacer.`);
+      if (!confirmDelete) return;
+  
+      // Mostrar estado de carga y limpiar errores anteriores
+      setLoading(true);
+      setError(null);
+      
+      // Construir la URL para el endpoint de eliminación
+      const deleteUrl = `${API_BASE_URL}${API_ENDPOINTS.VARIABLE_DELETE_BY_PROCESS(idToDelete, selectedSystemId || '')}`;
+
+      
+      // Mostrar el fetch completo que se va a ejecutar
+      console.log("FETCH A EJECUTAR:", {
+        url: deleteUrl,
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token ? token.substring(0, 10) + '...' : 'no token'}` },
+        endpoint: API_ENDPOINTS.VARIABLE_DELETE_BY_PROCESS(idToDelete, selectedSystemId || ''),
+        endpointDefinition: "VARIABLE_DELETE_BY_PROCESS: (variableId, processId) => `/api/variables/${variableId}/proceso/${processId}`"
+      });
+      
+      // Usar el endpoint correcto para eliminar el parámetro del sistema
+      const res = await fetch(deleteUrl, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+  
+      // Log de la respuesta completa para debugging
+      console.log(`RESPUESTA DEL SERVIDOR:`, {
+        status: res.status,
+        statusText: res.statusText,
+        headers: Object.fromEntries([...res.headers.entries()])
+      });
+      
+      // Intentar obtener el cuerpo de la respuesta
+      let responseBody;
+      try {
+        responseBody = await res.json();
+        console.log("CUERPO DE LA RESPUESTA:", responseBody);
+      } catch (err) {
+        console.log("No se pudo parsear la respuesta como JSON", err);
+      }
+  
+      if (!res.ok) {
+        throw new Error(responseBody?.message || `Error ${res.status}: ${res.statusText}`);
+      }
+      
+      // Solo eliminar del estado local si la eliminación en el backend fue exitosa
+      console.log("✅ ELIMINACIÓN EXITOSA en el backend, actualizando estado local");
+      setParameters((prev) => prev.filter((p) => p.id !== idToDelete));
+      
+    } catch (e: any) {
+      console.error("❌ ERROR AL ELIMINAR PARÁMETRO:", e);
+      setError(`Error al eliminar parámetro: ${e.message}`);
+      
+      // Recargar parámetros para asegurar consistencia
+      console.log("Recargando parámetros para asegurar consistencia");
+      fetchParameters();
+    } finally {
+      // Siempre asegurarse de desactivar el estado de carga
+      setLoading(false);
+    }
   }
 
   const handleAddParameter = () => {
@@ -970,35 +1222,70 @@ export default function ParameterManager() {
 
   const handleSaveParameters = async (e: React.FormEvent) => {
     e.preventDefault() // Prevent default form submission
-    const newParamsToSave = parameters.filter((p) => p.isNew)
-    if (newParamsToSave.length === 0) {
-      // alert("No hay nuevos parámetros para guardar.")
-      return
-    }
-    setLoading(true)
-    setError(null)
+    
     try {
-      for (const param of newParamsToSave) {
-        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_CREATE}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            nombre: param.nombre,
-            unidad: param.unidad,
-            proceso_id: param.proceso_id,
-          }),
-        })
-        if (!res.ok) {
-          const errorData = await res.json()
-          throw new Error(errorData.message || `Error guardando el parámetro ${param.nombre}`)
-        }
+      // Verificar si hay parámetros nuevos para guardar (ya sea añadidos manualmente o importados)
+      const newParamsToSave = parameters.filter((p) => {
+        // Verificar si el parámetro está marcado como nuevo o si tiene un ID generado por UUID
+        return p.isNew === true || (p.id && p.id.includes('-'));
+      });
+      
+      console.log("Parámetros a guardar:", newParamsToSave);
+      
+      if (newParamsToSave.length === 0) {
+        // No mostrar notificación
+        return;
       }
-      alert("Nuevos parámetros guardados exitosamente.")
-      await fetchParameters() // Refetch all parameters to update their 'isNew' status and get server IDs
+      
+      // Activar estado de carga y limpiar errores
+      setLoading(true);
+      setError(null);
+      
+      // No mostrar notificación;
+      
+      // Crear un array para almacenar las promesas de todas las operaciones
+      const savePromises = newParamsToSave.map(async (param) => {
+        try {
+          console.log(`Guardando parámetro: ${param.nombre}`);
+          
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_CREATE}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              nombre: param.nombre,
+              unidad: param.unidad,
+              proceso_id: param.proceso_id,
+            }),
+          });
+          
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.message || `Error guardando el parámetro ${param.nombre}`);
+          }
+          
+          return { success: true, param };
+        } catch (error) {
+          return { success: false, param, error };
+        }
+      });
+      
+      // Esperar a que todas las operaciones terminen
+      const results = await Promise.all(savePromises);
+      
+      // Contar éxitos y errores
+      const successes = results.filter(r => r.success).length;
+      const failures = results.filter(r => !r.success).length;
+      
+      // No mostrar mensajes de éxito/error
+      
+      // Recargar parámetros para actualizar sus IDs y estados
+      await fetchParameters();
     } catch (e: any) {
-      setError(`Error al guardar cambios: ${e.message}`)
+      console.error("Error al guardar parámetros:", e);
+      setError(`Error al guardar cambios: ${e.message}`);
+      // No mostrar notificación de error
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -1078,6 +1365,7 @@ export default function ParameterManager() {
                   selectedSystemId={selectedSystemId}
                   loading={loading}
                   allVariables={allVariables}
+                  systems={systems}
                   selectedImportVariableId={selectedImportVariableId}
                   newParameterName={newParameterName}
                   newParameterUnit={newParameterUnit}
@@ -1087,6 +1375,7 @@ export default function ParameterManager() {
                     setNewParameterName,
                     setNewParameterUnit,
                     handleAddParameter,
+                    handleImportVariablesFromSystem,
                   }}
                 />
               </div>
@@ -1097,7 +1386,10 @@ export default function ParameterManager() {
                     <Button type="button" variant="outline" onClick={() => router.back()}>
                       Cancelar
                     </Button>
-                    <Button type="submit" disabled={loading || parameters.filter((p) => p.isNew).length === 0}>
+                    <Button 
+                      type="submit" 
+                      disabled={loading || parameters.filter(p => p.isNew === true || (p.id && p.id.includes('-'))).length === 0}
+                    >
                       {loading ? "Guardando..." : "Guardar Cambios"}
                     </Button>
                   </div>

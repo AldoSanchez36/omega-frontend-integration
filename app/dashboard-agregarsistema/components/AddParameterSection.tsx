@@ -2,17 +2,20 @@
 
 "use client"
 
-import React from "react"
+import React, { useState } from "react"
+import ReactSelect from 'react-select'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus } from "lucide-react"
+import { Plus, Copy, Database } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 type Props = {
   selectedSystemId: string | null
   loading: boolean
   allVariables: any[]
+  systems: any[]
   selectedImportVariableId: string
   newParameterName: string
   newParameterUnit: string
@@ -22,82 +25,139 @@ type Props = {
 export default function AddParameterSection(props: Props) {
   const {
     selectedSystemId, loading,
-    allVariables, selectedImportVariableId,
-    newParameterName, newParameterUnit,
+    allVariables, systems,
+    selectedImportVariableId, newParameterName, newParameterUnit,
     actions
   } = props
   const {
     setSelectedImportVariableId, getAvailableVariables,
     setNewParameterName, setNewParameterUnit,
-    handleAddParameter
+    handleAddParameter, handleImportVariablesFromSystem
   } = actions
 
+  const [activeTab, setActiveTab] = useState("import")
+
   if (!selectedSystemId) return null
+
+  // Obtener sistemas disponibles para importar (excluyendo el actual)
+  const availableSystemsForImport = systems ? systems.filter((sys: any) => sys.id !== selectedSystemId) : []
+
+  // Formatear variables disponibles para ReactSelect
+  const availableVariablesOptions = getAvailableVariables().map((variable: any) => {
+    let label = `${variable.nombre} (${variable.unidad})`
+    if (!variable.proceso_id) {
+      label += " - Global"
+    } else if (variable.proceso_id !== selectedSystemId) {
+      const systemName = systems?.find((s: any) => s.id === variable.proceso_id)?.nombre || "Otro sistema"
+      label += ` - ${systemName}`
+    }
+    return {
+      value: variable.id,
+      label: label,
+      data: variable
+    }
+  })
 
   return (
     <div className="border-t border-gray-200 pt-6">
       <h2 className="text-lg font-medium leading-6 text-gray-900">Agregar Nuevo Parámetro</h2>
       <p className="mt-1 text-sm text-gray-500">Añada un nuevo parámetro al sistema seleccionado.</p>
 
-      {/* Droplist de variables existentes */}
-      {allVariables.length > 0 && (
-        <div className="mb-4">
-          <Label htmlFor="import-variable">Importar variable existente</Label>
-          <Select
-            value={selectedImportVariableId}
-            onValueChange={setSelectedImportVariableId}
-          >
-            <SelectTrigger className="w-full bg-[#f6f6f6] text-gray-900 border border-gray-300 rounded-md">
-              <SelectValue placeholder="Selecciona una variable existente" />
-            </SelectTrigger>
-            <SelectContent className="bg-[#f6f6f6] text-gray-900">
-              {getAvailableVariables().map((variable: any) => (
-                <SelectItem key={variable.id} value={variable.id}>
-                  {variable.nombre} ({variable.unidad})
-                  {!variable.proceso_id && " - Global"}
-                  {variable.proceso_id && variable.proceso_id !== selectedSystemId && " - De otro sistema"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {getAvailableVariables().length === 0 && (
-            <p className="text-sm text-gray-500 mt-1">
-              No hay variables disponibles para importar. Todas las variables ya están en este sistema o no hay variables globales.
-            </p>
-          )}
-        </div>
-      )}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="import">
+            <Database className="h-4 w-4 mr-2" /> Importar variable
+          </TabsTrigger>
+          <TabsTrigger value="system" disabled={availableSystemsForImport.length === 0}>
+            <Copy className="h-4 w-4 mr-2" /> Importar de sistema
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="mt-6 grid md:grid-cols-2 gap-6">
-        <div className="grid gap-2">
-          <Label htmlFor="new-param-name">Nombre del Parámetro</Label>
-          <Input
-            id="new-param-name"
-            placeholder="Ej. Temperatura"
-            value={newParameterName}
-            onChange={(e) => setNewParameterName(e.target.value)}
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="new-param-unit">Unidad de Medida</Label>
-          <Input
-            id="new-param-unit"
-            placeholder="Ej. °C"
-            value={newParameterUnit}
-            onChange={(e) => setNewParameterUnit(e.target.value)}
-          />
-        </div>
-      </div>
+        {/* Pestaña: Importar variable existente */}
+        <TabsContent value="import">
+          <Card>
+            <CardContent className="pt-6">
+              {availableVariablesOptions.length > 0 ? (
+                <>
+                  <div className="mb-4">
+                    <Label htmlFor="import-variable">Importar variable existente</Label>
+                    <ReactSelect
+                      options={availableVariablesOptions}
+                      value={availableVariablesOptions.find((opt: any) => opt.value === selectedImportVariableId) || null}
+                      onChange={(option) => {
+                        if (option) {
+                          setSelectedImportVariableId(option.value)
+                          setNewParameterName(option.data.nombre)
+                          setNewParameterUnit(option.data.unidad)
+                        } else {
+                          setSelectedImportVariableId('')
+                          setNewParameterName('')
+                          setNewParameterUnit('')
+                        }
+                      }}
+                      placeholder="Buscar y seleccionar variable existente"
+                      isClearable
+                      className="mt-1"
+                      classNamePrefix="react-select"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={handleAddParameter}
+                    className="mt-4"
+                    disabled={!selectedSystemId || loading || !selectedImportVariableId}
+                  >
+                    <Database className="mr-2 h-4 w-4" /> Importar Variable a la lista
+                  </Button>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500 mt-1">
+                  No hay variables disponibles para importar. Todas las variables ya están en este sistema o no hay variables globales.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      <Button
-        type="button"
-        onClick={handleAddParameter}
-        className="mt-4"
-        disabled={!selectedSystemId || loading}
-      >
-        <Plus className="mr-2 h-4 w-4" /> Agregar Parámetro a la lista
-      </Button>
-      <p className="mt-2 text-sm text-gray-500">
+        {/* Pestaña: Importar de sistema */}
+        <TabsContent value="system">
+          <Card>
+            <CardContent className="pt-6">
+              {availableSystemsForImport.length > 0 ? (
+                <>
+                  <div className="mb-4">
+                    <Label htmlFor="import-system">Seleccionar sistema fuente</Label>
+                    <ReactSelect
+                      options={availableSystemsForImport.map((sys: any) => ({
+                        value: sys.id,
+                        label: sys.nombre,
+                        data: sys
+                      }))}
+                      placeholder="Seleccionar sistema para importar variables"
+                      onChange={(option) => {
+                        if (option && handleImportVariablesFromSystem) {
+                          handleImportVariablesFromSystem(option.value)
+                        }
+                      }}
+                      className="mt-1"
+                      classNamePrefix="react-select"
+                    />
+                    <p className="text-sm text-gray-500 mt-2">
+                      Esta acción importará todas las variables del sistema seleccionado al sistema actual.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500 mt-1">
+                  No hay otros sistemas disponibles para importar variables.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <p className="mt-4 text-sm text-gray-500">
         ⚠️ Recuerde hacer clic en <strong>"Guardar Cambios"</strong> al final del formulario para guardar los parámetros en la base de datos.
       </p>
     </div>

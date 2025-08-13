@@ -59,6 +59,12 @@ export default function ParametersSection({
                 <SelectValue placeholder="Importar tolerancias de otro sistema" />
               </SelectTrigger>
               <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                <SelectItem value="all">
+                  <div className="flex items-center gap-2">
+                    <Copy className="h-4 w-4" />
+                    Todos los sistemas
+                  </div>
+                </SelectItem>
                 {availableSystemsForImport.map((system: any) => (
                   <SelectItem key={system.id} value={system.id}>
                     <div className="flex items-center gap-2">
@@ -69,18 +75,6 @@ export default function ParametersSection({
                 ))}
               </SelectContent>
             </Select>
-            {/* Botón temporal para debug */}
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => {
-                console.log("Estado actual de tolerancias:", tolerancias)
-                console.log("Parámetros:", parameters)
-              }}
-              title="Debug: Ver estado actual"
-            >
-              🔍 Debug
-            </Button>
           </div>
         )}
       </div>
