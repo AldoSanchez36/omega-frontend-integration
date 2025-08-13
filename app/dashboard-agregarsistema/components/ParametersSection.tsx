@@ -59,12 +59,6 @@ export default function ParametersSection({
                 <SelectValue placeholder="Importar tolerancias de otro sistema" />
               </SelectTrigger>
               <SelectContent className="bg-[#f6f6f6] text-gray-900">
-                <SelectItem value="all">
-                  <div className="flex items-center gap-2">
-                    <Copy className="h-4 w-4" />
-                    Todos los sistemas
-                  </div>
-                </SelectItem>
                 {availableSystemsForImport.map((system: any) => (
                   <SelectItem key={system.id} value={system.id}>
                     <div className="flex items-center gap-2">
@@ -150,26 +144,56 @@ export default function ParametersSection({
                           />
                         </div>
 
-                        {/* Bajo y Alto - siempre presente */}
-                        <div className="flex flex-col items-center" style={{ minWidth: 60 }}>
-                          <div className="flex flex-row gap-1 mb-0.5">
-                            <span className="text-xs font-semibold text-green-700">Bajo</span>
-                            <span className="text-xs font-semibold text-green-700">Alto</span>
+                        {/* Bajo y Alto - con toggles */}
+                        <div className="flex flex-col items-center" style={{ minWidth: 80 }}>
+                          <div className="flex flex-row gap-4 mb-0.5">
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs font-semibold text-green-700">Bajo</span>
+                              <button
+                                type="button"
+                                onClick={() => handleTolChange(param.id, "usar_limite_bajo", (!tol.usar_limite_bajo).toString())}
+                                className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${
+                                  tol.usar_limite_bajo ? "border-green-500 bg-green-100 cursor-pointer" : "border-gray-300 bg-gray-100 cursor-pointer"
+                                }`}
+                                title={tol.usar_limite_bajo ? "Desactivar límite bajo" : "Activar límite bajo"}
+                              >
+                                {tol.usar_limite_bajo && <span className="material-icons text-green-700 text-xs">check</span>}
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs font-semibold text-green-700">Alto</span>
+                              <button
+                                type="button"
+                                onClick={() => handleTolChange(param.id, "usar_limite_alto", (!tol.usar_limite_alto).toString())}
+                                className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${
+                                  tol.usar_limite_alto ? "border-green-500 bg-green-100 cursor-pointer" : "border-gray-300 bg-gray-100 cursor-pointer"
+                                }`}
+                                title={tol.usar_limite_alto ? "Desactivar límite alto" : "Activar límite alto"}
+                              >
+                                {tol.usar_limite_alto && <span className="material-icons text-green-700 text-xs">check</span>}
+                              </button>
+                            </div>
                           </div>
                           <div className="flex flex-row gap-1">
                             <Input
                               type="number"
                               placeholder="min"
+                              disabled={!tol.usar_limite_bajo}
                               value={tol.bien_min ?? ""}
                               onChange={(e) => handleTolChange(param.id, "bien_min", e.target.value)}
-                              className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1"
+                              className={`w-14 text-xs py-1 px-1 ${
+                                tol.usar_limite_bajo ? "bg-green-100 border-green-400 text-green-900" : "bg-gray-100 border-gray-300 text-gray-400"
+                              }`}
                             />
                             <Input
                               type="number"
                               placeholder="max"
+                              disabled={!tol.usar_limite_alto}
                               value={tol.bien_max ?? ""}
                               onChange={(e) => handleTolChange(param.id, "bien_max", e.target.value)}
-                              className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1"
+                              className={`w-14 text-xs py-1 px-1 ${
+                                tol.usar_limite_alto ? "bg-green-100 border-green-400 text-green-900" : "bg-gray-100 border-gray-300 text-gray-400"
+                              }`}
                             />
                           </div>
                         </div>

@@ -221,10 +221,10 @@ export default function ParameterManager() {
       [variableId]: {
         ...prev[variableId],
         [field]:
-          field === 'usar_limite_min' || field === 'usar_limite_max'
+          field === 'usar_limite_min' || field === 'usar_limite_max' || field === 'usar_limite_bajo' || field === 'usar_limite_alto'
             ? value === 'true'
             : value === ''
-              ? ''
+              ? field.includes('min') ? 0 : field.includes('max') ? 100 : 0
               : Number(value),
         variable_id: variableId,
         proceso_id: selectedSystemId,
@@ -659,7 +659,12 @@ export default function ParameterManager() {
         const visibleIds = new Set(parameters.map((p) => p.id))
         arr.forEach((tol: any) => {
           if (tol.proceso_id === selectedSystemId && visibleIds.has(tol.variable_id)) {
-            map[tol.variable_id] = tol
+            // Asegurarse de que los nuevos campos estén inicializados
+            map[tol.variable_id] = {
+              ...tol,
+              usar_limite_bajo: tol.usar_limite_bajo !== undefined ? tol.usar_limite_bajo : true,
+              usar_limite_alto: tol.usar_limite_alto !== undefined ? tol.usar_limite_alto : true,
+            }
           }
         })
         setTolerancias(map)
@@ -788,11 +793,32 @@ export default function ParameterManager() {
       // Filtrar tolerancias del sistema fuente
       const sourceTolerances = arr.filter((tol: any) => tol.proceso_id === sourceSystemId)
       
+      // Obtener un mapa de nombres de variables para hacer la correspondencia
+      const sourceVariableIds = [...new Set(sourceTolerances.map((tol: any) => tol.variable_id))]
+      const variableNamesMap = new Map()
+      
+      // Obtener nombres de variables del sistema fuente
+      try {
+        const varsRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(sourceSystemId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (varsRes.ok) {
+          const varsData = await varsRes.json()
+          const sourceVariables = varsData.variables || []
+          sourceVariables.forEach((v: any) => {
+            variableNamesMap.set(v.id, v.nombre.toLowerCase())
+          })
+        }
+      } catch (e) {
+        console.error("Error obteniendo nombres de variables:", e)
+      }
+      
       console.log("Importando tolerancias:", {
         sourceSystemId,
         totalSourceTolerances: sourceTolerances.length,
         sourceTolerances: sourceTolerances.map((tol: any) => ({
           variable_id: tol.variable_id,
+          variable_nombre: variableNamesMap.get(tol.variable_id) || "desconocido",
           bien_min: tol.bien_min,
           bien_max: tol.bien_max,
           limite_min: tol.limite_min,
@@ -814,13 +840,32 @@ export default function ParameterManager() {
       let importedCount = 0
       let updatedCount = 0
       
+      // Crear un mapa de nombres de variables en el sistema actual para buscar por nombre
+      const currentVariablesByName = new Map()
+      parameters.forEach(param => {
+        currentVariablesByName.set(param.nombre.toLowerCase(), param)
+      })
+      
+      console.log("Variables en sistema actual:", Array.from(currentVariablesByName.keys()))
+      
+      let matchedCount = 0
+      
       for (const sourceTol of sourceTolerances) {
-        // Verificar si el parámetro existe en el sistema actual
-        const parameterExists = parameters.some(p => p.id === sourceTol.variable_id)
+        // Obtener el nombre de la variable fuente
+        const sourceVarName = variableNamesMap.get(sourceTol.variable_id)
         
-        console.log(`Procesando tolerancia para variable ${sourceTol.variable_id}:`, {
+        if (!sourceVarName) {
+          console.log(`No se encontró nombre para la variable ${sourceTol.variable_id}, omitiendo...`)
+          continue
+        }
+        
+        // Buscar una variable con el mismo nombre en el sistema actual
+        const matchingParam = currentVariablesByName.get(sourceVarName)
+        const parameterExists = !!matchingParam
+        
+        console.log(`Procesando tolerancia para variable "${sourceVarName}":`, {
           parameterExists,
-          parameterName: parameters.find(p => p.id === sourceTol.variable_id)?.nombre,
+          matchingParamId: matchingParam?.id,
           sourceValues: {
             bien_min: sourceTol.bien_min,
             bien_max: sourceTol.bien_max,
@@ -829,21 +874,25 @@ export default function ParameterManager() {
           }
         })
         
-        if (parameterExists) {
+        if (parameterExists && matchingParam) {
+          matchedCount++
+          
           // Verificar si ya existe una tolerancia para este parámetro en el sistema actual
-          const existingTolerance = tolerancias[sourceTol.variable_id]
+          const existingTolerance = tolerancias[matchingParam.id]
           
           const toleranceData = {
-            variable_id: sourceTol.variable_id,
+            variable_id: matchingParam.id, // Usar el ID de la variable del sistema actual
             proceso_id: selectedSystemId,
             planta_id: selectedPlant?.id,
             cliente_id: selectedUser?.id,
             usar_limite_min: sourceTol.usar_limite_min || false,
             usar_limite_max: sourceTol.usar_limite_max || false,
-            limite_min: sourceTol.limite_min || null,
-            limite_max: sourceTol.limite_max || null,
-            bien_min: sourceTol.bien_min || null,
-            bien_max: sourceTol.bien_max || null,
+            usar_limite_bajo: sourceTol.usar_limite_bajo !== undefined ? sourceTol.usar_limite_bajo : true,
+            usar_limite_alto: sourceTol.usar_limite_alto !== undefined ? sourceTol.usar_limite_alto : true,
+            limite_min: sourceTol.limite_min !== null && sourceTol.limite_min !== undefined ? sourceTol.limite_min : 0,
+            limite_max: sourceTol.limite_max !== null && sourceTol.limite_max !== undefined ? sourceTol.limite_max : 1000,
+            bien_min: sourceTol.bien_min !== null && sourceTol.bien_min !== undefined ? sourceTol.bien_min : 0,
+            bien_max: sourceTol.bien_max !== null && sourceTol.bien_max !== undefined ? sourceTol.bien_max : 100,
           }
           
           if (existingTolerance && existingTolerance.id) {
@@ -908,12 +957,19 @@ export default function ParameterManager() {
           
           systemTolerances.forEach((tol: any) => {
             if (visibleIds.has(tol.variable_id)) {
-              map[tol.variable_id] = tol
+              // Asegurarse de que los nuevos campos estén inicializados
+              map[tol.variable_id] = {
+                ...tol,
+                usar_limite_bajo: tol.usar_limite_bajo !== undefined ? tol.usar_limite_bajo : true,
+                usar_limite_alto: tol.usar_limite_alto !== undefined ? tol.usar_limite_alto : true,
+              }
               console.log(`✅ Tolerancia cargada para variable ${tol.variable_id}:`, {
                 bien_min: tol.bien_min,
                 bien_max: tol.bien_max,
                 limite_min: tol.limite_min,
-                limite_max: tol.limite_max
+                limite_max: tol.limite_max,
+                usar_limite_bajo: map[tol.variable_id].usar_limite_bajo,
+                usar_limite_alto: map[tol.variable_id].usar_limite_alto
               })
             } else {
               console.log(`❌ Variable ${tol.variable_id} no está en la lista de parámetros visibles`)
@@ -938,13 +994,23 @@ export default function ParameterManager() {
       }
       
       const totalProcessed = importedCount + updatedCount
+      
+      console.log(`Resumen de importación: ${matchedCount} variables coincidentes, ${totalProcessed} tolerancias procesadas (${importedCount} nuevas, ${updatedCount} actualizadas)`)
+      
       if (totalProcessed > 0) {
-              toast({
-        title: "Importación exitosa",
-        description: `Se procesaron ${totalProcessed} tolerancias: ${importedCount} nuevas y ${updatedCount} actualizadas.`,
-        variant: "default",
-        duration:500, // Duración de 500 milisegundos
-      })
+        toast({
+          title: "Importación exitosa",
+          description: `Se procesaron ${totalProcessed} tolerancias: ${importedCount} nuevas y ${updatedCount} actualizadas.`,
+          variant: "default",
+          duration: 500, // Duración de 500 milisegundos
+        })
+      } else if (matchedCount > 0 && totalProcessed === 0) {
+        toast({
+          title: "Advertencia",
+          description: `Se encontraron ${matchedCount} variables coincidentes pero hubo un problema al procesar las tolerancias.`,
+          variant: "default",
+          duration: 500, // Duración de 500 milisegundos
+        })
       } else {
         toast({
           title: "Información",
