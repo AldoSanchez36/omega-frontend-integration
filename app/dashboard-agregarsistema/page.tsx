@@ -7,16 +7,15 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2, Plus, Edit, Save, Check } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Toaster } from "@/components/ui/toaster"
 import { v4 as uuidv4 } from "uuid"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import Navbar from "@/components/Navbar"
 
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import { useUserAccess } from "@/hooks/useUserAccess"
+import { useToast } from "@/hooks/use-toast"
 
 import SelectionSection from "./components/SelectionSection"
 import ParametersSection from "./components/ParametersSection"
@@ -77,14 +76,9 @@ interface Tolerance {
   bien_max?: number | ''
 }
 
-type UserRole = "admin" | "user" | "client"
-
-function classNames(...classes: (string | boolean | undefined)[]) {
-  return classes.filter(Boolean).join(" ")
-}
-
 export default function ParameterManager() {
   const router = useRouter()
+  const { toast } = useToast()
   const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
   // Access hook centralizado (usuarios, plantas, sistemas, rol)
   // Si el hook no está disponible o retorna undefined en partes, la página usa la lógica local como respaldo.
@@ -246,14 +240,17 @@ export default function ParameterManager() {
     }
   }
 
-  // Estado para el usuario y el rol
-  const [user, setUser] = useState<any>(null)
+  // Estado para el rol del usuario
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
 
   // Fetch Users
   useEffect(() => {
     if (!token) {
-      setError("Token de autenticación no encontrado. Por favor, inicie sesión.")
+      toast({
+        title: "Error de autenticación",
+        description: "Token de autenticación no encontrado. Por favor, inicie sesión.",
+        variant: "destructive",
+      })
       return
     }
     // Si el hook ya gestiona usuarios/rol, no duplicar carga
@@ -264,7 +261,6 @@ export default function ParameterManager() {
       const storedUser = localStorage.getItem('Organomex_user')
       if (storedUser) {
         const userData = JSON.parse(storedUser)
-        setUser(userData)
         setUserRole(userData.puesto || "user")
       }
     }
@@ -283,9 +279,13 @@ export default function ParameterManager() {
         const data = await res.json()
         setUsers(data.usuarios || [])
         // NO SE DEBE SELECCIONAR USUARIO AQUÍ
-      } catch (e: any) {
-        setError(`Error al cargar usuarios: ${e.message}`)
-      } finally {
+              } catch (e: any) {
+          toast({
+            title: "Error",
+            description: `Error al cargar usuarios: ${e.message}`,
+            variant: "destructive",
+          })
+        } finally {
         setLoading(false)
       }
     }
@@ -587,6 +587,204 @@ export default function ParameterManager() {
     loadTolerances()
   }, [selectedSystemId, parameters, token])
 
+  // Función para importar tolerancias de otro sistema
+  const handleImportTolerances = async (sourceSystemId: string) => {
+    if (!selectedSystemId || !sourceSystemId) return
+    
+    setLoading(true)
+    setError(null)
+    
+    try {
+      // 1. Obtener tolerancias del sistema fuente
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      
+      if (!res.ok) {
+        throw new Error("No se pudieron cargar las tolerancias del sistema fuente")
+      }
+      
+      const data = await res.json()
+      const arr = Array.isArray(data) ? data : Array.isArray(data.tolerancias) ? data.tolerancias : []
+      
+      // Filtrar tolerancias del sistema fuente
+      const sourceTolerances = arr.filter((tol: any) => tol.proceso_id === sourceSystemId)
+      
+      console.log("Importando tolerancias:", {
+        sourceSystemId,
+        totalSourceTolerances: sourceTolerances.length,
+        sourceTolerances: sourceTolerances.map((tol: any) => ({
+          variable_id: tol.variable_id,
+          bien_min: tol.bien_min,
+          bien_max: tol.bien_max,
+          limite_min: tol.limite_min,
+          limite_max: tol.limite_max
+        }))
+      })
+      
+      if (sourceTolerances.length === 0) {
+        toast({
+          title: "Información",
+          description: "El sistema seleccionado no tiene tolerancias configuradas para importar.",
+          variant: "default",
+        })
+        return
+      }
+      
+      // 2. Crear nuevas tolerancias para el sistema actual
+      let importedCount = 0
+      let updatedCount = 0
+      
+      for (const sourceTol of sourceTolerances) {
+        // Verificar si el parámetro existe en el sistema actual
+        const parameterExists = parameters.some(p => p.id === sourceTol.variable_id)
+        
+        console.log(`Procesando tolerancia para variable ${sourceTol.variable_id}:`, {
+          parameterExists,
+          parameterName: parameters.find(p => p.id === sourceTol.variable_id)?.nombre,
+          sourceValues: {
+            bien_min: sourceTol.bien_min,
+            bien_max: sourceTol.bien_max,
+            limite_min: sourceTol.limite_min,
+            limite_max: sourceTol.limite_max
+          }
+        })
+        
+        if (parameterExists) {
+          // Verificar si ya existe una tolerancia para este parámetro en el sistema actual
+          const existingTolerance = tolerancias[sourceTol.variable_id]
+          
+          const toleranceData = {
+            variable_id: sourceTol.variable_id,
+            proceso_id: selectedSystemId,
+            planta_id: selectedPlant?.id,
+            cliente_id: selectedUser?.id,
+            usar_limite_min: sourceTol.usar_limite_min || false,
+            usar_limite_max: sourceTol.usar_limite_max || false,
+            limite_min: sourceTol.limite_min || null,
+            limite_max: sourceTol.limite_max || null,
+            bien_min: sourceTol.bien_min || null,
+            bien_max: sourceTol.bien_max || null,
+          }
+          
+          if (existingTolerance && existingTolerance.id) {
+            // Actualizar tolerancia existente
+            const updateRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCE_UPDATE(existingTolerance.id)}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify(toleranceData),
+            })
+            
+            if (updateRes.ok) {
+              updatedCount++
+            }
+          } else {
+            // Crear nueva tolerancia
+            const createRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify(toleranceData),
+            })
+            
+            if (createRes.ok) {
+              importedCount++
+            }
+          }
+        }
+      }
+      
+      // 3. Recargar tolerancias del sistema actual
+      // No llamar fetchParameters() aquí para evitar conflictos con el useEffect
+      // await fetchParameters()
+      
+      // Pequeña pausa para asegurar que los cambios se han guardado
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Recargar tolerancias directamente y actualizar el estado
+      try {
+        const tolRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (tolRes.ok) {
+          const tolData = await tolRes.json()
+          const arr = Array.isArray(tolData) ? tolData : Array.isArray(tolData.tolerancias) ? tolData.tolerancias : []
+          const map: Record<string, any> = {}
+          const visibleIds = new Set(parameters.map((p) => p.id))
+          
+          console.log("Recargando tolerancias:", {
+            totalTolerances: arr.length,
+            selectedSystemId,
+            visibleParameterIds: Array.from(visibleIds),
+            allTolerances: arr.map((tol: any) => ({
+              variable_id: tol.variable_id,
+              proceso_id: tol.proceso_id,
+              bien_min: tol.bien_min,
+              bien_max: tol.bien_max
+            }))
+          })
+          
+          // Filtrar tolerancias del sistema actual
+          const systemTolerances = arr.filter((tol: any) => tol.proceso_id === selectedSystemId)
+          console.log("Tolerancias del sistema actual:", systemTolerances)
+          
+          systemTolerances.forEach((tol: any) => {
+            if (visibleIds.has(tol.variable_id)) {
+              map[tol.variable_id] = tol
+              console.log(`✅ Tolerancia cargada para variable ${tol.variable_id}:`, {
+                bien_min: tol.bien_min,
+                bien_max: tol.bien_max,
+                limite_min: tol.limite_min,
+                limite_max: tol.limite_max
+              })
+            } else {
+              console.log(`❌ Variable ${tol.variable_id} no está en la lista de parámetros visibles`)
+            }
+          })
+          
+          console.log("Tolerancias finales que se van a establecer:", map)
+          setTolerancias(map)
+          
+          // Forzar un re-render después de establecer las tolerancias
+          setTimeout(() => {
+            console.log("Estado actual de tolerancias después de setTolerancias:", tolerancias)
+            // Forzar un re-render adicional
+            setTolerancias(prev => {
+              console.log("Prev tolerancias en callback:", prev)
+              return map
+            })
+          }, 100)
+        }
+      } catch (e) {
+        console.error("Error recargando tolerancias:", e)
+      }
+      
+      const totalProcessed = importedCount + updatedCount
+      if (totalProcessed > 0) {
+        toast({
+          title: "Importación exitosa",
+          description: `Se procesaron ${totalProcessed} tolerancias: ${importedCount} nuevas y ${updatedCount} actualizadas.`,
+          variant: "default",
+        })
+      } else {
+        toast({
+          title: "Información",
+          description: "No se encontraron parámetros coincidentes para importar tolerancias.",
+          variant: "default",
+        })
+      }
+      
+    } catch (e: any) {
+      setError(`Error al importar tolerancias: ${e.message}`)
+      toast({
+        title: "Error",
+        description: `Error al importar tolerancias: ${e.message}`,
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Cargar todas las variables existentes (de todos los sistemas)
   useEffect(() => {
     const fetchAllVariables = async () => {
@@ -872,6 +1070,7 @@ export default function ParameterManager() {
                   handleTolSave={handleTolSave}
                   handleOpenEditModal={handleOpenEditModal}
                   handleDeleteParameter={handleDeleteParameter}
+                  handleImportTolerances={handleImportTolerances}
                 />
 
                 {/* --- Add New Parameter Form --- */}
@@ -905,19 +1104,7 @@ export default function ParameterManager() {
                 </div>
               )}
               
-              {/* --- Action Buttons --- */}
-              {/*{selectedSystemId && (
-                <div className="mt-8 pt-5 border-t border-gray-200">
-                  <div className="flex justify-end space-x-3">
-                    <Button type="button" variant="outline" onClick={() => router.back()}>
-                      Cancelar
-                    </Button>
-                    <Button type="submit" disabled={loading || parameters.filter((p) => p.isNew).length === 0}>
-                      {loading ? "Guardando..." : "Guardar Cambios"}
-                    </Button>
-                  </div>
-                </div>
-              )}*/}
+
             </form>
           </div>
         </div>
@@ -957,6 +1144,7 @@ export default function ParameterManager() {
             </div>
           </DialogContent>
         </Dialog>
+        <Toaster />
       </div>
     </ProtectedRoute>
   )
