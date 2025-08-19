@@ -75,13 +75,14 @@ export function SensorTimeSeriesChart({
         
         // Lógica de cascada: primero verificar por cliente, luego por proceso
         if (clientName) {
-          // 1. Primera llamada: MEASUREMENTS_BY_VARIABLE_AND_CLIENT
-          const clientRes = await fetch(
-            `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_CLIENT(variable, clientName)}`,
-            { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-          )
-          
-          if (clientRes.ok) {
+          try {
+            // 1. Primera llamada: MEASUREMENTS_BY_VARIABLE_AND_CLIENT
+            const clientRes = await fetch(
+              `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_CLIENT(variable, clientName)}`,
+              { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+            )
+            
+            if (clientRes.ok) {
             const clientResult = await clientRes.json();
             const clientData = clientResult.mediciones || [];
             
@@ -96,16 +97,21 @@ export function SensorTimeSeriesChart({
               console.log(`Datos encontrados por cliente: ${filteredClientData.length} registros`);
             }
           }
+          } catch (error) {
+            // Silenciar errores 404
+            //console.debug(`No se encontraron datos para ${variable} por cliente`);
+          }
         }
         
         // 2. Si no hay datos por cliente, verificar por usuario y proceso (más específico)
         if (finalData.length === 0 && userId && processName) {
-          const userProcessRes = await fetch(
-            `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_USER_AND_PROCESS(variable, userId, processName)}`,
-            { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-          )
-          
-          if (userProcessRes.ok) {
+          try {
+            const userProcessRes = await fetch(
+              `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_USER_AND_PROCESS(variable, userId, processName)}`,
+              { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+            )
+            
+            if (userProcessRes.ok) {
             const userProcessResult = await userProcessRes.json();
             const userProcessData = userProcessResult.mediciones || [];
             
@@ -120,16 +126,21 @@ export function SensorTimeSeriesChart({
               console.log(`Datos encontrados por usuario y proceso: ${filteredUserProcessData.length} registros`);
             }
           }
+          } catch (error) {
+            // Silenciar errores 404
+            //console.debug(`No se encontraron datos para ${variable} por usuario y proceso`);
+          }
         }
         
         // 3. Si no hay datos por usuario y proceso, verificar por proceso
         if (finalData.length === 0 && processName) {
-          const processRes = await fetch(
-            `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_PROCESS(variable, processName)}`,
-            { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-          )
-          
-          if (processRes.ok) {
+          try {
+            const processRes = await fetch(
+              `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_PROCESS(variable, processName)}`,
+              { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+            )
+            
+            if (processRes.ok) {
             const processResult = await processRes.json();
             const processData = processResult.mediciones || [];
             
@@ -144,12 +155,16 @@ export function SensorTimeSeriesChart({
               console.log(`Datos encontrados por proceso: ${filteredProcessData.length} registros`);
             }
           }
+          } catch (error) {
+            // Silenciar errores 404
+            //console.debug(`No se encontraron datos para ${variable} por proceso`);
+          }
         }
         
-                 // 3. Si no hay datos por cliente ni por proceso, NO mostrar datos generales
+        // 3. Si no hay datos por cliente ni por proceso, NO mostrar datos generales
         // Solo mostrar datos específicos para el usuario/proceso seleccionado
         if (finalData.length === 0) {
-          console.log(`No se encontraron datos específicos para ${variable} en el proceso/cliente seleccionado`);
+          //console.debug(`No se encontraron datos específicos para ${variable} en el proceso/cliente seleccionado`);
           setData([]);
           setSensors([]);
           setLoading(false);

@@ -54,13 +54,14 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
         
         // Lógica de cascada: primero verificar por usuario y proceso (más específico)
         if (userId && processName) {
-          // 1. Primera llamada: MEASUREMENTS_BY_VARIABLE_AND_USER_AND_PROCESS (más específico)
-          const userProcessRes = await fetch(
-            `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_USER_AND_PROCESS(variable, userId, processName)}`,
-            { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-          )
-          
-          if (userProcessRes.ok) {
+          try {
+            // 1. Primera llamada: MEASUREMENTS_BY_VARIABLE_AND_USER_AND_PROCESS (más específico)
+            const userProcessRes = await fetch(
+              `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_USER_AND_PROCESS(variable, userId, processName)}`,
+              { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+            )
+            
+            if (userProcessRes.ok) {
             const userProcessResult = await userProcessRes.json();
             const userProcessData = userProcessResult.mediciones || [];
             
@@ -75,16 +76,21 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
               console.log(`[MesureTable] Datos encontrados por usuario y proceso: ${filteredUserProcessData.length} registros`);
             }
           }
+          } catch (error) {
+            // Silenciar errores 404
+            //console.debug(`No se encontraron datos para ${variable} por usuario y proceso`);
+          }
         }
         
         // 2. Si no hay datos por usuario y proceso, verificar por cliente
         if (finalData.length === 0 && clientName) {
-          const clientRes = await fetch(
-            `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_CLIENT(variable, clientName)}`,
-            { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-          )
-          
-          if (clientRes.ok) {
+          try {
+            const clientRes = await fetch(
+              `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_CLIENT(variable, clientName)}`,
+              { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+            )
+            
+            if (clientRes.ok) {
             const clientResult = await clientRes.json();
             const clientData = clientResult.mediciones || [];
             
@@ -99,16 +105,21 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
               console.log(`[MesureTable] Datos encontrados por cliente: ${filteredClientData.length} registros`);
             }
           }
+          } catch (error) {
+            // Silenciar errores 404
+            //console.debug(`No se encontraron datos para ${variable} por cliente`);
+          }
         }
         
         // 3. Si no hay datos por cliente, verificar por proceso
         if (finalData.length === 0 && processName) {
-          const processRes = await fetch(
-            `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_PROCESS(variable, processName)}`,
-            { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-          )
-          
-          if (processRes.ok) {
+          try {
+            const processRes = await fetch(
+              `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_PROCESS(variable, processName)}`,
+              { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+            )
+            
+            if (processRes.ok) {
             const processResult = await processRes.json();
             const processData = processResult.mediciones || [];
             
@@ -123,11 +134,15 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
               console.log(`[MesureTable] Datos encontrados por proceso: ${filteredProcessData.length} registros`);
             }
           }
+          } catch (error) {
+            // Silenciar errores 404
+            //console.debug(`No se encontraron datos para ${variable} por proceso`);
+          }
         }
         
         // Si no hay datos específicos, no mostrar nada
         if (finalData.length === 0) {
-          console.log(`[MesureTable] No se encontraron datos específicos para ${variable} en el proceso/cliente seleccionado`);
+          //console.debug(`[MesureTable] No se encontraron datos específicos para ${variable} en el proceso/cliente seleccionado`);
           setData([]);
           setSensors([]);
           setLoading(false);

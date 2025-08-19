@@ -23,7 +23,11 @@ interface User {
 }
 
 // Helper que devuelve un id robusto (_id o id)
-const getUserId = (u: User | null | undefined) => u?._id ?? (u as any)?.id ?? ''
+const getUserId = (u: User | null | undefined) => {
+  const userId = u?._id ?? u?.id ?? ''
+  console.log("🔍 getUserId - User:", u, "ID:", userId)
+  return userId
+}
 
 export default function UsersManagement() {
   const [users, setUsers] = useState<User[]>([])
@@ -44,6 +48,7 @@ export default function UsersManagement() {
   const [editUsername, setEditUsername] = useState("")
   const [editEmail, setEditEmail] = useState("")
   const [editPuesto, setEditPuesto] = useState("")
+  const [editEmpresa, setEditEmpresa] = useState("")
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const [editSuccess, setEditSuccess] = useState<string | null>(null)
@@ -53,10 +58,10 @@ export default function UsersManagement() {
   // --- MODAL DE GESTIONAR PERMISOS: LÓGICA DE CASCADA Y PERMISOS ---
   const [plantasModal, setPlantasModal] = useState<any[]>([]);
   const [plantaSeleccionadaModal, setPlantaSeleccionadaModal] = useState<string>("");
-  const [sistemasModal, setSistemasModal] = useState<any[]>([]);
-  const [sistemaSeleccionadoModal, setSistemaSeleccionadoModal] = useState<string>("");
-  const [permisoVer, setPermisoVer] = useState(false);
-  const [permisoEditar, setPermisoEditar] = useState(false);
+  // const [sistemasModal, setSistemasModal] = useState<any[]>([]);
+  // const [sistemaSeleccionadoModal, setSistemaSeleccionadoModal] = useState<string>("");
+  const [permisoVer, setPermisoVer] = useState(true); // Por defecto true
+  const [permisoEditar, setPermisoEditar] = useState(false); // Por defecto false
   const [permisosLoading, setPermisosLoading] = useState(false);
   const [permisosError, setPermisosError] = useState<string | null>(null);
   const [permisosSuccess, setPermisosSuccess] = useState<string | null>(null);
@@ -96,7 +101,15 @@ export default function UsersManagement() {
         
         // Procesar los datos recibidos
         const usersData = (Array.isArray(response.data) ? response.data : (response.data.users || response.data.usuarios || []))
-          .map((u: any) => ({ ...u, id: u.id || u._id }))
+          .map((u: any) => {
+            const userWithId = { 
+              ...u, 
+              id: u.id || u._id,
+              _id: u._id || u.id 
+            }
+            console.log("🔍 Mapped user:", userWithId)
+            return userWithId
+          })
         setUsers(usersData)
         
         // Obtener el rol del usuario actual desde el token
@@ -178,24 +191,24 @@ export default function UsersManagement() {
   }, [showPermissionModal, selectedUserForPermissions, isAdmin]);
 
   // Fetch sistemas al seleccionar planta
-  useEffect(() => {
-    if (!plantaSeleccionadaModal) return;
-    const token = authService.getToken();
+  // useEffect(() => {
+  //   if (!plantaSeleccionadaModal) return;
+  //   const token = authService.getToken();
     
-    fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(String(plantaSeleccionadaModal ?? '') || '')}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        setSistemasModal(data.procesos || []);
-        if (data.procesos && data.procesos.length > 0) {
-          setSistemaSeleccionadoModal(data.procesos[0].id);
-        }
-      })
-      .catch(error => {
-        console.error("❌ Error fetching sistemas:", error);
-      });
-  }, [plantaSeleccionadaModal]);
+  //   fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(String(plantaSeleccionadaModal ?? '') || '')}`, {
+  //     headers: { Authorization: `Bearer ${token}` }
+  //   })
+  //     .then(res => res.json())
+  //     .then(data => {
+  //       setSistemasModal(data.procesos || []);
+  //       if (data.procesos && data.procesos.length > 0) {
+  //         setSistemaSeleccionadoModal(data.procesos[0].id);
+  //       }
+  //     })
+  //     .catch(error => {
+  //       console.error("❌ Error fetching sistemas:", error);
+  //     });
+  // }, [plantaSeleccionadaModal]);
 
   useEffect(() => {
     if (!selectedUserForPermissions || !plantaSeleccionadaModal) {
@@ -330,6 +343,7 @@ export default function UsersManagement() {
     setEditUsername(user.username)
     setEditEmail(user.email)
     setEditPuesto(user.puesto || "user")
+    setEditEmpresa(user.empresa || "")
     setEditError(null)
     setEditSuccess(null)
     setShowEditModal(true)
@@ -349,7 +363,20 @@ export default function UsersManagement() {
     setEditSuccess(null)
     try {
       const token = authService.getToken()
-      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USER_UPDATE(String(selectedUserForEdit._id || ""))}`, {
+      
+      // Debug: Verificar el ID del usuario
+      const userId = selectedUserForEdit._id || selectedUserForEdit.id
+      console.log("🔍 Debug - User ID:", userId)
+      console.log("🔍 Debug - selectedUserForEdit:", selectedUserForEdit)
+      
+      if (!userId) {
+        throw new Error("No se pudo obtener el ID del usuario")
+      }
+      
+      const updateUrl = `${API_BASE_URL}${API_ENDPOINTS.USER_UPDATE(userId)}`
+      console.log("🔍 Debug - Update URL:", updateUrl)
+      
+      const res = await fetch(updateUrl, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -359,8 +386,10 @@ export default function UsersManagement() {
           username: editUsername,
           email: editEmail,
           puesto: editPuesto,
+          empresa: editEmpresa,
         }),
       })
+      console.log("🔍 Debug - Response:", res)
       // Verifica si la respuesta es JSON
       const contentType = res.headers.get("content-type")
       if (!res.ok) {
@@ -682,6 +711,15 @@ export default function UsersManagement() {
                               </SelectContent>
                             </Select>
                           </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
+                            <Input
+                              value={editEmpresa}
+                              onChange={e => setEditEmpresa(e.target.value)}
+                              placeholder="Nombre de la empresa"
+                              className="w-full"
+                            />
+                          </div>
                           {editError && <div className="text-red-600 text-sm">{editError}</div>}
                           {editSuccess && <div className="text-green-600 text-sm">{editSuccess}</div>}
                         </div>
@@ -792,8 +830,8 @@ export default function UsersManagement() {
                     )}
                   </div>
 
-                  {/* Dropdown de sistemas */}
-                  {plantasModal.length > 0 && (
+                  {/* Dropdown de sistemas - COMENTADO */}
+                  {/* {plantasModal.length > 0 && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Sistema
@@ -816,10 +854,10 @@ export default function UsersManagement() {
                         </div>
                       )}
                     </div>
-                  )}
+                  )} */}
 
-                  {/* Información del sistema seleccionado y permisos */}
-                  {plantasModal.length > 0 && sistemasModal.length > 0 && (
+                  {/* Información del sistema seleccionado y permisos - COMENTADO */}
+                  {/* {plantasModal.length > 0 && sistemasModal.length > 0 && (
                     sistemasModal.map((sistema: any) => (
                       sistema.id === sistemaSeleccionadoModal && (
                         <div key={sistema.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -830,7 +868,6 @@ export default function UsersManagement() {
                             )}
                           </div>
                           
-                          {/* Permisos */}
                           <div className="space-y-4">
                             <h5 className="font-medium text-gray-900 border-b border-gray-200 pb-2">
                               Permisos para esta planta
@@ -867,6 +904,45 @@ export default function UsersManagement() {
                         </div>
                       )
                     ))
+                  )} */}
+
+                  {/* Permisos simplificados solo para planta */}
+                  {plantasModal.length > 0 && (
+                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="space-y-4">
+                        <h5 className="font-medium text-gray-900 border-b border-gray-200 pb-2">
+                          Permisos para esta planta
+                        </h5>
+                        
+                        <div className="space-y-3">
+                          <label className="flex items-center gap-3 p-3 bg-white rounded-md border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={permisoVer} 
+                              onChange={e => setPermisoVer(e.target.checked)}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <div>
+                              <span className="text-sm font-medium text-gray-700">Permiso para Ver</span>
+                              <p className="text-xs text-gray-500 mt-1">Permite visualizar datos y reportes de esta planta</p>
+                            </div>
+                          </label>
+                          
+                          <label className="flex items-center gap-3 p-3 bg-white rounded-md border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={permisoEditar} 
+                              onChange={e => setPermisoEditar(e.target.checked)}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <div>
+                              <span className="text-sm font-medium text-gray-700">Permiso para Editar</span>
+                              <p className="text-xs text-gray-500 mt-1">Permite modificar configuraciones y datos de esta planta</p>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
                   )}
 
                   {/* Mensajes de error y éxito */}
