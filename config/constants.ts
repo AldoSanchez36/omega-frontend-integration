@@ -114,6 +114,10 @@ export const API_ENDPOINTS = {
   // Dashboard
   DASHBOARD_RESUMEN: '/api/dashboard/resumen',
   DASHBOARD_RESUMEN_ADMIN: '/api/dashboard/resumen-admin',
+  
+  // User Preferences
+  PREFERENCIAS_MIS_PREFERENCIAS: '/api/preferencias/mis-preferencias',
+  PREFERENCIAS_USUARIO: (usuarioId: string) => `/api/preferencias/usuario/${usuarioId}`,
 } as const
 
 // Environment configuration

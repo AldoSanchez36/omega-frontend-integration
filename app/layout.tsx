@@ -5,6 +5,7 @@ import "./globals.css"
 import { UserProvider } from "@/context/UserContext"
 import AuthDebug from "@/components/AuthDebug"
 import { LanguageProvider } from "@/context/LanguageContext";
+import { ThemeProvider } from "@/components/theme-provider"
 
 import BootstrapScript from "@/components/BootstrapScript"
 import { Inter } from "next/font/google"
@@ -45,14 +46,16 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
         />
       </head>
-      <body className={inter.className}>
-        <LanguageProvider>
-          <UserProvider>
-            {children}
-            {/* <AuthDebug /> */}
-            <BootstrapScript />
-          </UserProvider>
-        </LanguageProvider>
+      <body className={`${inter.className} transition-colors duration-300`}>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <LanguageProvider>
+            <UserProvider>
+              {children}
+              {/* <AuthDebug /> */}
+              <BootstrapScript />
+            </UserProvider>
+          </LanguageProvider>
+        </ThemeProvider>
       </body>
     </html>
   )
