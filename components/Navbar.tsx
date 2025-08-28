@@ -38,7 +38,7 @@ const PUBLIC_LINKS = [
   { path: "/services",  label: "Servicios", icon: "build", roles: ["admin", "user", "client"] }, */
 
 export const Navbar: React.FC<NavbarProps> = ({ role }) => {
-  const { isAuthenticated, user } = useUser();
+  const { isAuthenticated, user, isDarkMode, toggleDarkMode } = useUser();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -104,6 +104,24 @@ export const Navbar: React.FC<NavbarProps> = ({ role }) => {
                   </div>
                   <hr/>
                   <SelectLanguage variant="menu" />
+                  {/* Dark Mode Toggle */}
+                  {/* <button
+                    onClick={toggleDarkMode}
+                    className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2"
+                    aria-label="Toggle dark mode"
+                  >
+                    {isDarkMode ? (
+                      <>
+                        <span className="material-icons text-yellow-500">light_mode</span>
+                        Modo Claro
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-icons text-yellow-500">dark_mode</span>
+                        Modo Oscuro
+                      </>
+                    )}
+                  </button> */}
                 </div>
               )}
               <div className="dropdown-divider"></div>

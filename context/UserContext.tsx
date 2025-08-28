@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useReducer, useEffect, useRef, type ReactNode } from "react"
+import { createContext, useContext, useReducer, useEffect, useRef, useState, type ReactNode } from "react"
 import { authService } from "@/services/authService"
 
 interface User {
@@ -95,6 +95,8 @@ interface UserContextType extends UserState {
   clearError: () => void
   setLanguage: (lang: string) => void
   updateUser: (userData: Partial<User>) => void
+  isDarkMode: boolean
+  toggleDarkMode: () => void
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined)
@@ -229,6 +231,28 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     dispatch({ type: "UPDATE_USER", payload: userData })
   }
 
+  // Funciones para el modo oscuro
+  const [isDarkMode, setIsDarkMode] = useState(false)
+
+  useEffect(() => {
+    // Cargar preferencia del modo oscuro desde localStorage
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem("Organomex_theme")
+      if (savedTheme === "dark") {
+        setIsDarkMode(true)
+      }
+    }
+  }, [])
+
+  const toggleDarkMode = () => {
+    const newDarkMode = !isDarkMode
+    setIsDarkMode(newDarkMode)
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem("Organomex_theme", newDarkMode ? "dark" : "light")
+    }
+  }
+
   const value: UserContextType = {
     ...state,
     login,
@@ -237,6 +261,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     clearError,
     setLanguage,
     updateUser,
+    isDarkMode,
+    toggleDarkMode,
   }
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>

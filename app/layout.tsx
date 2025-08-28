@@ -5,7 +5,7 @@ import "./globals.css"
 import { UserProvider } from "@/context/UserContext"
 import AuthDebug from "@/components/AuthDebug"
 import { LanguageProvider } from "@/context/LanguageContext";
-import { ThemeProvider } from "@/components/theme-provider"
+import ThemeProvider from "@/components/ThemeProvider"
 
 import BootstrapScript from "@/components/BootstrapScript"
 import { Inter } from "next/font/google"
@@ -47,15 +47,15 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.className} transition-colors duration-300`}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <LanguageProvider>
-            <UserProvider>
+        <LanguageProvider>
+          <UserProvider>
+            <ThemeProvider>
               {children}
               {/* <AuthDebug /> */}
               <BootstrapScript />
-            </UserProvider>
-          </LanguageProvider>
-        </ThemeProvider>
+            </ThemeProvider>
+          </UserProvider>
+        </LanguageProvider>
       </body>
     </html>
   )
