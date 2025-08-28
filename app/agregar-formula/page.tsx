@@ -3,23 +3,47 @@
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import ProtectedRoute from "@/components/ProtectedRoute"
-import Navbar from "@/components/Navbar"
+// Si tu Navbar es export default, cambia a: import Navbar from "@/components/Navbar"
+import { Navbar } from "@/components/Navbar"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card } from "@/components/ui/card"
 
-type Proceso = { id: string; nombre: string; descripcion?: string }
+// Utilidad para extraer proceso_id de cualquier estructura
+function extractProcesoId(obj: any): string | undefined {
+  if (!obj || typeof obj !== "object") return undefined
+  if (obj.proceso_id) return obj.proceso_id
+  if (obj.finalprocesoid) return obj.finalprocesoid
+  if (obj.procesoId) return obj.procesoId
+  if (obj.procesoID) return obj.procesoID
+  if (obj.proceso && (obj.proceso.id || obj.proceso.proceso_id)) return obj.proceso.id || obj.proceso.proceso_id
+  if (obj.variable) return extractProcesoId(obj.variable)
+  if (obj.data) return extractProcesoId(obj.data)
+  for (const key of Object.keys(obj)) {
+    const val = obj[key]
+    if (typeof val === "object") {
+      const found = extractProcesoId(val)
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
 type VarDef = { nombre: string; prueba: string }
+// VariableOption incluye proceso_id para poder INFERIRLO al guardar
+type VariableOption = { id: string; nombre: string; unidad?: string; proceso_id?: string }
 
 export default function CrearFormulaPage() {
   const router = useRouter()
-  const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
+  // Inicializa como null y se setea en useEffect
+  // const [token, setToken] = useState<string | null>(null)
 
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // setToken(localStorage.getItem("Organomex_token"))
       const u = localStorage.getItem("Organomex_user")
       if (u) setUserRole(JSON.parse(u)?.puesto || "user")
     }
@@ -33,11 +57,12 @@ export default function CrearFormulaPage() {
   ])
   const [expresion, setExpresion] = useState<string>("x + y * 2")
   const [nombre, setNombre] = useState<string>("")
-  const [procesoId, setProcesoId] = useState<string>("")
-  const [procesos, setProcesos] = useState<Proceso[]>([])
-  const [loadingProcesos, setLoadingProcesos] = useState<boolean>(false)
   const [guardando, setGuardando] = useState<boolean>(false)
   const [preview, setPreview] = useState<string | number>("")
+
+  // ▼ variables disponibles y selección de la variable-resultado
+  const [variablesOptions, setVariablesOptions] = useState<VariableOption[]>([])
+  const [variableResultadoId, setVariableResultadoId] = useState<string>("")
 
   // nombres de variables a persistir
   const variablesUsadas = useMemo(
@@ -89,47 +114,102 @@ export default function CrearFormulaPage() {
     }
   }
 
-  // cargar procesos (ajusta si tu endpoint es otro)
+  // cargar TODAS las variables (con su proceso_id) para poder inferir proceso al guardar
   useEffect(() => {
-    const fetchProcesos = async () => {
-      setLoadingProcesos(true)
+    const loadVariables = async () => {
+      const token = getToken()
+      if (!token) {
+        alert("No hay token de autenticación. Por favor, inicia sesión de nuevo.")
+        return
+      }
       try {
-        const res = await fetch(`${API_BASE_URL}/api/procesos`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        const res = await fetch(`${API_BASE_URL}/api/variables`, {
+          headers: { Authorization: `Bearer ${token}` },
         })
-        const data = await res.json().catch(() => ({}))
-        const arr = Array.isArray(data?.procesos) ? data.procesos : Array.isArray(data) ? data : []
-        const lista: Proceso[] = arr.map((p: any) => ({
-          id: String(p.id ?? p._id ?? ""),
-          nombre: String(p.nombre ?? "Proceso"),
-          descripcion: p.descripcion ?? "",
+        if (!res.ok) return
+        const json = await res.json().catch(() => ({}))
+        console.log("Respuesta variables:", json) // DEPURACIÓN
+
+        let arr: any[] = []
+        if (Array.isArray(json?.variables)) arr = json.variables
+        else if (Array.isArray(json?.data)) arr = json.data
+        else if (Array.isArray(json)) arr = json
+
+        const lista: VariableOption[] = arr.map((v: any) => ({
+          id: String(v.id ?? v.variable_id ?? ""),
+          nombre: String(v.nombre ?? v.name ?? "Variable"),
+          unidad: v.unidad,
+          // Ajuste: soporta proceso_id, procesoId, finalprocesoid, proceso?.id
+          proceso_id: v.proceso_id ?? v.procesoId ?? v.finalprocesoid ?? v.proceso?.id ?? v.procesoID ?? v.procesoID ?? null,
         }))
-        setProcesos(lista)
-        if (!procesoId && lista.length) setProcesoId(lista[0].id)
-      } finally {
-        setLoadingProcesos(false)
+
+        setVariablesOptions(lista)
+        if (lista.length) setVariableResultadoId(lista[0].id)
+      } catch {
+        // noop
       }
     }
-    fetchProcesos()
+
+    loadVariables()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // guardar (usa EXACTO el formato que pediste y el endpoint /api/formulas/crear)
+  // guardar (usa EXACTO el formato pedido y endpoint /api/formulas/crear)
   const handleGuardar = async () => {
     if (!nombre.trim()) return alert("El nombre de la fórmula es obligatorio")
     if (!expresion.trim()) return alert("La expresión es obligatoria")
-    if (!procesoId) return alert("Selecciona un proceso")
+    if (!variableResultadoId) return alert("Selecciona el parámetro (variable) resultado")
+
+    // inferir proceso_id a partir de la variable seleccionada (tu BD lo exige NOT NULL)
+    const varOpt = variablesOptions.find(v => v.id === variableResultadoId)
+    let finalProcesoId = varOpt?.proceso_id
+
+    // Si no vino en el listado, intenta pedir el detalle
+    if (!finalProcesoId) {
+      const token = getToken()
+      if (!token) {
+        alert("No hay token de autenticación. Por favor, inicia sesión de nuevo.")
+        return
+      }
+      try {
+        const resVar = await fetch(`${API_BASE_URL}/api/variables/${variableResultadoId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (resVar.ok) {
+          const v = await resVar.json().catch(() => ({}))
+          console.log("Detalle variable:", v) // DEPURACIÓN
+          finalProcesoId = extractProcesoId(v)
+        }
+      } catch {
+        /* noop */
+      }
+      if (!finalProcesoId) {
+        return alert("No se pudo inferir el proceso de la variable seleccionada.")
+      }
+    }
 
     const payload = {
       nombre: nombre.trim(),
-      expresion: expresion.trim(),
-      proceso_id: procesoId,
+      expresion: expresion.trim(), // <--- ¡Aquí va la fórmula!
+      proceso_id: finalProcesoId,
       variables_usadas: variablesUsadas,
-      // creador_id lo debe inferir el backend desde el token (o agrégalo aquí si tu backend lo requiere)
+      variable_resultado_id: variableResultadoId,
     }
 
+    console.log("Payload enviado al guardar fórmula:", payload)
+    await doPost(payload)
+  }
+
+  // helper para el POST
+  async function doPost(payload: any) {
+    const token = getToken()
+    if (!token) {
+      alert("No hay token de autenticación. Por favor, inicia sesión de nuevo.")
+      return
+    }
     try {
       setGuardando(true)
+      console.log("Payload enviado al guardar fórmula:", payload)
       const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.FORMULA_CREATE}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -235,51 +315,64 @@ export default function CrearFormulaPage() {
                   </div>
 
                   <Card className="bg-gray-50 p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-100 space-y-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Escribe tu fórmula</label>
-                      <div className="relative">
-                        <span className="material-icons absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">create</span>
-                        <Input
-                          value={expresion}
-                          onChange={(e) => setExpresion(e.target.value)}
-                          placeholder="x + y * 2"
-                          className="pl-10 font-mono text-lg"
-                        />
-                      </div>
-                      <p className="text-xs text-gray-500 mt-2">
-                        Usa los nombres de las variables definidas. Operadores permitidos: +, -, *, /, (, ).
-                      </p>
+                    {/* Input sin ícono de lápiz */}
+                    <div className="relative">
+                      <Input
+                        value={expresion}
+                        onChange={(e) => setExpresion(e.target.value)}
+                        placeholder="x + y * 2"
+                        className="font-mono text-lg"
+                      />
                     </div>
 
+                    <p className="text-xs text-gray-500 mt-2">
+                      Usa los nombres de las variables definidas. Operadores permitidos: +, -, *, /, (, ).
+                    </p>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Nombre de la fórmula */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la fórmula</label>
+                        <label htmlFor="nombre-formula" className="block text-sm font-medium text-gray-700 mb-1">Nombre de la fórmula</label>
                         <Input
+                          id="nombre-formula"
                           value={nombre}
                           onChange={(e) => setNombre(e.target.value)}
                           placeholder="Ej. Cálculo de Área"
                           className="w-full"
+                          aria-label="Nombre de la fórmula"
                         />
                       </div>
 
+                      {/* Parámetro (variable) resultado */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Proceso asociado</label>
-                        <Select
-                          value={procesoId}
-                          onValueChange={setProcesoId}
-                          disabled={loadingProcesos || procesos.length === 0}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder={loadingProcesos ? "Cargando..." : "Selecciona un proceso"} />
-                          </SelectTrigger>
-                          <SelectContent className="bg-[#f6f6f6] text-gray-900">
-                            {procesos.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.nombre}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <label htmlFor="variable-resultado" className="block text-sm font-medium text-gray-700 mb-1">
+                          Parámetro (variable) resultado
+                        </label>
+                        {variablesOptions.length === 0 ? (
+                          <div className="text-sm text-red-500 bg-red-50 rounded p-2 mt-1" role="alert">
+                            No hay variables disponibles para seleccionar.
+                          </div>
+                        ) : (
+                          <Select
+                            value={variableResultadoId}
+                            onValueChange={setVariableResultadoId}
+                            disabled={variablesOptions.length === 0}
+                          >
+                            <SelectTrigger id="variable-resultado" className="w-full" aria-label="Parámetro (variable) resultado">
+                              <SelectValue placeholder={"Selecciona la variable resultado"} />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                              {variablesOptions.map((v) => (
+                                <SelectItem key={v.id} value={v.id} aria-label={v.nombre + (v.unidad ? ` (${v.unidad})` : "")}>
+                                  {v.nombre}{v.unidad ? ` (${v.unidad})` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        <p className="text-xs text-gray-500 mt-1">
+                          Esta es la variable que se calculará al aplicar la fórmula.
+                        </p>
                       </div>
                     </div>
                   </Card>
@@ -325,4 +418,9 @@ export default function CrearFormulaPage() {
       </div>
     </ProtectedRoute>
   )
+}
+
+function getToken() {
+  if (typeof window === "undefined") return null
+  return localStorage.getItem("Organomex_token")
 }
