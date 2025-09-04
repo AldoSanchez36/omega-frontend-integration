@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import ProtectedRoute from "@/components/ProtectedRoute"
 // Si tu Navbar es export default, cambia a: import Navbar from "@/components/Navbar"
@@ -10,6 +10,9 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card } from "@/components/ui/card"
+import { Dialog } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { X } from "lucide-react"
 
 // Utilidad para extraer proceso_id de cualquier estructura
 function extractProcesoId(obj: any): string | undefined {
@@ -230,6 +233,121 @@ export default function CrearFormulaPage() {
     }
   }
 
+  // ▼ NUEVO: Estado para gestión de fórmulas
+  const [formulas, setFormulas] = useState<any[]>([])
+  const [loadingFormulas, setLoadingFormulas] = useState(false)
+  const [errorFormulas, setErrorFormulas] = useState<string | null>(null)
+  const [editFormula, setEditFormula] = useState<any | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [deleteFormula, setDeleteFormula] = useState<any | null>(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [editNombre, setEditNombre] = useState("")
+  const [editExpresion, setEditExpresion] = useState("")
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  // Cargar fórmulas existentes
+  useEffect(() => {
+    async function fetchFormulas() {
+      setLoadingFormulas(true)
+      setErrorFormulas(null)
+      try {
+        const token = getToken()
+        const res = await fetch(`${API_BASE_URL}/api/formulas`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const json = await res.json().catch(() => ({}))
+        let arr: any[] = []
+        if (Array.isArray(json?.formulas)) arr = json.formulas
+        else if (Array.isArray(json?.data)) arr = json.data
+        else if (Array.isArray(json)) arr = json
+        setFormulas(arr)
+      } catch (e: any) {
+        setErrorFormulas("No se pudieron cargar las fórmulas")
+      } finally {
+        setLoadingFormulas(false)
+      }
+    }
+    fetchFormulas()
+  }, [])
+
+  // Refrescar fórmulas tras editar/eliminar
+  async function refreshFormulas() {
+    setLoadingFormulas(true)
+    setErrorFormulas(null)
+    try {
+      const token = getToken()
+      const res = await fetch(`${API_BASE_URL}/api/formulas`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const json = await res.json().catch(() => ({}))
+      let arr: any[] = []
+      if (Array.isArray(json?.formulas)) arr = json.formulas
+      else if (Array.isArray(json?.data)) arr = json.data
+      else if (Array.isArray(json)) arr = json
+      setFormulas(arr)
+    } catch (e: any) {
+      setErrorFormulas("No se pudieron cargar las fórmulas")
+    } finally {
+      setLoadingFormulas(false)
+    }
+  }
+
+  // --- Editar fórmula ---
+  function handleOpenEdit(f: any) {
+    setEditFormula(f)
+    setEditNombre(f.nombre)
+    setEditExpresion(f.expresion)
+    setShowEditModal(true)
+  }
+  async function handleSaveEdit() {
+    if (!editFormula) return
+    setSavingEdit(true)
+    try {
+      const token = getToken()
+      const res = await fetch(`${API_BASE_URL}/api/formulas/${editFormula.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nombre: editNombre, expresion: editExpresion }),
+      })
+      if (!res.ok) throw new Error("No se pudo actualizar la fórmula")
+      setShowEditModal(false)
+      setEditFormula(null)
+      await refreshFormulas()
+    } catch (e: any) {
+      alert(e.message || "Error al actualizar la fórmula")
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  // --- Eliminar fórmula ---
+  function handleOpenDelete(f: any) {
+    setDeleteFormula(f)
+    setShowDeleteModal(true)
+  }
+  async function handleConfirmDelete() {
+    if (!deleteFormula) return
+    setDeleting(true)
+    try {
+      const token = getToken()
+      const res = await fetch(`${API_BASE_URL}/api/formulas/${deleteFormula.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error("No se pudo eliminar la fórmula")
+      setShowDeleteModal(false)
+      setDeleteFormula(null)
+      await refreshFormulas()
+    } catch (e: any) {
+      alert(e.message || "Error al eliminar la fórmula")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  // Elimina estados y lógica de autocomplete
+
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
@@ -319,7 +437,7 @@ export default function CrearFormulaPage() {
                     <div className="relative">
                       <Input
                         value={expresion}
-                        onChange={(e) => setExpresion(e.target.value)}
+                        onChange={e => setExpresion(e.target.value)}
                         placeholder="x + y * 2"
                         className="font-mono text-lg"
                       />
@@ -413,6 +531,87 @@ export default function CrearFormulaPage() {
                 </div>
               </div>
             </div>
+            {/* Gestor de fórmulas al final */}
+            <section className="mt-12">
+              <div className="bg-white border border-gray-200 rounded-2xl shadow p-6">
+                <h2 className="text-xl font-bold mb-4">Gestión de fórmulas</h2>
+                {loadingFormulas ? (
+                  <div className="text-gray-500">Cargando fórmulas...</div>
+                ) : errorFormulas ? (
+                  <div className="text-red-500">{errorFormulas}</div>
+                ) : formulas.length === 0 ? (
+                  <div className="text-gray-400">No hay fórmulas registradas.</div>
+                ) : (
+                  <ul className="space-y-4">
+                    {formulas.map((f) => (
+                      <li key={f.id} className="border rounded-lg p-4 flex flex-col gap-2 bg-gray-50">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-gray-800">{f.nombre}</span>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="ghost" onClick={() => handleOpenEdit(f)} aria-label="Editar fórmula">
+                              <span className="material-icons text-base">edit</span>
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => handleOpenDelete(f)} aria-label="Eliminar fórmula">
+                              <span className="material-icons text-base">delete</span>
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="text-sm text-blue-700 font-mono break-all">{f.expresion}</div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {/* Modal editar fórmula */}
+                {showEditModal && (
+                  <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+                      <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
+                        <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowEditModal(false)} aria-label="Cerrar">
+                          <X size={20} />
+                        </button>
+                        <h3 className="text-lg font-bold mb-4">Editar fórmula</h3>
+                        <div className="mb-4">
+                          <Label>Nombre</Label>
+                          <Input value={editNombre} onChange={e => setEditNombre(e.target.value)} className="mt-1" />
+                        </div>
+                        <div className="mb-4">
+                          <Label>Operación</Label>
+                          <Input value={editExpresion} onChange={e => setEditExpresion(e.target.value)} className="mt-1 font-mono" />
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                          <Button variant="outline" onClick={() => setShowEditModal(false)} disabled={savingEdit}>Cancelar</Button>
+                          <Button onClick={handleSaveEdit} disabled={savingEdit} className="font-semibold">
+                            {savingEdit ? "Guardando..." : "Guardar"}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </Dialog>
+                )}
+
+                {/* Modal eliminar fórmula */}
+                {showDeleteModal && (
+                  <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+                      <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
+                        <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowDeleteModal(false)} aria-label="Cerrar">
+                          <X size={20} />
+                        </button>
+                        <h3 className="text-lg font-bold mb-4">Eliminar fórmula</h3>
+                        <p className="mb-6">¿Seguro que deseas eliminar la fórmula <span className="font-semibold">{deleteFormula?.nombre}</span>? Esta acción no se puede deshacer.</p>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setShowDeleteModal(false)} disabled={deleting}>Cancelar</Button>
+                          <Button onClick={handleConfirmDelete} disabled={deleting} className="bg-red-600 hover:bg-red-700 text-white font-semibold">
+                            {deleting ? "Eliminando..." : "Eliminar"}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </Dialog>
+                )}
+              </div>
+            </section>
           </div>
         </div>
       </div>
