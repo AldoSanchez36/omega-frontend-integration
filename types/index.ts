@@ -47,4 +47,17 @@ export interface User {
   name: string
   email: string
   role: string
+}
+
+export interface Variable {
+  id: string
+  nombre: string
+  unidad?: string
+  proceso_id?: string
+}
+
+export interface Proceso {
+  id: string
+  nombre: string
+  descripcion?: string
 } 

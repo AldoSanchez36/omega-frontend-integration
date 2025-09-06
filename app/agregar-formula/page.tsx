@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import ProtectedRoute from "@/components/ProtectedRoute"
-// Si tu Navbar es export default, cambia a: import Navbar from "@/components/Navbar"
 import { Navbar } from "@/components/Navbar"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import { Input } from "@/components/ui/input"
@@ -13,6 +12,8 @@ import { Card } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { X } from "lucide-react"
+import { authService } from "@/services/authService"
+import { Variable, Proceso } from "@/types"
 
 // Utilidad para extraer proceso_id de cualquier estructura
 function extractProcesoId(obj: any): string | undefined {
@@ -38,12 +39,14 @@ type VarDef = { nombre: string; prueba: string }
 // VariableOption incluye proceso_id para poder INFERIRLO al guardar
 type VariableOption = { id: string; nombre: string; unidad?: string; proceso_id?: string }
 
-export default function CrearFormulaPage() {
+export default function AgregarFormula() {
   const router = useRouter()
-  // Inicializa como null y se setea en useEffect
-  // const [token, setToken] = useState<string | null>(null)
-
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
+
+  // Helper function to get token
+  const getToken = () => {
+    return authService.getToken()
+  }
   useEffect(() => {
     if (typeof window !== "undefined") {
       // setToken(localStorage.getItem("Organomex_token"))
@@ -232,7 +235,6 @@ export default function CrearFormulaPage() {
       setGuardando(false)
     }
   }
-
   // ▼ NUEVO: Estado para gestión de fórmulas
   const [formulas, setFormulas] = useState<any[]>([])
   const [loadingFormulas, setLoadingFormulas] = useState(false)
