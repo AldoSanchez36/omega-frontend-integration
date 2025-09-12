@@ -32,6 +32,8 @@ interface User {
 interface Plant {
   id: string
   nombre: string
+  reporte_destinatario?: string
+  mensaje_cliente?: string
 }
 
 interface System {
@@ -101,8 +103,12 @@ export default function ParameterManager() {
   // Form states
   const [showCreatePlant, setShowCreatePlant] = useState(false)
   const [newPlantName, setNewPlantName] = useState("")
+  const [newPlantDestinatario, setNewPlantDestinatario] = useState("")
+  const [newPlantMensaje, setNewPlantMensaje] = useState("")
   const [showEditPlantDialog, setShowEditPlantDialog] = useState(false)
   const [editPlantName, setEditPlantName] = useState("")
+  const [editPlantDestinatario, setEditPlantDestinatario] = useState("")
+  const [editPlantMensaje, setEditPlantMensaje] = useState("")
   const [editingPlant, setEditingPlant] = useState<Plant | null>(null)
   const [showCreateSystem, setShowCreateSystem] = useState(false)
   const [newSystemName, setNewSystemName] = useState("")
@@ -448,8 +454,8 @@ export default function ParameterManager() {
   }
 
   const handleCreatePlant = async () => {
-    if (!newPlantName.trim() || !selectedUser) {
-      alert("Por favor, ingrese un nombre para la planta y seleccione un usuario.")
+    if (!newPlantName.trim() || !newPlantDestinatario.trim() || !newPlantMensaje.trim() || !selectedUser) {
+      alert("Por favor, complete todos los campos: nombre de la planta, destinatario del reporte y mensaje para el cliente.")
       return
     }
     setLoading(true)
@@ -460,6 +466,8 @@ export default function ParameterManager() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           nombre: newPlantName,
+          reporte_destinatario: newPlantDestinatario,
+          mensaje_cliente: newPlantMensaje,
           usuario_id: selectedUser.id,
         }),
       })
@@ -469,6 +477,8 @@ export default function ParameterManager() {
       }
       setShowCreatePlant(false)
       setNewPlantName("")
+      setNewPlantDestinatario("")
+      setNewPlantMensaje("")
       await handleSelectUser(selectedUser.id) // Refetch plants for the selected user
     } catch (e: any) {
       setError(`Error al crear planta: ${e.message}`)
@@ -558,13 +568,15 @@ export default function ParameterManager() {
   const handleOpenEditPlant = (plant: Plant) => {
     setEditingPlant(plant)
     setEditPlantName(plant.nombre)
+    setEditPlantDestinatario(plant.reporte_destinatario || "")
+    setEditPlantMensaje(plant.mensaje_cliente || "")
     setShowEditPlantDialog(true)
   }
 
   // Function to update plant name
   const handleUpdatePlant = async () => {
-    if (!editPlantName.trim() || !editingPlant) {
-      alert("Por favor, ingrese un nombre para la planta.")
+    if (!editPlantName.trim() || !editPlantDestinatario.trim() || !editPlantMensaje.trim() || !editingPlant) {
+      alert("Por favor, complete todos los campos: nombre de la planta, destinatario del reporte y mensaje para el cliente.")
       return
     }
     
@@ -576,6 +588,8 @@ export default function ParameterManager() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           nombre: editPlantName,
+          reporte_destinatario: editPlantDestinatario,
+          mensaje_cliente: editPlantMensaje,
         }),
       })
       
@@ -586,6 +600,8 @@ export default function ParameterManager() {
       
       setShowEditPlantDialog(false)
       setEditPlantName("")
+      setEditPlantDestinatario("")
+      setEditPlantMensaje("")
       setEditingPlant(null)
       
       // Refetch plants to update the list
@@ -1378,9 +1394,13 @@ export default function ParameterManager() {
                   selectedSystemId={selectedSystemId}
                   showCreatePlant={showCreatePlant}
                   newPlantName={newPlantName}
+                  newPlantDestinatario={newPlantDestinatario}
+                  newPlantMensaje={newPlantMensaje}
                   loading={loading}
                   showEditPlantDialog={showEditPlantDialog}
                   editPlantName={editPlantName}
+                  editPlantDestinatario={editPlantDestinatario}
+                  editPlantMensaje={editPlantMensaje}
                   showCreateSystem={showCreateSystem}
                   newSystemName={newSystemName}
                   newSystemDescription={newSystemDescription}
@@ -1391,10 +1411,14 @@ export default function ParameterManager() {
                     handleSelectPlant,
                     setShowCreatePlant,
                     setNewPlantName,
+                    setNewPlantDestinatario,
+                    setNewPlantMensaje,
                     handleCreatePlant,
                     handleOpenEditPlant,
                     setShowEditPlantDialog,
                     setEditPlantName,
+                    setEditPlantDestinatario,
+                    setEditPlantMensaje,
                     handleUpdatePlant,
                     handleDeletePlant,
                     setShowCreateSystem,

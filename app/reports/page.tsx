@@ -1299,11 +1299,16 @@ export default function Reporte() {
         <div className="container py-4">
           <div className="text-center">
             <div className="btn-group" role="group">
-              <Link href="/dashboard" className="btn btn-secondary">
-                <i className="material-icons me-2">arrow_back</i>
-                Volver
-              </Link>
-              <button onClick={handleDownloadPDF}>Descargar PDF</button>
+            <Link href="/dashboard" className="btn btn-outline-secondary d-flex align-items-center gap-2">
+              <i className="material-icons">arrow_back</i>
+              <span>Volver</span>
+            </Link>
+              <button
+                onClick={handleDownloadPDF}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg text-sm font-medium leading-tight"
+              >
+                Guardar información<br />y Descargar PDF
+              </button>
               {/* Debug: Para limpiar caché de variables, ejecuta en consola: clearVariablesCache() */}
             </div>
           </div>

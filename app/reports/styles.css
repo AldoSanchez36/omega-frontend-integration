@@ -109,6 +109,23 @@
   background-color: #c82333;
 }
 
+.download-btn {
+  background-color: #007bff;  /* Azul tipo Bootstrap */
+  color: #fff;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background-color 0.3s ease;
+}
+
+.download-btn:hover {
+  background-color: #0056b3;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .report-content {
@@ -145,3 +162,4 @@
     box-shadow: none !important;
   }
 }
+

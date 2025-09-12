@@ -17,9 +17,13 @@ type Props = {
   selectedSystemId: string | null
   showCreatePlant: boolean
   newPlantName: string
+  newPlantDestinatario: string
+  newPlantMensaje: string
   loading: boolean
   showEditPlantDialog: boolean
   editPlantName: string
+  editPlantDestinatario: string
+  editPlantMensaje: string
   showCreateSystem: boolean
   newSystemName: string
   newSystemDescription: string
@@ -32,15 +36,15 @@ export default function SelectionSection(props: Props) {
   const {
     users, plants, systems,
     selectedUser, selectedPlant, selectedSystemId,
-    showCreatePlant, newPlantName, loading,
-    showEditPlantDialog, editPlantName,
+    showCreatePlant, newPlantName, newPlantDestinatario, newPlantMensaje, loading,
+    showEditPlantDialog, editPlantName, editPlantDestinatario, editPlantMensaje,
     showCreateSystem, newSystemName, newSystemDescription,
     showEditSystemDialog, editSystemName,
     actions
   } = props
   const {
-    handleSelectUser, handleSelectPlant, setShowCreatePlant, setNewPlantName,
-    handleCreatePlant, handleOpenEditPlant, setShowEditPlantDialog, setEditPlantName,
+    handleSelectUser, handleSelectPlant, setShowCreatePlant, setNewPlantName, setNewPlantDestinatario, setNewPlantMensaje,
+    handleCreatePlant, handleOpenEditPlant, setShowEditPlantDialog, setEditPlantName, setEditPlantDestinatario, setEditPlantMensaje,
     handleUpdatePlant, handleDeletePlant, setShowCreateSystem, setNewSystemName, setNewSystemDescription,
     handleCreateSystem, handleOpenEditSystem, handleDeleteSystem, setShowEditSystemDialog,
     setEditSystemName, handleUpdateSystem, setSelectedSystemId
@@ -121,13 +125,28 @@ export default function SelectionSection(props: Props) {
                 </div>
               </div>
               {showCreatePlant && (
-                <div className="grid w-full grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 rounded-lg border p-3">
+                <div className="grid w-full grid-cols-1 gap-3 rounded-lg border p-3">
                   <Input
                     placeholder="Nombre de la nueva planta"
                     value={newPlantName}
                     onChange={(e) => setNewPlantName(e.target.value)}
                   />
-                  <Button type="button" onClick={handleCreatePlant} disabled={loading || !newPlantName.trim()} className="w-full sm:w-auto">
+                  <Input
+                    placeholder="Nombre de a quien va dirigido el reporte"
+                    value={newPlantDestinatario}
+                    onChange={(e) => setNewPlantDestinatario(e.target.value)}
+                  />
+                  <Input
+                    placeholder="Mensaje para el cliente"
+                    value={newPlantMensaje}
+                    onChange={(e) => setNewPlantMensaje(e.target.value)}
+                  />
+                  <Button 
+                    type="button" 
+                    onClick={handleCreatePlant} 
+                    disabled={loading || !newPlantName.trim() || !newPlantDestinatario.trim() || !newPlantMensaje.trim()} 
+                    className="w-full sm:w-auto justify-self-end"
+                  >
                     Guardar
                   </Button>
                 </div>
@@ -255,7 +274,7 @@ export default function SelectionSection(props: Props) {
         <Dialog open={showEditPlantDialog} onOpenChange={setShowEditPlantDialog}>
           <DialogContent className="bg-[#f6f6f6] text-gray-900">
             <DialogHeader>
-              <DialogTitle>Editar Nombre de la Planta</DialogTitle>
+              <DialogTitle>Editar Planta</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
@@ -267,6 +286,30 @@ export default function SelectionSection(props: Props) {
                   value={editPlantName}
                   onChange={(e) => setEditPlantName(e.target.value)}
                   className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-plant-destinatario" className="text-right">
+                  Dirigido a
+                </Label>
+                <Input
+                  id="edit-plant-destinatario"
+                  value={editPlantDestinatario}
+                  onChange={(e) => setEditPlantDestinatario(e.target.value)}
+                  className="col-span-3"
+                  placeholder="Nombre de a quien va dirigido el reporte"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-plant-mensaje" className="text-right">
+                  Mensaje
+                </Label>
+                <Input
+                  id="edit-plant-mensaje"
+                  value={editPlantMensaje}
+                  onChange={(e) => setEditPlantMensaje(e.target.value)}
+                  className="col-span-3"
+                  placeholder="Mensaje para el cliente"
                 />
               </div>
             </div>
@@ -282,7 +325,7 @@ export default function SelectionSection(props: Props) {
               <Button 
                 type="button" 
                 onClick={handleUpdatePlant}
-                disabled={loading || !editPlantName.trim()}
+                disabled={loading || !editPlantName.trim() || !editPlantDestinatario.trim() || !editPlantMensaje.trim()}
               >
                 {loading ? "Guardando..." : "Guardar Cambios"}
               </Button>
