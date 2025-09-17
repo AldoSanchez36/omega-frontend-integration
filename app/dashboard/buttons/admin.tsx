@@ -46,28 +46,15 @@ const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport, handleNewS
               </div>
             </div>
 
-            {/* Agregar Variable */}
+            {/* Agregar Variable (ahora Gestión Parámetros) */}
             <div className="col-lg-3 col-md-6 mb-3">
               <div className="action-card h-100" onClick={handleNewVariable}>
-                <div className="action-card-body">
-                  <div className="action-icon bg-info">
-                    <i className="material-icons">science</i>
-                  </div>
-                  <h6 className="action-title">Variables</h6>
-                  <p className="action-description">Editar variables</p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Gestión de Parámetros */}
-            <div className="col-lg-3 col-md-6 mb-3">
-              <div className="action-card h-100" onClick={handleNewParameter}>
                 <div className="action-card-body">
                   <div className="action-icon bg-warning">
                     <i className="material-icons">tune</i>
                   </div>
                   <h6 className="action-title">Gestión Parámetros</h6>
-                  <p className="action-description">Configurar límites del sistema</p>
+                  <p className="action-description">Editar parámetros</p>
                 </div>
               </div>
             </div>

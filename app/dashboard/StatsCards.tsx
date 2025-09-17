@@ -46,28 +46,11 @@ const StatsCards: React.FC<StatsCardsProps> = ({ dashboardResumen }) => (
       </div>
     </div>
     <div className="col-md-3">
-      <div className="card bg-info text-white">
-        <div className="card-body">
-          <div className="d-flex justify-content-between">
-            <div>
-              <h5 className="card-title">Procesos</h5>
-              <h2 className="mb-0">{dashboardResumen ? dashboardResumen.procesos : "..."}</h2>
-            </div>
-            <div className="align-self-center">
-              <i className="material-icons" style={{ fontSize: "3rem" }}>
-                settings
-              </i>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div className="col-md-3">
       <div className="card bg-warning text-white">
         <div className="card-body">
           <div className="d-flex justify-content-between">
             <div>
-              <h5 className="card-title">Variables</h5>
+              <h5 className="card-title">Gestión Parámetros</h5>
               <h2 className="mb-0">{dashboardResumen ? dashboardResumen.variables : "..."}</h2>
             </div>
             <div className="align-self-center">
