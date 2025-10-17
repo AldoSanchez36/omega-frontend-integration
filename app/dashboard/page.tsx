@@ -460,7 +460,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-vh-100" style={{background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'}}>
+    <div className="min-vh-100 bg-light">
       {/* Use the Navbar component */}
       <Navbar role={userRole} />
 
@@ -468,9 +468,9 @@ export default function Dashboard() {
       <div className="container py-4">
         {/* Status Banner */}
         {/* Welcome Section */}
-        <div className="alert" role="alert" style={{background: 'linear-gradient(45deg, #ff6b6b, #feca57)', border: 'none', borderRadius: '15px', boxShadow: '0 8px 32px rgba(0,0,0,0.1)'}}>
-          <h1 className="h3 mb-0" style={{color: 'white', textShadow: '2px 2px 4px rgba(0,0,0,0.3)'}}>Bienvenido,  <strong>{user.username}</strong></h1>
-          <p style={{color: 'rgba(255,255,255,0.9)', textShadow: '1px 1px 2px rgba(0,0,0,0.3)'}}>Panel de control</p>
+        <div className="alert alert-info" role="alert">
+          <h1 className="h3 mb-0">Bienvenido,  <strong>{user.username}</strong></h1>
+          <p className="text-muted">Panel de control</p>
         </div>
 
 
@@ -513,7 +513,7 @@ export default function Dashboard() {
         {/* System Charts - Historical Data */}
         <div className="row mb-4">
           <div className="col-12">
-            <h5 className="mb-3" style={{color: 'white', textShadow: '2px 2px 4px rgba(0,0,0,0.5)', fontSize: '1.5rem', fontWeight: 'bold'}}>📈 Gráficos Históricos de Sistemas</h5>
+            <h5 className="mb-3">📈 Gráficos Históricos de Sistemas</h5>
           </div>
           <ChartsDashboard
             plants={plants}
