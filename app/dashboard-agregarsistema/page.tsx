@@ -966,12 +966,6 @@ export default function ParameterManager() {
                 {selectedSystemId && (
                   <div className="border-t border-gray-200 pt-6 bg-blue-50 p-6 rounded-lg">
                     <h2 className="text-lg font-medium leading-6 text-gray-900">Agregar Nuevo Parámetro</h2>
-                    <p className="mt-1 text-sm text-gray-500">Añada un nuevo parámetro al sistema seleccionado.</p>
-                    
-                    {/* Debug info */}
-                    <div className="text-xs text-gray-500 mb-4 p-2 bg-gray-100 rounded">
-                      Debug: selectedSystemId = {selectedSystemId}, allVariables.length = {allVariables.length}
-                    </div>
                     
                     {/* Droplist de variables existentes */}
                     {allVariables.length > 0 && (
