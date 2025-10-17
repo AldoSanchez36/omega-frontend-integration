@@ -128,7 +128,7 @@ export default function ReportManager() {
     async function loadUsers() {
       if (selectedPlant) {
         try {
-          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USER_BY_PLANT(selectedPlant.id)}`, {
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USERS_BY_PLANT(selectedPlant.nombre)}`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
           });
           if (res.ok) {
@@ -545,6 +545,9 @@ export default function ReportManager() {
               sistemasPorParametro={sistemasPorParametro}
               handleMeasurementDataChange={handleMeasurementDataChange}
               medicionesPreview={medicionesPreview}
+              selectedUser={selectedUser}
+              selectedPlant={selectedPlant}
+              selectedSystem={selectedSystem}
             />
           )}
 

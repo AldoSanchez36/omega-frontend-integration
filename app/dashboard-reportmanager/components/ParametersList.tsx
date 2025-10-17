@@ -1,9 +1,10 @@
 "use client"
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants";
 import ParametersHeader from "./ParametersComponents/ParametersHeader";
 import ParametersVariableList from "./ParametersComponents/ParametersVariableList";
 
@@ -23,6 +24,10 @@ interface ParameterValue {
 
 interface Tolerance {
   id?: string;
+  variable_id?: string;
+  proceso_id?: string;
+  planta_id?: string;
+  cliente_id?: string;
   limite_min?: number | null;
   limite_max?: number | null;
   bien_min?: number | null;
@@ -47,6 +52,9 @@ interface ParametersListProps {
   sistemasPorParametro: Record<string, string[]>;
   handleMeasurementDataChange: (parameterId: string, data: { fecha: string; comentarios: string; valores: { [sistema: string]: string } }) => void;
   medicionesPreview: any[];
+  selectedUser?: { id: string } | null;
+  selectedPlant?: { id: string } | null;
+  selectedSystem?: string;
 }
 
 const ParametersList: React.FC<ParametersListProps> = ({
@@ -65,7 +73,85 @@ const ParametersList: React.FC<ParametersListProps> = ({
   sistemasPorParametro,
   handleMeasurementDataChange,
   medicionesPreview,
+  selectedUser,
+  selectedPlant,
+  selectedSystem,
 }) => {
+  // Estado para tolerancias filtradas
+  const [filteredTolerances, setFilteredTolerances] = useState<Record<string, Tolerance>>({});
+  const [loadingTolerances, setLoadingTolerances] = useState(false);
+  const [errorTolerances, setErrorTolerances] = useState<string | null>(null);
+
+  // useEffect para cargar tolerancias filtradas
+  useEffect(() => {
+    const loadFilteredTolerances = async () => {
+      if (!selectedUser || !selectedPlant || !selectedSystem || parameters.length === 0) {
+        return;
+      }
+
+      setLoadingTolerances(true);
+      setErrorTolerances(null);
+
+      try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null;
+        
+        if (!token) {
+          throw new Error("No se encontró el token de autenticación");
+        }
+
+        // Crear todas las peticiones para cada parámetro usando el endpoint de filtros
+        const tolerancePromises = parameters.map(async (parameter) => {
+          const queryParams = new URLSearchParams({
+            variable_id: parameter.id,
+            planta_id: selectedPlant.id,
+            proceso_id: selectedSystem,
+            cliente_id: selectedUser.id,
+          });
+
+          const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES_FILTERS}?${queryParams}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error(`Error al cargar tolerancias para parámetro ${parameter.id}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          return { parameterId: parameter.id, tolerance: data };
+        });
+
+        // Esperar todas las peticiones
+        const results = await Promise.all(tolerancePromises);
+        
+        // Combinar las respuestas en un objeto
+        const tolerancesMap: Record<string, Tolerance> = {};
+        results.forEach(({ parameterId, tolerance }) => {
+          if (tolerance && tolerance.id) {
+            tolerancesMap[parameterId] = tolerance;
+          }
+        });
+
+        setFilteredTolerances(tolerancesMap);
+      } catch (error: any) {
+        console.error('Error al cargar tolerancias filtradas:', error);
+        setErrorTolerances(error.message);
+      } finally {
+        setLoadingTolerances(false);
+      }
+    };
+
+    loadFilteredTolerances();
+  }, [selectedUser, selectedPlant, selectedSystem, parameters]);
+
+  // Usar tolerancias filtradas si están disponibles, sino usar las originales
+  const tolerancesToUse = Object.keys(filteredTolerances).length > 0 ? filteredTolerances : tolerancias;
+  const handleTolSave = async (variableId: string) => {
+    console.log('handleTolSave', variableId);
+  };
+
   return (
     <Card className="mb-6">
       <ParametersHeader userRole={userRole} router={router} />
@@ -186,11 +272,11 @@ const ParametersList: React.FC<ParametersListProps> = ({
         <ParametersVariableList
           parameters={parameters}
           parameterValues={parameterValues}
-          tolerancias={tolerancias}
+          tolerancias={tolerancesToUse}
           handleParameterChange={handleParameterChange}
           handleUnitChange={handleUnitChange}
           handleTolChange={handleTolChange}
-          // handleTolSave={handleTolSave}
+          handleTolSave={handleTolSave}
           tolLoading={tolLoading}
           tolError={tolError}
           tolSuccess={tolSuccess}
