@@ -45,7 +45,7 @@ export default function AgregarFormula() {
 
   // Helper function to get token
   const getToken = () => {
-    return authService.getToken()
+    return typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
   }
   useEffect(() => {
     if (typeof window !== "undefined") {

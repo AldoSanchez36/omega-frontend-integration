@@ -71,7 +71,7 @@ export default function ReportManager() {
   const startDate = "2025-04-04"
   const endDate   = "2025-06-04"
   const { addDebugLog } = useDebugLogger()
-  const token = authService.getToken()
+  const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
   const [globalFecha, setGlobalFecha] = useState<string>("");
   const [globalComentarios, setGlobalComentarios] = useState<string>("");
 
