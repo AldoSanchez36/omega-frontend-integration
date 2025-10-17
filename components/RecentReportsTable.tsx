@@ -118,9 +118,6 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                   description
                 </i>
                 <p className="text-muted mt-2">No hay reportes disponibles</p>
-                <button className="btn btn-primary" onClick={() => onDebugLog("Crear primer reporte clickeado")}> 
-                  Crear Primer Reporte
-                </button>
               </div>
             )}
           </div>

@@ -296,7 +296,7 @@ export default function UsersManagement() {
             break
           case "role":
             // Ordenamiento personalizado para roles con jerarquía
-            const roleOrder = { 'admin': 1, 'administrador': 1, 'analista': 2, 'user': 2, 'client': 3, 'cliente': 3 }
+            const roleOrder: { [key: string]: number } = { 'admin': 1, 'administrador': 1, 'analista': 2, 'user': 2, 'client': 3, 'cliente': 3 }
             const aRole = (a.puesto || a.role || 'analista').toLowerCase()
             const bRole = (b.puesto || b.role || 'analista').toLowerCase()
             const aOrder = roleOrder[aRole] || 4
@@ -656,13 +656,13 @@ export default function UsersManagement() {
                   <span className="material-icons align-middle mr-1">clear</span>
                   Limpiar Filtros
                 </button>
-                <button 
-                  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
-                  onClick={() => window.location.reload()}
-                >
-                  <span className="material-icons align-middle mr-1">refresh</span>
-                  Actualizar
-                </button>
+              <button 
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
+                onClick={() => window.location.reload()}
+              >
+                <span className="material-icons align-middle mr-1">refresh</span>
+                Actualizar
+              </button>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -913,25 +913,25 @@ export default function UsersManagement() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-gray-700">
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <div className="flex items-center justify-between">
-                    <div>
+              <div>
                       <small className="block text-gray-500 mb-1">Total de usuarios</small>
                       <div className="font-semibold text-lg">{users.length}</div>
-                    </div>
+              </div>
                     <span className="material-icons text-blue-600 text-2xl">people</span>
-                  </div>
                 </div>
+              </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <div className="flex items-center justify-between">
-                    <div>
+              <div>
                       <small className="block text-gray-500 mb-1">Tu rol</small>
                       <div className="font-semibold text-lg text-blue-600 capitalize">{currentUserRole}</div>
-                    </div>
+              </div>
                     <span className="material-icons text-green-600 text-2xl">admin_panel_settings</span>
                   </div>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <div className="flex items-center justify-between">
-                    <div>
+              <div>
                       <small className="block text-gray-500 mb-1">Estado de conexión</small>
                       <div className="font-semibold text-lg text-green-600">✓ Conectado</div>
                     </div>

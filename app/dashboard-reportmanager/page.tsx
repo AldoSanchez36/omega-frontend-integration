@@ -125,35 +125,14 @@ export default function ReportManager() {
     loadPlants();
   }, [selectedUser, plants, token, router]);
 
-  // Load users by selected plant, else use hook users
+  // Load users - always show all available users, not filtered by plant
   useEffect(() => {
     async function loadUsers() {
-      if (selectedPlant) {
-        try {
-          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USER_BY_PLANT(selectedPlant.id)}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setDisplayedUsers(data.usuarios || data);
-          } else if (res.status === 401) {
-            // Token inválido - redirigir al logout
-            console.error('Token inválido detectado, redirigiendo al logout');
-            authService.logout();
-            localStorage.removeItem('Organomex_user');
-            router.push('/logout');
-            return;
-          }
-        } catch (err) {
-          console.error('Error al cargar usuarios por planta:', err);
-          setDisplayedUsers([]);
-        }
-      } else {
-        setDisplayedUsers(users);
-      }
+      // Always use the full users list from the hook, not filtered by plant
+      setDisplayedUsers(users);
     }
     loadUsers();
-  }, [selectedPlant, users, token, router]);
+  }, [users]);
 
     const [parameters, setParameters] = useState<Parameter[]>([])
 
