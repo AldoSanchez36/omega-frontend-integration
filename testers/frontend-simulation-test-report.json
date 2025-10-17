@@ -1,0 +1,454 @@
+{
+  "summary": {
+    "total": 30,
+    "successful": 0,
+    "failed": 30,
+    "duration": 206,
+    "successRate": 0
+  },
+  "categories": {
+    "Direct Endpoints": {
+      "total": 12,
+      "successful": 0,
+      "failed": 12
+    },
+    "Mock Token Endpoints": {
+      "total": 12,
+      "successful": 0,
+      "failed": 12
+    },
+    "URL Encoding": {
+      "total": 6,
+      "successful": 0,
+      "failed": 6
+    }
+  },
+  "results": [
+    {
+      "category": "Direct Endpoints",
+      "test": "Direct /api/mediciones/variable/S1",
+      "variable": "S1",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable/S1",
+      "url": "http://localhost:4000/api/mediciones/variable/S1",
+      "timestamp": "2025-10-15T01:18:36.787Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Direct Endpoints",
+      "test": "Direct /api/mediciones/variable-id/S1",
+      "variable": "S1",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable-id/S1",
+      "url": "http://localhost:4000/api/mediciones/variable-id/S1",
+      "timestamp": "2025-10-15T01:18:36.795Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Direct Endpoints",
+      "test": "Direct /api/mediciones/sistema/S1",
+      "variable": "S1",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/sistema/S1",
+      "url": "http://localhost:4000/api/mediciones/sistema/S1",
+      "timestamp": "2025-10-15T01:18:36.799Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Direct Endpoints",
+      "test": "Direct /api/mediciones/variable/s2",
+      "variable": "s2",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable/s2",
+      "url": "http://localhost:4000/api/mediciones/variable/s2",
+      "timestamp": "2025-10-15T01:18:36.802Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Direct Endpoints",
+      "test": "Direct /api/mediciones/variable-id/s2",
+      "variable": "s2",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable-id/s2",
+      "url": "http://localhost:4000/api/mediciones/variable-id/s2",
+      "timestamp": "2025-10-15T01:18:36.805Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Direct Endpoints",
+      "test": "Direct /api/mediciones/sistema/s2",
+      "variable": "s2",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/sistema/s2",
+      "url": "http://localhost:4000/api/mediciones/sistema/s2",
+      "timestamp": "2025-10-15T01:18:36.808Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Direct Endpoints",
+      "test": "Direct /api/mediciones/variable/Cloruros",
+      "variable": "Cloruros",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable/Cloruros",
+      "url": "http://localhost:4000/api/mediciones/variable/Cloruros",
+      "timestamp": "2025-10-15T01:18:36.812Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Direct Endpoints",
+      "test": "Direct /api/mediciones/variable-id/Cloruros",
+      "variable": "Cloruros",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable-id/Cloruros",
+      "url": "http://localhost:4000/api/mediciones/variable-id/Cloruros",
+      "timestamp": "2025-10-15T01:18:36.814Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Direct Endpoints",
+      "test": "Direct /api/mediciones/sistema/Cloruros",
+      "variable": "Cloruros",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/sistema/Cloruros",
+      "url": "http://localhost:4000/api/mediciones/sistema/Cloruros",
+      "timestamp": "2025-10-15T01:18:36.817Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Direct Endpoints",
+      "test": "Direct /api/mediciones/variable/Cloro%20Libre",
+      "variable": "Cloro Libre",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable/Cloro%20Libre",
+      "url": "http://localhost:4000/api/mediciones/variable/Cloro%20Libre",
+      "timestamp": "2025-10-15T01:18:36.821Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Direct Endpoints",
+      "test": "Direct /api/mediciones/variable-id/Cloro%20Libre",
+      "variable": "Cloro Libre",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable-id/Cloro%20Libre",
+      "url": "http://localhost:4000/api/mediciones/variable-id/Cloro%20Libre",
+      "timestamp": "2025-10-15T01:18:36.824Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Direct Endpoints",
+      "test": "Direct /api/mediciones/sistema/Cloro%20Libre",
+      "variable": "Cloro Libre",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/sistema/Cloro%20Libre",
+      "url": "http://localhost:4000/api/mediciones/sistema/Cloro%20Libre",
+      "timestamp": "2025-10-15T01:18:36.828Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Mock Token Endpoints",
+      "test": "Mock Token /api/mediciones/variable/S1",
+      "variable": "S1",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable/S1",
+      "url": "http://localhost:4000/api/mediciones/variable/S1",
+      "timestamp": "2025-10-15T01:18:36.832Z",
+      "error": {
+        "message": "Token inválido"
+      }
+    },
+    {
+      "category": "Mock Token Endpoints",
+      "test": "Mock Token /api/mediciones/variable-id/S1",
+      "variable": "S1",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable-id/S1",
+      "url": "http://localhost:4000/api/mediciones/variable-id/S1",
+      "timestamp": "2025-10-15T01:18:36.835Z",
+      "error": {
+        "message": "Token inválido"
+      }
+    },
+    {
+      "category": "Mock Token Endpoints",
+      "test": "Mock Token /api/mediciones/sistema/S1",
+      "variable": "S1",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/sistema/S1",
+      "url": "http://localhost:4000/api/mediciones/sistema/S1",
+      "timestamp": "2025-10-15T01:18:36.837Z",
+      "error": {
+        "message": "Token inválido"
+      }
+    },
+    {
+      "category": "Mock Token Endpoints",
+      "test": "Mock Token /api/mediciones/variable/s2",
+      "variable": "s2",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable/s2",
+      "url": "http://localhost:4000/api/mediciones/variable/s2",
+      "timestamp": "2025-10-15T01:18:36.840Z",
+      "error": {
+        "message": "Token inválido"
+      }
+    },
+    {
+      "category": "Mock Token Endpoints",
+      "test": "Mock Token /api/mediciones/variable-id/s2",
+      "variable": "s2",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable-id/s2",
+      "url": "http://localhost:4000/api/mediciones/variable-id/s2",
+      "timestamp": "2025-10-15T01:18:36.843Z",
+      "error": {
+        "message": "Token inválido"
+      }
+    },
+    {
+      "category": "Mock Token Endpoints",
+      "test": "Mock Token /api/mediciones/sistema/s2",
+      "variable": "s2",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/sistema/s2",
+      "url": "http://localhost:4000/api/mediciones/sistema/s2",
+      "timestamp": "2025-10-15T01:18:36.846Z",
+      "error": {
+        "message": "Token inválido"
+      }
+    },
+    {
+      "category": "Mock Token Endpoints",
+      "test": "Mock Token /api/mediciones/variable/Cloruros",
+      "variable": "Cloruros",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable/Cloruros",
+      "url": "http://localhost:4000/api/mediciones/variable/Cloruros",
+      "timestamp": "2025-10-15T01:18:36.849Z",
+      "error": {
+        "message": "Token inválido"
+      }
+    },
+    {
+      "category": "Mock Token Endpoints",
+      "test": "Mock Token /api/mediciones/variable-id/Cloruros",
+      "variable": "Cloruros",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable-id/Cloruros",
+      "url": "http://localhost:4000/api/mediciones/variable-id/Cloruros",
+      "timestamp": "2025-10-15T01:18:36.852Z",
+      "error": {
+        "message": "Token inválido"
+      }
+    },
+    {
+      "category": "Mock Token Endpoints",
+      "test": "Mock Token /api/mediciones/sistema/Cloruros",
+      "variable": "Cloruros",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/sistema/Cloruros",
+      "url": "http://localhost:4000/api/mediciones/sistema/Cloruros",
+      "timestamp": "2025-10-15T01:18:36.854Z",
+      "error": {
+        "message": "Token inválido"
+      }
+    },
+    {
+      "category": "Mock Token Endpoints",
+      "test": "Mock Token /api/mediciones/variable/Cloro%20Libre",
+      "variable": "Cloro Libre",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable/Cloro%20Libre",
+      "url": "http://localhost:4000/api/mediciones/variable/Cloro%20Libre",
+      "timestamp": "2025-10-15T01:18:36.856Z",
+      "error": {
+        "message": "Token inválido"
+      }
+    },
+    {
+      "category": "Mock Token Endpoints",
+      "test": "Mock Token /api/mediciones/variable-id/Cloro%20Libre",
+      "variable": "Cloro Libre",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable-id/Cloro%20Libre",
+      "url": "http://localhost:4000/api/mediciones/variable-id/Cloro%20Libre",
+      "timestamp": "2025-10-15T01:18:36.858Z",
+      "error": {
+        "message": "Token inválido"
+      }
+    },
+    {
+      "category": "Mock Token Endpoints",
+      "test": "Mock Token /api/mediciones/sistema/Cloro%20Libre",
+      "variable": "Cloro Libre",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/sistema/Cloro%20Libre",
+      "url": "http://localhost:4000/api/mediciones/sistema/Cloro%20Libre",
+      "timestamp": "2025-10-15T01:18:36.861Z",
+      "error": {
+        "message": "Token inválido"
+      }
+    },
+    {
+      "category": "URL Encoding",
+      "test": "URL Encoding /api/mediciones/variable/Cloro%20Libre",
+      "variable": "Cloro Libre",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable/Cloro%20Libre",
+      "url": "http://localhost:4000/api/mediciones/variable/Cloro%20Libre",
+      "encoded": "Cloro%20Libre",
+      "timestamp": "2025-10-15T01:18:36.864Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "URL Encoding",
+      "test": "URL Encoding /api/mediciones/variable/Cloro+Libre",
+      "variable": "Cloro Libre",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable/Cloro+Libre",
+      "url": "http://localhost:4000/api/mediciones/variable/Cloro+Libre",
+      "encoded": "Cloro+Libre",
+      "timestamp": "2025-10-15T01:18:36.866Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "URL Encoding",
+      "test": "URL Encoding /api/mediciones/variable/Cloro Libre",
+      "variable": "Cloro Libre",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable/Cloro Libre",
+      "url": "http://localhost:4000/api/mediciones/variable/Cloro Libre",
+      "encoded": "Cloro Libre",
+      "timestamp": "2025-10-15T01:18:36.868Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "URL Encoding",
+      "test": "URL Encoding /api/mediciones/variable/s2",
+      "variable": "s2",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable/s2",
+      "url": "http://localhost:4000/api/mediciones/variable/s2",
+      "encoded": "s2",
+      "timestamp": "2025-10-15T01:18:36.870Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "URL Encoding",
+      "test": "URL Encoding /api/mediciones/variable/S2",
+      "variable": "s2",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable/S2",
+      "url": "http://localhost:4000/api/mediciones/variable/S2",
+      "encoded": "S2",
+      "timestamp": "2025-10-15T01:18:36.872Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "URL Encoding",
+      "test": "URL Encoding /api/mediciones/variable/Cloruros",
+      "variable": "Cloruros",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "endpoint": "/api/mediciones/variable/Cloruros",
+      "url": "http://localhost:4000/api/mediciones/variable/Cloruros",
+      "encoded": "Cloruros",
+      "timestamp": "2025-10-15T01:18:36.873Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    }
+  ]
+}

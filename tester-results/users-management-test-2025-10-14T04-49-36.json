@@ -1,0 +1,221 @@
+{
+  "summary": {
+    "total": 5,
+    "successful": 5,
+    "failed": 0,
+    "duration": 709,
+    "successRate": 100
+  },
+  "categories": {
+    "Authentication": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+    },
+    "User Management": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+    },
+    "Plants": {
+      "total": 2,
+      "successful": 2,
+      "failed": 0
+    },
+    "User CRUD": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+    }
+  },
+  "results": [
+    {
+      "category": "Authentication",
+      "test": "Login",
+      "success": true,
+      "status": 200,
+      "statusText": "OK",
+      "endpoint": "/api/auth/login",
+      "method": "POST",
+      "timestamp": "2025-10-14T04:49:36.171Z",
+      "data": {
+        "ok": true,
+        "msg": "Inicio de sesión exitoso",
+        "username": "aldo Sanchez",
+        "email": "aldotrufa@example.com",
+        "puesto": "admin",
+        "empresa": null,
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhlMTNmMDdlLTRlMjUtNDczNS04YjIwLWMwODk2MGM2YjhiZiIsInVzZXJUeXBlIjoiYWRtaW4iLCJpYXQiOjE3NjA0MTczNzYsImV4cCI6MTc2MDQzMTc3Nn0.WT_R67B5nK7kuEKkO4ib69mltpEjBzhSX_7JLMn5gyw"
+      }
+    },
+    {
+      "category": "User Management",
+      "test": "Get All Users",
+      "success": true,
+      "status": 200,
+      "statusText": "OK",
+      "endpoint": "/api/auth/users",
+      "method": "GET",
+      "timestamp": "2025-10-14T04:49:36.279Z",
+      "data": {
+        "ok": true,
+        "usuarios": [
+          {
+            "id": "8e13f07e-4e25-4735-8b20-c08960c6b8bf",
+            "username": "aldo Sanchez",
+            "email": "aldotrufa@example.com",
+            "puesto": "admin",
+            "empresa": null,
+            "verificado": true
+          },
+          {
+            "id": "76c25e80-8a3a-417b-861e-222d32b20e75",
+            "username": "hector Sanchez",
+            "email": "hector@example.com",
+            "puesto": "user",
+            "empresa": null,
+            "verificado": true
+          },
+          {
+            "id": "61c8b5f7-a303-4c07-871b-c3bd577ceda6",
+            "username": "aldo san",
+            "email": "ivan36leon@gmail.com",
+            "puesto": "client",
+            "empresa": null,
+            "verificado": true
+          },
+          {
+            "id": "0d4da2e6-e647-45de-9ba7-d307461745aa",
+            "username": "cliente Doe",
+            "email": "cliente@example.com",
+            "puesto": "client",
+            "empresa": null,
+            "verificado": true
+          },
+          {
+            "id": "2f2716ee-59cd-4fea-b506-23149607a219",
+            "username": "ZEON KASEI MÉXICO SA de CV",
+            "email": "zeon@gmail.com",
+            "puesto": "client",
+            "empresa": null,
+            "verificado": true
+          },
+          {
+            "id": "21767ccb-15e2-45b7-b3e0-8a698d0bcd3b",
+            "username": "CRYOINFRA",
+            "email": "cryoinfra@gmail.com",
+            "puesto": "client",
+            "empresa": null,
+            "verificado": true
+          },
+          {
+            "id": "481161ca-37fd-4eff-a10d-405023bafe39",
+            "username": "user nuevo 1",
+            "email": "hecsanleo19@gmail.com",
+            "puesto": "client",
+            "empresa": null,
+            "verificado": true
+          },
+          {
+            "id": "3f937027-9ffa-44ed-9830-f798e844aa99",
+            "username": "Aluprint",
+            "email": "alumprint@gmail.com",
+            "puesto": "client",
+            "empresa": "Aluprint",
+            "verificado": true
+          }
+        ]
+      }
+    },
+    {
+      "category": "Plants",
+      "test": "Get Plants All ID",
+      "success": true,
+      "status": 200,
+      "statusText": "OK",
+      "endpoint": "/api/plantas/allID",
+      "method": "GET",
+      "timestamp": "2025-10-14T04:49:36.412Z",
+      "data": {
+        "ok": true,
+        "plantas": [
+          {
+            "id": "711736fe-ac02-40cf-ab36-f32d38649240",
+            "nombre": "Berilio SLP"
+          },
+          {
+            "id": "52ab4be4-2c7b-41cb-843d-08f5f444fe89",
+            "nombre": "Aluprint SLP"
+          },
+          {
+            "id": "45e3c0d7-b79d-4289-9425-5a5f676be634",
+            "nombre": "Hertors Planta"
+          },
+          {
+            "id": "f83cf0de-be8d-4335-ab43-2978fd114d9d",
+            "nombre": "Hectors Planta"
+          },
+          {
+            "id": "0e129ad4-1dfb-4151-9d6e-62fc7bb92ec0",
+            "nombre": "Hectos Planta"
+          },
+          {
+            "id": "73c398aa-d28f-4a12-9796-078529ca4c31",
+            "nombre": "PLANTA HIDROGENO SLP"
+          },
+          {
+            "id": "3e27b54d-e755-4c1b-a8de-6e7ad2c8813d",
+            "nombre": "TQ ALMACENAMIENTO"
+          },
+          {
+            "id": "9a4dd398-30b0-48bd-85fd-dc199e515919",
+            "nombre": "planta 2"
+          }
+        ]
+      }
+    },
+    {
+      "category": "Plants",
+      "test": "Get Accessible Plants",
+      "success": true,
+      "status": 200,
+      "statusText": "OK",
+      "endpoint": "/api/plantas/accesibles",
+      "method": "GET",
+      "timestamp": "2025-10-14T04:49:36.540Z",
+      "data": {
+        "ok": true,
+        "plantas": []
+      }
+    },
+    {
+      "category": "User CRUD",
+      "test": "Update User",
+      "success": true,
+      "status": 200,
+      "statusText": "OK",
+      "endpoint": "/api/auth/update/8e13f07e-4e25-4735-8b20-c08960c6b8bf",
+      "method": "PATCH",
+      "timestamp": "2025-10-14T04:49:36.679Z",
+      "data": {
+        "ok": true,
+        "msg": "Usuario actualizado con éxito",
+        "data": [
+          {
+            "id": "8e13f07e-4e25-4735-8b20-c08960c6b8bf",
+            "username": "Updated Test User",
+            "email": "updated@example.com",
+            "password": "$2a$10$rvj3gSJykJ702BoAI4VeWedm8PMI/SRwp/FMxNexxxUeDHBs.G5D2",
+            "puesto": "user",
+            "creado_en": "2025-04-02T03:26:45.548347",
+            "verificado": true,
+            "codigo_verificacion": null,
+            "reset_token": null,
+            "reset_expires": null,
+            "empresa": null
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,153 @@
+{
+  "summary": {
+    "total": 6,
+    "successful": 1,
+    "failed": 5,
+    "duration": 283,
+    "successRate": 16.666666666666664
+  },
+  "categories": {
+    "Frontend Flow": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+    },
+    "Variable Endpoints": {
+      "total": 5,
+      "successful": 0,
+      "failed": 5
+    }
+  },
+  "results": [
+    {
+      "category": "Frontend Flow",
+      "test": "Simulate frontend flow",
+      "success": true,
+      "totalVariables": 17,
+      "existingVariables": [
+        "Cloruros",
+        "Cloro Libre"
+      ],
+      "missingVariables": [
+        "S1",
+        "s2",
+        "S2"
+      ],
+      "similarVariables": [
+        {
+          "id": "945a1539-59a1-4319-90de-61933dd48533",
+          "nombre": "Cloro Libre",
+          "unidad": "ppm",
+          "variables_procesos": [
+            {
+              "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71"
+            },
+            {
+              "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+            },
+            {
+              "proceso_id": "695212ef-efe8-4091-9250-05ddfc362851"
+            },
+            {
+              "proceso_id": "fb9a2cf4-6b82-4c90-8da7-447efea96bf9"
+            },
+            {
+              "proceso_id": "afe5f100-baaf-441a-acfa-f19fedddb6dc"
+            },
+            {
+              "proceso_id": "8b8e82e8-1e50-480c-a5a7-07eefb0242a3"
+            }
+          ],
+          "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71"
+        },
+        {
+          "id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+          "nombre": "Cloruros",
+          "unidad": "ppm",
+          "variables_procesos": [
+            {
+              "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71"
+            },
+            {
+              "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+            },
+            {
+              "proceso_id": "695212ef-efe8-4091-9250-05ddfc362851"
+            },
+            {
+              "proceso_id": "fb9a2cf4-6b82-4c90-8da7-447efea96bf9"
+            },
+            {
+              "proceso_id": "afe5f100-baaf-441a-acfa-f19fedddb6dc"
+            },
+            {
+              "proceso_id": "8b8e82e8-1e50-480c-a5a7-07eefb0242a3"
+            }
+          ],
+          "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71"
+        }
+      ],
+      "timestamp": "2025-10-15T02:09:25.072Z"
+    },
+    {
+      "category": "Variable Endpoints",
+      "test": "Test variable \"S1\"",
+      "variable": "S1",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "timestamp": "2025-10-15T02:09:25.081Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Variable Endpoints",
+      "test": "Test variable \"s2\"",
+      "variable": "s2",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "timestamp": "2025-10-15T02:09:25.084Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Variable Endpoints",
+      "test": "Test variable \"S2\"",
+      "variable": "S2",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "timestamp": "2025-10-15T02:09:25.088Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Variable Endpoints",
+      "test": "Test variable \"Cloruros\"",
+      "variable": "Cloruros",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "timestamp": "2025-10-15T02:09:25.091Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    },
+    {
+      "category": "Variable Endpoints",
+      "test": "Test variable \"Cloro Libre\"",
+      "variable": "Cloro Libre",
+      "success": false,
+      "status": 401,
+      "statusText": "Unauthorized",
+      "timestamp": "2025-10-15T02:09:25.094Z",
+      "error": {
+        "message": "Acceso denegado. Token no proporcionado."
+      }
+    }
+  ]
+}

@@ -9,6 +9,8 @@ import { useDebugLogger } from "@/hooks/useDebugLogger"
 import ProtectedRoute from "@/components/ProtectedRoute"
 
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
+import { authService } from "@/services/authService"
+import { httpService } from "@/services/httpService"
 import { useUserAccess } from "@/hooks/useUserAccess"
 import { useMeasurements } from "@/hooks/useMeasurements";
 import { useTolerances } from "@/hooks/useTolerances"
@@ -69,7 +71,7 @@ export default function ReportManager() {
   const startDate = "2025-04-04"
   const endDate   = "2025-06-04"
   const { addDebugLog } = useDebugLogger()
-  const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
+  const token = authService.getToken()
   const [globalFecha, setGlobalFecha] = useState<string>("");
   const [globalComentarios, setGlobalComentarios] = useState<string>("");
 
@@ -107,7 +109,7 @@ export default function ReportManager() {
           } else if (res.status === 401) {
             // Token inválido - redirigir al logout
             console.error('Token inválido detectado, redirigiendo al logout');
-            localStorage.removeItem('Organomex_token');
+            authService.logout();
             localStorage.removeItem('Organomex_user');
             router.push('/logout');
             return;
@@ -137,7 +139,7 @@ export default function ReportManager() {
           } else if (res.status === 401) {
             // Token inválido - redirigir al logout
             console.error('Token inválido detectado, redirigiendo al logout');
-            localStorage.removeItem('Organomex_token');
+            authService.logout();
             localStorage.removeItem('Organomex_user');
             router.push('/logout');
             return;
@@ -370,23 +372,39 @@ export default function ReportManager() {
   // 2. Agrega la función para fetch dinámico:
   async function fetchSistemasForParametro(param: Parameter) {
     if (!selectedSystem) return;
-    const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLEID(param.id)}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
-    })
-    const data = await res.json();
-    const medicionesFiltradas = (data.mediciones || []).filter((m: any) => m.proceso_id === selectedSystem)
-    const sistemasRaw = medicionesFiltradas.map((m: any) => String(m.sistema))
-    let maxNum = 1
-    sistemasRaw.forEach((s: string) => {
-      const match = s.match(/^S(\d+)$/)
-      if (match) {
-        const num = parseInt(match[1], 10)
-        if (num > maxNum) maxNum = num
+    
+    try {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLEID(param.id)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      })
+      
+      if (!res.ok) {
+        if (res.status === 404) {
+          console.log(`No hay mediciones para variable ${param.nombre}, usando sistema por defecto`);
+          // Si no hay mediciones, usar sistema por defecto
+          return;
+        }
+        throw new Error(`Error ${res.status}: ${res.statusText}`);
       }
-    })
-    let sistemasSecuencia = Array.from({length: maxNum}, (_, i) => `S${String(i+1).padStart(2, '0')}`)
-    if (sistemasSecuencia.length === 0) sistemasSecuencia = ["S01"]
-    // setSistemasPorParametro(prev => ({ ...prev, [param.id]: sistemasSecuencia })) // This line is removed
+      
+      const data = await res.json();
+      const medicionesFiltradas = (data.mediciones || []).filter((m: any) => m.proceso_id === selectedSystem)
+      const sistemasRaw = medicionesFiltradas.map((m: any) => String(m.sistema))
+      let maxNum = 1
+      sistemasRaw.forEach((s: string) => {
+        const match = s.match(/^S(\d+)$/)
+        if (match) {
+          const num = parseInt(match[1], 10)
+          if (num > maxNum) maxNum = num
+        }
+      })
+      let sistemasSecuencia = Array.from({length: maxNum}, (_, i) => `S${String(i+1).padStart(2, '0')}`)
+      if (sistemasSecuencia.length === 0) sistemasSecuencia = ["S01"]
+      // setSistemasPorParametro(prev => ({ ...prev, [param.id]: sistemasSecuencia })) // This line is removed
+    } catch (error) {
+      console.error(`Error fetching sistemas for parameter ${param.nombre}:`, error);
+      // En caso de error, continuar sin sistemas específicos
+    }
   }
 
   // 3. En el handler del checkbox, si checked=true, llama a fetchSistemasForParametro(param)

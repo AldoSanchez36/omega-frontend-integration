@@ -1,0 +1,32 @@
+{
+  "summary": {
+    "total": 1,
+    "successful": 0,
+    "failed": 1,
+    "duration": 484,
+    "successRate": 0
+  },
+  "categories": {
+    "Authentication": {
+      "total": 1,
+      "successful": 0,
+      "failed": 1
+    }
+  },
+  "results": [
+    {
+      "category": "Authentication",
+      "test": "Login",
+      "success": false,
+      "status": 400,
+      "statusText": "Bad Request",
+      "endpoint": "/api/auth/login",
+      "method": "POST",
+      "timestamp": "2025-10-12T22:12:00.254Z",
+      "error": {
+        "ok": false,
+        "msg": "Credenciales no correctas"
+      }
+    }
+  ]
+}

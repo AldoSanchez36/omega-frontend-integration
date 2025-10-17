@@ -1,0 +1,56 @@
+{
+  "summary": {
+    "total": 2,
+    "successful": 1,
+    "failed": 1,
+    "duration": 738,
+    "successRate": 50
+  },
+  "categories": {
+    "Authentication": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+    },
+    "Formulas": {
+      "total": 1,
+      "successful": 0,
+      "failed": 1
+    }
+  },
+  "results": [
+    {
+      "category": "Authentication",
+      "test": "Login",
+      "success": true,
+      "status": 200,
+      "statusText": "OK",
+      "endpoint": "/api/auth/login",
+      "method": "POST",
+      "timestamp": "2025-10-14T04:49:35.780Z",
+      "data": {
+        "ok": true,
+        "msg": "Inicio de sesión exitoso",
+        "username": "aldo Sanchez",
+        "email": "aldotrufa@example.com",
+        "puesto": "admin",
+        "empresa": null,
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhlMTNmMDdlLTRlMjUtNDczNS04YjIwLWMwODk2MGM2YjhiZiIsInVzZXJUeXBlIjoiYWRtaW4iLCJpYXQiOjE3NjA0MTczNzUsImV4cCI6MTc2MDQzMTc3NX0.a0c_RgS68LFD_Mw4LpDYk8gmMD0lG6ATtSLKnWmKGD0"
+      }
+    },
+    {
+      "category": "Formulas",
+      "test": "Create Formula",
+      "success": false,
+      "status": 500,
+      "statusText": "Internal Server Error",
+      "endpoint": "/api/formulas/crear",
+      "method": "POST",
+      "timestamp": "2025-10-14T04:49:35.957Z",
+      "error": {
+        "ok": false,
+        "msg": "Error al crear fórmula"
+      }
+    }
+  ]
+}
