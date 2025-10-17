@@ -61,6 +61,22 @@ export default function UsersManagement() {
   const [permisosError, setPermisosError] = useState<string | null>(null);
   const [permisosSuccess, setPermisosSuccess] = useState<string | null>(null);
 
+  // Estados para filtros
+  const [filtroUsuario, setFiltroUsuario] = useState("")
+  const [filtroEmail, setFiltroEmail] = useState("")
+  const [filtroRol, setFiltroRol] = useState("")
+  const [filtroEmpresa, setFiltroEmpresa] = useState("")
+  
+  // Estados para mostrar/ocultar inputs de filtro
+  const [showFiltroUsuario, setShowFiltroUsuario] = useState(false)
+  const [showFiltroEmail, setShowFiltroEmail] = useState(false)
+  const [showFiltroRol, setShowFiltroRol] = useState(false)
+  const [showFiltroEmpresa, setShowFiltroEmpresa] = useState(false)
+  
+  // Estados para ordenamiento
+  const [sortField, setSortField] = useState<string>("")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+
   // Determinar si el usuario actual es admin
   const isAdmin = currentUserRole === 'admin'
 
@@ -229,10 +245,11 @@ export default function UsersManagement() {
     const roleMap: { [key: string]: { color: string; text: string } } = {
       admin: { color: "bg-red-600", text: "Administrador" },
       user: { color: "bg-blue-600", text: "Analista" },
+      analista: { color: "bg-blue-600", text: "Analista" },
       client: { color: "bg-gray-600", text: "Cliente" }
     }
     
-    const roleInfo = roleMap[role.toLowerCase()] || { color: "bg-teal-500", text: role }
+    const roleInfo = roleMap[role.toLowerCase()] || { color: "bg-teal-500", text: "Analista" }
     return (
       <span className={`text-white text-sm px-2 py-1 rounded-full ${roleInfo.color}`}>
         {roleInfo.text}
@@ -249,6 +266,86 @@ export default function UsersManagement() {
       hour: '2-digit',
       minute: '2-digit'
     })
+  }
+
+  // Función para filtrar y ordenar usuarios
+  const usuariosFiltrados = useMemo(() => {
+    let filtered = users.filter(user => {
+      const matchUsuario = !filtroUsuario || user.username.toLowerCase().includes(filtroUsuario.toLowerCase())
+      const matchEmail = !filtroEmail || user.email.toLowerCase().includes(filtroEmail.toLowerCase())
+      const matchRol = !filtroRol || (user.puesto || user.role || 'analista').toLowerCase().includes(filtroRol.toLowerCase())
+      const matchEmpresa = !filtroEmpresa || (user.empresa || "No asignado").toLowerCase().includes(filtroEmpresa.toLowerCase())
+      
+      return matchUsuario && matchEmail && matchRol && matchEmpresa
+    })
+
+    // Aplicar ordenamiento si hay un campo seleccionado
+    if (sortField) {
+      filtered.sort((a, b) => {
+        let aValue = ""
+        let bValue = ""
+        
+        switch (sortField) {
+          case "username":
+            aValue = a.username.toLowerCase()
+            bValue = b.username.toLowerCase()
+            break
+          case "email":
+            aValue = a.email.toLowerCase()
+            bValue = b.email.toLowerCase()
+            break
+          case "role":
+            // Ordenamiento personalizado para roles con jerarquía
+            const roleOrder = { 'admin': 1, 'administrador': 1, 'analista': 2, 'user': 2, 'client': 3, 'cliente': 3 }
+            const aRole = (a.puesto || a.role || 'analista').toLowerCase()
+            const bRole = (b.puesto || b.role || 'analista').toLowerCase()
+            const aOrder = roleOrder[aRole] || 4
+            const bOrder = roleOrder[bRole] || 4
+            
+            if (aOrder !== bOrder) {
+              return sortDirection === "asc" ? aOrder - bOrder : bOrder - aOrder
+            }
+            // Si tienen el mismo orden, ordenar alfabéticamente
+            aValue = aRole
+            bValue = bRole
+            break
+          case "empresa":
+            aValue = (a.empresa || "No asignado").toLowerCase()
+            bValue = (b.empresa || "No asignado").toLowerCase()
+            break
+        }
+        
+        if (aValue < bValue) return sortDirection === "asc" ? -1 : 1
+        if (aValue > bValue) return sortDirection === "asc" ? 1 : -1
+        return 0
+      })
+    }
+
+    return filtered
+  }, [users, filtroUsuario, filtroEmail, filtroRol, filtroEmpresa, sortField, sortDirection])
+
+  // Función para limpiar todos los filtros
+  const limpiarFiltros = () => {
+    setFiltroUsuario("")
+    setFiltroEmail("")
+    setFiltroRol("")
+    setFiltroEmpresa("")
+    setShowFiltroUsuario(false)
+    setShowFiltroEmail(false)
+    setShowFiltroRol(false)
+    setShowFiltroEmpresa(false)
+    setSortField("")
+    setSortDirection("asc")
+  }
+
+  // Función para manejar ordenamiento
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSortField(field)
+      setSortDirection("asc")
+    }
   }
 
   const Dropdown = ({ label = "Selecciona", options = [], onSelect }: {
@@ -329,7 +426,7 @@ export default function UsersManagement() {
     setSelectedUserForEdit(user)
     setEditUsername(user.username)
     setEditEmail(user.email)
-    setEditPuesto(user.puesto || "user")
+    setEditPuesto(user.puesto || "analista")
     setEditError(null)
     setEditSuccess(null)
     setShowEditModal(true)
@@ -349,7 +446,24 @@ export default function UsersManagement() {
     setEditSuccess(null)
     try {
       const token = authService.getToken()
-      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USER_UPDATE(String(selectedUserForEdit._id || ""))}`, {
+      if (!token) {
+        throw new Error("No hay token de autenticación")
+      }
+
+      const userId = selectedUserForEdit._id || selectedUserForEdit.id
+      if (!userId) {
+        throw new Error("ID de usuario no encontrado")
+      }
+
+      console.log("Actualizando usuario:", {
+        userId,
+        username: editUsername,
+        email: editEmail,
+        puesto: editPuesto,
+        endpoint: `${API_BASE_URL}${API_ENDPOINTS.USER_UPDATE(userId)}`
+      })
+
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USER_UPDATE(userId)}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -361,24 +475,36 @@ export default function UsersManagement() {
           puesto: editPuesto,
         }),
       })
-      // Verifica si la respuesta es JSON
-      const contentType = res.headers.get("content-type")
+
+      console.log("Respuesta del servidor:", {
+        status: res.status,
+        statusText: res.statusText,
+        ok: res.ok
+      })
+
       if (!res.ok) {
         let errorMsg = "No se pudo actualizar el usuario."
-        if (contentType && contentType.includes("application/json")) {
-          const errJson = await res.json()
-          errorMsg = errJson.message || errorMsg
-        } else {
-          errorMsg = "Error de conexi├│n o endpoint no encontrado."
+        try {
+          const errorData = await res.json()
+          errorMsg = errorData.message || errorData.error || errorMsg
+          console.error("Error del servidor:", errorData)
+        } catch (parseError) {
+          console.error("Error al parsear respuesta:", parseError)
+          errorMsg = `Error del servidor: ${res.status} - ${res.statusText}`
         }
         throw new Error(errorMsg)
       }
+
+      const responseData = await res.json()
+      console.log("Usuario actualizado exitosamente:", responseData)
+      
       setEditSuccess("Usuario actualizado correctamente.")
       setTimeout(() => {
         closeEditModal()
         window.location.reload()
       }, 1000)
     } catch (e) {
+      console.error("Error al actualizar usuario:", e)
       if (e instanceof Error) {
         setEditError(e.message)
       } else {
@@ -522,28 +648,192 @@ export default function UsersManagement() {
           <div className="bg-white rounded-lg shadow p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h5 className="text-gray-700 font-semibold mb-0">Lista de Usuarios</h5>
-              <button 
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
-                onClick={() => window.location.reload()}
-              >
-                <span className="material-icons align-middle mr-1">refresh</span>
-                Actualizar
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition"
+                  onClick={limpiarFiltros}
+                >
+                  <span className="material-icons align-middle mr-1">clear</span>
+                  Limpiar Filtros
+                </button>
+                <button 
+                  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
+                  onClick={() => window.location.reload()}
+                >
+                  <span className="material-icons align-middle mr-1">refresh</span>
+                  Actualizar
+                </button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="table-auto w-full border-collapse border border-gray-200">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="border border-gray-300 px-4 py-2 text-left">Usuario</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">Correo</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Empresa</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                    <th className="border border-gray-300 px-4 py-2 text-left">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span>Usuario</span>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleSort("username")}
+                              className={`p-1 rounded hover:bg-gray-200 transition ${
+                                sortField === "username" ? "bg-blue-100 text-blue-600" : "text-gray-500"
+                              }`}
+                              title="Ordenar por usuario"
+                            >
+                            <span className="material-icons text-sm">
+                              filter_list
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => setShowFiltroUsuario(!showFiltroUsuario)}
+                            className={`p-1 rounded hover:bg-gray-200 transition ${
+                              filtroUsuario ? "bg-orange-100 text-orange-600" : "text-gray-500"
+                            }`}
+                            title="Filtrar por usuario"
+                          >
+                            <span className="material-icons text-sm">filter_alt</span>
+                            </button>
+                          </div>
+                        </div>
+                        {showFiltroUsuario && (
+                          <Input
+                            placeholder="Filtrar por usuario..."
+                            value={filtroUsuario}
+                            onChange={(e) => setFiltroUsuario(e.target.value)}
+                            className="w-full text-sm"
+                            autoFocus
+                          />
+                        )}
+                      </div>
+                    </th>
+                    <th className="border border-gray-300 px-4 py-2 text-left">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span>Correo</span>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleSort("email")}
+                              className={`p-1 rounded hover:bg-gray-200 transition ${
+                                sortField === "email" ? "bg-blue-100 text-blue-600" : "text-gray-500"
+                              }`}
+                              title="Ordenar por correo"
+                            >
+                            <span className="material-icons text-sm">
+                              filter_list
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => setShowFiltroEmail(!showFiltroEmail)}
+                            className={`p-1 rounded hover:bg-gray-200 transition ${
+                              filtroEmail ? "bg-orange-100 text-orange-600" : "text-gray-500"
+                            }`}
+                            title="Filtrar por correo"
+                          >
+                            <span className="material-icons text-sm">filter_alt</span>
+                            </button>
+                          </div>
+                        </div>
+                        {showFiltroEmail && (
+                          <Input
+                            placeholder="Filtrar por correo..."
+                            value={filtroEmail}
+                            onChange={(e) => setFiltroEmail(e.target.value)}
+                            className="w-full text-sm"
+                            autoFocus
+                          />
+                        )}
+                      </div>
+                    </th>
+                    <th className="border border-gray-300 px-4 py-2 text-left">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span>Rol</span>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleSort("role")}
+                              className={`p-1 rounded hover:bg-gray-200 transition ${
+                                sortField === "role" ? "bg-blue-100 text-blue-600" : "text-gray-500"
+                              }`}
+                              title="Ordenar por rol"
+                            >
+                            <span className="material-icons text-sm">
+                              filter_list
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => setShowFiltroRol(!showFiltroRol)}
+                            className={`p-1 rounded hover:bg-gray-200 transition ${
+                              filtroRol ? "bg-orange-100 text-orange-600" : "text-gray-500"
+                            }`}
+                            title="Filtrar por rol"
+                          >
+                            <span className="material-icons text-sm">filter_alt</span>
+                            </button>
+                          </div>
+                        </div>
+                        {showFiltroRol && (
+                          <Input
+                            placeholder="Filtrar por rol..."
+                            value={filtroRol}
+                            onChange={(e) => setFiltroRol(e.target.value)}
+                            className="w-full text-sm"
+                            autoFocus
+                          />
+                        )}
+                      </div>
+                    </th>
+                    <th className="border border-gray-300 px-4 py-2 text-left">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span>Empresa</span>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleSort("empresa")}
+                              className={`p-1 rounded hover:bg-gray-200 transition ${
+                                sortField === "empresa" ? "bg-blue-100 text-blue-600" : "text-gray-500"
+                              }`}
+                              title="Ordenar por empresa"
+                            >
+                            <span className="material-icons text-sm">
+                              filter_list
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => setShowFiltroEmpresa(!showFiltroEmpresa)}
+                            className={`p-1 rounded hover:bg-gray-200 transition ${
+                              filtroEmpresa ? "bg-orange-100 text-orange-600" : "text-gray-500"
+                            }`}
+                            title="Filtrar por empresa"
+                          >
+                            <span className="material-icons text-sm">filter_alt</span>
+                            </button>
+                          </div>
+                        </div>
+                        {showFiltroEmpresa && (
+                          <Input
+                            placeholder="Filtrar por empresa..."
+                            value={filtroEmpresa}
+                            onChange={(e) => setFiltroEmpresa(e.target.value)}
+                            className="w-full text-sm"
+                            autoFocus
+                          />
+                        )}
+                      </div>
+                    </th>
+                    <th className="border border-gray-300 px-4 py-2 text-left">
+                      <div className="flex items-center justify-between">
+                        <span>Acciones</span>
+                        <div className="text-xs text-gray-500">
+                          {usuariosFiltrados.length} de {users.length}
+                        </div>
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.length > 0 ? (
-                    users.map((user) => (
+                  {usuariosFiltrados.length > 0 ? (
+                    usuariosFiltrados.map((user) => (
                       <tr key={getUserId(user)} className="hover:bg-gray-50">
                         <td className="border border-gray-300 px-4 py-2">
                           <div className="flex items-center">
@@ -558,7 +848,7 @@ export default function UsersManagement() {
                           </a>
                         </td>
                         <td className="border border-gray-300 px-4 py-2">
-                          {getRoleBadge(user.puesto || user.role || 'user')}
+                          {getRoleBadge(user.puesto || user.role || 'analista')}
                         </td>
                         <td className="border border-gray-300 px-4 py-2">
                           <div className="flex items-center">
@@ -594,9 +884,16 @@ export default function UsersManagement() {
                     <tr>
                       <td colSpan={5} className="text-center py-10 text-gray-500">
                         <div>
-                          <span className="material-icons text-6xl mb-3">people_outline</span>
-                          <h5 className="text-lg font-semibold">No se encontraron usuarios</h5>
-                          <p>No hay usuarios registrados en el sistema.</p>
+                          <span className="material-icons text-6xl mb-3">search_off</span>
+                          <h5 className="text-lg font-semibold">
+                            {users.length === 0 ? "No se encontraron usuarios" : "No hay resultados para los filtros aplicados"}
+                          </h5>
+                          <p>
+                            {users.length === 0 
+                              ? "No hay usuarios registrados en el sistema." 
+                              : "Intenta ajustar los filtros de búsqueda."
+                            }
+                          </p>
                         </div>
                       </td>
                     </tr>
@@ -607,29 +904,40 @@ export default function UsersManagement() {
           </div>
 
           {/* Debug Info */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="bg-blue-500 text-white rounded-t-lg px-4 py-2 mb-4 flex items-center">
+          <div className="bg-white rounded-lg shadow">
+            <div className="bg-blue-500 text-white rounded-t-lg px-4 py-3 flex items-center">
               <span className="material-icons mr-2">info</span>
-              <h6 className="font-semibold mb-0">Informaci├│n de Debug</h6>
+              <h6 className="font-semibold mb-0">Información del Sistema</h6>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-gray-700">
-              <div>
-                <small className="block text-gray-500 mb-1">Total de usuarios:</small>
-                <div className="font-semibold">{users.length}</div>
-              </div>
-              <div>
-                <small className="block text-gray-500 mb-1">Token disponible:</small>
-                <div className={`font-semibold ${authService.getToken() ? "text-green-600" : "text-red-600"}`}>
-                  {authService.getToken() ? "✓ Sí" : "✗ No"}
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-gray-700">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <small className="block text-gray-500 mb-1">Total de usuarios</small>
+                      <div className="font-semibold text-lg">{users.length}</div>
+                    </div>
+                    <span className="material-icons text-blue-600 text-2xl">people</span>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <small className="block text-gray-500 mb-1">Tu rol:</small>
-                <div className="font-semibold text-blue-600">{currentUserRole}</div>
-              </div>
-              <div>
-                <small className="block text-gray-500 mb-1">Estado:</small>
-                <div className="font-semibold text-blue-600">✓ Conectado</div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <small className="block text-gray-500 mb-1">Tu rol</small>
+                      <div className="font-semibold text-lg text-blue-600 capitalize">{currentUserRole}</div>
+                    </div>
+                    <span className="material-icons text-green-600 text-2xl">admin_panel_settings</span>
+                  </div>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <small className="block text-gray-500 mb-1">Estado de conexión</small>
+                      <div className="font-semibold text-lg text-green-600">✓ Conectado</div>
+                    </div>
+                    <span className="material-icons text-green-600 text-2xl">wifi</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -677,7 +985,7 @@ export default function UsersManagement() {
                               </SelectTrigger>
                               <SelectContent className="bg-[#f6f6f6] text-gray-900">
                                 <SelectItem value="admin">Administrador</SelectItem>
-                                <SelectItem value="user">Usuario</SelectItem>
+                                <SelectItem value="analista">Analista</SelectItem>
                                 <SelectItem value="client">Cliente</SelectItem>
                               </SelectContent>
                             </Select>
@@ -742,7 +1050,7 @@ export default function UsersManagement() {
                     </div>
                     <div>
                       <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Rol</span>
-                      <div className="mt-1">{getRoleBadge(selectedUserForPermissions?.puesto || 'user')}</div>
+                      <div className="mt-1">{getRoleBadge(selectedUserForPermissions?.puesto || 'analista')}</div>
                     </div>
                     <div>
                       <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</span>
