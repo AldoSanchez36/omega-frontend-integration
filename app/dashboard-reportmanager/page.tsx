@@ -125,7 +125,7 @@ export default function ReportManager() {
     loadPlants();
   }, [selectedUser, plants, token, router]);
 
-  // Load users - always show all available users, not filtered by plant
+  // Load users - filter by plant when plant is selected
   useEffect(() => {
     async function loadUsers() {
       if (selectedPlant) {
@@ -153,7 +153,7 @@ export default function ReportManager() {
       }
     }
     loadUsers();
-  }, [users]);
+  }, [selectedPlant, users, token, router]);
 
     const [parameters, setParameters] = useState<Parameter[]>([])
 
