@@ -24,6 +24,8 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 import { API_ENDPOINTS } from '@/config/constants'
+import { authService } from '@/services/authService'
+import { httpService } from '@/services/httpService'
 
 interface RawMeasurement {
   fecha: string

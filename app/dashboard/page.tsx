@@ -335,7 +335,7 @@ export default function Dashboard() {
     return data
   }
 
-  // Fetch del resumen del dashboard
+  // Fetch del resumen del dashboard y reportes
   useEffect(() => {
     if (!user) return;
     const fetchResumen = async () => {
@@ -378,7 +378,80 @@ export default function Dashboard() {
         addDebugLog("Error al cargar resumen del dashboard: " + error);
       }
     };
+
+    const fetchReportes = async () => {
+      try {
+        const token = authService.getToken()
+        if (!token) return
+
+        // Intentar cargar reportes desde la API
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PDF_DOCUMENTS}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        
+        let reportesData: any[] = []
+        
+        if (response.ok) {
+          const data = await response.json()
+          reportesData = Array.isArray(data) ? data : (data.reportes || [])
+        }
+        
+        // Agregar reporte dummy si no hay reportes reales
+        if (reportesData.length === 0) {
+          reportesData.push({
+            id: "9999",
+            title: "Reporte de prueba",
+            plantName: "Planta Norte",
+            systemName: "Sistema de Temperatura",
+            status: "completed",
+            created_at: new Date().toISOString(),
+            usuario_id: user.id,
+            planta_id: "planta-norte",
+            proceso_id: "sistema-temperatura",
+            datos: {},
+            observaciones: "Reporte de prueba generado automáticamente"
+          })
+        }
+        
+        // Convertir formato de reportes para el dashboard
+        const formattedReports = reportesData.map((report: any) => ({
+          id: report.id?.toString() || report.id,
+          title: report.nombre || report.title || `Reporte ${report.id}`,
+          plantName: report.planta || report.plantName || "Planta no especificada",
+          systemName: report.sistema || report.systemName || "Sistema no especificado",
+          status: report.estado || report.status || "completed",
+          created_at: report.fecha_creacion || report.created_at || new Date().toISOString(),
+          usuario_id: report.usuario_id || user.id,
+          planta_id: report.planta_id || "planta-unknown",
+          proceso_id: report.proceso_id || "sistema-unknown",
+          datos: report.datos || {},
+          observaciones: report.observaciones || ""
+        }))
+        
+        setReports(formattedReports)
+        addDebugLog(`Reportes cargados: ${formattedReports.length} reportes`)
+        
+      } catch (error) {
+        console.error("Error cargando reportes:", error)
+        // En caso de error, agregar reporte dummy
+        setReports([{
+          id: "9999",
+          title: "Reporte de prueba",
+          plantName: "Planta Norte",
+          systemName: "Sistema de Temperatura",
+          status: "completed",
+          created_at: new Date().toISOString(),
+          usuario_id: user.id,
+          planta_id: "planta-norte",
+          proceso_id: "sistema-temperatura",
+          datos: {},
+          observaciones: "Reporte de prueba generado automáticamente"
+        }])
+      }
+    }
+
     fetchResumen();
+    fetchReportes();
   }, [user]);
 
   useEffect(() => {
@@ -475,7 +548,7 @@ export default function Dashboard() {
 
 
         {/* Stats Cards */}
-        <StatsCards dashboardResumen={dashboardResumen} />
+        <StatsCards dashboardResumen={dashboardResumen} userRole={userRole} />
 
         {/* Quick Actions */}
         {userRole === "admin" && (

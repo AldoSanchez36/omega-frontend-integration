@@ -1,0 +1,2588 @@
+{
+  "summary": {
+    "total": 9,
+    "successful": 6,
+    "failed": 3,
+    "duration": 2020,
+    "successRate": 66.66666666666666
+  },
+  "categories": {
+    "Authentication": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+    },
+    "Variables": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+    },
+    "Plants": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+    },
+    "Variable Endpoints": {
+      "total": 5,
+      "successful": 2,
+      "failed": 3
+    },
+    "Measurements": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+    }
+  },
+  "results": [
+    {
+      "category": "Authentication",
+      "test": "Login",
+      "success": true,
+      "timestamp": "2025-10-15T03:26:03.638Z"
+    },
+    {
+      "category": "Variables",
+      "test": "Get All Variables",
+      "success": true,
+      "status": 200,
+      "statusText": "OK",
+      "endpoint": "/api/variables",
+      "method": "GET",
+      "timestamp": "2025-10-15T03:26:03.805Z",
+      "data": {
+        "ok": true,
+        "variables": [
+          {
+            "id": "bd16ff60-dad9-496a-8547-b466738bfeca",
+            "nombre": "Alcalinidad F",
+            "unidad": "ppm",
+            "variables_procesos": [
+              {
+                "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+              }
+            ],
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          },
+          {
+            "id": "77c21ca7-01de-4020-b8c7-862c16d497f0",
+            "nombre": "Alcalinidad M",
+            "unidad": "ppm",
+            "variables_procesos": [
+              {
+                "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+              }
+            ],
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          },
+          {
+            "id": "945a1539-59a1-4319-90de-61933dd48533",
+            "nombre": "Cloro Libre",
+            "unidad": "ppm",
+            "variables_procesos": [
+              {
+                "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+              },
+              {
+                "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71"
+              }
+            ],
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          },
+          {
+            "id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "nombre": "Cloruros",
+            "unidad": "ppm",
+            "variables_procesos": [
+              {
+                "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+              },
+              {
+                "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71"
+              }
+            ],
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          },
+          {
+            "id": "08b435d1-6b9b-48b7-89c3-94063c0455b6",
+            "nombre": "Conductividad",
+            "unidad": "µs/cm",
+            "variables_procesos": [
+              {
+                "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+              }
+            ],
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          },
+          {
+            "id": "b57a20b2-fc90-4279-98d1-82188f6ad673",
+            "nombre": "Dureza Calcio",
+            "unidad": "ppm",
+            "variables_procesos": [
+              {
+                "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+              }
+            ],
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          },
+          {
+            "id": "3e926611-fe10-4825-a4bd-8f9da7fd97f4",
+            "nombre": "Dureza Total",
+            "unidad": "ppm",
+            "variables_procesos": [
+              {
+                "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+              }
+            ],
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          },
+          {
+            "id": "8430e1e2-5329-4b02-bf7d-94fc1f7d98b8",
+            "nombre": "Fe",
+            "unidad": "ppm",
+            "variables_procesos": [
+              {
+                "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+              }
+            ],
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          },
+          {
+            "id": "0bcf4e38-75d9-47f2-80c2-a02243502c0c",
+            "nombre": "Fosfatos",
+            "unidad": "",
+            "variables_procesos": [
+              {
+                "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+              }
+            ],
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          },
+          {
+            "id": "f6662b7c-4867-495f-b727-4b794782f291",
+            "nombre": "pH",
+            "unidad": "",
+            "variables_procesos": [
+              {
+                "proceso_id": "be38667b-ef15-444f-9810-2c947c45cb39"
+              },
+              {
+                "proceso_id": "4d3a4b5b-5af1-4610-8831-759c8bfa32ba"
+              }
+            ],
+            "proceso_id": "be38667b-ef15-444f-9810-2c947c45cb39"
+          },
+          {
+            "id": "84108e09-2020-4b3f-b236-1606c93fedfd",
+            "nombre": "pH 2",
+            "unidad": "ppm",
+            "variables_procesos": [],
+            "proceso_id": null
+          },
+          {
+            "id": "42bc0f0a-e117-4794-ad2d-0d34f5fffe51",
+            "nombre": "silicio",
+            "unidad": "ppm",
+            "variables_procesos": [
+              {
+                "proceso_id": "a375216d-ba3c-44a0-b40b-8ef42ca38290"
+              }
+            ],
+            "proceso_id": "a375216d-ba3c-44a0-b40b-8ef42ca38290"
+          },
+          {
+            "id": "5a3aa01c-366b-41d6-bb2f-d9d4f69abfdb",
+            "nombre": "SiO2",
+            "unidad": "ppm",
+            "variables_procesos": [
+              {
+                "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+              }
+            ],
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          },
+          {
+            "id": "1c9ef355-da61-40c2-bb95-22638e4f74b4",
+            "nombre": "Sulfatos",
+            "unidad": "",
+            "variables_procesos": [
+              {
+                "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+              }
+            ],
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          },
+          {
+            "id": "26f20ec5-fb8f-4f84-bbd5-0bf7533dca72",
+            "nombre": "TDS",
+            "unidad": "",
+            "variables_procesos": [
+              {
+                "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+              }
+            ],
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          },
+          {
+            "id": "01995807-f425-43b3-8607-b9ca34b79fec",
+            "nombre": "Temperatura",
+            "unidad": "C,K,F",
+            "variables_procesos": [],
+            "proceso_id": null
+          },
+          {
+            "id": "4b4accaa-c73e-48ed-9da4-ce02e42a4ec6",
+            "nombre": "TSS",
+            "unidad": "",
+            "variables_procesos": [
+              {
+                "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+              }
+            ],
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          }
+        ]
+      }
+    },
+    {
+      "category": "Plants",
+      "test": "Get Accessible Plants",
+      "success": true,
+      "status": 200,
+      "statusText": "OK",
+      "endpoint": "/api/plantas/accesibles",
+      "method": "GET",
+      "timestamp": "2025-10-15T03:26:03.928Z",
+      "data": {
+        "ok": true,
+        "plantas": []
+      }
+    },
+    {
+      "category": "Variable Endpoints",
+      "test": "Test variable \"S1\"",
+      "variable": "S1",
+      "success": false,
+      "status": 404,
+      "statusText": "Not Found",
+      "endpoint": "/api/mediciones/variable/S1",
+      "method": "GET",
+      "timestamp": "2025-10-15T03:26:04.060Z",
+      "error": {
+        "ok": false,
+        "msg": "Variable no encontrada"
+      }
+    },
+    {
+      "category": "Variable Endpoints",
+      "test": "Test variable \"s2\"",
+      "variable": "s2",
+      "success": false,
+      "status": 404,
+      "statusText": "Not Found",
+      "endpoint": "/api/mediciones/variable/s2",
+      "method": "GET",
+      "timestamp": "2025-10-15T03:26:04.197Z",
+      "error": {
+        "ok": false,
+        "msg": "Variable no encontrada"
+      }
+    },
+    {
+      "category": "Variable Endpoints",
+      "test": "Test variable \"S2\"",
+      "variable": "S2",
+      "success": false,
+      "status": 404,
+      "statusText": "Not Found",
+      "endpoint": "/api/mediciones/variable/S2",
+      "method": "GET",
+      "timestamp": "2025-10-15T03:26:04.369Z",
+      "error": {
+        "ok": false,
+        "msg": "Variable no encontrada"
+      }
+    },
+    {
+      "category": "Variable Endpoints",
+      "test": "Test variable \"Cloruros\"",
+      "variable": "Cloruros",
+      "success": true,
+      "status": 200,
+      "statusText": "OK",
+      "endpoint": "/api/mediciones/variable/Cloruros",
+      "method": "GET",
+      "timestamp": "2025-10-15T03:26:04.616Z",
+      "data": {
+        "ok": true,
+        "mediciones": [
+          {
+            "id": "f2da5792-6d29-4b27-ab53-1c4823cee84d",
+            "fecha": "2025-04-04",
+            "valor": 14.05,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "4975da4a-5579-44d6-8d56-ba158e30d311",
+            "fecha": "2025-04-04",
+            "valor": 17.57,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "88d17062-c5e8-415d-b952-850871c9ff49",
+            "fecha": "2025-04-04",
+            "valor": 17.57,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "e54e85ed-9ddc-42e2-9430-5805291ac9ac",
+            "fecha": "2025-04-08",
+            "valor": 19.33,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "59ff27e1-daba-4c51-b96f-fc8982fcf458",
+            "fecha": "2025-04-08",
+            "valor": 18.74,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "6914828f-383e-429b-9aca-53208f770e8a",
+            "fecha": "2025-04-08",
+            "valor": 19.33,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "53798ab0-8855-4ef6-ba04-b8b19901d157",
+            "fecha": "2025-04-15",
+            "valor": 12.9,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "70b42a7d-a669-4507-9f89-de1ebe202bf5",
+            "fecha": "2025-04-15",
+            "valor": 18.18,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "e736041b-af74-4685-855b-a0f5680468aa",
+            "fecha": "2025-04-15",
+            "valor": 18.19,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "95250428-7089-434d-96aa-287c3512b3d5",
+            "fecha": "2025-04-29",
+            "valor": 11.85,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "b3202046-615f-4dc6-9ed9-4f8ce5f15a39",
+            "fecha": "2025-04-29",
+            "valor": 19.01,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "04a2a89a-8cfa-4a34-a40f-b5448b08d486",
+            "fecha": "2025-04-29",
+            "valor": 17.9,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "1ec6a346-6c7e-4aec-b722-aa8266bfbe7d",
+            "fecha": "2025-05-05",
+            "valor": 19.33,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "0e5e7fee-ee0e-4368-b6fa-7d91b6936975",
+            "fecha": "2025-05-05",
+            "valor": 19.33,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "f4701862-050e-43c8-9a93-0105e3c5e46f",
+            "fecha": "2025-05-05",
+            "valor": 19.91,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "2ac99125-c495-488f-ae82-f01a1d344dfb",
+            "fecha": "2025-05-09",
+            "valor": 18.75,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "e2886faf-f5c4-4df0-a30e-f63e4b5b982f",
+            "fecha": "2025-05-09",
+            "valor": 18.75,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "3c4abb74-c0d6-4f4f-ad3a-443dd07b310a",
+            "fecha": "2025-05-09",
+            "valor": 19.92,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "58cb3209-bb44-4321-b6c2-9814f9d6f399",
+            "fecha": "2025-05-13",
+            "valor": 15.74,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "b8b3d76a-0f7c-465d-9182-d810145c5f4d",
+            "fecha": "2025-05-13",
+            "valor": 19.74,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "5ab2d0e3-834d-4b33-b288-913d8be86c7f",
+            "fecha": "2025-05-13",
+            "valor": 17.92,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "ddfa3adb-49db-4dc1-a244-d6538dae03cd",
+            "fecha": "2025-05-21",
+            "valor": 14.54,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "8247c184-fa96-4152-88e2-a37277d78819",
+            "fecha": "2025-05-21",
+            "valor": 20.01,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "8dc91d00-6c9c-4696-abff-d9ad393d2b2c",
+            "fecha": "2025-05-21",
+            "valor": 17.54,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "5b050169-c445-4a0b-b1b0-2969c0b11c95",
+            "fecha": "2025-05-28",
+            "valor": 19.33,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "4b74022d-7954-4ffd-956b-eb29dd413884",
+            "fecha": "2025-05-28",
+            "valor": 21.67,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "40f0cc16-6b7b-4bdf-aec6-09a8257d79a5",
+            "fecha": "2025-05-28",
+            "valor": 20.5,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "725686ae-da66-43d5-b716-00bba1b3b3ee",
+            "fecha": "2025-05-28",
+            "valor": 20.5,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S04",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "877de944-bcc9-4208-8440-cf9827fdf8da",
+            "fecha": "2025-05-28",
+            "valor": 19.33,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S05",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "9ea24278-4540-49f2-9e82-2b90339d624d",
+            "fecha": "2025-06-04",
+            "valor": 20.03,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "68178e69-3cd7-402e-8dce-1533c89c9122",
+            "fecha": "2025-06-04",
+            "valor": 21.15,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "e4cf5a45-c6e2-4396-8c4b-cdf4916be05f",
+            "fecha": "2025-06-04",
+            "valor": 20.35,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "92a48e8b-a7dc-4e3f-986b-95ccab9ba9a8",
+            "fecha": "2025-06-04",
+            "valor": 20.41,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S04",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "fba7949e-317b-4d4c-b115-fbdd1f0290f6",
+            "fecha": "2025-06-04",
+            "valor": 20.1,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S05",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          }
+        ]
+      }
+    },
+    {
+      "category": "Variable Endpoints",
+      "test": "Test variable \"Cloro Libre\"",
+      "variable": "Cloro Libre",
+      "success": true,
+      "status": 200,
+      "statusText": "OK",
+      "endpoint": "/api/mediciones/variable/Cloro%20Libre",
+      "method": "GET",
+      "timestamp": "2025-10-15T03:26:04.892Z",
+      "data": {
+        "ok": true,
+        "mediciones": [
+          {
+            "id": "8ad92b06-7c72-4bd8-9721-4681bfa7f911",
+            "fecha": "2025-04-04",
+            "valor": 0.45,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "ba672552-7149-41bf-9cb6-056faeb76607",
+            "fecha": "2025-04-04",
+            "valor": 0.52,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "1698ff14-486c-4cef-9895-b9634d34a21b",
+            "fecha": "2025-04-04",
+            "valor": 0.27,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "ae7dff3e-8226-4936-a7c2-9541fc9fdbb7",
+            "fecha": "2025-04-08",
+            "valor": 0.27,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "3500b406-e051-432d-996c-5adf6bf3a5f5",
+            "fecha": "2025-04-08",
+            "valor": 0.48,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "1bf5e304-1a7e-41f5-9a42-a90d3ce696a5",
+            "fecha": "2025-04-08",
+            "valor": 0.24,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "194933ef-3eaa-42c6-91bb-a35ce8b8710b",
+            "fecha": "2025-04-15",
+            "valor": 0.3,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "f09f77e5-aa1e-4267-a0f9-297eb21f7771",
+            "fecha": "2025-04-15",
+            "valor": 0.38,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "4927021d-8c2f-4b03-bf88-23c2d8cd52c9",
+            "fecha": "2025-04-15",
+            "valor": 0.29,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "9323104c-de28-421f-8c97-cae2cff97ad3",
+            "fecha": "2025-04-29",
+            "valor": 0.42,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "5badcab2-dacb-4fb8-a20c-6fbce5132fd0",
+            "fecha": "2025-04-29",
+            "valor": 0.4,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "d8be959c-2ae5-4507-93d5-849beb9fc65f",
+            "fecha": "2025-04-29",
+            "valor": 0.35,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "c075cd07-9f98-42f7-ad17-3d36137c49e3",
+            "fecha": "2025-05-05",
+            "valor": 0.26,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "93788dd2-da0f-4b10-940e-c9e3c80bbebc",
+            "fecha": "2025-05-05",
+            "valor": 0.25,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "f2269a47-f939-470b-a9af-58a1272900de",
+            "fecha": "2025-05-05",
+            "valor": 0.22,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "5eac7db7-79d2-45cf-b688-46919a9a89c0",
+            "fecha": "2025-05-09",
+            "valor": 0.25,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "ca7ec882-1cc0-471a-a1bd-64237ffd96c4",
+            "fecha": "2025-05-09",
+            "valor": 0.34,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "4053a115-351a-4589-820d-3691817c6d77",
+            "fecha": "2025-05-09",
+            "valor": 0.24,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "bc768f36-1634-447e-a6bd-b83f3ee574b3",
+            "fecha": "2025-05-13",
+            "valor": 0.4,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "412b1a3d-6416-4f7e-9768-8730644cd945",
+            "fecha": "2025-05-13",
+            "valor": 0.36,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "e2015456-edf7-4bf8-9a2e-1395885e29a8",
+            "fecha": "2025-05-13",
+            "valor": 0.2,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "b1ec0235-fbf3-494f-9b11-da4380884bc3",
+            "fecha": "2025-05-21",
+            "valor": 0.3,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "938042c5-dab5-4bd9-9edf-63c79f3f9329",
+            "fecha": "2025-05-21",
+            "valor": 0.42,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "953598bb-49d3-4aa5-902d-829c4c63ea8c",
+            "fecha": "2025-05-21",
+            "valor": 0.22,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "7b7c8f85-2c3a-4f53-b3d9-799a341855ee",
+            "fecha": "2025-05-28",
+            "valor": 0.33,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "fca29b2c-3d98-4c70-bb3a-70d33e0ad935",
+            "fecha": "2025-05-28",
+            "valor": 0.48,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "6ad5e1d8-b2c4-4afc-ba5e-9043f62493e0",
+            "fecha": "2025-05-28",
+            "valor": 0.58,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "d3b17505-c6db-449b-a57d-17503d217f69",
+            "fecha": "2025-05-28",
+            "valor": 0.34,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S04",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "29b0be9f-40c0-4e01-a80c-841114703043",
+            "fecha": "2025-05-28",
+            "valor": 0.69,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S05",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "41068df8-944b-469a-bf77-113f7d4c322d",
+            "fecha": "2025-06-04",
+            "valor": 0.32,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "70390b16-56b6-4181-8140-b0fb81fd7b78",
+            "fecha": "2025-06-04",
+            "valor": 0.6,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "74d3ff18-394a-4a3e-8793-c0e4676a5a58",
+            "fecha": "2025-06-04",
+            "valor": 0.26,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S04",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "95bddb09-eb2a-47f5-8ffb-204021977053",
+            "fecha": "2025-06-04",
+            "valor": 0.71,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S05",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "01559749-b652-492b-8cb1-d79b40d7feef",
+            "fecha": "2025-06-04",
+            "valor": 0.5,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          }
+        ]
+      }
+    },
+    {
+      "category": "Measurements",
+      "test": "Get All Measurements",
+      "success": true,
+      "status": 200,
+      "statusText": "OK",
+      "endpoint": "/api/mediciones",
+      "method": "GET",
+      "timestamp": "2025-10-15T03:26:04.999Z",
+      "data": {
+        "ok": true,
+        "mediciones": [
+          {
+            "id": "8ad92b06-7c72-4bd8-9721-4681bfa7f911",
+            "fecha": "2025-04-04",
+            "valor": 0.45,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "ba672552-7149-41bf-9cb6-056faeb76607",
+            "fecha": "2025-04-04",
+            "valor": 0.52,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "1698ff14-486c-4cef-9895-b9634d34a21b",
+            "fecha": "2025-04-04",
+            "valor": 0.27,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "ae7dff3e-8226-4936-a7c2-9541fc9fdbb7",
+            "fecha": "2025-04-08",
+            "valor": 0.27,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "3500b406-e051-432d-996c-5adf6bf3a5f5",
+            "fecha": "2025-04-08",
+            "valor": 0.48,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "1bf5e304-1a7e-41f5-9a42-a90d3ce696a5",
+            "fecha": "2025-04-08",
+            "valor": 0.24,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "194933ef-3eaa-42c6-91bb-a35ce8b8710b",
+            "fecha": "2025-04-15",
+            "valor": 0.3,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "f09f77e5-aa1e-4267-a0f9-297eb21f7771",
+            "fecha": "2025-04-15",
+            "valor": 0.38,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "4927021d-8c2f-4b03-bf88-23c2d8cd52c9",
+            "fecha": "2025-04-15",
+            "valor": 0.29,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "9323104c-de28-421f-8c97-cae2cff97ad3",
+            "fecha": "2025-04-29",
+            "valor": 0.42,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "5badcab2-dacb-4fb8-a20c-6fbce5132fd0",
+            "fecha": "2025-04-29",
+            "valor": 0.4,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "d8be959c-2ae5-4507-93d5-849beb9fc65f",
+            "fecha": "2025-04-29",
+            "valor": 0.35,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "c075cd07-9f98-42f7-ad17-3d36137c49e3",
+            "fecha": "2025-05-05",
+            "valor": 0.26,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "93788dd2-da0f-4b10-940e-c9e3c80bbebc",
+            "fecha": "2025-05-05",
+            "valor": 0.25,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "f2269a47-f939-470b-a9af-58a1272900de",
+            "fecha": "2025-05-05",
+            "valor": 0.22,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "5eac7db7-79d2-45cf-b688-46919a9a89c0",
+            "fecha": "2025-05-09",
+            "valor": 0.25,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "ca7ec882-1cc0-471a-a1bd-64237ffd96c4",
+            "fecha": "2025-05-09",
+            "valor": 0.34,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "4053a115-351a-4589-820d-3691817c6d77",
+            "fecha": "2025-05-09",
+            "valor": 0.24,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "bc768f36-1634-447e-a6bd-b83f3ee574b3",
+            "fecha": "2025-05-13",
+            "valor": 0.4,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "412b1a3d-6416-4f7e-9768-8730644cd945",
+            "fecha": "2025-05-13",
+            "valor": 0.36,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "e2015456-edf7-4bf8-9a2e-1395885e29a8",
+            "fecha": "2025-05-13",
+            "valor": 0.2,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "b1ec0235-fbf3-494f-9b11-da4380884bc3",
+            "fecha": "2025-05-21",
+            "valor": 0.3,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "938042c5-dab5-4bd9-9edf-63c79f3f9329",
+            "fecha": "2025-05-21",
+            "valor": 0.42,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "953598bb-49d3-4aa5-902d-829c4c63ea8c",
+            "fecha": "2025-05-21",
+            "valor": 0.22,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "7b7c8f85-2c3a-4f53-b3d9-799a341855ee",
+            "fecha": "2025-05-28",
+            "valor": 0.33,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "fca29b2c-3d98-4c70-bb3a-70d33e0ad935",
+            "fecha": "2025-05-28",
+            "valor": 0.48,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "6ad5e1d8-b2c4-4afc-ba5e-9043f62493e0",
+            "fecha": "2025-05-28",
+            "valor": 0.58,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "d3b17505-c6db-449b-a57d-17503d217f69",
+            "fecha": "2025-05-28",
+            "valor": 0.34,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S04",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "29b0be9f-40c0-4e01-a80c-841114703043",
+            "fecha": "2025-05-28",
+            "valor": 0.69,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S05",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "41068df8-944b-469a-bf77-113f7d4c322d",
+            "fecha": "2025-06-04",
+            "valor": 0.32,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "70390b16-56b6-4181-8140-b0fb81fd7b78",
+            "fecha": "2025-06-04",
+            "valor": 0.6,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "74d3ff18-394a-4a3e-8793-c0e4676a5a58",
+            "fecha": "2025-06-04",
+            "valor": 0.26,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S04",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "95bddb09-eb2a-47f5-8ffb-204021977053",
+            "fecha": "2025-06-04",
+            "valor": 0.71,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S05",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "01559749-b652-492b-8cb1-d79b40d7feef",
+            "fecha": "2025-06-04",
+            "valor": 0.5,
+            "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "f2da5792-6d29-4b27-ab53-1c4823cee84d",
+            "fecha": "2025-04-04",
+            "valor": 14.05,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "4975da4a-5579-44d6-8d56-ba158e30d311",
+            "fecha": "2025-04-04",
+            "valor": 17.57,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "88d17062-c5e8-415d-b952-850871c9ff49",
+            "fecha": "2025-04-04",
+            "valor": 17.57,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "e54e85ed-9ddc-42e2-9430-5805291ac9ac",
+            "fecha": "2025-04-08",
+            "valor": 19.33,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "59ff27e1-daba-4c51-b96f-fc8982fcf458",
+            "fecha": "2025-04-08",
+            "valor": 18.74,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "6914828f-383e-429b-9aca-53208f770e8a",
+            "fecha": "2025-04-08",
+            "valor": 19.33,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "53798ab0-8855-4ef6-ba04-b8b19901d157",
+            "fecha": "2025-04-15",
+            "valor": 12.9,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "70b42a7d-a669-4507-9f89-de1ebe202bf5",
+            "fecha": "2025-04-15",
+            "valor": 18.18,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "e736041b-af74-4685-855b-a0f5680468aa",
+            "fecha": "2025-04-15",
+            "valor": 18.19,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "95250428-7089-434d-96aa-287c3512b3d5",
+            "fecha": "2025-04-29",
+            "valor": 11.85,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "b3202046-615f-4dc6-9ed9-4f8ce5f15a39",
+            "fecha": "2025-04-29",
+            "valor": 19.01,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "04a2a89a-8cfa-4a34-a40f-b5448b08d486",
+            "fecha": "2025-04-29",
+            "valor": 17.9,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "1ec6a346-6c7e-4aec-b722-aa8266bfbe7d",
+            "fecha": "2025-05-05",
+            "valor": 19.33,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "0e5e7fee-ee0e-4368-b6fa-7d91b6936975",
+            "fecha": "2025-05-05",
+            "valor": 19.33,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "f4701862-050e-43c8-9a93-0105e3c5e46f",
+            "fecha": "2025-05-05",
+            "valor": 19.91,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "2ac99125-c495-488f-ae82-f01a1d344dfb",
+            "fecha": "2025-05-09",
+            "valor": 18.75,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "e2886faf-f5c4-4df0-a30e-f63e4b5b982f",
+            "fecha": "2025-05-09",
+            "valor": 18.75,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "3c4abb74-c0d6-4f4f-ad3a-443dd07b310a",
+            "fecha": "2025-05-09",
+            "valor": 19.92,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "58cb3209-bb44-4321-b6c2-9814f9d6f399",
+            "fecha": "2025-05-13",
+            "valor": 15.74,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "b8b3d76a-0f7c-465d-9182-d810145c5f4d",
+            "fecha": "2025-05-13",
+            "valor": 19.74,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "5ab2d0e3-834d-4b33-b288-913d8be86c7f",
+            "fecha": "2025-05-13",
+            "valor": 17.92,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "ddfa3adb-49db-4dc1-a244-d6538dae03cd",
+            "fecha": "2025-05-21",
+            "valor": 14.54,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "8247c184-fa96-4152-88e2-a37277d78819",
+            "fecha": "2025-05-21",
+            "valor": 20.01,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "8dc91d00-6c9c-4696-abff-d9ad393d2b2c",
+            "fecha": "2025-05-21",
+            "valor": 17.54,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "5b050169-c445-4a0b-b1b0-2969c0b11c95",
+            "fecha": "2025-05-28",
+            "valor": 19.33,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "4b74022d-7954-4ffd-956b-eb29dd413884",
+            "fecha": "2025-05-28",
+            "valor": 21.67,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "40f0cc16-6b7b-4bdf-aec6-09a8257d79a5",
+            "fecha": "2025-05-28",
+            "valor": 20.5,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "725686ae-da66-43d5-b716-00bba1b3b3ee",
+            "fecha": "2025-05-28",
+            "valor": 20.5,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S04",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "877de944-bcc9-4208-8440-cf9827fdf8da",
+            "fecha": "2025-05-28",
+            "valor": 19.33,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S05",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "9ea24278-4540-49f2-9e82-2b90339d624d",
+            "fecha": "2025-06-04",
+            "valor": 20.03,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S01",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "68178e69-3cd7-402e-8dce-1533c89c9122",
+            "fecha": "2025-06-04",
+            "valor": 21.15,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S02",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "e4cf5a45-c6e2-4396-8c4b-cdf4916be05f",
+            "fecha": "2025-06-04",
+            "valor": 20.35,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S03",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "92a48e8b-a7dc-4e3f-986b-95ccab9ba9a8",
+            "fecha": "2025-06-04",
+            "valor": 20.41,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S04",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          },
+          {
+            "id": "fba7949e-317b-4d4c-b115-fbdd1f0290f6",
+            "fecha": "2025-06-04",
+            "valor": 20.1,
+            "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+            "sistema": "S05",
+            "comentarios": null,
+            "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+          }
+        ]
+      }
+    }
+  ],
+  "data": {
+    "variables": [
+      {
+        "id": "bd16ff60-dad9-496a-8547-b466738bfeca",
+        "nombre": "Alcalinidad F",
+        "unidad": "ppm",
+        "variables_procesos": [
+          {
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          }
+        ],
+        "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+      },
+      {
+        "id": "77c21ca7-01de-4020-b8c7-862c16d497f0",
+        "nombre": "Alcalinidad M",
+        "unidad": "ppm",
+        "variables_procesos": [
+          {
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          }
+        ],
+        "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+      },
+      {
+        "id": "945a1539-59a1-4319-90de-61933dd48533",
+        "nombre": "Cloro Libre",
+        "unidad": "ppm",
+        "variables_procesos": [
+          {
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          },
+          {
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71"
+          }
+        ],
+        "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+      },
+      {
+        "id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "nombre": "Cloruros",
+        "unidad": "ppm",
+        "variables_procesos": [
+          {
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          },
+          {
+            "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71"
+          }
+        ],
+        "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+      },
+      {
+        "id": "08b435d1-6b9b-48b7-89c3-94063c0455b6",
+        "nombre": "Conductividad",
+        "unidad": "µs/cm",
+        "variables_procesos": [
+          {
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          }
+        ],
+        "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+      },
+      {
+        "id": "b57a20b2-fc90-4279-98d1-82188f6ad673",
+        "nombre": "Dureza Calcio",
+        "unidad": "ppm",
+        "variables_procesos": [
+          {
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          }
+        ],
+        "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+      },
+      {
+        "id": "3e926611-fe10-4825-a4bd-8f9da7fd97f4",
+        "nombre": "Dureza Total",
+        "unidad": "ppm",
+        "variables_procesos": [
+          {
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          }
+        ],
+        "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+      },
+      {
+        "id": "8430e1e2-5329-4b02-bf7d-94fc1f7d98b8",
+        "nombre": "Fe",
+        "unidad": "ppm",
+        "variables_procesos": [
+          {
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          }
+        ],
+        "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+      },
+      {
+        "id": "0bcf4e38-75d9-47f2-80c2-a02243502c0c",
+        "nombre": "Fosfatos",
+        "unidad": "",
+        "variables_procesos": [
+          {
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          }
+        ],
+        "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+      },
+      {
+        "id": "f6662b7c-4867-495f-b727-4b794782f291",
+        "nombre": "pH",
+        "unidad": "",
+        "variables_procesos": [
+          {
+            "proceso_id": "be38667b-ef15-444f-9810-2c947c45cb39"
+          },
+          {
+            "proceso_id": "4d3a4b5b-5af1-4610-8831-759c8bfa32ba"
+          }
+        ],
+        "proceso_id": "be38667b-ef15-444f-9810-2c947c45cb39"
+      },
+      {
+        "id": "84108e09-2020-4b3f-b236-1606c93fedfd",
+        "nombre": "pH 2",
+        "unidad": "ppm",
+        "variables_procesos": [],
+        "proceso_id": null
+      },
+      {
+        "id": "42bc0f0a-e117-4794-ad2d-0d34f5fffe51",
+        "nombre": "silicio",
+        "unidad": "ppm",
+        "variables_procesos": [
+          {
+            "proceso_id": "a375216d-ba3c-44a0-b40b-8ef42ca38290"
+          }
+        ],
+        "proceso_id": "a375216d-ba3c-44a0-b40b-8ef42ca38290"
+      },
+      {
+        "id": "5a3aa01c-366b-41d6-bb2f-d9d4f69abfdb",
+        "nombre": "SiO2",
+        "unidad": "ppm",
+        "variables_procesos": [
+          {
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          }
+        ],
+        "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+      },
+      {
+        "id": "1c9ef355-da61-40c2-bb95-22638e4f74b4",
+        "nombre": "Sulfatos",
+        "unidad": "",
+        "variables_procesos": [
+          {
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          }
+        ],
+        "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+      },
+      {
+        "id": "26f20ec5-fb8f-4f84-bbd5-0bf7533dca72",
+        "nombre": "TDS",
+        "unidad": "",
+        "variables_procesos": [
+          {
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          }
+        ],
+        "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+      },
+      {
+        "id": "01995807-f425-43b3-8607-b9ca34b79fec",
+        "nombre": "Temperatura",
+        "unidad": "C,K,F",
+        "variables_procesos": [],
+        "proceso_id": null
+      },
+      {
+        "id": "4b4accaa-c73e-48ed-9da4-ce02e42a4ec6",
+        "nombre": "TSS",
+        "unidad": "",
+        "variables_procesos": [
+          {
+            "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+          }
+        ],
+        "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+      }
+    ],
+    "processes": [],
+    "measurements": [
+      {
+        "id": "8ad92b06-7c72-4bd8-9721-4681bfa7f911",
+        "fecha": "2025-04-04",
+        "valor": 0.45,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "ba672552-7149-41bf-9cb6-056faeb76607",
+        "fecha": "2025-04-04",
+        "valor": 0.52,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "1698ff14-486c-4cef-9895-b9634d34a21b",
+        "fecha": "2025-04-04",
+        "valor": 0.27,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "ae7dff3e-8226-4936-a7c2-9541fc9fdbb7",
+        "fecha": "2025-04-08",
+        "valor": 0.27,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "3500b406-e051-432d-996c-5adf6bf3a5f5",
+        "fecha": "2025-04-08",
+        "valor": 0.48,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "1bf5e304-1a7e-41f5-9a42-a90d3ce696a5",
+        "fecha": "2025-04-08",
+        "valor": 0.24,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "194933ef-3eaa-42c6-91bb-a35ce8b8710b",
+        "fecha": "2025-04-15",
+        "valor": 0.3,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "f09f77e5-aa1e-4267-a0f9-297eb21f7771",
+        "fecha": "2025-04-15",
+        "valor": 0.38,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "4927021d-8c2f-4b03-bf88-23c2d8cd52c9",
+        "fecha": "2025-04-15",
+        "valor": 0.29,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "9323104c-de28-421f-8c97-cae2cff97ad3",
+        "fecha": "2025-04-29",
+        "valor": 0.42,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "5badcab2-dacb-4fb8-a20c-6fbce5132fd0",
+        "fecha": "2025-04-29",
+        "valor": 0.4,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "d8be959c-2ae5-4507-93d5-849beb9fc65f",
+        "fecha": "2025-04-29",
+        "valor": 0.35,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "c075cd07-9f98-42f7-ad17-3d36137c49e3",
+        "fecha": "2025-05-05",
+        "valor": 0.26,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "93788dd2-da0f-4b10-940e-c9e3c80bbebc",
+        "fecha": "2025-05-05",
+        "valor": 0.25,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "f2269a47-f939-470b-a9af-58a1272900de",
+        "fecha": "2025-05-05",
+        "valor": 0.22,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "5eac7db7-79d2-45cf-b688-46919a9a89c0",
+        "fecha": "2025-05-09",
+        "valor": 0.25,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "ca7ec882-1cc0-471a-a1bd-64237ffd96c4",
+        "fecha": "2025-05-09",
+        "valor": 0.34,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "4053a115-351a-4589-820d-3691817c6d77",
+        "fecha": "2025-05-09",
+        "valor": 0.24,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "bc768f36-1634-447e-a6bd-b83f3ee574b3",
+        "fecha": "2025-05-13",
+        "valor": 0.4,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "412b1a3d-6416-4f7e-9768-8730644cd945",
+        "fecha": "2025-05-13",
+        "valor": 0.36,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "e2015456-edf7-4bf8-9a2e-1395885e29a8",
+        "fecha": "2025-05-13",
+        "valor": 0.2,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "b1ec0235-fbf3-494f-9b11-da4380884bc3",
+        "fecha": "2025-05-21",
+        "valor": 0.3,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "938042c5-dab5-4bd9-9edf-63c79f3f9329",
+        "fecha": "2025-05-21",
+        "valor": 0.42,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "953598bb-49d3-4aa5-902d-829c4c63ea8c",
+        "fecha": "2025-05-21",
+        "valor": 0.22,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "7b7c8f85-2c3a-4f53-b3d9-799a341855ee",
+        "fecha": "2025-05-28",
+        "valor": 0.33,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "fca29b2c-3d98-4c70-bb3a-70d33e0ad935",
+        "fecha": "2025-05-28",
+        "valor": 0.48,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "6ad5e1d8-b2c4-4afc-ba5e-9043f62493e0",
+        "fecha": "2025-05-28",
+        "valor": 0.58,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "d3b17505-c6db-449b-a57d-17503d217f69",
+        "fecha": "2025-05-28",
+        "valor": 0.34,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S04",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "29b0be9f-40c0-4e01-a80c-841114703043",
+        "fecha": "2025-05-28",
+        "valor": 0.69,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S05",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "41068df8-944b-469a-bf77-113f7d4c322d",
+        "fecha": "2025-06-04",
+        "valor": 0.32,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "70390b16-56b6-4181-8140-b0fb81fd7b78",
+        "fecha": "2025-06-04",
+        "valor": 0.6,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "74d3ff18-394a-4a3e-8793-c0e4676a5a58",
+        "fecha": "2025-06-04",
+        "valor": 0.26,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S04",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "95bddb09-eb2a-47f5-8ffb-204021977053",
+        "fecha": "2025-06-04",
+        "valor": 0.71,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S05",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "01559749-b652-492b-8cb1-d79b40d7feef",
+        "fecha": "2025-06-04",
+        "valor": 0.5,
+        "variable_id": "945a1539-59a1-4319-90de-61933dd48533",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "f2da5792-6d29-4b27-ab53-1c4823cee84d",
+        "fecha": "2025-04-04",
+        "valor": 14.05,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "4975da4a-5579-44d6-8d56-ba158e30d311",
+        "fecha": "2025-04-04",
+        "valor": 17.57,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "88d17062-c5e8-415d-b952-850871c9ff49",
+        "fecha": "2025-04-04",
+        "valor": 17.57,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "e54e85ed-9ddc-42e2-9430-5805291ac9ac",
+        "fecha": "2025-04-08",
+        "valor": 19.33,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "59ff27e1-daba-4c51-b96f-fc8982fcf458",
+        "fecha": "2025-04-08",
+        "valor": 18.74,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "6914828f-383e-429b-9aca-53208f770e8a",
+        "fecha": "2025-04-08",
+        "valor": 19.33,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "53798ab0-8855-4ef6-ba04-b8b19901d157",
+        "fecha": "2025-04-15",
+        "valor": 12.9,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "70b42a7d-a669-4507-9f89-de1ebe202bf5",
+        "fecha": "2025-04-15",
+        "valor": 18.18,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "e736041b-af74-4685-855b-a0f5680468aa",
+        "fecha": "2025-04-15",
+        "valor": 18.19,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "95250428-7089-434d-96aa-287c3512b3d5",
+        "fecha": "2025-04-29",
+        "valor": 11.85,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "b3202046-615f-4dc6-9ed9-4f8ce5f15a39",
+        "fecha": "2025-04-29",
+        "valor": 19.01,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "04a2a89a-8cfa-4a34-a40f-b5448b08d486",
+        "fecha": "2025-04-29",
+        "valor": 17.9,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "1ec6a346-6c7e-4aec-b722-aa8266bfbe7d",
+        "fecha": "2025-05-05",
+        "valor": 19.33,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "0e5e7fee-ee0e-4368-b6fa-7d91b6936975",
+        "fecha": "2025-05-05",
+        "valor": 19.33,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "f4701862-050e-43c8-9a93-0105e3c5e46f",
+        "fecha": "2025-05-05",
+        "valor": 19.91,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "2ac99125-c495-488f-ae82-f01a1d344dfb",
+        "fecha": "2025-05-09",
+        "valor": 18.75,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "e2886faf-f5c4-4df0-a30e-f63e4b5b982f",
+        "fecha": "2025-05-09",
+        "valor": 18.75,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "3c4abb74-c0d6-4f4f-ad3a-443dd07b310a",
+        "fecha": "2025-05-09",
+        "valor": 19.92,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "58cb3209-bb44-4321-b6c2-9814f9d6f399",
+        "fecha": "2025-05-13",
+        "valor": 15.74,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "b8b3d76a-0f7c-465d-9182-d810145c5f4d",
+        "fecha": "2025-05-13",
+        "valor": 19.74,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "5ab2d0e3-834d-4b33-b288-913d8be86c7f",
+        "fecha": "2025-05-13",
+        "valor": 17.92,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "ddfa3adb-49db-4dc1-a244-d6538dae03cd",
+        "fecha": "2025-05-21",
+        "valor": 14.54,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "8247c184-fa96-4152-88e2-a37277d78819",
+        "fecha": "2025-05-21",
+        "valor": 20.01,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "8dc91d00-6c9c-4696-abff-d9ad393d2b2c",
+        "fecha": "2025-05-21",
+        "valor": 17.54,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "5b050169-c445-4a0b-b1b0-2969c0b11c95",
+        "fecha": "2025-05-28",
+        "valor": 19.33,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "4b74022d-7954-4ffd-956b-eb29dd413884",
+        "fecha": "2025-05-28",
+        "valor": 21.67,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "40f0cc16-6b7b-4bdf-aec6-09a8257d79a5",
+        "fecha": "2025-05-28",
+        "valor": 20.5,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "725686ae-da66-43d5-b716-00bba1b3b3ee",
+        "fecha": "2025-05-28",
+        "valor": 20.5,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S04",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "877de944-bcc9-4208-8440-cf9827fdf8da",
+        "fecha": "2025-05-28",
+        "valor": 19.33,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S05",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "9ea24278-4540-49f2-9e82-2b90339d624d",
+        "fecha": "2025-06-04",
+        "valor": 20.03,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S01",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "68178e69-3cd7-402e-8dce-1533c89c9122",
+        "fecha": "2025-06-04",
+        "valor": 21.15,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S02",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "e4cf5a45-c6e2-4396-8c4b-cdf4916be05f",
+        "fecha": "2025-06-04",
+        "valor": 20.35,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S03",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "92a48e8b-a7dc-4e3f-986b-95ccab9ba9a8",
+        "fecha": "2025-06-04",
+        "valor": 20.41,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S04",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      },
+      {
+        "id": "fba7949e-317b-4d4c-b115-fbdd1f0290f6",
+        "fecha": "2025-06-04",
+        "valor": 20.1,
+        "variable_id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+        "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71",
+        "sistema": "S05",
+        "comentarios": null,
+        "usuario_id": "3f937027-9ffa-44ed-9830-f798e844aa99"
+      }
+    ]
+  }
+}

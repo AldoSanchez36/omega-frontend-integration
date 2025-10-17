@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react"
 import EditableLeyenda from "@/app/dashboard/buttons/admin"
 import { API_ENDPOINTS } from "@/config/constants"
+import { authService } from "@/services/authService"
+import { httpService } from "@/services/httpService"
 
 interface RawMeasurement {
   fecha: string

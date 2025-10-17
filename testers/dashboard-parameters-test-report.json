@@ -1,0 +1,27 @@
+{
+  "summary": {
+    "total": 1,
+    "successful": 0,
+    "failed": 1,
+    "duration": 6,
+    "successRate": 0
+  },
+  "categories": {
+    "Authentication": {
+      "total": 1,
+      "successful": 0,
+      "failed": 1
+    }
+  },
+  "results": [
+    {
+      "category": "Authentication",
+      "test": "Login",
+      "success": false,
+      "error": "fetch failed",
+      "endpoint": "/api/auth/login",
+      "method": "POST",
+      "timestamp": "2025-10-14T04:26:32.921Z"
+    }
+  ]
+}

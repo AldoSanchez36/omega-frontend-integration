@@ -9,14 +9,8 @@ import { useUser } from "@/context/UserContext"
 import Navbar from "@/components/Navbar"
 
 export default function Profile() {
-  const { user, updateUser, logout, isAuthenticated, isLoading } = useUser()
+  const { user, logout, isAuthenticated, isLoading } = useUser()
   const router = useRouter()
-  const [editing, setEditing] = useState(false)
-  const [formData, setFormData] = useState({
-    username: "",
-    email: "",
-    puesto: "",
-  })
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -24,42 +18,6 @@ export default function Profile() {
     }
   }, [isAuthenticated, isLoading, router])
 
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        username: user.username,
-        email: user.email,
-        puesto: user.puesto,
-      })
-    }
-  }, [user])
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    // Solo incluir puesto si el usuario es admin
-    const updateData: any = {
-      username: formData.username,
-      email: formData.email,
-    }
-    
-    // Solo agregar puesto si es admin
-    if (user?.puesto === "admin") {
-      updateData.puesto = formData.puesto
-    }
-    
-    updateUser(updateData)
-    setEditing(false)
-    alert("Perfil actualizado correctamente")
-  }
 
   const handleLogout = async () => {
     await logout()
@@ -112,107 +70,52 @@ export default function Profile() {
                   </div>
                 </div>
                 {/* Fin header visual */}
-                {!editing ? (
-                  <div>
-                    <div className="row mb-3">
-                      <div className="col-sm-3">
-                        <strong>Nombre de usuario:</strong>
-                      </div>
-                      <div className="col-sm-9">{user.username}</div>
+                <div>
+                  <div className="row mb-3">
+                    <div className="col-sm-3">
+                      <strong>Nombre de usuario:</strong>
                     </div>
-                    <div className="row mb-3">
-                      <div className="col-sm-3">
-                        <strong>Email:</strong>
-                      </div>
-                      <div className="col-sm-9">{user.email}</div>
+                    <div className="col-sm-9">{user.username}</div>
+                  </div>
+                  <div className="row mb-3">
+                    <div className="col-sm-3">
+                      <strong>Email:</strong>
                     </div>
-                    <div className="row mb-3">
-                      <div className="col-sm-3">
-                        <strong>Rol:</strong>
-                      </div>
-                      <div className="col-sm-9">
-                        <span className={`badge bg-${user.puesto === "admin" ? "danger" : "primary"}`}>
-                          {user.puesto}
-                        </span>
-                      </div>
+                    <div className="col-sm-9">{user.email}</div>
+                  </div>
+                  <div className="row mb-3">
+                    <div className="col-sm-3">
+                      <strong>Rol:</strong>
                     </div>
-                    <div className="row mb-3">
-                      <div className="col-sm-3">
-                        <strong>Fecha de registro:</strong>
-                      </div>
-                      <div className="col-sm-9">
-                        {user.created_at ? new Date(user.created_at).toLocaleDateString() : "No disponible"}
-                      </div>
-                    </div>
-                    <div className="row mb-3">
-                      <div className="col-sm-3">
-                        <strong>ID de usuario:</strong>
-                      </div>
-                      <div className="col-sm-9">
-                        <code>{user.id}</code>
-                      </div>
-                    </div>
-                    <div className="d-flex gap-2">
-                      <button className="btn btn-primary" onClick={() => setEditing(true)}>
-                        <i className="material-icons me-2">edit</i>
-                        Editar perfil
-                      </button>
-                      <Link href="/dashboard" className="btn btn-outline-secondary">
-                        <i className="material-icons me-2">dashboard</i>
-                        Volver al dashboard
-                      </Link>
+                    <div className="col-sm-9">
+                      <span className={`badge bg-${user.puesto === "admin" ? "danger" : "primary"}`}>
+                        {user.puesto}
+                      </span>
                     </div>
                   </div>
-                ) : (
-                  <form onSubmit={handleSubmit}>
-                    <div className="mb-3">
-                      <label htmlFor="username" className="form-label">
-                        Nombre de usuario
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        id="username"
-                        name="username"
-                        value={formData.username}
-                        onChange={handleChange}
-                        required
-                      />
+                  <div className="row mb-3">
+                    <div className="col-sm-3">
+                      <strong>Fecha de registro:</strong>
                     </div>
-                    <div className="mb-3">
-                      <label htmlFor="email" className="form-label">
-                        Email
-                      </label>
-                      <input
-                        type="email"
-                        className="form-control"
-                        id="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        required
-                      />
+                    <div className="col-sm-9">
+                      {user.created_at ? new Date(user.created_at).toLocaleDateString() : "No disponible"}
                     </div>
-                    <div className="mb-3">
-                      <label className="form-label">Rol</label>
-                      <div className="form-control-plaintext">
-                        <span className={`badge bg-${user.puesto === "admin" ? "danger" : "primary"}`}>
-                          {user.puesto}
-                        </span>
-                      </div>
+                  </div>
+                  <div className="row mb-3">
+                    <div className="col-sm-3">
+                      <strong>ID de usuario:</strong>
                     </div>
-                    <div className="d-flex gap-2">
-                      <button type="submit" className="btn btn-success">
-                        <i className="material-icons me-2">save</i>
-                        Guardar cambios
-                      </button>
-                      <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)}>
-                        <i className="material-icons me-2">cancel</i>
-                        Cancelar
-                      </button>
+                    <div className="col-sm-9">
+                      <code>{user.id}</code>
                     </div>
-                  </form>
-                )}
+                  </div>
+                  <div className="d-flex gap-2">
+                    <Link href="/dashboard" className="btn btn-outline-secondary">
+                      <i className="material-icons me-2">dashboard</i>
+                      Volver al dashboard
+                    </Link>
+                  </div>
+                </div>
               </div>
             </div>
             {/* Preferencias del Sistema (visual, sin funcionalidad real) */}

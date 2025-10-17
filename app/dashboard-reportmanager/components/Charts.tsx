@@ -3,7 +3,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SensorTimeSeriesChart } from "@/components/SensorTimeSeriesChart";
-import MesureTable from "@/components/MesureTable";
+import { MesureTable } from "@/components/MesureTable-fixed-auth";
 import { API_BASE_URL } from "@/config/constants";
 
 interface Parameter {
