@@ -608,7 +608,7 @@ export default function ParameterManager() {
                               onClick={() => setSelectedSystemId(system.id)}
                               className={`px-4 py-2 text-sm font-medium rounded border ${
                                 selectedSystemId === system.id
-                                  ? 'bg-blue-600 text-white'
+                                  ? 'bg-green-600 text-white'
                                   : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                               }`}
                             >
@@ -712,7 +712,7 @@ export default function ParameterManager() {
                                       variant="ghost"
                                       size="icon"
                                       onClick={() => handleOpenEditModal(param)}
-                                      className="h-8 w-8 text-blue-500 hover:text-blue-700"
+                                      className="h-8 w-8 text-green-500 hover:text-green-700"
                                       aria-label={`Editar ${param.nombre}`}
                                     >
                                       <Edit className="h-4 w-4" />
@@ -851,7 +851,7 @@ export default function ParameterManager() {
               <Button variant="outline" onClick={() => setShowEditModal(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleSaveEdit} className="bg-blue-600 hover:bg-blue-500 text-white">
+              <Button onClick={handleSaveEdit} className="bg-green-600 hover:bg-green-500 text-white">
                 Guardar
               </Button>
             </div>
