@@ -55,7 +55,7 @@ const ParametersVariableList: React.FC<Props> = ({
   
   // Función para determinar el color del input basado en el valor y límites
   const getInputColor = (parameterId: string, value: number | undefined): string => {
-    if (value === undefined || value === null) return '';
+    if (value === undefined || value === null) return '#FFC6CE';
     
     const tolerancia = tolerancias[parameterId];
     if (!tolerancia) return '';
@@ -63,18 +63,31 @@ const ParametersVariableList: React.FC<Props> = ({
     const numValue = Number(value);
     if (isNaN(numValue)) return '';
     
-    // Verificar si está fuera de todos los rangos (rojo)
     const usarLimiteMin = !!tolerancia.usar_limite_min;
     const usarLimiteMax = !!tolerancia.usar_limite_max;
+    const bienMin = tolerancia.bien_min;
+    const bienMax = tolerancia.bien_max;
     
-    // Si está por debajo del límite mínimo (si existe)
+    // CASO 1: Si solo existen bienMin y bienMax (sin limite_min/limite_max)
+    if (!usarLimiteMin && !usarLimiteMax && 
+        bienMin !== null && bienMin !== undefined && 
+        bienMax !== null && bienMax !== undefined) {
+      
+      if (numValue < bienMin || numValue > bienMax) {
+        return '#FFC6CE'; // Rojo - fuera del rango bien
+      } else {
+        return '#C6EFCE'; // Verde - dentro del rango bien
+      }
+    }
+    
+    // CASO 2: Si existen limite_min y/o limite_max
+    // Verificar si está fuera de los límites críticos (rojo)
     if (usarLimiteMin && tolerancia.limite_min !== null && tolerancia.limite_min !== undefined) {
       if (numValue < tolerancia.limite_min) {
         return '#FFC6CE'; // Rojo
       }
     }
     
-    // Si está por encima del límite máximo (si existe)
     if (usarLimiteMax && tolerancia.limite_max !== null && tolerancia.limite_max !== undefined) {
       if (numValue > tolerancia.limite_max) {
         return '#FFC6CE'; // Rojo
@@ -82,9 +95,6 @@ const ParametersVariableList: React.FC<Props> = ({
     }
     
     // Verificar si está en el rango de advertencia (amarillo)
-    const bienMin = tolerancia.bien_min;
-    const bienMax = tolerancia.bien_max;
-    
     // Si está por debajo del rango bien_min pero por encima del límite_min
     if (usarLimiteMin && tolerancia.limite_min !== null && tolerancia.limite_min !== undefined) {
       if (numValue >= tolerancia.limite_min && bienMin !== null && bienMin !== undefined && numValue < bienMin) {
@@ -106,7 +116,8 @@ const ParametersVariableList: React.FC<Props> = ({
       }
     }
     
-    return ''; // Sin color (blanco)
+    // Si no hay límites definidos, mostrar rojo por defecto
+    return '#FFC6CE';
   };
   return (
     <div className="space-y-4"> 
