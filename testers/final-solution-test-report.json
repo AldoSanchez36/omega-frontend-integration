@@ -1,0 +1,71 @@
+{
+  "summary": {
+    "total": 6,
+    "successful": 1,
+    "failed": 5,
+    "duration": 44,
+    "successRate": 16.666666666666664
+  },
+  "categories": {
+    "Solution Summary": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+    },
+    "File Check": {
+      "total": 5,
+      "successful": 0,
+      "failed": 5
+    }
+  },
+  "results": [
+    {
+      "category": "Solution Summary",
+      "test": "Final Solution Implementation",
+      "success": true,
+      "status": 200,
+      "description": "Solution implemented successfully",
+      "timestamp": "2025-10-15T01:20:09.474Z"
+    },
+    {
+      "category": "File Check",
+      "test": "Check app/dashboard-reportmanager/page.tsx",
+      "success": false,
+      "status": 404,
+      "error": "File not found",
+      "timestamp": "2025-10-15T01:20:09.475Z"
+    },
+    {
+      "category": "File Check",
+      "test": "Check components/SensorTimeSeriesChart-fixed-auth.tsx",
+      "success": false,
+      "status": 404,
+      "error": "File not found",
+      "timestamp": "2025-10-15T01:20:09.475Z"
+    },
+    {
+      "category": "File Check",
+      "test": "Check components/MesureTable-fixed-auth.tsx",
+      "success": false,
+      "status": 404,
+      "error": "File not found",
+      "timestamp": "2025-10-15T01:20:09.476Z"
+    },
+    {
+      "category": "File Check",
+      "test": "Check components/SensorTimeSeriesChart-enhanced.tsx",
+      "success": false,
+      "status": 404,
+      "error": "File not found",
+      "timestamp": "2025-10-15T01:20:09.476Z"
+    },
+    {
+      "category": "File Check",
+      "test": "Check app/dashboard-reportmanager/components/Charts.tsx",
+      "success": false,
+      "status": 404,
+      "error": "File not found",
+      "timestamp": "2025-10-15T01:20:09.476Z"
+    }
+  ]
+}

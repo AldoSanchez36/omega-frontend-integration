@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react"
 import EditableLeyenda from "@/app/dashboard/buttons/admin"
 import { API_ENDPOINTS } from "@/config/constants"
+import { authService } from "@/services/authService"
+import { httpService } from "@/services/httpService"
 
 interface RawMeasurement {
   fecha: string
@@ -41,7 +43,7 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
   const [tolerancia, setTolerancia] = useState<Tolerancia | null>(null)
   const [leyendaEditable, setLeyendaEditable] = useState<string>("")
   const [editLeyenda, setEditLeyenda] = useState(false)
-  const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
+  const token = authService.getToken();
   const encodedVar = encodeURIComponent(variable)
 
   // Fetch mediciones con lógica de cascada

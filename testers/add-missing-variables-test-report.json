@@ -1,0 +1,211 @@
+{
+  "authentication": true,
+  "addResults": [
+    {
+      "variable": "S1",
+      "success": false,
+      "error": "Body is unusable: Body has already been read"
+    },
+    {
+      "variable": "s2",
+      "success": false,
+      "error": "Body is unusable: Body has already been read"
+    },
+    {
+      "variable": "S2",
+      "success": false,
+      "error": "Body is unusable: Body has already been read"
+    }
+  ],
+  "variables": [
+    {
+      "id": "bd16ff60-dad9-496a-8547-b466738bfeca",
+      "nombre": "Alcalinidad F",
+      "unidad": "ppm",
+      "variables_procesos": [
+        {
+          "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+        }
+      ],
+      "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+    },
+    {
+      "id": "77c21ca7-01de-4020-b8c7-862c16d497f0",
+      "nombre": "Alcalinidad M",
+      "unidad": "ppm",
+      "variables_procesos": [
+        {
+          "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+        }
+      ],
+      "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+    },
+    {
+      "id": "945a1539-59a1-4319-90de-61933dd48533",
+      "nombre": "Cloro Libre",
+      "unidad": "ppm",
+      "variables_procesos": [
+        {
+          "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+        },
+        {
+          "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71"
+        }
+      ],
+      "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+    },
+    {
+      "id": "f5ed17dc-d353-4a24-8452-393d217e0935",
+      "nombre": "Cloruros",
+      "unidad": "ppm",
+      "variables_procesos": [
+        {
+          "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+        },
+        {
+          "proceso_id": "5dcc7d7e-1056-4e1a-8004-4b834b17fe71"
+        }
+      ],
+      "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+    },
+    {
+      "id": "08b435d1-6b9b-48b7-89c3-94063c0455b6",
+      "nombre": "Conductividad",
+      "unidad": "µs/cm",
+      "variables_procesos": [
+        {
+          "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+        }
+      ],
+      "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+    },
+    {
+      "id": "b57a20b2-fc90-4279-98d1-82188f6ad673",
+      "nombre": "Dureza Calcio",
+      "unidad": "ppm",
+      "variables_procesos": [
+        {
+          "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+        }
+      ],
+      "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+    },
+    {
+      "id": "3e926611-fe10-4825-a4bd-8f9da7fd97f4",
+      "nombre": "Dureza Total",
+      "unidad": "ppm",
+      "variables_procesos": [
+        {
+          "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+        }
+      ],
+      "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+    },
+    {
+      "id": "8430e1e2-5329-4b02-bf7d-94fc1f7d98b8",
+      "nombre": "Fe",
+      "unidad": "ppm",
+      "variables_procesos": [
+        {
+          "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+        }
+      ],
+      "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+    },
+    {
+      "id": "0bcf4e38-75d9-47f2-80c2-a02243502c0c",
+      "nombre": "Fosfatos",
+      "unidad": "",
+      "variables_procesos": [
+        {
+          "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+        }
+      ],
+      "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+    },
+    {
+      "id": "f6662b7c-4867-495f-b727-4b794782f291",
+      "nombre": "pH",
+      "unidad": "",
+      "variables_procesos": [
+        {
+          "proceso_id": "be38667b-ef15-444f-9810-2c947c45cb39"
+        },
+        {
+          "proceso_id": "4d3a4b5b-5af1-4610-8831-759c8bfa32ba"
+        }
+      ],
+      "proceso_id": "be38667b-ef15-444f-9810-2c947c45cb39"
+    },
+    {
+      "id": "84108e09-2020-4b3f-b236-1606c93fedfd",
+      "nombre": "pH 2",
+      "unidad": "ppm",
+      "variables_procesos": [],
+      "proceso_id": null
+    },
+    {
+      "id": "42bc0f0a-e117-4794-ad2d-0d34f5fffe51",
+      "nombre": "silicio",
+      "unidad": "ppm",
+      "variables_procesos": [
+        {
+          "proceso_id": "a375216d-ba3c-44a0-b40b-8ef42ca38290"
+        }
+      ],
+      "proceso_id": "a375216d-ba3c-44a0-b40b-8ef42ca38290"
+    },
+    {
+      "id": "5a3aa01c-366b-41d6-bb2f-d9d4f69abfdb",
+      "nombre": "SiO2",
+      "unidad": "ppm",
+      "variables_procesos": [
+        {
+          "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+        }
+      ],
+      "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+    },
+    {
+      "id": "1c9ef355-da61-40c2-bb95-22638e4f74b4",
+      "nombre": "Sulfatos",
+      "unidad": "",
+      "variables_procesos": [
+        {
+          "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+        }
+      ],
+      "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+    },
+    {
+      "id": "26f20ec5-fb8f-4f84-bbd5-0bf7533dca72",
+      "nombre": "TDS",
+      "unidad": "",
+      "variables_procesos": [
+        {
+          "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+        }
+      ],
+      "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+    },
+    {
+      "id": "01995807-f425-43b3-8607-b9ca34b79fec",
+      "nombre": "Temperatura",
+      "unidad": "C,K,F",
+      "variables_procesos": [],
+      "proceso_id": null
+    },
+    {
+      "id": "4b4accaa-c73e-48ed-9da4-ce02e42a4ec6",
+      "nombre": "TSS",
+      "unidad": "",
+      "variables_procesos": [
+        {
+          "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+        }
+      ],
+      "proceso_id": "1c4e9a9c-2ecc-4c40-9bdc-c517bc14f273"
+    }
+  ],
+  "timestamp": "2025-10-15T03:26:58.511Z"
+}

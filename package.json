@@ -6,7 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:dashboard": "node testers/run-dashboard-tests.js",
+    "test:dashboard:verbose": "node testers/run-dashboard-tests.js --verbose",
+    "test:dashboard:help": "node testers/run-dashboard-tests.js --help",
+    "test:pages": "node testers/run-all-page-tests.js",
+    "test:agregar-formula": "node testers/test-agregar-formula.js",
+    "test:users-management": "node testers/test-users-management.js",
+    "test:dashboard-parameters": "node testers/test-dashboard-parameters.js",
+    "test:dashboard-reportmanager": "node testers/test-dashboard-reportmanager.js",
+    "test:dashboard-agregarsistema": "node testers/test-dashboard-agregarsistema.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",

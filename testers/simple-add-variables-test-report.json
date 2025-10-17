@@ -1,0 +1,61 @@
+{
+  "authentication": true,
+  "addResults": [
+    {
+      "variable": "S1",
+      "success": false,
+      "error": "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+    },
+    {
+      "variable": "s2",
+      "success": false,
+      "error": "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+    },
+    {
+      "variable": "S2",
+      "success": false,
+      "error": "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+    }
+  ],
+  "variables": 17,
+  "endpointResults": [
+    {
+      "variable": "S1",
+      "success": false,
+      "status": 404,
+      "error": {
+        "ok": false,
+        "msg": "Variable no encontrada"
+      }
+    },
+    {
+      "variable": "s2",
+      "success": false,
+      "status": 404,
+      "error": {
+        "ok": false,
+        "msg": "Variable no encontrada"
+      }
+    },
+    {
+      "variable": "S2",
+      "success": false,
+      "status": 404,
+      "error": {
+        "ok": false,
+        "msg": "Variable no encontrada"
+      }
+    },
+    {
+      "variable": "Cloruros",
+      "success": true,
+      "measurements": 34
+    },
+    {
+      "variable": "Cloro Libre",
+      "success": true,
+      "measurements": 34
+    }
+  ],
+  "timestamp": "2025-10-15T03:27:22.831Z"
+}

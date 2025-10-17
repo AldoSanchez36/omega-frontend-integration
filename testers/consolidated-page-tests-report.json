@@ -1,0 +1,166 @@
+{
+  "summary": {
+    "totalSuites": 5,
+    "successfulSuites": 0,
+    "failedSuites": 5,
+    "totalTests": 5,
+    "totalSuccessful": 0,
+    "totalFailed": 5,
+    "totalDuration": 225,
+    "suiteSuccessRate": 0,
+    "testSuccessRate": 0
+  },
+  "results": [
+    {
+      "name": "Agregar Formula",
+      "path": "/agregar-formula",
+      "summary": {
+        "total": 1,
+        "successful": 0,
+        "failed": 1,
+        "duration": 73,
+        "successRate": 0
+      },
+      "categories": {
+        "Authentication": {
+          "total": 1,
+          "successful": 0,
+          "failed": 1
+        }
+      },
+      "results": [
+        {
+          "category": "Authentication",
+          "test": "Login",
+          "success": false,
+          "error": "fetch failed",
+          "endpoint": "/api/auth/login",
+          "method": "POST",
+          "timestamp": "2025-10-14T04:26:32.900Z"
+        }
+      ],
+      "success": false
+    },
+    {
+      "name": "Users Management",
+      "path": "/users-management",
+      "summary": {
+        "total": 1,
+        "successful": 0,
+        "failed": 1,
+        "duration": 6,
+        "successRate": 0
+      },
+      "categories": {
+        "Authentication": {
+          "total": 1,
+          "successful": 0,
+          "failed": 1
+        }
+      },
+      "results": [
+        {
+          "category": "Authentication",
+          "test": "Login",
+          "success": false,
+          "error": "fetch failed",
+          "endpoint": "/api/auth/login",
+          "method": "POST",
+          "timestamp": "2025-10-14T04:26:32.910Z"
+        }
+      ],
+      "success": false
+    },
+    {
+      "name": "Dashboard Parameters",
+      "path": "/dashboard-parameters",
+      "summary": {
+        "total": 1,
+        "successful": 0,
+        "failed": 1,
+        "duration": 6,
+        "successRate": 0
+      },
+      "categories": {
+        "Authentication": {
+          "total": 1,
+          "successful": 0,
+          "failed": 1
+        }
+      },
+      "results": [
+        {
+          "category": "Authentication",
+          "test": "Login",
+          "success": false,
+          "error": "fetch failed",
+          "endpoint": "/api/auth/login",
+          "method": "POST",
+          "timestamp": "2025-10-14T04:26:32.921Z"
+        }
+      ],
+      "success": false
+    },
+    {
+      "name": "Dashboard Report Manager",
+      "path": "/dashboard-reportmanager",
+      "summary": {
+        "total": 1,
+        "successful": 0,
+        "failed": 1,
+        "duration": 8,
+        "successRate": 0
+      },
+      "categories": {
+        "Authentication": {
+          "total": 1,
+          "successful": 0,
+          "failed": 1
+        }
+      },
+      "results": [
+        {
+          "category": "Authentication",
+          "test": "Login",
+          "success": false,
+          "error": "fetch failed",
+          "endpoint": "/api/auth/login",
+          "method": "POST",
+          "timestamp": "2025-10-14T04:26:32.933Z"
+        }
+      ],
+      "success": false
+    },
+    {
+      "name": "Dashboard Agregar Sistema",
+      "path": "/dashboard-agregarsistema",
+      "summary": {
+        "total": 1,
+        "successful": 0,
+        "failed": 1,
+        "duration": 11,
+        "successRate": 0
+      },
+      "categories": {
+        "Authentication": {
+          "total": 1,
+          "successful": 0,
+          "failed": 1
+        }
+      },
+      "results": [
+        {
+          "category": "Authentication",
+          "test": "Login",
+          "success": false,
+          "error": "fetch failed",
+          "endpoint": "/api/auth/login",
+          "method": "POST",
+          "timestamp": "2025-10-14T04:26:32.944Z"
+        }
+      ],
+      "success": false
+    }
+  ],
+  "timestamp": "2025-10-14T04:26:32.959Z"
+}

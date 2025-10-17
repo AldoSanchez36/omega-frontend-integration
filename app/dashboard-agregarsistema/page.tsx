@@ -111,6 +111,10 @@ export default function ParameterManager() {
   const [newParameterName, setNewParameterName] = useState("")
   const [newParameterUnit, setNewParameterUnit] = useState("")
 
+  // Estado para variables globales
+  const [allVariables, setAllVariables] = useState<Parameter[]>([]);
+  const [selectedImportVariableId, setSelectedImportVariableId] = useState<string>("");
+
   // Edit parameter modal state
   const [editingParam, setEditingParam] = useState<Parameter | null>(null)
   const [editName, setEditName] = useState("")
@@ -612,6 +616,56 @@ export default function ParameterManager() {
     setNewParameterUnit("")
   }
 
+  // Función para obtener variables disponibles (no asociadas al sistema actual)
+  const getAvailableVariables = useCallback(() => {
+    if (!selectedSystemId) return [];
+    
+    return allVariables.filter(variable => {
+      // Obtener los nombres de parámetros ya existentes en el sistema actual
+      const existingParameterNames = parameters.map(p => p.nombre.toLowerCase());
+      
+      // Una variable está disponible si:
+      // 1. No está ya en el sistema actual (por nombre)
+      // 2. No está asociada específicamente a otro sistema (o es global)
+      const isNotInCurrentSystem = !existingParameterNames.includes(variable.nombre.toLowerCase());
+      const isGlobalOrFromOtherSystem = !variable.proceso_id || variable.proceso_id !== selectedSystemId;
+      
+      return isNotInCurrentSystem && isGlobalOrFromOtherSystem;
+    });
+  }, [allVariables, parameters, selectedSystemId]);
+
+  // Cargar todas las variables existentes (de todos los sistemas)
+  useEffect(() => {
+    const fetchAllVariables = async () => {
+      try {
+        console.log('🔍 Fetching all variables...');
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_ALL}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) {
+          console.log('❌ Error fetching variables:', res.status);
+          return;
+        }
+        const data = await res.json();
+        console.log('✅ Variables loaded:', data);
+        setAllVariables(data.variables || data || []);
+      } catch (error) {
+        console.log('💥 Error fetching variables:', error);
+      }
+    };
+    fetchAllVariables();
+  }, [token]);
+
+  // Al seleccionar una variable existente, copia nombre y unidad al formulario
+  useEffect(() => {
+    if (!selectedImportVariableId) return;
+    const variable = allVariables.find(v => v.id === selectedImportVariableId);
+    if (variable) {
+      setNewParameterName(variable.nombre);
+      setNewParameterUnit(variable.unidad);
+    }
+  }, [selectedImportVariableId, allVariables]);
+
   const handleSaveParameters = async (e: React.FormEvent) => {
     e.preventDefault() // Prevent default form submission
     const newParamsToSave = parameters.filter((p) => p.isNew)
@@ -826,6 +880,7 @@ export default function ParameterManager() {
                         </Button>
                       </div>
                     )}
+
                     
                     {/* Edit System Dialog */}
                     <Dialog open={showEditSystemDialog} onOpenChange={setShowEditSystemDialog}>
@@ -906,6 +961,75 @@ export default function ParameterManager() {
                     </Dialog>
                   </div>
                 </div>
+
+                {/* --- Add New Parameter Form --- */}
+                {selectedSystemId && (
+                  <div className="border-t border-gray-200 pt-6 bg-blue-50 p-6 rounded-lg">
+                    <h2 className="text-lg font-medium leading-6 text-gray-900">Agregar Nuevo Parámetro</h2>
+                    <p className="mt-1 text-sm text-gray-500">Añada un nuevo parámetro al sistema seleccionado.</p>
+                    
+                    {/* Debug info */}
+                    <div className="text-xs text-gray-500 mb-4 p-2 bg-gray-100 rounded">
+                      Debug: selectedSystemId = {selectedSystemId}, allVariables.length = {allVariables.length}
+                    </div>
+                    
+                    {/* Droplist de variables existentes */}
+                    {allVariables.length > 0 && (
+                      <div className="mb-4">
+                        <Label htmlFor="import-variable">Importar variable existente</Label>
+                        <Select
+                          value={selectedImportVariableId}
+                          onValueChange={setSelectedImportVariableId}
+                        >
+                          <SelectTrigger className="w-full bg-[#f6f6f6] text-gray-900 border border-gray-300 rounded-md">
+                            <SelectValue placeholder="Selecciona una variable existente" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                            {getAvailableVariables().map((variable) => (
+                              <SelectItem key={variable.id} value={variable.id}>
+                                {variable.nombre} ({variable.unidad})
+                                {!variable.proceso_id && " - Global"}
+                                {variable.proceso_id && variable.proceso_id !== selectedSystemId && " - De otro sistema"}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {getAvailableVariables().length === 0 && (
+                          <p className="text-sm text-gray-500 mt-1">
+                            No hay variables disponibles para importar. Todas las variables ya están en este sistema o no hay variables globales.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    
+                    <div className="mt-6 grid md:grid-cols-2 gap-6">
+                      <div className="grid gap-2">
+                        <Label htmlFor="new-param-name">Nombre del Parámetro</Label>
+                        <Input
+                          id="new-param-name"
+                          placeholder="Ej. Temperatura"
+                          value={newParameterName}
+                          onChange={(e) => setNewParameterName(e.target.value)}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="new-param-unit">Unidad de Medida</Label>
+                        <Input
+                          id="new-param-unit"
+                          placeholder="Ej. °C"
+                          value={newParameterUnit}
+                          onChange={(e) => setNewParameterUnit(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <Button type="button" onClick={handleAddParameter} className="mt-4" disabled={!selectedSystemId || loading}>
+                      <Plus className="mr-2 h-4 w-4" /> Agregar Parámetro a la lista
+                    </Button>
+                    <p className="mt-2 text-sm text-gray-500">
+                      ⚠️ Recuerde hacer clic en <strong>"Guardar Cambios"</strong> al final del formulario para guardar los parámetros en la base de datos.
+                    </p>
+                  </div>
+                )}
 
                 {/* --- Parámetros del Sistema --- */}
                 {selectedSystemId && (
@@ -1070,43 +1194,10 @@ export default function ParameterManager() {
                   </div>
                 )}
                 
-                {/* --- Add New Parameter Form --- */}
-                {/*{selectedSystemId && (
-                  <div className="border-t border-gray-200 pt-6">
-                    <h2 className="text-lg font-medium leading-6 text-gray-900">Agregar Nuevo Parámetro</h2>
-                    <p className="mt-1 text-sm text-gray-500">Añada un nuevo parámetro al sistema seleccionado.</p>
-                    <div className="mt-6 grid md:grid-cols-2 gap-6">
-                      <div className="grid gap-2">
-                        <Label htmlFor="new-param-name">Nombre del Parámetro</Label>
-                        <Input
-                          id="new-param-name"
-                          placeholder="Ej. Temperatura"
-                          value={newParameterName}
-                          onChange={(e) => setNewParameterName(e.target.value)}
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="new-param-unit">Unidad de Medida</Label>
-                        <Input
-                          id="new-param-unit"
-                          placeholder="Ej. °C"
-                          value={newParameterUnit}
-                          onChange={(e) => setNewParameterUnit(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <Button type="button" onClick={handleAddParameter} className="mt-4" disabled={!selectedSystemId || loading}>
-                      <Plus className="mr-2 h-4 w-4" /> Agregar Parámetro a la lista
-                    </Button>
-                    <p className="mt-2 text-sm text-gray-500">
-                      ⚠️ Recuerde hacer clic en <strong>"Guardar Cambios"</strong> al final del formulario para guardar los parámetros en la base de datos.
-                    </p>
-                  </div>
-                )}*/}
               </div>
               
               {/* --- Action Buttons --- */}
-              {/*{selectedSystemId && (
+              {selectedSystemId && (
                 <div className="mt-8 pt-5 border-t border-gray-200">
                   <div className="flex justify-end space-x-3">
                     <Button type="button" variant="outline" onClick={() => router.back()}>
@@ -1117,7 +1208,7 @@ export default function ParameterManager() {
                     </Button>
                   </div>
                 </div>
-              )}*/}
+              )}
             </form>
           </div>
         </div>

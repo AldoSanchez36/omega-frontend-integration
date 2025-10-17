@@ -490,7 +490,7 @@ export default function UsersManagement() {
             <div>
               <h1 className="text-2xl font-semibold flex items-center mb-1">
                 <span className="material-icons mr-2">people</span>
-                Gesti├│n de Usuarios
+                Gestion de Usuarios
               </h1>
               <p className="opacity-75">Administra los usuarios del sistema</p>
             </div>
@@ -620,7 +620,7 @@ export default function UsersManagement() {
               <div>
                 <small className="block text-gray-500 mb-1">Token disponible:</small>
                 <div className={`font-semibold ${authService.getToken() ? "text-green-600" : "text-red-600"}`}>
-                  {authService.getToken() ? "Ô£à S├¡" : "ÔØî No"}
+                  {authService.getToken() ? "✓ Sí" : "✗ No"}
                 </div>
               </div>
               <div>
@@ -629,7 +629,7 @@ export default function UsersManagement() {
               </div>
               <div>
                 <small className="block text-gray-500 mb-1">Estado:</small>
-                <div className="font-semibold text-green-600">Ô£à Conectado</div>
+                <div className="font-semibold text-blue-600">✓ Conectado</div>
               </div>
             </div>
           </div>
