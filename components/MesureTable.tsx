@@ -122,7 +122,7 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
             
             if (filteredProcessData.length > 0) {
               finalData = filteredProcessData;
-              console.log(`[MesureTable] Datos encontrados por proceso: ${filteredProcessData.length} registros`);
+              //console.log(`[MesureTable] Datos encontrados por proceso: ${filteredProcessData.length} registros`);
             }
           }
         }

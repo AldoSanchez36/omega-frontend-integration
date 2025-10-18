@@ -38,6 +38,9 @@ interface Props {
   tolLoading: Record<string, boolean>;
   tolError: Record<string, string | null>;
   tolSuccess: Record<string, string | null>;
+  selectedSystem?: string;
+  selectedPlant?: { id: string; nombre?: string } | null;
+  onLimitsStateChange?: (limitsState: Record<string, { limite_min: boolean; limite_max: boolean }>) => void;
 }
 
 const ParametersVariableList: React.FC<Props> = ({
@@ -51,7 +54,28 @@ const ParametersVariableList: React.FC<Props> = ({
   tolLoading,
   tolError,
   tolSuccess,
-}) => {
+  selectedSystem,
+  selectedPlant,
+  onLimitsStateChange,
+  }) => {
+  
+  // Función para notificar cambios de estado de límites
+  const notifyLimitsStateChange = (parameterId: string, limiteType: 'limite_min' | 'limite_max', newState: boolean) => {
+    if (onLimitsStateChange) {
+      const currentState = parameters.reduce((acc, param) => {
+        acc[param.id] = {
+          limite_min: !!tolerancias[param.id]?.usar_limite_min,
+          limite_max: !!tolerancias[param.id]?.usar_limite_max,
+        };
+        return acc;
+      }, {} as Record<string, { limite_min: boolean; limite_max: boolean }>);
+      
+      // Actualizar el estado específico
+      currentState[parameterId][limiteType] = newState;
+      
+      onLimitsStateChange(currentState);
+    }
+  };
   
   // Función para determinar el color del input basado en el valor y límites
   const getInputColor = (parameterId: string, value: number | undefined): string => {
@@ -176,7 +200,24 @@ const ParametersVariableList: React.FC<Props> = ({
                 <div className="flex flex-col items-center">
                   <div className="flex items-center gap-1 mb-0.5">
                     <span className={`text-xs font-semibold ${usarLimiteMin ? 'text-yellow-700' : 'text-gray-500'}`}>Bajo bajo</span>
-                    <button type="button" onClick={() => handleTolChange(parameter.id, 'usar_limite_min', !usarLimiteMin)}
+                    <button type="button" onClick={() => {
+                      const newState = !usarLimiteMin;
+                      handleTolChange(parameter.id, 'usar_limite_min', newState);
+                      
+                      // Notificar cambio de estado
+                      notifyLimitsStateChange(parameter.id, 'limite_min', newState);
+                      
+                      // Console.log para ambos estados (activado/desactivado)
+                      console.log("🔘 Radio button CAMBIO DE ESTADO:", {
+                        variable: parameter.nombre,
+                        variableId: parameter.id,
+                        sistema: selectedSystem || "No seleccionado",
+                        planta: selectedPlant?.nombre || "No seleccionada",
+                        limite: "limite_min",
+                        estado: newState ? "activado" : "desactivado",
+                        timestamp: new Date().toISOString()
+                      });
+                    }}
                       className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${
                         usarLimiteMin ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'
                       }`}>
@@ -193,21 +234,17 @@ const ParametersVariableList: React.FC<Props> = ({
                 </div>
               )}
               
-              {/* Bajo / Alto - siempre presente */}
-              <div className="flex flex-row gap-1" >
+              {/* Bajo / Alto - siempre presente, alineados verticalmente */}
+              <div className="flex flex-row gap-2 items-end">
                 <div className="flex flex-col items-center">
-                  <span className="text-xs font-semibold text-green-700 text-center w-full">Bajo</span>
-                  <div className="flex flex-row gap-1">
-                    <span className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1 h-8 flex items-center justify-center"
-                      >{tolerancias[parameter.id]?.bien_min ?? '-'}</span>
-                  </div>
+                  <span className="text-xs font-semibold text-green-700 text-center w-full mb-1">Bajo</span>
+                  <span className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1 h-8 flex items-center justify-center rounded"
+                    >{tolerancias[parameter.id]?.bien_min ?? '-'}</span>
                 </div>
                 <div className="flex flex-col items-center">
-                  <span className="text-xs font-semibold text-green-700 text-center w-full">Alto</span>
-                  <div className="flex flex-row gap-1">
-                    <span className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1 h-8 flex items-center justify-center"
-                      >{tolerancias[parameter.id]?.bien_max ?? '-'}</span>
-                  </div>
+                  <span className="text-xs font-semibold text-green-700 text-center w-full mb-1">Alto</span>
+                  <span className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1 h-8 flex items-center justify-center rounded"
+                    >{tolerancias[parameter.id]?.bien_max ?? '-'}</span>
                 </div>
               </div>
               
@@ -216,7 +253,24 @@ const ParametersVariableList: React.FC<Props> = ({
                 <div className="flex flex-col items-center">
                   <div className="flex items-center gap-1 mb-0.5">
                     <span className={`text-xs font-semibold ${usarLimiteMax ? 'text-yellow-700' : 'text-gray-500'}`}>Alto alto</span>
-                    <button type="button" onClick={() => handleTolChange(parameter.id, 'usar_limite_max', !usarLimiteMax)}
+                    <button type="button" onClick={() => {
+                      const newState = !usarLimiteMax;
+                      handleTolChange(parameter.id, 'usar_limite_max', newState);
+                      
+                      // Notificar cambio de estado
+                      notifyLimitsStateChange(parameter.id, 'limite_max', newState);
+                      
+                      // Console.log para ambos estados (activado/desactivado)
+                      console.log("🔘 Radio button CAMBIO DE ESTADO:", {
+                        variable: parameter.nombre,
+                        variableId: parameter.id,
+                        sistema: selectedSystem || "No seleccionado",
+                        planta: selectedPlant?.nombre || "No seleccionada",
+                        limite: "limite_max",
+                        estado: newState ? "activado" : "desactivado",
+                        timestamp: new Date().toISOString()
+                      });
+                    }}
                       className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${
                         usarLimiteMax ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'
                       }`}>

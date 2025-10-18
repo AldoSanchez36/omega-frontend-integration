@@ -143,7 +143,7 @@ export function SensorTimeSeriesChart({
             
             if (filteredProcessData.length > 0) {
               finalData = filteredProcessData;
-              console.log(`Datos encontrados por proceso: ${filteredProcessData.length} registros`);
+              //console.log(`Datos encontrados por proceso: ${filteredProcessData.length} registros`);
             }
           }
         }

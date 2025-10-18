@@ -212,6 +212,9 @@ export default function ReportManager() {
   let handleSaveData: () => Promise<void> = async () => {};
   let setMedicionesPreview: (data: any[]) => void = () => {};
 
+  // Estado para el estado de los límites de todas las variables
+  const [limitsState, setLimitsState] = useState<Record<string, { limite_min: boolean; limite_max: boolean }>>({});
+
   // Custom handlers that extend the hook functionality
   const handleSelectUserWithReset = useCallback(async (userId: string) => {
     setParameters([])
@@ -355,6 +358,7 @@ export default function ReportManager() {
     parameterValues,
     systems, // allSystems
     allParameters, // allParameters - ahora con todos los sistemas
+    limitsState, // Pasar el estado de límites actual
     (reportData) => {
       // Callback cuando se guardan exitosamente los datos
       setSavedReportData(reportData);
@@ -433,6 +437,19 @@ export default function ReportManager() {
       }
     }));
     console.log("📥 Medición ingresada:", parameterId, data);
+  }, []);
+
+  // Función para manejar cambios de estado de límites
+  const handleLimitsStateChange = useCallback((newLimitsState: Record<string, { limite_min: boolean; limite_max: boolean }>) => {
+    setLimitsState(newLimitsState);
+    console.log("🔘 Estado de límites actualizado:", newLimitsState);
+    
+    // Aquí puedes agregar lógica adicional basada en el estado de los límites
+    const hasAnyActivatedLimits = Object.values(newLimitsState).some(limits => 
+      limits.limite_min || limits.limite_max
+    );
+    
+    console.log("📊 ¿Alguna variable tiene límites activados?", hasAnyActivatedLimits);
   }, []);
 
   
@@ -566,6 +583,7 @@ export default function ReportManager() {
               selectedUser={selectedUser}
               selectedPlant={selectedPlant}
               selectedSystem={selectedSystem}
+              onLimitsStateChange={handleLimitsStateChange}
             />
           )}
 
