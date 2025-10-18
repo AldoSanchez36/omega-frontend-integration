@@ -38,7 +38,7 @@ export default function UsersManagement() {
   const [showPermissionModal, setShowPermissionModal] = useState(false)
   const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<User | null>(null)
 
-  // Modal edición usuario
+  // Modal edici├│n usuario
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null)
   const [editUsername, setEditUsername] = useState("")
@@ -69,7 +69,7 @@ export default function UsersManagement() {
   const [user, setUser] = useState<User | null>(null)
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("user")
 
-  // --- MODAL DE GESTIONAR PERMISOS: LÓGICA DE CASCADA Y PERMISOS ---
+  // --- MODAL DE GESTIONAR PERMISOS: L├ôGICA DE CASCADA Y PERMISOS ---
   const [plantasModal, setPlantasModal] = useState<any[]>([]);
   const [plantaSeleccionadaModal, setPlantaSeleccionadaModal] = useState<string>("");
   const [sistemasModal, setSistemasModal] = useState<any[]>([]);
@@ -116,12 +116,12 @@ export default function UsersManagement() {
         // Obtener token
         const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
         if (!token) {
-          setError("No hay token de autenticación")
+          setError("No hay token de autenticaci├│n")
           setLoading(false)
           return
         }
         
-        // Hacer la petición con axios
+        // Hacer la petici├│n con axios
         const response = await axios.get(`${API_BASE_URL}${API_ENDPOINTS.USERS}`, {
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -145,12 +145,12 @@ export default function UsersManagement() {
       } catch (err) {
         if (axios.isAxiosError(err)) {
           if (err.response?.status === 401) {
-            setError("Sesión expirada. Por favor, inicia sesión nuevamente.")
+            setError("Sesi├│n expirada. Por favor, inicia sesi├│n nuevamente.")
           } else {
             setError(`Error del servidor: ${err.response?.status} - ${err.response?.statusText}`)
           }
         } else {
-          setError("Error de conexión. Verifica que el backend esté corriendo.")
+          setError("Error de conexi├│n. Verifica que el backend est├® corriendo.")
         }
       } finally {
         setLoading(false)
@@ -192,7 +192,7 @@ export default function UsersManagement() {
         }
       })
       .catch(error => {
-        console.error("⚠️ Error fetching plantas:", error);
+        console.error("ÔØî Error fetching plantas:", error);
         // Si el endpoint de todas las plantas no existe, fallback al endpoint de accesibles
         if (isAdmin) {
           fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
@@ -206,7 +206,7 @@ export default function UsersManagement() {
               }
             })
             .catch(fallbackError => {
-              console.error("⚠️ Error en fallback:", fallbackError);
+              console.error("ÔØî Error en fallback:", fallbackError);
             });
         }
       });
@@ -228,7 +228,7 @@ export default function UsersManagement() {
         }
       })
       .catch(error => {
-        console.error("⚠️ Error fetching sistemas:", error);
+        console.error("ÔØî Error fetching sistemas:", error);
       });
   }, [plantaSeleccionadaModal]);
 
@@ -254,7 +254,7 @@ export default function UsersManagement() {
         setPermisoEditar(!!found?.puede_editar);
       })
       .catch((error) => {
-        console.error("⚠️ Error fetching permisos de planta:", error);
+        console.error("ÔØî Error fetching permisos de planta:", error);
         setPermisoVer(false);
         setPermisoEditar(false);
       });
@@ -440,7 +440,7 @@ export default function UsersManagement() {
     setPermisosLoading(false)
   }
 
-  // Modal handler edición
+  // Modal handler edici├│n
   const openEditModal = (user: User) => {
     setSelectedUserForEdit(user)
     setEditUsername(user.username)
@@ -591,6 +591,7 @@ export default function UsersManagement() {
     }
   }
 
+
   // PATCH update user
   const handleEditSave = async () => {
     if (!selectedUserForEdit) return
@@ -669,6 +670,31 @@ export default function UsersManagement() {
     }
   }
 
+    if (!selectedUserForDelete) return
+    if (!window.confirm("┬┐Seguro que deseas eliminar este usuario?")) return
+    setEditLoading(true)
+    setEditError(null)
+    setEditSuccess(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USER_DELETE(String(selectedUserForEdit._id || ""))}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "No se pudo eliminar el usuario.")
+      }
+      setEditSuccess("Usuario eliminado correctamente.")
+      setTimeout(() => {
+        closeEditModal()
+        window.location.reload()
+      }, 1000)
+    } catch (e: any) {
+      setEditError(e.message)
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
   // DELETE user - Nueva implementación
   const handleDeleteUser = async () => {
     if (!selectedUserForDelete) return
@@ -739,7 +765,7 @@ export default function UsersManagement() {
     }
   }
 
-  // Handler para guardar permisos de planta (versión corregida según backend)
+  // Handler para guardar permisos de planta (versi├│n corregida seg├║n backend)
   const handleGuardarPermisos = async () => {
     if (!selectedUserForPermissions || !plantaSeleccionadaModal) {
       return;
@@ -780,7 +806,7 @@ export default function UsersManagement() {
       
       setPermisosSuccess("Permisos de planta asignados correctamente");
       
-      // Cerrar modal después de 1.5 segundos
+      // Cerrar modal despu├®s de 1.5 segundos
       setTimeout(() => {
         closePermissionModal();
       }, 1500);
@@ -1157,7 +1183,7 @@ export default function UsersManagement() {
           </div>
         </div>
 
-        {/* Modal de edición de usuario */}
+        {/* Modal de edici├│n de usuario */}
         {showEditModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="fixed inset-0 bg-gray-500/75 transition-opacity" aria-hidden="true" onClick={closeEditModal}></div>
@@ -1356,7 +1382,7 @@ export default function UsersManagement() {
               onClick={closePermissionModal}
             />
             
-            {/* Contenedor del modal centrado con ancho máximo */}
+            {/* Contenedor del modal centrado con ancho m├íximo */}
             <div className="relative w-full max-w-[1000px] max-h-[90vh] bg-white rounded-lg shadow-xl overflow-hidden flex flex-col">
               {/* Header del modal */}
               <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
@@ -1382,7 +1408,7 @@ export default function UsersManagement() {
 
               {/* Contenido scrolleable del modal */}
               <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-                {/* Información del usuario */}
+                {/* Informaci├│n del usuario */}
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
@@ -1415,7 +1441,7 @@ export default function UsersManagement() {
                   </div>
                 )}
 
-                {/* Sección de configuración de permisos */}
+                {/* Secci├│n de configuraci├│n de permisos */}
                 <div className="space-y-6">
                   {/* Dropdown de plantas */}
                   <div>
@@ -1467,7 +1493,7 @@ export default function UsersManagement() {
                     </div>
                   )}
 
-                  {/* Información del sistema seleccionado y permisos */}
+                  {/* Informaci├│n del sistema seleccionado y permisos */}
                   {plantasModal.length > 0 && sistemasModal.length > 0 && (
                     sistemasModal.map((sistema: any) => (
                       sistema.id === sistemaSeleccionadoModal && (
@@ -1518,7 +1544,7 @@ export default function UsersManagement() {
                     ))
                   )}
 
-                  {/* Mensajes de error y éxito */}
+                  {/* Mensajes de error y ├®xito */}
                   {permisosError && (
                     <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                       <div className="flex items-center gap-3">
@@ -1536,7 +1562,7 @@ export default function UsersManagement() {
                       <div className="flex items-center gap-3">
                         <span className="material-icons text-green-600 text-lg">check_circle</span>
                         <div>
-                          <h4 className="font-medium text-green-900 mb-1">Éxito</h4>
+                          <h4 className="font-medium text-green-900 mb-1">├ëxito</h4>
                           <p className="text-sm text-green-800">{permisosSuccess}</p>
                         </div>
                       </div>
