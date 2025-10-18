@@ -34,7 +34,7 @@ interface Props {
   handleParameterChange: (parameterId: string, field: "checked" | "value", value: boolean | number) => void;
   handleUnitChange: (parameterId: string, unidad: string) => void;
   handleTolChange: (variableId: string, field: string, value: string | boolean) => void;
-  // handleTolSave: (variableId: string) => Promise<void>;
+  handleTolSave: (variableId: string) => Promise<void>;
   tolLoading: Record<string, boolean>;
   tolError: Record<string, string | null>;
   tolSuccess: Record<string, string | null>;
@@ -47,7 +47,7 @@ const ParametersVariableList: React.FC<Props> = ({
   handleParameterChange,
   handleUnitChange,
   handleTolChange,
-  // handleTolSave,
+  handleTolSave,
   tolLoading,
   tolError,
   tolSuccess,
@@ -55,7 +55,7 @@ const ParametersVariableList: React.FC<Props> = ({
   
   // Función para determinar el color del input basado en el valor y límites
   const getInputColor = (parameterId: string, value: number | undefined): string => {
-    if (value === undefined || value === null) return '';
+    if (value === undefined || value === null) return '#FFC6CE';
     
     const tolerancia = tolerancias[parameterId];
     if (!tolerancia) return '';
@@ -63,18 +63,31 @@ const ParametersVariableList: React.FC<Props> = ({
     const numValue = Number(value);
     if (isNaN(numValue)) return '';
     
-    // Verificar si está fuera de todos los rangos (rojo)
     const usarLimiteMin = !!tolerancia.usar_limite_min;
     const usarLimiteMax = !!tolerancia.usar_limite_max;
+    const bienMin = tolerancia.bien_min;
+    const bienMax = tolerancia.bien_max;
     
-    // Si está por debajo del límite mínimo (si existe)
+    // CASO 1: Si solo existen bienMin y bienMax (sin limite_min/limite_max)
+    if (!usarLimiteMin && !usarLimiteMax && 
+        bienMin !== null && bienMin !== undefined && 
+        bienMax !== null && bienMax !== undefined) {
+      
+      if (numValue < bienMin || numValue > bienMax) {
+        return '#FFC6CE'; // Rojo - fuera del rango bien
+      } else {
+        return '#C6EFCE'; // Verde - dentro del rango bien
+      }
+    }
+    
+    // CASO 2: Si existen limite_min y/o limite_max
+    // Verificar si está fuera de los límites críticos (rojo)
     if (usarLimiteMin && tolerancia.limite_min !== null && tolerancia.limite_min !== undefined) {
       if (numValue < tolerancia.limite_min) {
         return '#FFC6CE'; // Rojo
       }
     }
     
-    // Si está por encima del límite máximo (si existe)
     if (usarLimiteMax && tolerancia.limite_max !== null && tolerancia.limite_max !== undefined) {
       if (numValue > tolerancia.limite_max) {
         return '#FFC6CE'; // Rojo
@@ -82,9 +95,6 @@ const ParametersVariableList: React.FC<Props> = ({
     }
     
     // Verificar si está en el rango de advertencia (amarillo)
-    const bienMin = tolerancia.bien_min;
-    const bienMax = tolerancia.bien_max;
-    
     // Si está por debajo del rango bien_min pero por encima del límite_min
     if (usarLimiteMin && tolerancia.limite_min !== null && tolerancia.limite_min !== undefined) {
       if (numValue >= tolerancia.limite_min && bienMin !== null && bienMin !== undefined && numValue < bienMin) {
@@ -106,7 +116,8 @@ const ParametersVariableList: React.FC<Props> = ({
       }
     }
     
-    return ''; // Sin color (blanco)
+    // Si no hay límites definidos, mostrar rojo por defecto
+    return '#FFC6CE';
   };
   return (
     <div className="space-y-4"> 
@@ -243,10 +254,10 @@ const ParametersVariableList: React.FC<Props> = ({
                   </span>
                 </div>
               )}
-             {/*  <Button size="icon" className="ml-2 h-7 w-7 p-0 flex items-center justify-center"
+              <Button size="icon" className="ml-2 h-7 w-7 p-0 flex items-center justify-center"
                 onClick={() => handleTolSave(parameter.id)} disabled={tolLoading[parameter.id]} title="Guardar límites">
                 <span className="material-icons text-base">save</span>
-              </Button> */}
+              </Button>
               <div className="flex flex-col items-center justify-end">
                 {tolError[parameter.id] && <div className="text-xs text-red-600">{tolError[parameter.id]}</div>}
                 {tolSuccess[parameter.id] && <div className="text-xs text-green-600">{tolSuccess[parameter.id]}</div>}

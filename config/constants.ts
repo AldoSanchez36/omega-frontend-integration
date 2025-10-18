@@ -16,7 +16,7 @@ export const API_ENDPOINTS = {
   USERS: '/api/auth/users',
   USER_BY_ID: (userId: string) => `/api/auth/user/${userId}`,
   USER_BY_NAME: (username: string) => `/api/auth/user-by-name/${username}`,
-  USER_BY_PLANT: (plantId: string) => `/api/auth/user-by-plant/${plantId}`,
+  USERS_BY_PLANT: (plantName: string) => `/api/auth/users-by-plant/${encodeURIComponent(plantName)}`,
   FORGOT_PASSWORD: '/api/auth/forgot-password',
   RESET_PASSWORD: '/api/auth/reset-password',
   VERIFY_EMAIL: '/api/auth/verificar',
@@ -65,6 +65,7 @@ export const API_ENDPOINTS = {
   
   // Tolerances
   TOLERANCES: '/api/variables-tolerancia',
+  TOLERANCES_FILTERS: '/api/variables-tolerancia/filtros',
   TOLERANCE_BY_ID: (id: string) => `/api/variables-tolerancia/${id}`,
   TOLERANCE_BY_NAME: (id: string) => `/api/variables-tolerancia/nombre/${id}`,
   TOLERANCE_UPDATE: (id: string) => `/api/variables-tolerancia/${id}`,

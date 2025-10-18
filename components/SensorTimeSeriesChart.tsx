@@ -64,7 +64,7 @@ export function SensorTimeSeriesChart({
   const [sensors, setSensors] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null);
-  const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
+  const token = authService.getToken();
   const encodedVar = encodeURIComponent(variable)
 
   useEffect(() => {
