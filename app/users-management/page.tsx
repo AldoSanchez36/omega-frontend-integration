@@ -611,19 +611,19 @@ export default function UsersManagement() {
       <div className="min-h-screen bg-gray-50">
        <Navbar role={userRole} />
         {/* Header */}
-        <div className="bg-blue-600 text-white py-6 rounded-lg shadow mb-6">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-6 rounded-lg shadow mb-6">
           <div className="container mx-auto flex flex-col md:flex-row items-center justify-between">
             <div>
-              <h1 className="text-2xl font-semibold flex items-center mb-1">
-                <span className="material-icons mr-2">people</span>
-                Gestion de Usuarios
+              <h1 className="text-2xl font-bold flex items-center mb-1">
+                <span className="material-icons mr-2 text-3xl">people</span>
+                Gestión de Usuarios
               </h1>
-              <p className="opacity-75">Administra los usuarios del sistema</p>
+              <p className="opacity-90">Administra los usuarios del sistema</p>
             </div>
-            <div>
-              <span className="bg-gray-200 text-blue-700 text-sm px-3 py-1 rounded-full">
-                {users.length} usuarios
-              </span>
+            <div className="mt-3 md:mt-0">
+              <div className="bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-full border border-white/30">
+                <span className="font-semibold">{users.length}</span> usuarios
+              </div>
             </div>
           </div>
         </div>
@@ -647,22 +647,24 @@ export default function UsersManagement() {
 
           <div className="bg-white rounded-lg shadow p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
-              <h5 className="text-gray-700 font-semibold mb-0">Lista de Usuarios</h5>
+              <div>
+                <h5 className="text-gray-700 font-semibold mb-0">Lista de Usuarios</h5>
+              </div>
               <div className="flex gap-2">
                 <button 
-                  className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition"
+                  className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition flex items-center"
                   onClick={limpiarFiltros}
                 >
                   <span className="material-icons align-middle mr-1">clear</span>
                   Limpiar Filtros
                 </button>
-              <button 
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
-                onClick={() => window.location.reload()}
-              >
-                <span className="material-icons align-middle mr-1">refresh</span>
-                Actualizar
-              </button>
+                <button 
+                  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition flex items-center"
+                  onClick={() => window.location.reload()}
+                >
+                  <span className="material-icons align-middle mr-1">refresh</span>
+                  Actualizar
+                </button>
               </div>
             </div>
             <div className="overflow-x-auto">

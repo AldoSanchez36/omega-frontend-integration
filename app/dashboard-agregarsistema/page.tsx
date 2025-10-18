@@ -756,34 +756,34 @@ export default function ParameterManager() {
                                 ))}
                               </SelectContent>
                             </Select>
-                            <div className="flex gap-2">
-                              <Button type="button" onClick={() => setShowCreatePlant(true)} variant="secondary">
-                                <Plus className="mr-2 h-4 w-4" /> Crear Planta
-                              </Button>
-                              {selectedPlant && (
-                                <Button 
-                                  type="button" 
-                                  onClick={() => handleOpenEditPlant(selectedPlant)} 
-                                  variant="outline"
-                                  className="border-blue-300 text-blue-700 hover:bg-blue-50"
-                                >
-                                  <Edit className="mr-2 h-4 w-4" /> Editar Nombre
+                              <div className="flex gap-2">
+                                <Button type="button" onClick={() => setShowCreatePlant(true)} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all">
+                                  <Plus className="mr-2 h-4 w-4" /> Crear Planta
                                 </Button>
-                              )}
-                            </div>
+                                {selectedPlant && (
+                                  <Button 
+                                    type="button" 
+                                    onClick={() => handleOpenEditPlant(selectedPlant)} 
+                                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                                  >
+                                    <Edit className="mr-2 h-4 w-4" /> Editar Nombre
+                                  </Button>
+                                )}
+                              </div>
                           </div>
-                          {showCreatePlant && (
-                            <div className="grid w-full grid-cols-[1fr_auto] gap-2 rounded-lg border p-3">
-                              <Input
-                                placeholder="Nombre de la nueva planta"
-                                value={newPlantName}
-                                onChange={(e) => setNewPlantName(e.target.value)}
-                              />
-                              <Button type="button" onClick={handleCreatePlant} disabled={loading || !newPlantName.trim()}>
-                                Guardar
-                              </Button>
-                            </div>
-                          )}
+                           {showCreatePlant && (
+                             <div className="grid w-full grid-cols-[1fr_auto] gap-3 rounded-xl border-2 border-green-200 p-4 bg-gradient-to-r from-green-50 to-emerald-50">
+                               <Input
+                                 placeholder="Nombre de la nueva planta"
+                                 value={newPlantName}
+                                 onChange={(e) => setNewPlantName(e.target.value)}
+                                 className="border-green-200 focus:border-green-400"
+                               />
+                               <Button type="button" onClick={handleCreatePlant} disabled={loading || !newPlantName.trim()} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all">
+                                 Guardar
+                               </Button>
+                             </div>
+                           )}
                         </div>
                       </div>
                     )}
@@ -793,11 +793,11 @@ export default function ParameterManager() {
                       <div>
                         <div className="grid grid-cols-[150px_1fr] items-start gap-4">
                           <Label className="pt-2 text-sm font-medium text-gray-700">Sistema</Label>
-                          <div className="flex items-center justify-between">
-                            <Button type="button" onClick={() => setShowCreateSystem(true)} variant="secondary">
-                              <Plus className="mr-2 h-4 w-4" /> Crear Sistema
-                            </Button>
-                          </div>
+                           <div className="flex items-center justify-between">
+                             <Button type="button" onClick={() => setShowCreateSystem(true)} className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all">
+                               <Plus className="mr-2 h-4 w-4" /> Crear Sistema
+                             </Button>
+                           </div>
                         </div>
                       </div>
                     )}
@@ -819,42 +819,41 @@ export default function ParameterManager() {
                             </button>
                           ))}
                         </div>*/}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                          {systems.map((system) => (
-                            <div key={system.id} className="flex flex-col h-full">
-                              <div
-                                onClick={() => setSelectedSystemId(system.id)}
-                                className={`flex flex-col h-full justify-between px-4 py-3 text-sm font-medium rounded border cursor-pointer ${
-                                  selectedSystemId === system.id
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                                }`}
-                              >
-                                <div className="flex-grow flex items-center justify-center text-center">{system.nombre}</div>
-                                <div className="flex justify-center mt-2 pt-2 border-t border-gray-300 border-opacity-30">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation(); // Prevent triggering the parent div
-                                      handleOpenEditSystem(system);
-                                    }}
-                                    className="px-2 py-1 text-xs font-medium rounded bg-gray-200 text-gray-700 hover:bg-gray-300 flex items-center"
-                                    aria-label={`Editar nombre de ${system.nombre}`}
-                                  >
-                                    <Edit className="h-3 w-3 mr-1" />
-                                  </button>
-                                  {/* space between buttons */}
-                                  <div className="w-2"></div>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation(); // Prevent triggering the parent div
-                                      handleDeleteSystem(system);
-                                    }}
-                                    className="px-2 py-1 text-xs font-medium rounded bg-gray-200 text-gray-700 hover:bg-gray-300 flex items-center"
-                                    aria-label={`Eliminar ${system.nombre}`}
-                                  >
-                                    <Trash2 className="h-3 w-3 mr-1" />
-                                  </button>
-                                </div>
+                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                           {systems.map((system) => (
+                             <div key={system.id} className="flex flex-col h-full">
+                               <div
+                                 onClick={() => setSelectedSystemId(system.id)}
+                                 className={`flex flex-col h-full justify-between px-4 py-4 text-sm font-medium rounded-xl border-2 cursor-pointer transition-all duration-200 shadow-sm hover:shadow-lg ${
+                                   selectedSystemId === system.id
+                                     ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white border-blue-500 shadow-lg transform scale-105'
+                                     : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                                 }`}
+                               >
+                                 <div className="flex-grow flex items-center justify-center text-center font-semibold">{system.nombre}</div>
+                                 <div className="flex justify-center mt-3 pt-3 border-t border-gray-300 border-opacity-30">
+                                   <button
+                                     onClick={(e) => {
+                                       e.stopPropagation();
+                                       handleOpenEditSystem(system);
+                                     }}
+                                     className="px-3 py-2 text-xs font-medium rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 flex items-center transition-colors"
+                                     aria-label={`Editar nombre de ${system.nombre}`}
+                                   >
+                                     <Edit className="h-3 w-3 mr-1" />
+                                   </button>
+                                   <div className="w-2"></div>
+                                   <button
+                                     onClick={(e) => {
+                                       e.stopPropagation();
+                                       handleDeleteSystem(system);
+                                     }}
+                                     className="px-3 py-2 text-xs font-medium rounded-lg bg-red-100 text-red-700 hover:bg-red-200 flex items-center transition-colors"
+                                     aria-label={`Eliminar ${system.nombre}`}
+                                   >
+                                     <Trash2 className="h-3 w-3 mr-1" />
+                                   </button>
+                                 </div>
                               </div>
                             </div>
                           ))}
@@ -863,23 +862,25 @@ export default function ParameterManager() {
                       </div>
                     )}
 
-                    {showCreateSystem && (
-                      <div className="mt-4 grid w-full grid-cols-[1fr_1fr_auto] gap-2 rounded-lg border p-3">
-                        <Input
-                          placeholder="Nombre del sistema"
-                          value={newSystemName}
-                          onChange={(e) => setNewSystemName(e.target.value)}
-                        />
-                        <Input
-                          placeholder="Descripción"
-                          value={newSystemDescription}
-                          onChange={(e) => setNewSystemDescription(e.target.value)}
-                        />
-                        <Button type="button" onClick={handleCreateSystem} disabled={loading || !newSystemName.trim()}>
-                          Guardar
-                        </Button>
-                      </div>
-                    )}
+                     {showCreateSystem && (
+                       <div className="mt-4 grid w-full grid-cols-[1fr_1fr_auto] gap-3 rounded-xl border-2 border-purple-200 p-4 bg-gradient-to-r from-purple-50 to-blue-50">
+                         <Input
+                           placeholder="Nombre del sistema"
+                           value={newSystemName}
+                           onChange={(e) => setNewSystemName(e.target.value)}
+                           className="border-purple-200 focus:border-purple-400"
+                         />
+                         <Input
+                           placeholder="Descripción"
+                           value={newSystemDescription}
+                           onChange={(e) => setNewSystemDescription(e.target.value)}
+                           className="border-purple-200 focus:border-purple-400"
+                         />
+                         <Button type="button" onClick={handleCreateSystem} disabled={loading || !newSystemName.trim()} className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all">
+                           Guardar
+                         </Button>
+                       </div>
+                     )}
 
                     
                     {/* Edit System Dialog */}
