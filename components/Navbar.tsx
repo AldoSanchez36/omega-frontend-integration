@@ -40,7 +40,49 @@ const PUBLIC_LINKS = [
 export const Navbar: React.FC<NavbarProps> = ({ role }) => {
   const { isAuthenticated, user } = useUser();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [currentDate, setCurrentDate] = useState<string>("");
+  const [isScrolled, setIsScrolled] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Manejar scroll para navbar fijo y agregar padding al body
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      setIsScrolled(scrollTop > 0);
+    };
+
+    // Agregar padding-top al body para compensar el navbar fijo
+    const navbarHeight = 56; // Altura típica del navbar
+    document.body.style.paddingTop = `${navbarHeight}px`;
+
+    window.addEventListener('scroll', handleScroll);
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      // Limpiar el padding al desmontar
+      document.body.style.paddingTop = '0px';
+    };
+  }, []);
+
+  // Actualizar fecha actual
+  useEffect(() => {
+    const updateDate = () => {
+      const now = new Date();
+      const formattedDate = now.toLocaleDateString('es-ES', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      setCurrentDate(formattedDate);
+    };
+
+    updateDate();
+    // Actualizar cada minuto
+    const interval = setInterval(updateDate, 60000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   // Cierra el dropdown al hacer click fuera
   useEffect(() => {
@@ -72,13 +114,33 @@ export const Navbar: React.FC<NavbarProps> = ({ role }) => {
   const visibleLinks = filteredLinks.filter(link => link.path !== currentPath);
 
   return (
-    <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
+    <nav 
+      className="navbar navbar-expand-lg navbar-dark bg-primary"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1030,
+        boxShadow: isScrolled ? '0 2px 4px rgba(0,0,0,0.1)' : 'none',
+        transition: 'box-shadow 0.3s ease'
+      }}
+    >
       <div className="container d-flex justify-content-between align-items-center">
         <Link className="navbar-brand fw-bold" href="/">
           <span className="material-icons me-2">business</span>
           Organomex
         </Link>
-        <div className="position-relative" ref={dropdownRef}>
+        <div className="d-flex align-items-center">
+          {currentDate && (
+            <div className="text-light me-3 d-none d-md-block">
+              <small className="text-light-50">
+                <span className="material-icons me-1" style={{ fontSize: '16px' }}>calendar_today</span>
+                {currentDate}
+              </small>
+            </div>
+          )}
+          <div className="position-relative" ref={dropdownRef}>
           <button
             className="btn btn-light"
             type="button"
@@ -124,6 +186,7 @@ export const Navbar: React.FC<NavbarProps> = ({ role }) => {
               )}
             </div>
           )}
+          </div>
         </div>
       </div>
     </nav>

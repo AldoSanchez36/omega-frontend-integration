@@ -95,7 +95,7 @@ export default function UsersManagement() {
         setError(null)
         
         // Obtener token
-        const token = authService.getToken()
+        const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
         if (!token) {
           setError("No hay token de autenticaci├│n")
           setLoading(false)
@@ -144,7 +144,7 @@ export default function UsersManagement() {
   // Fetch plantas accesibles al abrir modal
   useEffect(() => {
     if (!showPermissionModal || !selectedUserForPermissions) return;
-    const token = authService.getToken();
+    const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
     const usuarioId = getUserId(selectedUserForPermissions)
     if (!usuarioId) return; // No hacer fetch si no hay id
     
@@ -196,7 +196,7 @@ export default function UsersManagement() {
   // Fetch sistemas al seleccionar planta
   useEffect(() => {
     if (!plantaSeleccionadaModal) return;
-    const token = authService.getToken();
+    const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
     
     fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(String(plantaSeleccionadaModal ?? '') || '')}`, {
       headers: { Authorization: `Bearer ${token}` }
@@ -221,7 +221,7 @@ export default function UsersManagement() {
     }
     const usuarioId = getUserId(selectedUserForPermissions);
     const plantaId = plantaSeleccionadaModal;
-    const token = authService.getToken();
+    const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
 
     fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESS_BY_USER(String(usuarioId ?? '') || '')}`, {
       headers: { Authorization: `Bearer ${token}` }
@@ -445,7 +445,7 @@ export default function UsersManagement() {
     setEditError(null)
     setEditSuccess(null)
     try {
-      const token = authService.getToken()
+      const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
       if (!token) {
         throw new Error("No hay token de autenticación")
       }
@@ -554,7 +554,7 @@ export default function UsersManagement() {
     
     const usuarioId = getUserId(selectedUserForPermissions);
     const plantaId = plantaSeleccionadaModal;
-    const token = authService.getToken();
+    const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
     
     try {
       // POST para asignar permisos de planta
