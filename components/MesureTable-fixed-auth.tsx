@@ -46,7 +46,7 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
   const [debugInfo, setDebugInfo] = useState<string[]>([])
 
   const addDebugInfo = (message: string) => {
-    console.log(`🔍 [MesureTable-${variable}] ${message}`);
+    //console.log(`🔍 [MesureTable-${variable}] ${message}`);
     setDebugInfo(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
   };
 

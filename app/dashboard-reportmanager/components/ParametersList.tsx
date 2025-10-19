@@ -55,6 +55,7 @@ interface ParametersListProps {
   selectedUser?: { id: string } | null;
   selectedPlant?: { id: string } | null;
   selectedSystem?: string;
+  onLimitsStateChange?: (limitsState: Record<string, { limite_min: boolean; limite_max: boolean }>) => void;
 }
 
 const ParametersList: React.FC<ParametersListProps> = ({
@@ -76,6 +77,7 @@ const ParametersList: React.FC<ParametersListProps> = ({
   selectedUser,
   selectedPlant,
   selectedSystem,
+  onLimitsStateChange,
 }) => {
   // Estado para tolerancias filtradas
   const [filteredTolerances, setFilteredTolerances] = useState<Record<string, Tolerance>>({});
@@ -280,6 +282,9 @@ const ParametersList: React.FC<ParametersListProps> = ({
           tolLoading={tolLoading}
           tolError={tolError}
           tolSuccess={tolSuccess}
+          selectedSystem={selectedSystem}
+          selectedPlant={selectedPlant}
+          onLimitsStateChange={onLimitsStateChange}
         />
       </CardContent>
     </Card>

@@ -80,6 +80,7 @@ export function useMeasurements(
   parameterValues?: Record<string, any>,
   allSystems?: any[],
   allParameters?: Record<string, Parameter[]>,
+  limitsState?: Record<string, { limite_min: boolean; limite_max: boolean }>,
   onSaveSuccess?: (reportData: ReportData) => void
 ) {
   const [medicionesPreview, setMedicionesPreview] = useState<Measurement[]>([]);
@@ -144,13 +145,19 @@ export function useMeasurements(
       if (allParameters) {
         Object.values(allParameters).flat().forEach(param => {
           if (tolerancias?.[param.id]) {
+            // Usar el estado actual de los límites si está disponible, sino usar los valores de la base de datos
+            const currentLimitsState = limitsState?.[param.id];
+            const usarLimiteMin = currentLimitsState?.limite_min ?? !!tolerancias[param.id].usar_limite_min;
+            const usarLimiteMax = currentLimitsState?.limite_max ?? !!tolerancias[param.id].usar_limite_max;
+            
             reportData.variablesTolerancia[param.id] = {
-              limite_min: tolerancias[param.id].limite_min ?? null,
-              limite_max: tolerancias[param.id].limite_max ?? null,
+              // Si el límite está desactivado, establecer como null, sino usar el valor de la base de datos
+              limite_min: usarLimiteMin ? (tolerancias[param.id].limite_min ?? null) : null,
+              limite_max: usarLimiteMax ? (tolerancias[param.id].limite_max ?? null) : null,
               bien_min: tolerancias[param.id].bien_min ?? null,
               bien_max: tolerancias[param.id].bien_max ?? null,
-              usar_limite_min: !!tolerancias[param.id].usar_limite_min,
-              usar_limite_max: !!tolerancias[param.id].usar_limite_max,
+              usar_limite_min: usarLimiteMin,
+              usar_limite_max: usarLimiteMax,
             };
           }
         });
@@ -180,7 +187,7 @@ export function useMeasurements(
     } finally {
       setIsSaving(false);
     }
-  }, [token, selectedUser, selectedPlant, selectedSystemData, parameters, medicionesPreview, tolerancias, globalFecha, globalComentarios, allSystems, allParameters, onSaveSuccess]);
+  }, [token, selectedUser, selectedPlant, selectedSystemData, parameters, medicionesPreview, tolerancias, globalFecha, globalComentarios, allSystems, allParameters, limitsState, onSaveSuccess]);
 
   return {
     medicionesPreview,

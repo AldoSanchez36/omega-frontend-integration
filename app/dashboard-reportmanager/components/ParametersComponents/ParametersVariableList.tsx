@@ -38,6 +38,9 @@ interface Props {
   tolLoading: Record<string, boolean>;
   tolError: Record<string, string | null>;
   tolSuccess: Record<string, string | null>;
+  selectedSystem?: string;
+  selectedPlant?: { id: string; nombre?: string } | null;
+  onLimitsStateChange?: (limitsState: Record<string, { limite_min: boolean; limite_max: boolean }>) => void;
 }
 
 const ParametersVariableList: React.FC<Props> = ({
@@ -51,7 +54,28 @@ const ParametersVariableList: React.FC<Props> = ({
   tolLoading,
   tolError,
   tolSuccess,
-}) => {
+  selectedSystem,
+  selectedPlant,
+  onLimitsStateChange,
+  }) => {
+  
+  // Función para notificar cambios de estado de límites
+  const notifyLimitsStateChange = (parameterId: string, limiteType: 'limite_min' | 'limite_max', newState: boolean) => {
+    if (onLimitsStateChange) {
+      const currentState = parameters.reduce((acc, param) => {
+        acc[param.id] = {
+          limite_min: !!tolerancias[param.id]?.usar_limite_min,
+          limite_max: !!tolerancias[param.id]?.usar_limite_max,
+        };
+        return acc;
+      }, {} as Record<string, { limite_min: boolean; limite_max: boolean }>);
+      
+      // Actualizar el estado específico
+      currentState[parameterId][limiteType] = newState;
+      
+      onLimitsStateChange(currentState);
+    }
+  };
   
   // Función para determinar el color del input basado en el valor y límites
   const getInputColor = (parameterId: string, value: number | undefined): string => {
@@ -171,93 +195,101 @@ const ParametersVariableList: React.FC<Props> = ({
               <span className="text-sm text-gray-500">{parameter.unidad}</span>
             )}
             <div className="flex flex-row items-end gap-2 justify-end w-full justify-self-end md:flex-row">
-              {/* Bajo bajo - solo si usar_limite_min es true */}
-              {usarLimiteMin && (
+              {/* Bajo bajo - solo mostrar si existe limite_min en la base de datos */}
+              {tolerancias[parameter.id]?.limite_min !== null && tolerancias[parameter.id]?.limite_min !== undefined && (
                 <div className="flex flex-col items-center">
                   <div className="flex items-center gap-1 mb-0.5">
-                    <span className="text-xs font-semibold text-yellow-700">Bajo bajo</span>
-                    <button type="button" onClick={() => handleTolChange(parameter.id, 'usar_limite_min', !usarLimiteMin)}
+                    <span className={`text-xs font-semibold ${usarLimiteMin ? 'text-yellow-700' : 'text-gray-500'}`}>Bajo bajo</span>
+                    <button type="button" onClick={() => {
+                      const newState = !usarLimiteMin;
+                      handleTolChange(parameter.id, 'usar_limite_min', newState);
+                      
+                      // Notificar cambio de estado
+                      notifyLimitsStateChange(parameter.id, 'limite_min', newState);
+                      
+                      // Console.log para ambos estados (activado/desactivado)
+                      console.log("🔘 Radio button CAMBIO DE ESTADO:", {
+                        variable: parameter.nombre,
+                        variableId: parameter.id,
+                        sistema: selectedSystem || "No seleccionado",
+                        planta: selectedPlant?.nombre || "No seleccionada",
+                        limite: "limite_min",
+                        estado: newState ? "activado" : "desactivado",
+                        timestamp: new Date().toISOString()
+                      });
+                    }}
                       className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${
                         usarLimiteMin ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'
                       }`}>
                       {usarLimiteMin && <span className="material-icons text-yellow-700 text-xs">check</span>}
                     </button>
                   </div>
-                  {/* <Input
-                    type="number"
-                    className={`w-14 text-xs py-1 px-1 ${
-                      usarLimiteMin ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'
-                    }`}
-                    placeholder="min"
-                    value={tolerancias[parameter.id]?.limite_min ?? ''}
-                    onChange={e => handleTolChange(parameter.id, 'limite_min', e.target.value)}
-                    disabled={!usarLimiteMin}
-                  />*/}
                   <span
                     className={`w-14 text-xs py-1 px-1 text-center rounded h-8 flex items-center justify-center ${
                       usarLimiteMin ? 'bg-yellow-100 border border-yellow-400 text-yellow-900' : 'bg-gray-100 border border-gray-300 text-gray-400'  
                     }`}
-                    
                   >
                     {tolerancias[parameter.id]?.limite_min ?? '-'}
                   </span>
                 </div>
               )}
               
-              {/* Bajo / Alto - siempre presente */}
-              <div className="flex flex-row gap-1" >
+              {/* Bajo / Alto - siempre presente, alineados verticalmente */}
+              <div className="flex flex-row gap-2 items-end">
                 <div className="flex flex-col items-center">
-                  <span className="text-xs font-semibold text-green-700 text-center w-full">Bajo</span>
-                  <div className="flex flex-row gap-1">
-                    <span className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1 h-8 flex items-center justify-center"
-                      >{tolerancias[parameter.id]?.bien_min ?? '-'}</span>
-                  </div>
+                  <span className="text-xs font-semibold text-green-700 text-center w-full mb-1">Bajo</span>
+                  <span className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1 h-8 flex items-center justify-center rounded"
+                    >{tolerancias[parameter.id]?.bien_min ?? '-'}</span>
                 </div>
                 <div className="flex flex-col items-center">
-                  <span className="text-xs font-semibold text-green-700 text-center w-full">Alto</span>
-                  <div className="flex flex-row gap-1">
-                    <span className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1 h-8 flex items-center justify-center"
-                      >{tolerancias[parameter.id]?.bien_max ?? '-'}</span>
-                  </div>
+                  <span className="text-xs font-semibold text-green-700 text-center w-full mb-1">Alto</span>
+                  <span className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1 h-8 flex items-center justify-center rounded"
+                    >{tolerancias[parameter.id]?.bien_max ?? '-'}</span>
                 </div>
               </div>
               
-              {/* Alto alto - solo si usar_limite_max es true */}
-              {usarLimiteMax && (
+              {/* Alto alto - solo mostrar si existe limite_max en la base de datos */}
+              {tolerancias[parameter.id]?.limite_max !== null && tolerancias[parameter.id]?.limite_max !== undefined && (
                 <div className="flex flex-col items-center">
                   <div className="flex items-center gap-1 mb-0.5">
-                    <span className="text-xs font-semibold text-yellow-700">Alto alto</span>
-                    <button type="button" onClick={() => handleTolChange(parameter.id, 'usar_limite_max', !usarLimiteMax)}
+                    <span className={`text-xs font-semibold ${usarLimiteMax ? 'text-yellow-700' : 'text-gray-500'}`}>Alto alto</span>
+                    <button type="button" onClick={() => {
+                      const newState = !usarLimiteMax;
+                      handleTolChange(parameter.id, 'usar_limite_max', newState);
+                      
+                      // Notificar cambio de estado
+                      notifyLimitsStateChange(parameter.id, 'limite_max', newState);
+                      
+                      // Console.log para ambos estados (activado/desactivado)
+                      console.log("🔘 Radio button CAMBIO DE ESTADO:", {
+                        variable: parameter.nombre,
+                        variableId: parameter.id,
+                        sistema: selectedSystem || "No seleccionado",
+                        planta: selectedPlant?.nombre || "No seleccionada",
+                        limite: "limite_max",
+                        estado: newState ? "activado" : "desactivado",
+                        timestamp: new Date().toISOString()
+                      });
+                    }}
                       className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${
                         usarLimiteMax ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'
                       }`}>
                       {usarLimiteMax && <span className="material-icons text-yellow-700 text-xs">check</span>}
                     </button>
                   </div>
-                  {/* <Input
-                    type="number"
-                    className={`w-14 text-xs py-1 px-1 ${
-                      usarLimiteMax ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'
-                    }`}
-                    placeholder="max"
-                    value={tolerancias[parameter.id]?.limite_max ?? ''}
-                    onChange={e => handleTolChange(parameter.id, 'limite_max', e.target.value)}
-                    disabled={!usarLimiteMax}
-                  /> */}
                   <span
                     className={`w-14 text-xs py-1 px-1 text-center rounded h-8 flex items-center justify-center ${
                       usarLimiteMax ? 'bg-yellow-100 border border-yellow-400 text-yellow-900' : 'bg-gray-100 border border-gray-300 text-gray-400'  
                     }`}
-                    
                   >
                     {tolerancias[parameter.id]?.limite_max ?? '-'}
                   </span>
                 </div>
               )}
-              <Button size="icon" className="ml-2 h-7 w-7 p-0 flex items-center justify-center"
+              {/*<Button size="icon" className="ml-2 h-7 w-7 p-0 flex items-center justify-center"
                 onClick={() => handleTolSave(parameter.id)} disabled={tolLoading[parameter.id]} title="Guardar límites">
                 <span className="material-icons text-base">save</span>
-              </Button>
+              </Button>*/}
               <div className="flex flex-col items-center justify-end">
                 {tolError[parameter.id] && <div className="text-xs text-red-600">{tolError[parameter.id]}</div>}
                 {tolSuccess[parameter.id] && <div className="text-xs text-green-600">{tolSuccess[parameter.id]}</div>}
