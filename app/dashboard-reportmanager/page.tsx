@@ -479,63 +479,46 @@ export default function ReportManager() {
   const handleGenerateReport = async () => {
     addDebugLog("info", "Generando reporte")
 
-    // Recoge la información seleccionada
-    // Usar los datos guardados en medicionesPreview en lugar de los valores del formulario
-    const mediciones = medicionesPreview.map(medicion => ({
-      variable_id: medicion.variable_id,
-      nombre: parameters.find(p => p.id === medicion.variable_id)?.nombre || '',
-      unidad: parameters.find(p => p.id === medicion.variable_id)?.unidad || '',
-      valores: { [medicion.sistema]: medicion.valor },
-      fecha: medicion.fecha,
-      comentarios: medicion.comentarios || '',
-    }));
+    // Verificar si hay datos guardados previamente
+    const savedReportData = localStorage.getItem("reportSelection");
+    
+    if (savedReportData) {
+      console.log("📊 Usando datos previamente guardados para generar reporte");
+      console.log("💾 Datos guardados:", JSON.parse(savedReportData));
+      
+      // Solo actualizar la fecha de generación
+      const reportData = JSON.parse(savedReportData);
+      reportData.generatedDate = new Date().toISOString();
+      
+      localStorage.setItem("reportSelection", JSON.stringify(reportData));
+      console.log("✅ reportSelection actualizado con nueva fecha de generación");
+      router.push("/reports");
+      return;
+    }
 
-    console.log("🔍 Debug reportSelection:", {
-      currentUser,
-      selectedUser,
-      currentUserId: currentUser?.id,
-      selectedUserId: selectedUser?.id
-    });
-
+    // Si no hay datos guardados, crear la estructura básica
+    console.log("⚠️ No se encontraron datos guardados, creando estructura básica");
+    
     const reportSelection = {
       user: currentUser ? { 
-        id: currentUser.id, // Usuario conectado que está generando el reporte
+        id: currentUser.id,
         username: currentUser.username, 
         email: currentUser.email, 
         puesto: currentUser.puesto,
-        cliente_id: selectedUser?.id || null // Usuario seleccionado como cliente
+        cliente_id: selectedUser?.id || null
       } : null,
       plant: selectedPlant ? { id: selectedPlant.id, nombre: selectedPlant.nombre } : null,
       systemName: selectedSystemData?.nombre,
-      parameters: parameters.filter(param => 
-        medicionesPreview.some(med => med.variable_id === param.id)
-      ).map(param => ({
-        id: param.id,
-        nombre: param.nombre,
-        unidad: param.unidad,
-        limite_min: tolerancias[param.id]?.limite_min ?? null,
-        limite_max: tolerancias[param.id]?.limite_max ?? null,
-        bien_min: tolerancias[param.id]?.bien_min ?? null,
-        bien_max: tolerancias[param.id]?.bien_max ?? null,
-        usar_limite_min: !!tolerancias[param.id]?.usar_limite_min,
-        usar_limite_max: !!tolerancias[param.id]?.usar_limite_max,
-      })),
-      mediciones,
+      parameters: [],
+      mediciones: [],
       fecha: globalFecha,
       comentarios: globalComentarios,
       generatedDate: new Date().toISOString(),
-      cliente_id: selectedUser?.id || null, // Usuario seleccionado como cliente
+      cliente_id: selectedUser?.id || null,
     };
     
-    console.log("💾 Guardando reportSelection en localStorage:", reportSelection);
-    console.log("🔍 Verificando campos clave:", {
-      user_id: reportSelection.user?.id,
-      cliente_id: reportSelection.cliente_id,
-      user_cliente_id: reportSelection.user?.cliente_id
-    });
-    
     localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
-    console.log("✅ reportSelection guardado en localStorage");
+    console.log("✅ reportSelection básico guardado en localStorage");
     router.push("/reports");
   }
 
