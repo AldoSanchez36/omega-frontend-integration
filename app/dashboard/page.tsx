@@ -384,8 +384,8 @@ export default function Dashboard() {
         const token = authService.getToken()
         if (!token) return
 
-        // Intentar cargar reportes desde la API
-        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PDF_DOCUMENTS}`, {
+        // Usar el endpoint de reportes con filtrado por rol
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS_DASHBOARD}`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         
@@ -393,43 +393,49 @@ export default function Dashboard() {
         
         if (response.ok) {
           const data = await response.json()
-          reportesData = Array.isArray(data) ? data : (data.reportes || [])
+          console.log('📊 Respuesta del backend:', data)
+          reportesData = Array.isArray(data.reportes) ? data.reportes : []
+          console.log('📋 Reportes recibidos:', reportesData.length, reportesData)
+        } else {
+          console.error("Error en la respuesta de reportes:", response.status, response.statusText)
         }
         
         // Agregar reporte dummy si no hay reportes reales
         if (reportesData.length === 0) {
           reportesData.push({
             id: "9999",
-            title: "Reporte de prueba",
-            plantName: "Planta Norte",
-            systemName: "Sistema de Temperatura",
-            status: "completed",
-            created_at: new Date().toISOString(),
-            usuario_id: user.id,
-            planta_id: "planta-norte",
-            proceso_id: "sistema-temperatura",
-            datos: {},
-            observaciones: "Reporte de prueba generado automáticamente"
+            titulo: "Reporte de prueba",
+            planta: "Planta Norte",
+            sistema: "Sistema de Temperatura",
+            estado: "Completado",
+            fecha: new Date().toISOString().split('T')[0],
+            fechaGeneracion: new Date().toISOString(),
+            comentarios: "Reporte de prueba generado automáticamente",
+            usuario: user.username,
+            puesto: user.puesto,
+            reportSelection: {}
           })
         }
         
         // Convertir formato de reportes para el dashboard
         const formattedReports = reportesData.map((report: any) => ({
           id: report.id?.toString() || report.id,
-          title: report.nombre || report.title || `Reporte ${report.id}`,
+          title: report.titulo || report.nombre || `Reporte ${report.id}`,
           plantName: report.planta || report.plantName || "Planta no especificada",
           systemName: report.sistema || report.systemName || "Sistema no especificado",
           status: report.estado || report.status || "completed",
-          created_at: report.fecha_creacion || report.created_at || new Date().toISOString(),
+          created_at: report.fechaGeneracion || report.fecha_creacion || report.created_at || new Date().toISOString(),
           usuario_id: report.usuario_id || user.id,
           planta_id: report.planta_id || "planta-unknown",
           proceso_id: report.proceso_id || "sistema-unknown",
-          datos: report.datos || {},
-          observaciones: report.observaciones || ""
+          datos: report.reportSelection || report.datos || {},
+          observaciones: report.comentarios || report.observaciones || "",
+          usuario: report.usuario || user.username,
+          puesto: report.puesto || user.puesto
         }))
         
         setReports(formattedReports)
-        addDebugLog(`Reportes cargados: ${formattedReports.length} reportes`)
+        addDebugLog(`Reportes cargados: ${formattedReports.length} reportes (rol: ${userRole})`)
         
       } catch (error) {
         console.error("Error cargando reportes:", error)

@@ -74,6 +74,7 @@ export default function ReportManager() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
   const [globalFecha, setGlobalFecha] = useState<string>("");
   const [globalComentarios, setGlobalComentarios] = useState<string>("");
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   // Use the reusable hook for user access
   const {
@@ -94,6 +95,27 @@ export default function ReportManager() {
   // Local state for conditional plants/users
   const [displayedPlants, setDisplayedPlants] = useState<Plant[]>([]);
   const [displayedUsers, setDisplayedUsers] = useState<User[]>([]);
+
+  // Obtener usuario conectado
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      console.log('🔍 Buscando usuario en localStorage...');
+      const userData = localStorage.getItem('Organomex_user');
+      console.log('📄 Datos del localStorage:', userData);
+      
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          setCurrentUser(user);
+          console.log('👤 Usuario conectado obtenido:', user);
+        } catch (error) {
+          console.error('❌ Error parsing user data:', error);
+        }
+      } else {
+        console.warn('⚠️ No se encontró usuario en localStorage');
+      }
+    }
+  }, []);
 
   // Load all plants if no user selected, else use hook plants
   useEffect(() => {
@@ -468,8 +490,21 @@ export default function ReportManager() {
       comentarios: medicion.comentarios || '',
     }));
 
+    console.log("🔍 Debug reportSelection:", {
+      currentUser,
+      selectedUser,
+      currentUserId: currentUser?.id,
+      selectedUserId: selectedUser?.id
+    });
+
     const reportSelection = {
-      user: selectedUser ? { id: selectedUser.id, username: selectedUser.username, email: selectedUser.email, puesto: selectedUser.puesto } : null,
+      user: currentUser ? { 
+        id: currentUser.id, // Usuario conectado que está generando el reporte
+        username: currentUser.username, 
+        email: currentUser.email, 
+        puesto: currentUser.puesto,
+        cliente_id: selectedUser?.id || null // Usuario seleccionado como cliente
+      } : null,
       plant: selectedPlant ? { id: selectedPlant.id, nombre: selectedPlant.nombre } : null,
       systemName: selectedSystemData?.nombre,
       parameters: parameters.filter(param => 
@@ -489,9 +524,18 @@ export default function ReportManager() {
       fecha: globalFecha,
       comentarios: globalComentarios,
       generatedDate: new Date().toISOString(),
+      cliente_id: selectedUser?.id || null, // Usuario seleccionado como cliente
     };
+    
+    console.log("💾 Guardando reportSelection en localStorage:", reportSelection);
+    console.log("🔍 Verificando campos clave:", {
+      user_id: reportSelection.user?.id,
+      cliente_id: reportSelection.cliente_id,
+      user_cliente_id: reportSelection.user?.cliente_id
+    });
+    
     localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
-    console.log("reportSelection", reportSelection);
+    console.log("✅ reportSelection guardado en localStorage");
     router.push("/reports");
   }
 
