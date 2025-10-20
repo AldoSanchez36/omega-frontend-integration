@@ -355,31 +355,34 @@ export default function AgregarFormula() {
       <div className="min-h-screen bg-gray-50">
         <Navbar role={userRole} />
 
-        <div className="min-h-screen flex items-center justify-center p-4">
-          <div className="container max-w-4xl mx-auto">
-            <div className="bg-white p-6 sm:p-10 rounded-2xl shadow-xl border border-gray-100">
-              {/* Header */}
-              <header className="flex items-center gap-4 mb-8 pb-4 border-b border-gray-200">
-                <div className="bg-blue-100 text-blue-600 p-3 rounded-full">
+        <div className="container mx-auto py-8 px-4">
+          <div className="max-w-4xl mx-auto">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-6 rounded-lg shadow mb-6">
+              <div className="flex items-center gap-4">
+                <div className="bg-white/20 backdrop-blur-sm p-3 rounded-full">
                   <span className="material-icons text-3xl">functions</span>
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900">Creador de Fórmulas</h1>
-                  <p className="text-gray-500 mt-1">Define, evalúa y guarda tus propias fórmulas matemáticas.</p>
+                  <h1 className="text-2xl font-bold">Creador de Fórmulas</h1>
+                  <p className="opacity-90">Define, evalúa y guarda tus propias fórmulas matemáticas</p>
                 </div>
-              </header>
+              </div>
+            </div>
 
-              <div className="space-y-12">
+            <div className="bg-white rounded-lg shadow p-6">
+
+              <div className="space-y-8">
                 {/* Paso 1: Variables */}
                 <section>
-                  <div className="flex items-center mb-5">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-600 text-white font-bold text-lg mr-4">
+                  <div className="flex items-center mb-4">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm mr-3">
                       1
                     </div>
-                    <h2 className="text-2xl font-semibold text-gray-800">Definir Variables</h2>
+                    <h2 className="text-xl font-semibold text-gray-800">Definir Variables</h2>
                   </div>
 
-                  <Card className="bg-gray-50 p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-100">
+                  <Card className="bg-gray-50 p-6 rounded-lg shadow border border-gray-200">
                     <div className="flex flex-col sm:flex-row sm:items-end sm:space-x-4 space-y-4 sm:space-y-0">
                       <div className="flex-grow">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Número de variables</label>
@@ -391,13 +394,13 @@ export default function AgregarFormula() {
                           className="w-full"
                         />
                       </div>
-                      <Button onClick={handleGenerarCampos} className="btn-primary w-full sm:w-auto">
-                        <span className="material-icons mr-2">add_circle_outline</span>
+                      <Button onClick={handleGenerarCampos} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded w-full sm:w-auto">
+                        <span className="material-icons mr-2 text-sm">add_circle_outline</span>
                         Generar Campos
                       </Button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3 mt-4">
                       {vars.map((v, i) => (
                         <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
@@ -427,14 +430,14 @@ export default function AgregarFormula() {
 
                 {/* Paso 2: Construir operación */}
                 <section>
-                  <div className="flex items-center mb-5">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-600 text-white font-bold text-lg mr-4">
+                  <div className="flex items-center mb-4">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm mr-3">
                       2
                     </div>
-                    <h2 className="text-2xl font-semibold text-gray-800">Construir Operación</h2>
+                    <h2 className="text-xl font-semibold text-gray-800">Construir Operación</h2>
                   </div>
 
-                  <Card className="bg-gray-50 p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-100 space-y-6">
+                  <Card className="bg-gray-50 p-6 rounded-lg shadow border border-gray-200 space-y-4">
                     {/* Input sin ícono de lápiz */}
                     <div className="relative">
                       <Input
@@ -445,11 +448,11 @@ export default function AgregarFormula() {
                       />
                     </div>
 
-                    <p className="text-xs text-gray-500 mt-2">
+                    <p className="text-xs text-gray-500">
                       Usa los nombres de las variables definidas. Operadores permitidos: +, -, *, /, (, ).
                     </p>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Nombre de la fórmula */}
                       <div>
                         <label htmlFor="nombre-formula" className="block text-sm font-medium text-gray-700 mb-1">Nombre de la fórmula</label>
@@ -500,43 +503,43 @@ export default function AgregarFormula() {
 
                 {/* Paso 3: Vista previa */}
                 <section>
-                  <div className="flex items-center mb-5">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-600 text-white font-bold text-lg mr-4">
+                  <div className="flex items-center mb-4">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm mr-3">
                       3
                     </div>
-                    <h2 className="text-2xl font-semibold text-gray-800">Vista Previa y Resultados</h2>
+                    <h2 className="text-xl font-semibold text-gray-800">Vista Previa y Resultados</h2>
                   </div>
 
-                  <Card className="bg-gray-50 p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-100">
-                    <div className="mb-4">
-                      <h3 className="text-lg font-medium text-gray-800">Fórmula ingresada:</h3>
-                      <p className="text-2xl font-mono text-blue-600 p-4 bg-blue-50 rounded-lg mt-2">{expresion || "—"}</p>
+                  <Card className="bg-gray-50 p-6 rounded-lg shadow border border-gray-200">
+                    <div className="mb-3">
+                      <h3 className="text-base font-medium text-gray-800">Fórmula ingresada:</h3>
+                      <p className="text-xl font-mono text-blue-600 p-3 bg-blue-50 rounded mt-1">{expresion || "—"}</p>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row items-center justify-between bg-green-100 border-l-4 border-green-500 text-green-800 p-4 rounded-md">
-                      <p className="text-lg">Resultado con valores de prueba:</p>
-                      <p className="text-3xl font-bold">{preview === "" ? "—" : String(preview)}</p>
+                    <div className="flex flex-col sm:flex-row items-center justify-between bg-green-100 border-l-4 border-green-500 text-green-800 p-3 rounded">
+                      <p className="text-base">Resultado con valores de prueba:</p>
+                      <p className="text-2xl font-bold">{preview === "" ? "—" : String(preview)}</p>
                     </div>
                   </Card>
                 </section>
 
                 {/* Acciones */}
-                <div className="flex flex-col sm:flex-row items-center justify-end space-y-3 sm:space-y-0 sm:space-x-4 pt-6 border-t border-gray-200">
-                  <Button variant="secondary" onClick={evaluar} className="btn-secondary w-full sm:w-auto">
-                    <span className="material-icons mr-2">play_circle_outline</span>
+                <div className="flex flex-col sm:flex-row items-center justify-end space-y-3 sm:space-y-0 sm:space-x-4 pt-4 border-t border-gray-200">
+                  <Button variant="secondary" onClick={evaluar} className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded w-full sm:w-auto">
+                    <span className="material-icons mr-2 text-sm">play_circle_outline</span>
                     Evaluar de nuevo
                   </Button>
-                  <Button onClick={handleGuardar} disabled={guardando} className="btn-primary w-full sm:w-auto font-semibold">
-                    <span className="material-icons mr-2">save</span>
+                  <Button onClick={handleGuardar} disabled={guardando} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded w-full sm:w-auto font-semibold">
+                    <span className="material-icons mr-2 text-sm">save</span>
                     {guardando ? "Guardando…" : "Guardar Fórmula"}
                   </Button>
                 </div>
               </div>
             </div>
             {/* Gestor de fórmulas al final */}
-            <section className="mt-12">
-              <div className="bg-white border border-gray-200 rounded-2xl shadow p-6">
-                <h2 className="text-xl font-bold mb-4">Gestión de fórmulas</h2>
+            <section className="mt-8">
+              <div className="bg-white border border-gray-200 rounded-lg shadow p-6">
+                <h2 className="text-lg font-bold mb-4">Gestión de fórmulas</h2>
                 {loadingFormulas ? (
                   <div className="text-gray-500">Cargando fórmulas...</div>
                 ) : errorFormulas ? (
@@ -544,17 +547,17 @@ export default function AgregarFormula() {
                 ) : formulas.length === 0 ? (
                   <div className="text-gray-400">No hay fórmulas registradas.</div>
                 ) : (
-                  <ul className="space-y-4">
+                  <ul className="space-y-3">
                     {formulas.map((f) => (
-                      <li key={f.id} className="border rounded-lg p-4 flex flex-col gap-2 bg-gray-50">
+                      <li key={f.id} className="border rounded-lg p-3 flex flex-col gap-2 bg-gray-50">
                         <div className="flex items-center justify-between">
                           <span className="font-semibold text-gray-800">{f.nombre}</span>
                           <div className="flex gap-2">
-                            <Button size="sm" variant="ghost" onClick={() => handleOpenEdit(f)} aria-label="Editar fórmula">
-                              <span className="material-icons text-base">edit</span>
+                            <Button size="sm" variant="ghost" onClick={() => handleOpenEdit(f)} aria-label="Editar fórmula" className="h-8 w-8 p-0">
+                              <span className="material-icons text-sm">edit</span>
                             </Button>
-                            <Button size="sm" variant="ghost" onClick={() => handleOpenDelete(f)} aria-label="Eliminar fórmula">
-                              <span className="material-icons text-base">delete</span>
+                            <Button size="sm" variant="ghost" onClick={() => handleOpenDelete(f)} aria-label="Eliminar fórmula" className="h-8 w-8 p-0">
+                              <span className="material-icons text-sm">delete</span>
                             </Button>
                           </div>
                         </div>
@@ -568,22 +571,22 @@ export default function AgregarFormula() {
                 {showEditModal && (
                   <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-                      <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
+                      <div className="bg-white rounded-lg shadow-lg p-4 w-full max-w-md relative">
                         <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowEditModal(false)} aria-label="Cerrar">
-                          <X size={20} />
+                          <X size={18} />
                         </button>
-                        <h3 className="text-lg font-bold mb-4">Editar fórmula</h3>
-                        <div className="mb-4">
-                          <Label>Nombre</Label>
+                        <h3 className="text-base font-bold mb-3">Editar fórmula</h3>
+                        <div className="mb-3">
+                          <Label className="text-sm">Nombre</Label>
                           <Input value={editNombre} onChange={e => setEditNombre(e.target.value)} className="mt-1" />
                         </div>
-                        <div className="mb-4">
-                          <Label>Operación</Label>
+                        <div className="mb-3">
+                          <Label className="text-sm">Operación</Label>
                           <Input value={editExpresion} onChange={e => setEditExpresion(e.target.value)} className="mt-1 font-mono" />
                         </div>
-                        <div className="flex justify-end gap-2 mt-6">
-                          <Button variant="outline" onClick={() => setShowEditModal(false)} disabled={savingEdit}>Cancelar</Button>
-                          <Button onClick={handleSaveEdit} disabled={savingEdit} className="font-semibold">
+                        <div className="flex justify-end gap-2 mt-4">
+                          <Button variant="outline" onClick={() => setShowEditModal(false)} disabled={savingEdit} className="px-3 py-1 text-sm">Cancelar</Button>
+                          <Button onClick={handleSaveEdit} disabled={savingEdit} className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 text-sm font-semibold">
                             {savingEdit ? "Guardando..." : "Guardar"}
                           </Button>
                         </div>
@@ -596,15 +599,15 @@ export default function AgregarFormula() {
                 {showDeleteModal && (
                   <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-                      <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
+                      <div className="bg-white rounded-lg shadow-lg p-4 w-full max-w-md relative">
                         <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowDeleteModal(false)} aria-label="Cerrar">
-                          <X size={20} />
+                          <X size={18} />
                         </button>
-                        <h3 className="text-lg font-bold mb-4">Eliminar fórmula</h3>
-                        <p className="mb-6">¿Seguro que deseas eliminar la fórmula <span className="font-semibold">{deleteFormula?.nombre}</span>? Esta acción no se puede deshacer.</p>
+                        <h3 className="text-base font-bold mb-3">Eliminar fórmula</h3>
+                        <p className="mb-4 text-sm">¿Seguro que deseas eliminar la fórmula <span className="font-semibold">{deleteFormula?.nombre}</span>? Esta acción no se puede deshacer.</p>
                         <div className="flex justify-end gap-2">
-                          <Button variant="outline" onClick={() => setShowDeleteModal(false)} disabled={deleting}>Cancelar</Button>
-                          <Button onClick={handleConfirmDelete} disabled={deleting} className="bg-red-600 hover:bg-red-700 text-white font-semibold">
+                          <Button variant="outline" onClick={() => setShowDeleteModal(false)} disabled={deleting} className="px-3 py-1 text-sm">Cancelar</Button>
+                          <Button onClick={handleConfirmDelete} disabled={deleting} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 text-sm font-semibold">
                             {deleting ? "Eliminando..." : "Eliminar"}
                           </Button>
                         </div>

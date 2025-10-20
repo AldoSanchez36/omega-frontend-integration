@@ -38,19 +38,38 @@ export default function UsersManagement() {
   const [showPermissionModal, setShowPermissionModal] = useState(false)
   const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<User | null>(null)
 
-  // Modal edici├│n usuario
+  // Modal edición usuario
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null)
   const [editUsername, setEditUsername] = useState("")
   const [editEmail, setEditEmail] = useState("")
   const [editPuesto, setEditPuesto] = useState("")
+  const [editEmpresa, setEditEmpresa] = useState("")
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const [editSuccess, setEditSuccess] = useState<string | null>(null)
+
+  // Modal crear usuario
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createUsername, setCreateUsername] = useState("")
+  const [createEmail, setCreateEmail] = useState("")
+  const [createPassword, setCreatePassword] = useState("")
+  const [createPuesto, setCreatePuesto] = useState("analista")
+  const [createEmpresa, setCreateEmpresa] = useState("")
+  const [createLoading, setCreateLoading] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null)
+
+  // Modal eliminar usuario
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [selectedUserForDelete, setSelectedUserForDelete] = useState<User | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("user")
 
-  // --- MODAL DE GESTIONAR PERMISOS: L├ôGICA DE CASCADA Y PERMISOS ---
+  // --- MODAL DE GESTIONAR PERMISOS: LÓGICA DE CASCADA Y PERMISOS ---
   const [plantasModal, setPlantasModal] = useState<any[]>([]);
   const [plantaSeleccionadaModal, setPlantaSeleccionadaModal] = useState<string>("");
   const [sistemasModal, setSistemasModal] = useState<any[]>([]);
@@ -97,12 +116,12 @@ export default function UsersManagement() {
         // Obtener token
         const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
         if (!token) {
-          setError("No hay token de autenticaci├│n")
+          setError("No hay token de autenticación")
           setLoading(false)
           return
         }
         
-        // Hacer la petici├│n con axios
+        // Hacer la petición con axios
         const response = await axios.get(`${API_BASE_URL}${API_ENDPOINTS.USERS}`, {
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -126,12 +145,12 @@ export default function UsersManagement() {
       } catch (err) {
         if (axios.isAxiosError(err)) {
           if (err.response?.status === 401) {
-            setError("Sesi├│n expirada. Por favor, inicia sesi├│n nuevamente.")
+            setError("Sesión expirada. Por favor, inicia sesión nuevamente.")
           } else {
             setError(`Error del servidor: ${err.response?.status} - ${err.response?.statusText}`)
           }
         } else {
-          setError("Error de conexi├│n. Verifica que el backend est├® corriendo.")
+          setError("Error de conexión. Verifica que el backend esté corriendo.")
         }
       } finally {
         setLoading(false)
@@ -173,7 +192,7 @@ export default function UsersManagement() {
         }
       })
       .catch(error => {
-        console.error("ÔØî Error fetching plantas:", error);
+        console.error("⚠️ Error fetching plantas:", error);
         // Si el endpoint de todas las plantas no existe, fallback al endpoint de accesibles
         if (isAdmin) {
           fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
@@ -187,7 +206,7 @@ export default function UsersManagement() {
               }
             })
             .catch(fallbackError => {
-              console.error("ÔØî Error en fallback:", fallbackError);
+              console.error("⚠️ Error en fallback:", fallbackError);
             });
         }
       });
@@ -209,7 +228,7 @@ export default function UsersManagement() {
         }
       })
       .catch(error => {
-        console.error("ÔØî Error fetching sistemas:", error);
+        console.error("⚠️ Error fetching sistemas:", error);
       });
   }, [plantaSeleccionadaModal]);
 
@@ -235,7 +254,7 @@ export default function UsersManagement() {
         setPermisoEditar(!!found?.puede_editar);
       })
       .catch((error) => {
-        console.error("ÔØî Error fetching permisos de planta:", error);
+        console.error("⚠️ Error fetching permisos de planta:", error);
         setPermisoVer(false);
         setPermisoEditar(false);
       });
@@ -421,12 +440,13 @@ export default function UsersManagement() {
     setPermisosLoading(false)
   }
 
-  // Modal handler edici├│n
+  // Modal handler edición
   const openEditModal = (user: User) => {
     setSelectedUserForEdit(user)
     setEditUsername(user.username)
     setEditEmail(user.email)
     setEditPuesto(user.puesto || "analista")
+    setEditEmpresa(user.empresa || "")
     setEditError(null)
     setEditSuccess(null)
     setShowEditModal(true)
@@ -436,6 +456,139 @@ export default function UsersManagement() {
     setSelectedUserForEdit(null)
     setEditError(null)
     setEditSuccess(null)
+  }
+
+  // Modal handlers crear usuario
+  const openCreateModal = () => {
+    setCreateUsername("")
+    setCreateEmail("")
+    setCreatePassword("")
+    setCreatePuesto("analista")
+    setCreateEmpresa("")
+    setCreateError(null)
+    setCreateSuccess(null)
+    setShowCreateModal(true)
+  }
+
+  const closeCreateModal = () => {
+    setShowCreateModal(false)
+    setCreateError(null)
+    setCreateSuccess(null)
+  }
+
+  // Modal handlers eliminar usuario
+  const openDeleteModal = (user: User) => {
+    setSelectedUserForDelete(user)
+    setDeleteError(null)
+    setDeleteSuccess(null)
+    setShowDeleteModal(true)
+  }
+
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false)
+    setSelectedUserForDelete(null)
+    setDeleteError(null)
+    setDeleteSuccess(null)
+  }
+
+  // Crear nuevo usuario
+  const handleCreateUser = async () => {
+    if (!createUsername.trim() || !createEmail.trim() || !createPassword.trim()) {
+      setCreateError("Todos los campos son obligatorios")
+      return
+    }
+
+    setCreateLoading(true)
+    setCreateError(null)
+    setCreateSuccess(null)
+
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
+      if (!token) {
+        setCreateError("No hay token de autenticación")
+        return
+      }
+
+      console.log("Creando usuario:", {
+        username: createUsername,
+        email: createEmail,
+        password: createPassword,
+        puesto: createPuesto,
+        empresa: createEmpresa,
+        endpoint: `${API_BASE_URL}${API_ENDPOINTS.REGISTER}`
+      })
+
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REGISTER}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          username: createUsername,
+          email: createEmail,
+          password: createPassword,
+          confirmPassword: createPassword,
+          puesto: createPuesto,
+          empresa: createEmpresa,
+        }),
+      })
+
+      console.log("Respuesta del servidor:", {
+        status: res.status,
+        statusText: res.statusText,
+        ok: res.ok
+      })
+
+      if (!res.ok) {
+        let errorMsg = "No se pudo crear el usuario."
+        try {
+          const errorData = await res.json()
+          errorMsg = errorData.message || errorData.error || errorMsg
+          console.error("Error del servidor:", errorData)
+        } catch (e) {
+          console.error("Error al parsear respuesta:", e)
+        }
+        setCreateError(errorMsg)
+        return
+      }
+
+      const data = await res.json()
+      console.log("Usuario creado exitosamente:", data)
+      
+      setCreateSuccess("Usuario creado exitosamente")
+      
+      // Recargar la lista de usuarios desde el servidor
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
+        if (token) {
+          const usersRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USERS}`, {
+            headers: {
+              "Authorization": `Bearer ${token}`,
+            },
+          })
+          
+          if (usersRes.ok) {
+            const usersData = await usersRes.json()
+            setUsers(usersData.usuarios || [])
+          }
+        }
+      } catch (error) {
+        console.error("Error al recargar usuarios:", error)
+        // Si falla la recarga, al menos cerramos el modal
+      }
+      
+      // Cerrar modal después de un breve delay
+      setTimeout(() => {
+        closeCreateModal()
+      }, 1500)
+
+    } catch (error) {
+      console.error("Error al crear usuario:", error)
+      setCreateError("Error de conexión al crear el usuario")
+    } finally {
+      setCreateLoading(false)
+    }
   }
 
   // PATCH update user
@@ -473,6 +626,7 @@ export default function UsersManagement() {
           username: editUsername,
           email: editEmail,
           puesto: editPuesto,
+          empresa: editEmpresa,
         }),
       })
 
@@ -515,34 +669,77 @@ export default function UsersManagement() {
     }
   }
 
-  // DELETE user
+  // DELETE user - Nueva implementación
   const handleDeleteUser = async () => {
-    if (!selectedUserForEdit) return
-    if (!window.confirm("┬┐Seguro que deseas eliminar este usuario?")) return
-    setEditLoading(true)
-    setEditError(null)
-    setEditSuccess(null)
+    if (!selectedUserForDelete) return
+
+    setDeleteLoading(true)
+    setDeleteError(null)
+    setDeleteSuccess(null)
+
     try {
-      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USER_DELETE(String(selectedUserForEdit._id || ""))}`, {
-        method: "DELETE",
-      })
-      if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.message || "No se pudo eliminar el usuario.")
+      const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
+      if (!token) {
+        setDeleteError("No hay token de autenticación")
+        return
       }
-      setEditSuccess("Usuario eliminado correctamente.")
+
+      const userId = getUserId(selectedUserForDelete)
+      console.log("Eliminando usuario:", {
+        userId,
+        endpoint: `${API_BASE_URL}${API_ENDPOINTS.USER_DELETE(userId)}`
+      })
+
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USER_DELETE(userId)}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      })
+
+      console.log("Respuesta del servidor:", {
+        status: res.status,
+        statusText: res.statusText,
+        ok: res.ok
+      })
+
+      if (!res.ok) {
+        let errorMsg = "No se pudo eliminar el usuario."
+        try {
+          const errorData = await res.json()
+          errorMsg = errorData.message || errorData.msg || errorMsg
+          console.error("Error del servidor:", errorData)
+        } catch (e) {
+          console.error("Error al parsear respuesta:", e)
+        }
+        setDeleteError(errorMsg)
+        return
+      }
+
+      const data = await res.json()
+      console.log("Usuario eliminado exitosamente:", data)
+      
+      setDeleteSuccess("Usuario eliminado exitosamente")
+      
+      // Actualizar la lista de usuarios
+      const updatedUsers = users.filter(user => getUserId(user) !== userId)
+      setUsers(updatedUsers)
+      
+      // Cerrar modal después de un breve delay
       setTimeout(() => {
-        closeEditModal()
-        window.location.reload()
-      }, 1000)
-    } catch (e: any) {
-      setEditError(e.message)
+        closeDeleteModal()
+      }, 1500)
+
+    } catch (error) {
+      console.error("Error al eliminar usuario:", error)
+      setDeleteError("Error de conexión al eliminar el usuario")
     } finally {
-      setEditLoading(false)
+      setDeleteLoading(false)
     }
   }
 
-  // Handler para guardar permisos de planta (versi├│n corregida seg├║n backend)
+  // Handler para guardar permisos de planta (versión corregida según backend)
   const handleGuardarPermisos = async () => {
     if (!selectedUserForPermissions || !plantaSeleccionadaModal) {
       return;
@@ -583,7 +780,7 @@ export default function UsersManagement() {
       
       setPermisosSuccess("Permisos de planta asignados correctamente");
       
-      // Cerrar modal despu├®s de 1.5 segundos
+      // Cerrar modal después de 1.5 segundos
       setTimeout(() => {
         closePermissionModal();
       }, 1500);
@@ -611,19 +808,19 @@ export default function UsersManagement() {
       <div className="min-h-screen bg-gray-50">
        <Navbar role={userRole} />
         {/* Header */}
-        <div className="bg-blue-600 text-white py-6 rounded-lg shadow mb-6">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-lg shadow mb-4">
           <div className="container mx-auto flex flex-col md:flex-row items-center justify-between">
             <div>
-              <h1 className="text-2xl font-semibold flex items-center mb-1">
-                <span className="material-icons mr-2">people</span>
-                Gestion de Usuarios
+              <h1 className="text-xl font-bold flex items-center mb-1">
+                <span className="material-icons mr-2 text-2xl">people</span>
+                Gestión de Usuarios
               </h1>
-              <p className="opacity-75">Administra los usuarios del sistema</p>
+              <p className="opacity-90 text-sm">Administra los usuarios del sistema</p>
             </div>
-            <div>
-              <span className="bg-gray-200 text-blue-700 text-sm px-3 py-1 rounded-full">
-                {users.length} usuarios
-              </span>
+            <div className="mt-2 md:mt-0">
+              <div className="bg-white/20 backdrop-blur-sm text-white px-3 py-1.5 rounded-full border border-white/30">
+                <span className="font-semibold text-sm">{users.length}</span> usuarios
+              </div>
             </div>
           </div>
         </div>
@@ -647,22 +844,31 @@ export default function UsersManagement() {
 
           <div className="bg-white rounded-lg shadow p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
-              <h5 className="text-gray-700 font-semibold mb-0">Lista de Usuarios</h5>
+              <div>
+                <h5 className="text-gray-700 font-semibold mb-0">Lista de Usuarios</h5>
+              </div>
               <div className="flex gap-2">
                 <button 
-                  className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition"
+                  className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition flex items-center"
+                  onClick={() => setShowCreateModal(true)}
+                >
+                  <span className="material-icons align-middle mr-1">person_add</span>
+                  Agregar Usuario
+                </button>
+                <button 
+                  className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition flex items-center"
                   onClick={limpiarFiltros}
                 >
                   <span className="material-icons align-middle mr-1">clear</span>
                   Limpiar Filtros
                 </button>
-              <button 
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
-                onClick={() => window.location.reload()}
-              >
-                <span className="material-icons align-middle mr-1">refresh</span>
-                Actualizar
-              </button>
+                <button 
+                  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition flex items-center"
+                  onClick={() => window.location.reload()}
+                >
+                  <span className="material-icons align-middle mr-1">refresh</span>
+                  Actualizar
+                </button>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -833,15 +1039,22 @@ export default function UsersManagement() {
                 </thead>
                 <tbody>
                   {usuariosFiltrados.length > 0 ? (
-                    usuariosFiltrados.map((user) => (
-                      <tr key={getUserId(user)} className="hover:bg-gray-50">
-                        <td className="border border-gray-300 px-4 py-2">
-                          <div className="flex items-center">
-                            <div>
-                              <div className="font-semibold text-gray-800">{user.username}</div>
+                    usuariosFiltrados.map((user) => {
+                      // Validar que el usuario existe y tiene las propiedades necesarias
+                      if (!user || !user.username) {
+                        console.warn("Usuario inválido encontrado:", user)
+                        return null
+                      }
+                      
+                      return (
+                        <tr key={getUserId(user)} className="hover:bg-gray-50">
+                          <td className="border border-gray-300 px-4 py-2">
+                            <div className="flex items-center">
+                              <div>
+                                <div className="font-semibold text-gray-800">{user.username}</div>
+                              </div>
                             </div>
-                          </div>
-                        </td>
+                          </td>
                         <td className="border border-gray-300 px-4 py-2">
                           <a href={`mailto:${user.email}`} className="text-blue-600 hover:underline">
                             {user.email}
@@ -873,13 +1086,14 @@ export default function UsersManagement() {
                             >
                               <span className="material-icons text-base">lock</span>
                             </button>
-                            <button className="flex items-center justify-center w-9 h-9 bg-transparent border border-red-500 text-red-500 rounded hover:bg-red-500 hover:text-white transition" title="Eliminar" onClick={() => openEditModal(user)} disabled>
+                            <button className="flex items-center justify-center w-9 h-9 bg-transparent border border-red-500 text-red-500 rounded hover:bg-red-500 hover:text-white transition" title="Eliminar" onClick={() => openDeleteModal(user)}>
                               <span className="material-icons text-base">delete</span>
                             </button>
                           </div>
                         </td>
                       </tr>
-                    ))
+                      )
+                    }).filter(Boolean) // Filtrar elementos null
                   ) : (
                     <tr>
                       <td colSpan={5} className="text-center py-10 text-gray-500">
@@ -943,7 +1157,7 @@ export default function UsersManagement() {
           </div>
         </div>
 
-        {/* Modal de edici├│n de usuario */}
+        {/* Modal de edición de usuario */}
         {showEditModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="fixed inset-0 bg-gray-500/75 transition-opacity" aria-hidden="true" onClick={closeEditModal}></div>
@@ -990,6 +1204,15 @@ export default function UsersManagement() {
                               </SelectContent>
                             </Select>
                           </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
+                            <Input
+                              value={editEmpresa}
+                              onChange={e => setEditEmpresa(e.target.value)}
+                              placeholder="Nombre de la empresa"
+                              className="w-full"
+                            />
+                          </div>
                           {editError && <div className="text-red-600 text-sm">{editError}</div>}
                           {editSuccess && <div className="text-green-600 text-sm">{editSuccess}</div>}
                         </div>
@@ -1005,6 +1228,124 @@ export default function UsersManagement() {
             </div>
           </div>
         )}
+
+        {/* Modal de creación de usuario */}
+        {showCreateModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="fixed inset-0 bg-gray-500/75 transition-opacity" aria-hidden="true" onClick={closeCreateModal}></div>
+            <div className="relative z-10 w-full max-w-lg mx-auto">
+              <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                  <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div className="sm:flex sm:items-start">
+                      <div className="mx-auto flex size-12 shrink-0 items-center justify-center rounded-full bg-green-100 sm:mx-0 sm:size-10">
+                        <span className="material-icons text-green-600 text-3xl">person_add</span>
+                      </div>
+                      <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                        <h3 className="text-base font-semibold text-gray-900" id="dialog-title">Crear nuevo usuario</h3>
+                        <div className="mt-2 space-y-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                            <Input
+                              value={createUsername}
+                              onChange={e => setCreateUsername(e.target.value)}
+                              placeholder="Nombre de usuario"
+                              className="w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <Input
+                              type="email"
+                              value={createEmail}
+                              onChange={e => setCreateEmail(e.target.value)}
+                              placeholder="Correo electrónico"
+                              className="w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                            <Input
+                              type="password"
+                              value={createPassword}
+                              onChange={e => setCreatePassword(e.target.value)}
+                              placeholder="Contraseña"
+                              className="w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Puesto</label>
+                            <Select value={createPuesto} onValueChange={setCreatePuesto}>
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Seleccione un puesto" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                                <SelectItem value="admin">Administrador</SelectItem>
+                                <SelectItem value="analista">Analista</SelectItem>
+                                <SelectItem value="client">Cliente</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
+                            <Input
+                              value={createEmpresa}
+                              onChange={e => setCreateEmpresa(e.target.value)}
+                              placeholder="Nombre de la empresa"
+                              className="w-full"
+                            />
+                          </div>
+                          {createError && <div className="text-red-600 text-sm">{createError}</div>}
+                          {createSuccess && <div className="text-green-600 text-sm">{createSuccess}</div>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 px-4 py-3 flex justify-end gap-2 sm:px-2">
+                    <button type="button" className="inline-flex items-center justify-center w-45 rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-500" onClick={handleCreateUser} disabled={createLoading}>{createLoading ? "Creando..." : "Crear usuario"}</button>
+                    <button type="button" className="inline-flex items-center justify-center w-45 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-xs ring-1 ring-gray-300 ring-inset hover:bg-gray-50" onClick={closeCreateModal} disabled={createLoading}>Cancelar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de confirmación para eliminar usuario */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="fixed inset-0 bg-gray-500/75 transition-opacity" aria-hidden="true" onClick={closeDeleteModal}></div>
+            <div className="relative z-10 w-full max-w-md mx-auto">
+              <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-md">
+                  <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div className="sm:flex sm:items-start">
+                      <div className="mx-auto flex size-12 shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:size-10">
+                        <span className="material-icons text-red-600 text-3xl">warning</span>
+                      </div>
+                      <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                        <h3 className="text-base font-semibold text-gray-900" id="dialog-title">Eliminar usuario</h3>
+                        <div className="mt-2">
+                          <p className="text-sm text-gray-500">
+                            ¿Estás seguro de que deseas eliminar al usuario <strong>{selectedUserForDelete?.username}</strong>? 
+                            Esta acción no se puede deshacer.
+                          </p>
+                          {deleteError && <div className="text-red-600 text-sm mt-2">{deleteError}</div>}
+                          {deleteSuccess && <div className="text-green-600 text-sm mt-2">{deleteSuccess}</div>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 px-4 py-3 flex justify-end gap-2 sm:px-6">
+                    <button type="button" className="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50" onClick={closeDeleteModal} disabled={deleteLoading}>Cancelar</button>
+                    <button type="button" className="inline-flex items-center justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500" onClick={handleDeleteUser} disabled={deleteLoading}>{deleteLoading ? "Eliminando..." : "Eliminar"}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Modal de permisos */}
         {showPermissionModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1015,7 +1356,7 @@ export default function UsersManagement() {
               onClick={closePermissionModal}
             />
             
-            {/* Contenedor del modal centrado con ancho m├íximo */}
+            {/* Contenedor del modal centrado con ancho máximo */}
             <div className="relative w-full max-w-[1000px] max-h-[90vh] bg-white rounded-lg shadow-xl overflow-hidden flex flex-col">
               {/* Header del modal */}
               <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
@@ -1041,7 +1382,7 @@ export default function UsersManagement() {
 
               {/* Contenido scrolleable del modal */}
               <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-                {/* Informaci├│n del usuario */}
+                {/* Información del usuario */}
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
@@ -1074,7 +1415,7 @@ export default function UsersManagement() {
                   </div>
                 )}
 
-                {/* Secci├│n de configuraci├│n de permisos */}
+                {/* Sección de configuración de permisos */}
                 <div className="space-y-6">
                   {/* Dropdown de plantas */}
                   <div>
@@ -1126,7 +1467,7 @@ export default function UsersManagement() {
                     </div>
                   )}
 
-                  {/* Informaci├│n del sistema seleccionado y permisos */}
+                  {/* Información del sistema seleccionado y permisos */}
                   {plantasModal.length > 0 && sistemasModal.length > 0 && (
                     sistemasModal.map((sistema: any) => (
                       sistema.id === sistemaSeleccionadoModal && (
@@ -1177,7 +1518,7 @@ export default function UsersManagement() {
                     ))
                   )}
 
-                  {/* Mensajes de error y ├®xito */}
+                  {/* Mensajes de error y éxito */}
                   {permisosError && (
                     <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                       <div className="flex items-center gap-3">
@@ -1195,7 +1536,7 @@ export default function UsersManagement() {
                       <div className="flex items-center gap-3">
                         <span className="material-icons text-green-600 text-lg">check_circle</span>
                         <div>
-                          <h4 className="font-medium text-green-900 mb-1">├ëxito</h4>
+                          <h4 className="font-medium text-green-900 mb-1">Éxito</h4>
                           <p className="text-sm text-green-800">{permisosSuccess}</p>
                         </div>
                       </div>

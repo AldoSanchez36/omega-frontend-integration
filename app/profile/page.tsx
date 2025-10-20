@@ -37,186 +37,109 @@ export default function Profile() {
   if (!user) return null
 
   return (
-    <div className="min-vh-100 bg-light">
+    <div className="min-h-screen bg-gray-50">
       <Navbar role={user?.puesto || 'client'} />
       {/* Main Content */}
-      <div className="container py-4">
-        <div className="row">
-          <div className=" mx-auto">
-            {/* Perfil visual estilo settings */}
-            <div className="card mb-4">
-              <div className="card-header">
-                <h2 className="h4 mb-0 d-flex align-items-center">
-                  <i className="material-icons me-2">person</i>
-                  Mi Perfil
-                </h2>
+      <div className="container mx-auto py-8 px-4">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-6 rounded-lg shadow mb-6">
+            <div className="flex items-center gap-4">
+              <div className="bg-white/20 backdrop-blur-sm p-3 rounded-full">
+                <span className="material-icons text-3xl">person</span>
               </div>
-              <div className="card-body p-4">
-                <div className="d-flex align-items-center mb-4">
-                  <div className="rounded-circle bg-primary d-flex align-items-center justify-content-center me-3" style={{ width: "80px", height: "80px" }}>
-                    <span className="material-icons text-white" style={{ fontSize: "2rem" }}>
-                      person
-                    </span>
+              <div>
+                <h1 className="text-2xl font-bold">Mi Perfil</h1>
+                <p className="opacity-90">Información de tu cuenta de usuario</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-8">
+            {/* Información principal del usuario */}
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="material-icons text-blue-600 text-3xl">person</span>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">{user.username}</h2>
+              <p className="text-gray-500 mb-3">{user.email}</p>
+              <span className={`px-4 py-2 rounded-full text-sm font-medium ${
+                user.puesto === "admin" 
+                  ? "bg-red-100 text-red-700" 
+                  : "bg-blue-100 text-blue-700"
+              }`}>
+                {user.puesto}
+              </span>
+            </div>
+
+            {/* Información detallada - diseño minimalista */}
+            <div className="space-y-6">
+              <div className="border-b border-gray-200 pb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="material-icons text-gray-400 mr-3">person</span>
+                    <span className="text-gray-600">Nombre de usuario</span>
                   </div>
-                  <div className="flex-grow-1">
-                    <h4 className="mb-1">{user.username}</h4>
-                    <p className="text-muted mb-2">{user.email}</p>
-                    <div className="d-flex align-items-center">
-                      <span className={`badge bg-${user.puesto === "admin" ? "danger" : "primary"} me-2`}>
-                        {user.puesto}
-                      </span>
-                      <span className="text-muted">•</span>
-                    </div>
-                  </div>
+                  <span className="font-medium text-gray-800">{user.username}</span>
                 </div>
-                {/* Fin header visual */}
-                <div>
-                  <div className="row mb-3">
-                    <div className="col-sm-3">
-                      <strong>Nombre de usuario:</strong>
-                    </div>
-                    <div className="col-sm-9">{user.username}</div>
+              </div>
+
+              <div className="border-b border-gray-200 pb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="material-icons text-gray-400 mr-3">email</span>
+                    <span className="text-gray-600">Email</span>
                   </div>
-                  <div className="row mb-3">
-                    <div className="col-sm-3">
-                      <strong>Email:</strong>
-                    </div>
-                    <div className="col-sm-9">{user.email}</div>
+                  <span className="font-medium text-gray-800">{user.email}</span>
+                </div>
+              </div>
+
+              <div className="border-b border-gray-200 pb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="material-icons text-gray-400 mr-3">admin_panel_settings</span>
+                    <span className="text-gray-600">Rol</span>
                   </div>
-                  <div className="row mb-3">
-                    <div className="col-sm-3">
-                      <strong>Rol:</strong>
-                    </div>
-                    <div className="col-sm-9">
-                      <span className={`badge bg-${user.puesto === "admin" ? "danger" : "primary"}`}>
-                        {user.puesto}
-                      </span>
-                    </div>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    user.puesto === "admin" 
+                      ? "bg-red-100 text-red-700" 
+                      : "bg-blue-100 text-blue-700"
+                  }`}>
+                    {user.puesto}
+                  </span>
+                </div>
+              </div>
+
+              <div className="border-b border-gray-200 pb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="material-icons text-gray-400 mr-3">calendar_today</span>
+                    <span className="text-gray-600">Fecha de registro</span>
                   </div>
-                  <div className="row mb-3">
-                    <div className="col-sm-3">
-                      <strong>Fecha de registro:</strong>
-                    </div>
-                    <div className="col-sm-9">
-                      {user.created_at ? new Date(user.created_at).toLocaleDateString() : "No disponible"}
-                    </div>
+                  <span className="font-medium text-gray-800">
+                    {user.created_at ? new Date(user.created_at).toLocaleDateString() : "No disponible"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="pb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="material-icons text-gray-400 mr-3">fingerprint</span>
+                    <span className="text-gray-600">ID de usuario</span>
                   </div>
-                  <div className="row mb-3">
-                    <div className="col-sm-3">
-                      <strong>ID de usuario:</strong>
-                    </div>
-                    <div className="col-sm-9">
-                      <code>{user.id}</code>
-                    </div>
-                  </div>
-                  <div className="d-flex gap-2">
-                    <Link href="/dashboard" className="btn btn-outline-secondary">
-                      <i className="material-icons me-2">dashboard</i>
-                      Volver al dashboard
-                    </Link>
-                  </div>
+                  <code className="bg-gray-100 px-3 py-1 rounded text-sm font-mono text-gray-700">{user.id}</code>
                 </div>
               </div>
             </div>
-            {/* Preferencias del Sistema (visual, sin funcionalidad real) */}
-            {/* <div className="row mb-4">
-              <div className="col-12">
-                <div className="card">
-                  <div className="card-header">
-                    <h5 className="card-title mb-0">
-                      <i className="material-icons me-2">tune</i>
-                      Preferencias del Sistema
-                    </h5>
-                  </div>
-                  <div className="card-body">
-                    <div className="row">
-                      <div className="col-md-4 mb-3">
-                        <div className="d-flex justify-content-between align-items-center">
-                          <div>
-                            <h6 className="mb-1">Notificaciones</h6>
-                            <small className="text-muted">Recibir notificaciones del sistema</small>
-                          </div>
-                          <div className="form-check form-switch">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              checked={true}
-                              readOnly
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-md-4 mb-3">
-                        <div className="d-flex justify-content-between align-items-center">
-                          <div>
-                            <h6 className="mb-1">Modo Oscuro</h6>
-                            <small className="text-muted">Cambiar a tema oscuro</small>
-                          </div>
-                          <div className="form-check form-switch">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              checked={false}
-                              readOnly
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-md-4 mb-3">
-                        <div>
-                          <h6 className="mb-1">Idioma</h6>
-                          <small className="text-muted">Idioma de la interfaz</small>
-                          <select
-                            className="form-select mt-1"
-                            value={"es"}
-                            disabled
-                          >
-                            <option value="es">Español</option>
-                            <option value="en">English</option>
-                            <option value="pt">Português</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div> */}
-            {/* Seguridad (visual, sin funcionalidad real) */}
-            {/* <div className="row mb-4">
-              <div className="col-12">
-                <div className="card">
-                  <div className="card-header">
-                    <h5 className="card-title mb-0">
-                      <i className="material-icons me-2">security</i>
-                      Seguridad
-                    </h5>
-                  </div>
-                  <div className="card-body">
-                    <div className="row">
-                      <div className="col-md-4 mb-2">
-                        <button className="btn btn-outline-primary w-100" disabled>
-                          <i className="material-icons me-2">lock</i>
-                          Cambiar Contraseña
-                        </button>
-                      </div>
-                      <div className="col-md-4 mb-2">
-                        <button className="btn btn-outline-info w-100" disabled>
-                          <i className="material-icons me-2">phone_android</i>
-                          Autenticación 2FA
-                        </button>
-                      </div>
-                      <div className="col-md-4 mb-2">
-                        <button className="btn btn-outline-secondary w-100" disabled>
-                          <i className="material-icons me-2">devices</i>
-                          Sesiones Activas
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div> */}
+
+            {/* Botón de acción */}
+            <div className="flex justify-center mt-8">
+              <Link href="/dashboard" className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-3 rounded-lg flex items-center transition shadow-sm hover:shadow-md">
+                <span className="material-icons mr-2">dashboard</span>
+                Volver al dashboard
+              </Link>
+            </div>
           </div>
         </div>
       </div>

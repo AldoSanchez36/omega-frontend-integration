@@ -13,7 +13,6 @@ interface NavbarProps {
 const NAV_LINKS = [
   // Solo para admin
   { path: "/agregar-formula",       label: "Agregar fórmula", icon: "ƒₓ", roles: ["admin"] },
-  { path: "/dashboard-parameters",  label: "Admi. de variables(parametros)", icon: "tune", roles: ["admin"] },
   { path: "/dashboard-agregarsistema",  label: "Agregar plantas o Sistema", icon: "factory", roles: ["admin"] },
   // Para admin y user
   { path: "/users-management",      label: "Gestión de usuarios", icon: "people", roles: ["admin", "user"] },
@@ -115,13 +114,14 @@ export const Navbar: React.FC<NavbarProps> = ({ role }) => {
 
   return (
     <nav 
-      className="navbar navbar-expand-lg navbar-dark bg-primary"
+      className="navbar navbar-expand-lg navbar-dark"
       style={{
         position: 'fixed',
         top: 0,
         left: 0,
         right: 0,
         zIndex: 1030,
+        background: 'linear-gradient(to right, #2563eb, #1d4ed8)',
         boxShadow: isScrolled ? '0 2px 4px rgba(0,0,0,0.1)' : 'none',
         transition: 'box-shadow 0.3s ease'
       }}
