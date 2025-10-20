@@ -22,6 +22,8 @@ interface RecentReportsTableProps {
   getStatusColor: (status: string) => string;
   onTableClick: () => void;
   onDebugLog: (msg: string) => void;
+  onViewReport: (report: Report) => void;
+  onDownloadPDF: (report: Report) => void;
 }
 
 const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
@@ -30,6 +32,8 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
   getStatusColor,
   onTableClick,
   onDebugLog,
+  onViewReport,
+  onDownloadPDF,
 }) => {
   return (
     <div className="row mb-4">
@@ -99,7 +103,8 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                           <div className="btn-group btn-group-sm">
                             <button
                               className="btn btn-outline-primary"
-                              onClick={() => onDebugLog(`Ver reporte ${report.id}`)}
+                              onClick={() => onViewReport(report)}
+                              title="Ver reporte"
                             >
                               <i className="material-icons" style={{ fontSize: "1rem" }}>
                                 visibility
@@ -107,7 +112,8 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                             </button>
                             <button
                               className="btn btn-outline-secondary"
-                              onClick={() => onDebugLog(`Descargar reporte ${report.id}`)}
+                              onClick={() => onDownloadPDF(report)}
+                              title="Descargar PDF"
                             >
                               <i className="material-icons" style={{ fontSize: "1rem" }}>
                                 download

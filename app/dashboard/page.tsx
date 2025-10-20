@@ -294,6 +294,140 @@ export default function Dashboard() {
     router.push("/dashboard-reportList")
   }
 
+  // Función para manejar la vista del reporte desde el dashboard
+  const handleViewReport = (report: any) => {
+    try {
+      console.log("👁️ Visualizando reporte desde dashboard:", report);
+      
+      // Validar que tenemos los datos mínimos necesarios
+      if (!report.planta_id) {
+        console.error("❌ Error: No se encontró planta_id en los datos del reporte");
+        alert("Error: No se pueden visualizar reportes sin datos de planta completos");
+        return;
+      }
+      
+      // Reconstruir reportSelection desde los datos del reporte
+      const reportSelection = {
+        user: {
+          id: report.usuario_id,
+          username: report.usuario,
+          email: report.datos?.user?.email || "",
+          puesto: report.datos?.user?.puesto || "client",
+          cliente_id: report.datos?.user?.cliente_id || null
+        },
+        plant: {
+          id: report.planta_id, // Usar planta_id de la tabla reportes
+          nombre: report.plantName,
+          systemName: report.systemName
+        },
+        systemName: report.systemName,
+        parameters: report.datos?.parameters ? Object.entries(report.datos.parameters).map(([key, value]) => ({
+          id: key,
+          nombre: key,
+          unidad: Object.values(value)[0]?.unidad || "",
+          limite_min: report.datos?.variablesTolerancia?.[key]?.limite_min || null,
+          limite_max: report.datos?.variablesTolerancia?.[key]?.limite_max || null,
+          bien_min: report.datos?.variablesTolerancia?.[key]?.bien_min || null,
+          bien_max: report.datos?.variablesTolerancia?.[key]?.bien_max || null,
+          usar_limite_min: report.datos?.variablesTolerancia?.[key]?.usar_limite_min || false,
+          usar_limite_max: report.datos?.variablesTolerancia?.[key]?.usar_limite_max || false
+        })) : [],
+        mediciones: [], // Los datos de mediciones se reconstruirán en la página reports
+        fecha: report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        comentarios: report.observaciones || "",
+        generatedDate: report.created_at || new Date().toISOString(),
+        cliente_id: report.datos?.user?.cliente_id || null
+      };
+
+      console.log("📄 reportSelection reconstruido desde dashboard:", reportSelection);
+      console.log("🔍 Validación plant.id:", reportSelection.plant.id);
+      console.log("🏭 Datos de planta:", {
+        planta_id: report.planta_id,
+        planta_nombre: report.plantName,
+        systemName: report.systemName
+      });
+      
+      // Guardar en localStorage
+      localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
+      
+      // Redirigir a la página de reports
+      router.push("/reports");
+      
+    } catch (error) {
+      console.error("❌ Error al preparar vista del reporte desde dashboard:", error);
+      alert("Error al preparar la vista del reporte");
+    }
+  };
+
+  // Función para manejar la descarga del PDF desde el dashboard
+  const handleDownloadPDF = async (report: any) => {
+    try {
+      console.log("📥 Descargando PDF del reporte desde dashboard:", report);
+      
+      // Validar que tenemos los datos mínimos necesarios
+      if (!report.planta_id) {
+        console.error("❌ Error: No se encontró planta_id en los datos del reporte");
+        alert("Error: No se pueden descargar reportes sin datos de planta completos");
+        return;
+      }
+      
+      // Reconstruir reportSelection con validación completa
+      const reportSelection = {
+        user: {
+          id: report.usuario_id,
+          username: report.usuario,
+          email: report.datos?.user?.email || "",
+          puesto: report.datos?.user?.puesto || "client",
+          cliente_id: report.datos?.user?.cliente_id || null
+        },
+        plant: {
+          id: report.planta_id, // Usar planta_id de la tabla reportes
+          nombre: report.plantName,
+          systemName: report.systemName
+        },
+        systemName: report.systemName,
+        parameters: report.datos?.parameters ? Object.entries(report.datos.parameters).map(([key, value]) => ({
+          id: key,
+          nombre: key,
+          unidad: Object.values(value)[0]?.unidad || "",
+          limite_min: report.datos?.variablesTolerancia?.[key]?.limite_min || null,
+          limite_max: report.datos?.variablesTolerancia?.[key]?.limite_max || null,
+          bien_min: report.datos?.variablesTolerancia?.[key]?.bien_min || null,
+          bien_max: report.datos?.variablesTolerancia?.[key]?.bien_max || null,
+          usar_limite_min: report.datos?.variablesTolerancia?.[key]?.usar_limite_min || false,
+          usar_limite_max: report.datos?.variablesTolerancia?.[key]?.usar_limite_max || false
+        })) : [],
+        mediciones: [],
+        fecha: report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        comentarios: report.observaciones || "",
+        generatedDate: report.created_at || new Date().toISOString(),
+        cliente_id: report.datos?.user?.cliente_id || null
+      };
+
+      console.log("📄 reportSelection reconstruido para descarga desde dashboard:", reportSelection);
+      console.log("🔍 Validación plant.id:", reportSelection.plant.id);
+      console.log("🏭 Datos de planta para descarga:", {
+        planta_id: report.planta_id,
+        planta_nombre: report.plantName,
+        systemName: report.systemName
+      });
+
+      // Guardar temporalmente en localStorage
+      console.log("💾 Guardando reportSelection en localStorage...");
+      localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
+      console.log("✅ reportSelection guardado exitosamente");
+      
+      // Redirigir a reports para generar el PDF
+      console.log("🚀 Redirigiendo a /reports?download=true");
+      router.push("/reports?download=true");
+      console.log("✅ Redirección completada");
+      
+    } catch (error) {
+      console.error("❌ Error al preparar descarga del PDF desde dashboard:", error);
+      alert("Error al preparar la descarga del PDF");
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
@@ -586,6 +720,8 @@ export default function Dashboard() {
             getStatusColor={getStatusColor}
             onTableClick={getClientReports}
             onDebugLog={addDebugLog}
+            onViewReport={handleViewReport}
+            onDownloadPDF={handleDownloadPDF}
           />
         </div>
 
