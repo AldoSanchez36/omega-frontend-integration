@@ -42,6 +42,8 @@ interface User {
 interface Plant {
   id: string
   nombre: string
+  dirigido_a?: string
+  mensaje_cliente?: string
 }
 
 interface System {
@@ -97,8 +99,12 @@ export default function ParameterManager() {
   // Form states
   const [showCreatePlant, setShowCreatePlant] = useState(false)
   const [newPlantName, setNewPlantName] = useState("")
+  const [newPlantRecipient, setNewPlantRecipient] = useState("")
+  const [newPlantMessage, setNewPlantMessage] = useState("")
   const [showEditPlantDialog, setShowEditPlantDialog] = useState(false)
   const [editPlantName, setEditPlantName] = useState("")
+  const [editPlantRecipient, setEditPlantRecipient] = useState("")
+  const [editPlantMessage, setEditPlantMessage] = useState("")
   const [editingPlant, setEditingPlant] = useState<Plant | null>(null)
   const [showCreateSystem, setShowCreateSystem] = useState(false)
   const [newSystemName, setNewSystemName] = useState("")
@@ -423,27 +429,40 @@ export default function ParameterManager() {
   }
 
   const handleCreatePlant = async () => {
-    if (!newPlantName.trim() || !selectedUser) {
-      alert("Por favor, ingrese un nombre para la planta y seleccione un usuario.")
+    if (!newPlantName.trim() || !newPlantRecipient.trim() || !selectedUser) {
+      alert("Por favor, complete todos los campos obligatorios: nombre de la planta, destinatario de reportes y seleccione un usuario.")
       return
     }
     setLoading(true)
     setError(null)
     try {
+      const plantData = {
+        nombre: newPlantName,
+        dirigido_a: newPlantRecipient,
+        mensaje_cliente: newPlantMessage.trim() || null, // Enviar null si está vacío
+        usuario_id: selectedUser.id,
+      }
+      
+      console.log("🌱 Datos de planta a crear:", plantData)
+      
       const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_CREATE}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          nombre: newPlantName,
-          usuario_id: selectedUser.id,
-        }),
+        body: JSON.stringify(plantData),
       })
       if (!res.ok) {
         const errorData = await res.json()
+        console.error("❌ Error del servidor al crear planta:", errorData)
         throw new Error(errorData.message || "No se pudo crear la planta.")
       }
+      
+      const responseData = await res.json()
+      console.log("✅ Respuesta del servidor al crear planta:", responseData)
+      
       setShowCreatePlant(false)
       setNewPlantName("")
+      setNewPlantRecipient("")
+      setNewPlantMessage("")
       await handleSelectUser(selectedUser.id) // Refetch plants for the selected user
     } catch (e: any) {
       setError(`Error al crear planta: ${e.message}`)
@@ -456,34 +475,48 @@ export default function ParameterManager() {
   const handleOpenEditPlant = (plant: Plant) => {
     setEditingPlant(plant)
     setEditPlantName(plant.nombre)
+    setEditPlantRecipient(plant.dirigido_a || "")
+    setEditPlantMessage(plant.mensaje_cliente || "")
     setShowEditPlantDialog(true)
   }
 
-  // Function to update plant name
+  // Function to update plant information
   const handleUpdatePlant = async () => {
-    if (!editPlantName.trim() || !editingPlant) {
-      alert("Por favor, ingrese un nombre para la planta.")
+    if (!editPlantName.trim() || !editPlantRecipient.trim() || !editingPlant) {
+      alert("Por favor, complete todos los campos obligatorios: nombre de la planta y destinatario de reportes.")
       return
     }
     
     setLoading(true)
     setError(null)
     try {
+      const updateData = {
+        nombre: editPlantName,
+        dirigido_a: editPlantRecipient,
+        mensaje_cliente: editPlantMessage.trim() || null, // Enviar null si está vacío
+      }
+      
+      console.log("🌱 Datos de planta a actualizar:", updateData)
+      
       const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_UPDATE(editingPlant.id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          nombre: editPlantName,
-        }),
+        body: JSON.stringify(updateData),
       })
       
       if (!res.ok) {
         const errorData = await res.json()
+        console.error("❌ Error del servidor al actualizar planta:", errorData)
         throw new Error(errorData.message || "No se pudo actualizar la planta.")
       }
       
+      const responseData = await res.json()
+      console.log("✅ Respuesta del servidor al actualizar planta:", responseData)
+      
       setShowEditPlantDialog(false)
       setEditPlantName("")
+      setEditPlantRecipient("")
+      setEditPlantMessage("")
       setEditingPlant(null)
       
       // Refetch plants to update the list
@@ -492,6 +525,55 @@ export default function ParameterManager() {
       }
     } catch (e: any) {
       setError(`Error al actualizar planta: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Function to delete plant
+  const handleDeletePlant = async (plant: Plant) => {
+    // Mostrar confirmación de eliminación
+    const confirmDelete = window.confirm(
+      `¿Está seguro que desea eliminar la planta "${plant.nombre}"?\n\n` +
+      `Esta acción eliminará:\n` +
+      `• La planta y toda su información\n` +
+      `• Todos los sistemas asociados\n` +
+      `• Todos los parámetros y mediciones\n\n` +
+      `⚠️ Esta acción NO se puede deshacer.`
+    )
+    
+    if (!confirmDelete) return
+
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_DELETE(plant.id)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "No se pudo eliminar la planta.")
+      }
+      
+      // Limpiar selecciones si la planta eliminada era la seleccionada
+      if (selectedPlant?.id === plant.id) {
+        setSelectedPlant(null)
+        setSelectedSystemId(null)
+        setSystems([])
+        setParameters([])
+      }
+      
+      // Refetch plants to update the list
+      if (selectedUser) {
+        await handleSelectUser(selectedUser.id)
+      }
+      
+      alert(`✅ Planta "${plant.nombre}" eliminada exitosamente.`)
+    } catch (e: any) {
+      setError(`Error al eliminar planta: ${e.message}`)
+      alert(`Error al eliminar planta: ${e.message}`)
     } finally {
       setLoading(false)
     }
@@ -1084,27 +1166,60 @@ export default function ParameterManager() {
                                   <Plus className="mr-2 h-4 w-4" /> Crear Planta
                                 </Button>
                                 {selectedPlant && (
-                                  <Button 
-                                    type="button" 
-                                    onClick={() => handleOpenEditPlant(selectedPlant)} 
-                                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
-                                  >
-                                    <Edit className="mr-2 h-4 w-4" /> Editar Nombre
-                                  </Button>
+                                  <>
+                                    <Button 
+                                      type="button" 
+                                      onClick={() => handleOpenEditPlant(selectedPlant)} 
+                                      className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                                    >
+                                      <Edit className="mr-2 h-4 w-4" /> Editar
+                                    </Button>
+                                    <Button 
+                                      type="button" 
+                                      onClick={() => handleDeletePlant(selectedPlant)} 
+                                      className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                                      disabled={loading}
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" /> Borrar Planta
+                                    </Button>
+                                  </>
                                 )}
                               </div>
                           </div>
                            {showCreatePlant && (
-                             <div className="grid w-full grid-cols-[1fr_auto] gap-3 rounded-xl border-2 border-green-200 p-4 bg-gradient-to-r from-green-50 to-emerald-50">
-                               <Input
-                                 placeholder="Nombre de la nueva planta"
-                                 value={newPlantName}
-                                 onChange={(e) => setNewPlantName(e.target.value)}
-                                 className="border-green-200 focus:border-green-400"
-                               />
-                               <Button type="button" onClick={handleCreatePlant} disabled={loading || !newPlantName.trim()} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all">
-                                 Guardar
-                               </Button>
+                             <div className="space-y-3 rounded-xl border-2 border-green-200 p-4 bg-gradient-to-r from-green-50 to-emerald-50">
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                 <Input
+                                   placeholder="Nombre de la nueva planta *"
+                                   value={newPlantName}
+                                   onChange={(e) => setNewPlantName(e.target.value)}
+                                   className="border-green-200 focus:border-green-400"
+                                 />
+                                 <Input
+                                   placeholder="Destinatario de reportes *"
+                                   value={newPlantRecipient}
+                                   onChange={(e) => setNewPlantRecipient(e.target.value)}
+                                   className="border-green-200 focus:border-green-400"
+                                 />
+                               </div>
+                               <div className="grid grid-cols-1 gap-3">
+                                 <Input
+                                   placeholder="Mensaje para el cliente (opcional)"
+                                   value={newPlantMessage}
+                                   onChange={(e) => setNewPlantMessage(e.target.value)}
+                                   className="border-green-200 focus:border-green-400"
+                                 />
+                               </div>
+                               <div className="flex justify-end">
+                                 <Button 
+                                   type="button" 
+                                   onClick={handleCreatePlant} 
+                                   disabled={loading || !newPlantName.trim() || !newPlantRecipient.trim()} 
+                                   className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                                 >
+                                   Guardar
+                                 </Button>
+                               </div>
                              </div>
                            )}
                         </div>
@@ -1247,14 +1362,14 @@ export default function ParameterManager() {
                     
                     {/* Edit Plant Dialog */}
                     <Dialog open={showEditPlantDialog} onOpenChange={setShowEditPlantDialog}>
-                      <DialogContent className="bg-[#f6f6f6] text-gray-900">
+                      <DialogContent className="bg-[#f6f6f6] text-gray-900 max-w-2xl">
                         <DialogHeader>
-                          <DialogTitle>Editar Nombre de la Planta</DialogTitle>
+                          <DialogTitle>Editar Información de la Planta</DialogTitle>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
                           <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="edit-plant-name" className="text-right">
-                              Nombre
+                              Nombre *
                             </Label>
                             <Input
                               id="edit-plant-name"
@@ -1262,6 +1377,34 @@ export default function ParameterManager() {
                               onChange={(e) => setEditPlantName(e.target.value)}
                               className="col-span-3"
                             />
+                          </div>
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="edit-plant-recipient" className="text-right">
+                              Destinatario de Reportes *
+                            </Label>
+                            <Input
+                              id="edit-plant-recipient"
+                              value={editPlantRecipient}
+                              onChange={(e) => setEditPlantRecipient(e.target.value)}
+                              className="col-span-3"
+                            />
+                          </div>
+                          <div className="grid grid-cols-4 items-start gap-4">
+                            <Label htmlFor="edit-plant-message" className="text-right pt-2">
+                              Mensaje para el Cliente
+                            </Label>
+                            <div className="col-span-3">
+                              <Input
+                                id="edit-plant-message"
+                                value={editPlantMessage}
+                                onChange={(e) => setEditPlantMessage(e.target.value)}
+                                placeholder="Mensaje opcional para el cliente"
+                                className="w-full"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">
+                                Este mensaje aparecerá en los reportes enviados al cliente
+                              </p>
+                            </div>
                           </div>
                         </div>
                         <DialogFooter>
@@ -1276,7 +1419,7 @@ export default function ParameterManager() {
                           <Button 
                             type="button" 
                             onClick={handleUpdatePlant}
-                            disabled={loading || !editPlantName.trim()}
+                            disabled={loading || !editPlantName.trim() || !editPlantRecipient.trim()}
                           >
                             {loading ? "Guardando..." : "Guardar Cambios"}
                           </Button>
