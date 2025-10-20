@@ -12,6 +12,8 @@ interface Report {
   plantName?: string;
   systemName?: string;
   status?: string;
+  usuario?: string;
+  puesto?: string;
 }
 
 interface RecentReportsTableProps {
@@ -35,12 +37,6 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
         <div className="card">
           <div className="card-header d-flex justify-content-between align-items-center">
             <h5 className="card-title mb-0">📊 Reportes Recientes</h5>
-            {/* <button
-              className="btn btn-sm btn-primary"
-              onClick={() => onDebugLog("Ver todos los reportes clickeado")}
-            >
-              Ver todos
-            </button> */}
             <button
               className="btn btn-outline-primary w-35"
               onClick={onTableClick}
@@ -65,6 +61,7 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                       <th>Planta</th>
                       <th>Sistema</th>
                       <th>Estado</th>
+                      <th>Usuario</th>
                       <th>Fecha</th>
                       <th>Acciones</th>
                     </tr>
@@ -85,6 +82,17 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                           <span className={`badge ${getStatusColor(report.status || "completed")}`}>
                             {report.status === "completed" ? "✅ Completado" : report.status || "Completado"}
                           </span>
+                        </td>
+                        <td>
+                          <div>
+                            <strong>{report.usuario || "Usuario"}</strong>
+                            {report.puesto && (
+                              <>
+                                <br />
+                                <small className="text-muted">{report.puesto}</small>
+                              </>
+                            )}
+                          </div>
                         </td>
                         <td>{new Date(report.created_at || "").toLocaleDateString()}</td>
                         <td>
@@ -127,4 +135,4 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
   );
 };
 
-export default RecentReportsTable; 
+export default RecentReportsTable;
