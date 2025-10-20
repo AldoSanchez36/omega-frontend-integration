@@ -42,6 +42,8 @@ interface User {
 interface Plant {
   id: string
   nombre: string
+  dirigido_a?: string
+  mensaje_cliente?: string
 }
 
 interface System {
@@ -97,8 +99,12 @@ export default function ParameterManager() {
   // Form states
   const [showCreatePlant, setShowCreatePlant] = useState(false)
   const [newPlantName, setNewPlantName] = useState("")
+  const [newPlantRecipient, setNewPlantRecipient] = useState("")
+  const [newPlantMessage, setNewPlantMessage] = useState("")
   const [showEditPlantDialog, setShowEditPlantDialog] = useState(false)
   const [editPlantName, setEditPlantName] = useState("")
+  const [editPlantRecipient, setEditPlantRecipient] = useState("")
+  const [editPlantMessage, setEditPlantMessage] = useState("")
   const [editingPlant, setEditingPlant] = useState<Plant | null>(null)
   const [showCreateSystem, setShowCreateSystem] = useState(false)
   const [newSystemName, setNewSystemName] = useState("")
@@ -114,6 +120,12 @@ export default function ParameterManager() {
   // Estado para variables globales
   const [allVariables, setAllVariables] = useState<Parameter[]>([]);
   const [selectedImportVariableId, setSelectedImportVariableId] = useState<string>("");
+  
+  // Estado para importar de otro sistema
+  const [showImportFromSystem, setShowImportFromSystem] = useState(false);
+  const [selectedSourceSystemId, setSelectedSourceSystemId] = useState<string>("");
+  const [sourceSystemParameters, setSourceSystemParameters] = useState<Parameter[]>([]);
+  const [sourceSystemTolerances, setSourceSystemTolerances] = useState<Record<string, any>>({});
 
   // Estado para tolerancias por parámetro
   const [tolerancias, setTolerancias] = useState<Record<string, any>>({})
@@ -417,27 +429,40 @@ export default function ParameterManager() {
   }
 
   const handleCreatePlant = async () => {
-    if (!newPlantName.trim() || !selectedUser) {
-      alert("Por favor, ingrese un nombre para la planta y seleccione un usuario.")
+    if (!newPlantName.trim() || !newPlantRecipient.trim() || !selectedUser) {
+      alert("Por favor, complete todos los campos obligatorios: nombre de la planta, destinatario de reportes y seleccione un usuario.")
       return
     }
     setLoading(true)
     setError(null)
     try {
+      const plantData = {
+        nombre: newPlantName,
+        dirigido_a: newPlantRecipient,
+        mensaje_cliente: newPlantMessage.trim() || null, // Enviar null si está vacío
+        usuario_id: selectedUser.id,
+      }
+      
+      console.log("🌱 Datos de planta a crear:", plantData)
+      
       const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_CREATE}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          nombre: newPlantName,
-          usuario_id: selectedUser.id,
-        }),
+        body: JSON.stringify(plantData),
       })
       if (!res.ok) {
         const errorData = await res.json()
+        console.error("❌ Error del servidor al crear planta:", errorData)
         throw new Error(errorData.message || "No se pudo crear la planta.")
       }
+      
+      const responseData = await res.json()
+      console.log("✅ Respuesta del servidor al crear planta:", responseData)
+      
       setShowCreatePlant(false)
       setNewPlantName("")
+      setNewPlantRecipient("")
+      setNewPlantMessage("")
       await handleSelectUser(selectedUser.id) // Refetch plants for the selected user
     } catch (e: any) {
       setError(`Error al crear planta: ${e.message}`)
@@ -450,34 +475,48 @@ export default function ParameterManager() {
   const handleOpenEditPlant = (plant: Plant) => {
     setEditingPlant(plant)
     setEditPlantName(plant.nombre)
+    setEditPlantRecipient(plant.dirigido_a || "")
+    setEditPlantMessage(plant.mensaje_cliente || "")
     setShowEditPlantDialog(true)
   }
 
-  // Function to update plant name
+  // Function to update plant information
   const handleUpdatePlant = async () => {
-    if (!editPlantName.trim() || !editingPlant) {
-      alert("Por favor, ingrese un nombre para la planta.")
+    if (!editPlantName.trim() || !editPlantRecipient.trim() || !editingPlant) {
+      alert("Por favor, complete todos los campos obligatorios: nombre de la planta y destinatario de reportes.")
       return
     }
     
     setLoading(true)
     setError(null)
     try {
+      const updateData = {
+        nombre: editPlantName,
+        dirigido_a: editPlantRecipient,
+        mensaje_cliente: editPlantMessage.trim() || null, // Enviar null si está vacío
+      }
+      
+      console.log("🌱 Datos de planta a actualizar:", updateData)
+      
       const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_UPDATE(editingPlant.id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          nombre: editPlantName,
-        }),
+        body: JSON.stringify(updateData),
       })
       
       if (!res.ok) {
         const errorData = await res.json()
+        console.error("❌ Error del servidor al actualizar planta:", errorData)
         throw new Error(errorData.message || "No se pudo actualizar la planta.")
       }
       
+      const responseData = await res.json()
+      console.log("✅ Respuesta del servidor al actualizar planta:", responseData)
+      
       setShowEditPlantDialog(false)
       setEditPlantName("")
+      setEditPlantRecipient("")
+      setEditPlantMessage("")
       setEditingPlant(null)
       
       // Refetch plants to update the list
@@ -486,6 +525,55 @@ export default function ParameterManager() {
       }
     } catch (e: any) {
       setError(`Error al actualizar planta: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Function to delete plant
+  const handleDeletePlant = async (plant: Plant) => {
+    // Mostrar confirmación de eliminación
+    const confirmDelete = window.confirm(
+      `¿Está seguro que desea eliminar la planta "${plant.nombre}"?\n\n` +
+      `Esta acción eliminará:\n` +
+      `• La planta y toda su información\n` +
+      `• Todos los sistemas asociados\n` +
+      `• Todos los parámetros y mediciones\n\n` +
+      `⚠️ Esta acción NO se puede deshacer.`
+    )
+    
+    if (!confirmDelete) return
+
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_DELETE(plant.id)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "No se pudo eliminar la planta.")
+      }
+      
+      // Limpiar selecciones si la planta eliminada era la seleccionada
+      if (selectedPlant?.id === plant.id) {
+        setSelectedPlant(null)
+        setSelectedSystemId(null)
+        setSystems([])
+        setParameters([])
+      }
+      
+      // Refetch plants to update the list
+      if (selectedUser) {
+        await handleSelectUser(selectedUser.id)
+      }
+      
+      alert(`✅ Planta "${plant.nombre}" eliminada exitosamente.`)
+    } catch (e: any) {
+      setError(`Error al eliminar planta: ${e.message}`)
+      alert(`Error al eliminar planta: ${e.message}`)
     } finally {
       setLoading(false)
     }
@@ -816,6 +904,129 @@ export default function ParameterManager() {
     }
   }, [selectedImportVariableId, allVariables]);
 
+  // Función para cargar parámetros y tolerancias de otro sistema
+  const loadSourceSystemParameters = async (systemId: string) => {
+    if (!systemId || !token) return;
+    
+    try {
+      // Cargar parámetros del sistema fuente
+      const paramsRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(systemId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (!paramsRes.ok) {
+        throw new Error("No se pudieron cargar los parámetros del sistema fuente");
+      }
+      
+      const paramsData = await paramsRes.json();
+      const parameters = paramsData.variables || [];
+      setSourceSystemParameters(parameters);
+      console.log(`📋 Parámetros cargados del sistema ${systemId}:`, parameters);
+
+      // Cargar tolerancias del sistema fuente
+      const tolerancesRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (tolerancesRes.ok) {
+        const tolerancesData = await tolerancesRes.json();
+        const tolerancesArray = Array.isArray(tolerancesData) ? tolerancesData : tolerancesData.tolerancias || [];
+        
+        // Filtrar solo las tolerancias del sistema fuente
+        const systemTolerances: Record<string, any> = {};
+        tolerancesArray.forEach((tol: any) => {
+          if (tol.proceso_id === systemId && parameters.some((p: any) => p.id === tol.variable_id)) {
+            systemTolerances[tol.variable_id] = tol;
+          }
+        });
+        
+        setSourceSystemTolerances(systemTolerances);
+        console.log(`📊 Tolerancias cargadas del sistema ${systemId}:`, systemTolerances);
+      }
+    } catch (error) {
+      console.error("Error cargando datos del sistema fuente:", error);
+      setSourceSystemParameters([]);
+      setSourceSystemTolerances({});
+    }
+  };
+
+  // Cargar parámetros cuando se selecciona un sistema fuente
+  useEffect(() => {
+    if (selectedSourceSystemId) {
+      loadSourceSystemParameters(selectedSourceSystemId);
+    } else {
+      setSourceSystemParameters([]);
+    }
+  }, [selectedSourceSystemId, token]);
+
+  // Función para importar todos los parámetros y tolerancias de otro sistema
+  const handleImportFromSystem = () => {
+    if (!selectedSourceSystemId || sourceSystemParameters.length === 0) {
+      alert("Por favor, selecciona un sistema fuente con parámetros.");
+      return;
+    }
+
+    if (!selectedSystemId) {
+      alert("No hay sistema destino seleccionado.");
+      return;
+    }
+
+    // Filtrar parámetros que no estén ya en el sistema actual
+    const existingParameterNames = parameters.map(p => p.nombre.toLowerCase());
+    const parametersToImport = sourceSystemParameters.filter(param => 
+      !existingParameterNames.includes(param.nombre.toLowerCase())
+    );
+
+    if (parametersToImport.length === 0) {
+      alert("Todos los parámetros del sistema fuente ya están en el sistema actual.");
+      return;
+    }
+
+    // Agregar los parámetros al sistema actual
+    const newParameters: Parameter[] = parametersToImport.map(param => ({
+      ...param,
+      id: uuidv4(), // Nuevo ID para evitar conflictos
+      proceso_id: selectedSystemId, // Cambiar al sistema actual
+      isNew: true, // Marcar como nuevo para guardar
+    }));
+
+    setParameters(prev => [...prev, ...newParameters]);
+
+    // Importar las tolerancias correspondientes
+    const newTolerances: Record<string, any> = {};
+    parametersToImport.forEach(param => {
+      const originalParam = sourceSystemParameters.find(p => p.nombre === param.nombre);
+      if (originalParam && sourceSystemTolerances[originalParam.id]) {
+        const originalTolerance = sourceSystemTolerances[originalParam.id];
+        newTolerances[param.id] = {
+          ...originalTolerance,
+          id: undefined, // Remover ID para crear nueva tolerancia
+          variable_id: param.id, // Usar el nuevo ID del parámetro
+          proceso_id: selectedSystemId, // Cambiar al sistema actual
+          planta_id: selectedPlant?.id,
+          cliente_id: selectedUser?.id,
+        };
+      }
+    });
+
+    // Agregar las nuevas tolerancias al estado
+    setTolerancias(prev => ({
+      ...prev,
+      ...newTolerances
+    }));
+    
+    // Cerrar el modal y limpiar selección
+    setShowImportFromSystem(false);
+    setSelectedSourceSystemId("");
+    setSourceSystemParameters([]);
+    setSourceSystemTolerances({});
+    
+    const toleranceCount = Object.keys(newTolerances).length;
+    alert(`✅ Se importaron ${newParameters.length} parámetros y ${toleranceCount} tolerancias del sistema fuente.`);
+    console.log(`📥 Parámetros importados:`, newParameters);
+    console.log(`📊 Tolerancias importadas:`, newTolerances);
+  };
+
   const handleSaveParameters = async (e: React.FormEvent) => {
     e.preventDefault() // Prevent default form submission
     const newParamsToSave = parameters.filter((p) => p.isNew)
@@ -826,6 +1037,8 @@ export default function ParameterManager() {
     setLoading(true)
     setError(null)
     try {
+      // 1. Guardar parámetros primero
+      console.log("💾 Guardando parámetros...");
       for (const param of newParamsToSave) {
         const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_CREATE}`, {
           method: "POST",
@@ -841,10 +1054,52 @@ export default function ParameterManager() {
           throw new Error(errorData.message || `Error guardando el parámetro ${param.nombre}`)
         }
       }
-      alert("Nuevos parámetros guardados exitosamente.")
-      await fetchParameters() // Refetch all parameters to update their 'isNew' status and get server IDs
+      console.log("✅ Parámetros guardados exitosamente");
+
+      // 2. Refetch parámetros para obtener los IDs del servidor
+      await fetchParameters();
+
+      // 3. Guardar tolerancias automáticamente
+      console.log("💾 Guardando tolerancias...");
+      const tolerancePromises = Object.entries(tolerancias).map(async ([variableId, tolerance]) => {
+        // Solo guardar tolerancias de parámetros nuevos
+        const isNewParameter = newParamsToSave.some(p => p.id === variableId);
+        if (!isNewParameter) return;
+
+        const toleranceData = {
+          ...tolerance,
+          variable_id: variableId,
+          proceso_id: selectedSystemId,
+          planta_id: selectedPlant?.id,
+          cliente_id: selectedUser?.id,
+        };
+
+        try {
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify(toleranceData),
+          });
+          
+          if (!res.ok) {
+            throw new Error(`Error guardando tolerancia para ${variableId}`);
+          }
+          
+          console.log(`✅ Tolerancia guardada para ${variableId}`);
+        } catch (error) {
+          console.error(`❌ Error guardando tolerancia para ${variableId}:`, error);
+          throw error;
+        }
+      });
+
+      // Esperar a que todas las tolerancias se guarden
+      await Promise.all(tolerancePromises);
+      console.log("✅ Todas las tolerancias guardadas exitosamente");
+
+      alert("✅ Parámetros y tolerancias guardados exitosamente.")
     } catch (e: any) {
       setError(`Error al guardar cambios: ${e.message}`)
+      alert(`Error al guardar cambios: ${e.message}`)
     } finally {
       setLoading(false)
     }
@@ -911,27 +1166,60 @@ export default function ParameterManager() {
                                   <Plus className="mr-2 h-4 w-4" /> Crear Planta
                                 </Button>
                                 {selectedPlant && (
-                                  <Button 
-                                    type="button" 
-                                    onClick={() => handleOpenEditPlant(selectedPlant)} 
-                                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
-                                  >
-                                    <Edit className="mr-2 h-4 w-4" /> Editar Nombre
-                                  </Button>
+                                  <>
+                                    <Button 
+                                      type="button" 
+                                      onClick={() => handleOpenEditPlant(selectedPlant)} 
+                                      className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                                    >
+                                      <Edit className="mr-2 h-4 w-4" /> Editar
+                                    </Button>
+                                    <Button 
+                                      type="button" 
+                                      onClick={() => handleDeletePlant(selectedPlant)} 
+                                      className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                                      disabled={loading}
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" /> Borrar Planta
+                                    </Button>
+                                  </>
                                 )}
                               </div>
                           </div>
                            {showCreatePlant && (
-                             <div className="grid w-full grid-cols-[1fr_auto] gap-3 rounded-xl border-2 border-green-200 p-4 bg-gradient-to-r from-green-50 to-emerald-50">
-                               <Input
-                                 placeholder="Nombre de la nueva planta"
-                                 value={newPlantName}
-                                 onChange={(e) => setNewPlantName(e.target.value)}
-                                 className="border-green-200 focus:border-green-400"
-                               />
-                               <Button type="button" onClick={handleCreatePlant} disabled={loading || !newPlantName.trim()} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all">
-                                 Guardar
-                               </Button>
+                             <div className="space-y-3 rounded-xl border-2 border-green-200 p-4 bg-gradient-to-r from-green-50 to-emerald-50">
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                 <Input
+                                   placeholder="Nombre de la nueva planta *"
+                                   value={newPlantName}
+                                   onChange={(e) => setNewPlantName(e.target.value)}
+                                   className="border-green-200 focus:border-green-400"
+                                 />
+                                 <Input
+                                   placeholder="Destinatario de reportes *"
+                                   value={newPlantRecipient}
+                                   onChange={(e) => setNewPlantRecipient(e.target.value)}
+                                   className="border-green-200 focus:border-green-400"
+                                 />
+                               </div>
+                               <div className="grid grid-cols-1 gap-3">
+                                 <Input
+                                   placeholder="Mensaje para el cliente (opcional)"
+                                   value={newPlantMessage}
+                                   onChange={(e) => setNewPlantMessage(e.target.value)}
+                                   className="border-green-200 focus:border-green-400"
+                                 />
+                               </div>
+                               <div className="flex justify-end">
+                                 <Button 
+                                   type="button" 
+                                   onClick={handleCreatePlant} 
+                                   disabled={loading || !newPlantName.trim() || !newPlantRecipient.trim()} 
+                                   className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                                 >
+                                   Guardar
+                                 </Button>
+                               </div>
                              </div>
                            )}
                         </div>
@@ -1074,14 +1362,14 @@ export default function ParameterManager() {
                     
                     {/* Edit Plant Dialog */}
                     <Dialog open={showEditPlantDialog} onOpenChange={setShowEditPlantDialog}>
-                      <DialogContent className="bg-[#f6f6f6] text-gray-900">
+                      <DialogContent className="bg-[#f6f6f6] text-gray-900 max-w-2xl">
                         <DialogHeader>
-                          <DialogTitle>Editar Nombre de la Planta</DialogTitle>
+                          <DialogTitle>Editar Información de la Planta</DialogTitle>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
                           <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="edit-plant-name" className="text-right">
-                              Nombre
+                              Nombre *
                             </Label>
                             <Input
                               id="edit-plant-name"
@@ -1089,6 +1377,34 @@ export default function ParameterManager() {
                               onChange={(e) => setEditPlantName(e.target.value)}
                               className="col-span-3"
                             />
+                          </div>
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="edit-plant-recipient" className="text-right">
+                              Destinatario de Reportes *
+                            </Label>
+                            <Input
+                              id="edit-plant-recipient"
+                              value={editPlantRecipient}
+                              onChange={(e) => setEditPlantRecipient(e.target.value)}
+                              className="col-span-3"
+                            />
+                          </div>
+                          <div className="grid grid-cols-4 items-start gap-4">
+                            <Label htmlFor="edit-plant-message" className="text-right pt-2">
+                              Mensaje para el Cliente
+                            </Label>
+                            <div className="col-span-3">
+                              <Input
+                                id="edit-plant-message"
+                                value={editPlantMessage}
+                                onChange={(e) => setEditPlantMessage(e.target.value)}
+                                placeholder="Mensaje opcional para el cliente"
+                                className="w-full"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">
+                                Este mensaje aparecerá en los reportes enviados al cliente
+                              </p>
+                            </div>
                           </div>
                         </div>
                         <DialogFooter>
@@ -1103,7 +1419,7 @@ export default function ParameterManager() {
                           <Button 
                             type="button" 
                             onClick={handleUpdatePlant}
-                            disabled={loading || !editPlantName.trim()}
+                            disabled={loading || !editPlantName.trim() || !editPlantRecipient.trim()}
                           >
                             {loading ? "Guardando..." : "Guardar Cambios"}
                           </Button>
@@ -1117,6 +1433,96 @@ export default function ParameterManager() {
                 {selectedSystemId && (
                   <div className="border-t border-gray-200 pt-6 bg-blue-50 p-6 rounded-lg">
                     <h2 className="text-lg font-medium leading-6 text-gray-900">Agregar Nuevo Parámetro</h2>
+                    
+                    {/* Opción para importar de otro sistema */}
+                    <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-md font-semibold text-purple-800">📋 Importar de Otro Sistema</h3>
+                        <Button
+                          type="button"
+                          onClick={() => setShowImportFromSystem(!showImportFromSystem)}
+                          className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                        >
+                          {showImportFromSystem ? "Ocultar" : "Mostrar"}
+                        </Button>
+                      </div>
+                      
+                      {showImportFromSystem && (
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="source-system">Seleccionar Sistema Fuente</Label>
+                            <Select
+                              value={selectedSourceSystemId}
+                              onValueChange={setSelectedSourceSystemId}
+                            >
+                              <SelectTrigger className="w-full bg-white text-gray-900 border border-gray-300 rounded-md">
+                                <SelectValue placeholder="Selecciona un sistema para importar sus parámetros" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white text-gray-900">
+                                {systems
+                                  .filter(system => system.id !== selectedSystemId) // Excluir el sistema actual
+                                  .map((system) => (
+                                    <SelectItem key={system.id} value={system.id}>
+                                      {system.nombre}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          {selectedSourceSystemId && sourceSystemParameters.length > 0 && (
+                            <div className="bg-white p-3 rounded border">
+                              <h4 className="font-medium text-gray-700 mb-2">
+                                Parámetros disponibles en {systems.find(s => s.id === selectedSourceSystemId)?.nombre}:
+                              </h4>
+                              <div className="space-y-2">
+                                {sourceSystemParameters.map((param, index) => {
+                                  const hasTolerance = sourceSystemTolerances[param.id];
+                                  return (
+                                    <div key={index} className="text-sm text-gray-600 flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                                        {param.nombre} ({param.unidad})
+                                      </div>
+                                      {hasTolerance && (
+                                        <div className="flex items-center gap-1 text-xs text-green-600">
+                                          <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
+                                          Con límites
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <div className="mt-3 pt-3 border-t">
+                                <div className="text-xs text-gray-500 mb-2">
+                                  {Object.keys(sourceSystemTolerances).length > 0 && (
+                                    <span className="text-green-600">
+                                      ✅ {Object.keys(sourceSystemTolerances).length} parámetros incluyen límites de tolerancia
+                                    </span>
+                                  )}
+                                </div>
+                                <Button
+                                  type="button"
+                                  onClick={handleImportFromSystem}
+                                  className="w-full bg-green-500 hover:bg-green-600 text-white"
+                                >
+                                  📥 Importar Parámetros y Límites
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {selectedSourceSystemId && sourceSystemParameters.length === 0 && (
+                            <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
+                              <p className="text-sm text-yellow-700">
+                                El sistema seleccionado no tiene parámetros para importar.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     
                     {/* Droplist de variables existentes */}
                     {allVariables.length > 0 && (

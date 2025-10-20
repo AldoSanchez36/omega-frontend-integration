@@ -81,6 +81,7 @@ export function useMeasurements(
   allSystems?: any[],
   allParameters?: Record<string, Parameter[]>,
   limitsState?: Record<string, { limite_min: boolean; limite_max: boolean }>,
+  parameterValuesBySystem?: Record<string, Record<string, any>>, // Nuevo parámetro
   onSaveSuccess?: (reportData: ReportData) => void
 ) {
   const [medicionesPreview, setMedicionesPreview] = useState<Measurement[]>([]);
@@ -118,15 +119,25 @@ export function useMeasurements(
       };
 
       // Agregar parámetros de TODOS los sistemas de la planta
-      if (allSystems && allParameters) {
+      if (allSystems && allParameters && parameterValuesBySystem) {
+        console.log(`💾 Guardando datos de TODOS los sistemas de la planta`);
+        console.log(`📊 Sistemas disponibles:`, allSystems.map(s => s.nombre));
+        console.log(`📝 Valores por sistema:`, parameterValuesBySystem);
+        
         allSystems.forEach(system => {
           const systemParameters = allParameters[system.id];
-          if (systemParameters && systemParameters.length > 0) {
+          const systemValues = parameterValuesBySystem[system.id];
+          
+          if (systemParameters && systemParameters.length > 0 && systemValues) {
             reportData.parameters[system.nombre] = {};
+            
+            console.log(`🔍 Procesando sistema: ${system.nombre}`);
+            console.log(`📋 Parámetros del sistema:`, systemParameters);
+            console.log(`📝 Valores del sistema:`, systemValues);
             
             // Agregar valores de parámetros para este sistema
             systemParameters.forEach(param => {
-              const paramValue = parameterValues?.[param.id];
+              const paramValue = systemValues[param.id];
               if (paramValue?.checked && paramValue?.value !== undefined && paramValue?.value !== null) {
                 // Obtener la unidad seleccionada o usar la primera unidad disponible
                 const unidadSeleccionada = paramValue.unidadSeleccionada || param.unidad.split(',')[0].trim();
@@ -135,16 +146,18 @@ export function useMeasurements(
                   valor: paramValue.value,
                   unidad: unidadSeleccionada
                 };
+                
+                console.log(`✅ Agregado parámetro ${param.nombre} en ${system.nombre}: ${paramValue.value} ${unidadSeleccionada}`);
               }
             });
           }
         });
       }
 
-      // Agregar tolerancias de TODOS los parámetros
-      if (allParameters) {
-        Object.values(allParameters).flat().forEach(param => {
-          if (tolerancias?.[param.id]) {
+      // Agregar tolerancias SOLO de los parámetros del sistema actual
+      if (parameters && tolerancias) {
+        parameters.forEach(param => {
+          if (tolerancias[param.id]) {
             // Usar el estado actual de los límites si está disponible, sino usar los valores de la base de datos
             const currentLimitsState = limitsState?.[param.id];
             const usarLimiteMin = currentLimitsState?.limite_min ?? !!tolerancias[param.id].usar_limite_min;
@@ -187,7 +200,7 @@ export function useMeasurements(
     } finally {
       setIsSaving(false);
     }
-  }, [token, selectedUser, selectedPlant, selectedSystemData, parameters, medicionesPreview, tolerancias, globalFecha, globalComentarios, allSystems, allParameters, limitsState, onSaveSuccess]);
+  }, [token, selectedUser, selectedPlant, selectedSystemData, parameters, medicionesPreview, tolerancias, globalFecha, globalComentarios, limitsState, allSystems, allParameters, parameterValuesBySystem, onSaveSuccess]);
 
   return {
     medicionesPreview,
