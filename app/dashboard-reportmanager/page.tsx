@@ -183,28 +183,46 @@ export default function ReportManager() {
   const [localLoading, setLocalLoading] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
 
-  // 1. Define un tipo ParameterValue para el estado parameterValues
+  // 1. Define tipos para estado por sistema
   type ParameterValue = {
     checked: boolean;
     value?: number;
     valores?: { [sistema: string]: string };
     fecha?: string;
     comentarios?: string;
+    unidadSeleccionada?: string;
   };
 
-  // 2. Define el handler para el cambio de unidad
+  type SystemParameterValues = Record<string, Record<string, ParameterValue>>;
+  type SystemLimitsState = Record<string, Record<string, { limite_min: boolean; limite_max: boolean }>>;
+
+  // 2. Estados reestructurados por sistema
+  const [parameterValuesBySystem, setParameterValuesBySystem] = useState<SystemParameterValues>({});
+  const [limitsStateBySystem, setLimitsStateBySystem] = useState<SystemLimitsState>({});
+
+  // 3. Helper functions para obtener datos del sistema actual
+  const getCurrentSystemValues = (systemId: string) => parameterValuesBySystem[systemId] || {};
+  const getCurrentSystemLimits = (systemId: string) => limitsStateBySystem[systemId] || {};
+
+  // 4. Define el handler para el cambio de unidad
   const handleUnitChange = (parameterId: string, unidad: string) => {
-    setParameterValues(prev => ({
+    if (!selectedSystem) return;
+    
+    setParameterValuesBySystem(prev => ({
       ...prev,
-      [parameterId]: {
-        ...prev[parameterId],
-        unidadSeleccionada: unidad,
+      [selectedSystem]: {
+        ...prev[selectedSystem],
+        [parameterId]: {
+          ...prev[selectedSystem]?.[parameterId],
+          unidadSeleccionada: unidad,
+        },
       },
     }));
   };
 
-  // 3. Cambia la declaración de parameterValues para usar este tipo
-  const [parameterValues, setParameterValues] = useState<Record<string, ParameterValue>>({});
+  // 5. Obtener valores del sistema actual para compatibilidad
+  const parameterValues = getCurrentSystemValues(selectedSystem || '');
+  
   // Determinar el parámetro seleccionado para el gráfico
   const selectedParameters = parameters.filter(param => parameterValues[param.id]?.checked);
 
@@ -217,8 +235,11 @@ export default function ReportManager() {
     handleTolSave 
   } = useTolerances(parameters, selectedSystem, selectedPlant?.id, selectedUser?.id);
 
-  // Estado para tolerancias globales de todos los sistemas
-  const [allTolerances, setAllTolerances] = useState<Record<string, any>>({});
+  // Estado para tolerancias por sistema
+  const [tolerancesBySystem, setTolerancesBySystem] = useState<Record<string, Record<string, any>>>({});
+  
+  // Helper para obtener tolerancias del sistema actual
+  const getCurrentSystemTolerances = (systemId: string) => tolerancesBySystem[systemId] || {};
   
   // Estado para controlar la previsualización de datos guardados
   const [savedReportData, setSavedReportData] = useState<any>(null);
@@ -234,26 +255,45 @@ export default function ReportManager() {
   let handleSaveData: () => Promise<void> = async () => {};
   let setMedicionesPreview: (data: any[]) => void = () => {};
 
-  // Estado para el estado de los límites de todas las variables
-  const [limitsState, setLimitsState] = useState<Record<string, { limite_min: boolean; limite_max: boolean }>>({});
+  // Estado para el estado de los límites del sistema actual
+  const limitsState = getCurrentSystemLimits(selectedSystem || '');
+  
+  // Debug: Log del estado por sistema
+  useEffect(() => {
+    if (selectedSystem) {
+      console.log(`🔍 Estado del sistema ${selectedSystem}:`, {
+        parameterValues: parameterValues,
+        limitsState: limitsState,
+        tolerances: getCurrentSystemTolerances(selectedSystem)
+      });
+      
+      // Log de todos los sistemas para verificar independencia
+      console.log(`📊 Estado completo por sistemas:`, {
+        parameterValuesBySystem,
+        limitsStateBySystem,
+        tolerancesBySystem
+      });
+    }
+  }, [selectedSystem, parameterValues, limitsState, parameterValuesBySystem, limitsStateBySystem, tolerancesBySystem]);
 
   // Custom handlers that extend the hook functionality
   const handleSelectUserWithReset = useCallback(async (userId: string) => {
     setParameters([])
-    setParameterValues({})
+    setParameterValuesBySystem({})
+    setLimitsStateBySystem({})
     await handleSelectUser(userId)
   }, [handleSelectUser])
 
   const handleSelectPlantWithReset = useCallback(async (plantId: string) => {
     setParameters([])
-    setParameterValues({})
+    setParameterValuesBySystem({})
+    setLimitsStateBySystem({})
     await handleSelectPlant(plantId)
   }, [handleSelectPlant])
 
   const fetchParameters = useCallback(async () => {
     if (!selectedSystem) {
       setParameters([])
-      setParameterValues({})
       return
     }
     setLocalLoading(true)
@@ -324,10 +364,10 @@ export default function ReportManager() {
     loadAllParameters();
   }, [selectedPlant, systems, token]);
 
-  // Cargar tolerancias de todos los parámetros de todos los sistemas
+  // Cargar tolerancias específicas del sistema actual
   useEffect(() => {
-    async function loadAllTolerances() {
-      if (!selectedPlant || Object.keys(allParameters).length === 0) return;
+    async function loadSystemTolerances() {
+      if (!selectedSystem || !selectedPlant || parameters.length === 0) return;
       
       try {
         const res = await fetch(`${API_BASE_URL}/api/variables-tolerancia`, {
@@ -338,25 +378,31 @@ export default function ReportManager() {
           const data = await res.json();
           const toleranceData = Array.isArray(data) ? data : data.tolerancias || [];
           
-          const allTolerancesMap: Record<string, any> = {};
+          const systemTolerancesMap: Record<string, any> = {};
           
-          // Agregar tolerancias para todos los parámetros de todos los sistemas
-          Object.values(allParameters).flat().forEach(param => {
-            const tolerance = toleranceData.find((tol: any) => tol.variable_id === param.id);
+          // Filtrar tolerancias solo para el sistema actual
+          parameters.forEach(param => {
+            const tolerance = toleranceData.find((tol: any) => 
+              tol.variable_id === param.id && tol.proceso_id === selectedSystem
+            );
             if (tolerance) {
-              allTolerancesMap[param.id] = tolerance;
+              systemTolerancesMap[param.id] = tolerance;
             }
           });
           
-          setAllTolerances(allTolerancesMap);
+          // Actualizar el estado por sistema
+          setTolerancesBySystem(prev => ({
+            ...prev,
+            [selectedSystem]: systemTolerancesMap,
+          }));
         }
       } catch (error) {
-        console.error('Error loading all tolerances:', error);
+        console.error('Error loading system tolerances:', error);
       }
     }
     
-    loadAllTolerances();
-  }, [selectedPlant, allParameters, token]);
+    loadSystemTolerances();
+  }, [selectedSystem, selectedPlant, parameters, token]);
 
   // Estado para mediciones preview - ahora que selectedSystemData está definido
   const { 
@@ -374,13 +420,14 @@ export default function ReportManager() {
     selectedUser,
     selectedPlant,
     selectedSystemData,
-    allTolerances, // Usar allTolerances en lugar de tolerancias del sistema actual
+    getCurrentSystemTolerances(selectedSystem || ''), // Usar tolerancias del sistema actual
     globalFecha,
     globalComentarios,
     parameterValues,
     systems, // allSystems
     allParameters, // allParameters - ahora con todos los sistemas
     limitsState, // Pasar el estado de límites actual
+    parameterValuesBySystem, // Pasar todos los valores por sistema
     (reportData) => {
       // Callback cuando se guardan exitosamente los datos
       setSavedReportData(reportData);
@@ -433,15 +480,21 @@ export default function ReportManager() {
     }
   }
 
-  // 3. En el handler del checkbox, si checked=true, llama a fetchSistemasForParametro(param)
+  // 3. Handler actualizado para ser específico por sistema
   const handleParameterChange = (parameterId: string, field: "checked" | "value", value: boolean | number) => {
-    setParameterValues((prev) => ({
+    if (!selectedSystem) return;
+    
+    setParameterValuesBySystem(prev => ({
       ...prev,
-      [parameterId]: {
-        ...prev[parameterId],
-        [field]: value,
+      [selectedSystem]: {
+        ...prev[selectedSystem],
+        [parameterId]: {
+          ...prev[selectedSystem]?.[parameterId],
+          [field]: value,
+        },
       },
-    }))
+    }));
+    
     if (field === "checked" && value === true) {
       const param = parameters.find(p => p.id === parameterId)
       if (param) fetchSistemasForParametro(param)
@@ -449,22 +502,33 @@ export default function ReportManager() {
   }
 
   const handleMeasurementDataChange = useCallback((parameterId: string, data: { fecha: string; comentarios: string; valores: { [sistema: string]: string } }) => {
-    setParameterValues((prev: Record<string, ParameterValue>) => ({
+    if (!selectedSystem) return;
+    
+    setParameterValuesBySystem(prev => ({
       ...prev,
-      [parameterId]: {
-        ...prev[parameterId],
-        valores: data.valores,
-        fecha: data.fecha,
-        comentarios: data.comentarios,
-      }
+      [selectedSystem]: {
+        ...prev[selectedSystem],
+        [parameterId]: {
+          ...prev[selectedSystem]?.[parameterId],
+          valores: data.valores,
+          fecha: data.fecha,
+          comentarios: data.comentarios,
+        },
+      },
     }));
     console.log("📥 Medición ingresada:", parameterId, data);
-  }, []);
+  }, [selectedSystem]);
 
-  // Función para manejar cambios de estado de límites
+  // Función para manejar cambios de estado de límites por sistema
   const handleLimitsStateChange = useCallback((newLimitsState: Record<string, { limite_min: boolean; limite_max: boolean }>) => {
-    setLimitsState(newLimitsState);
-    console.log("🔘 Estado de límites actualizado:", newLimitsState);
+    if (!selectedSystem) return;
+    
+    setLimitsStateBySystem(prev => ({
+      ...prev,
+      [selectedSystem]: newLimitsState,
+    }));
+    
+    console.log("🔘 Estado de límites actualizado para sistema", selectedSystem, ":", newLimitsState);
     
     // Aquí puedes agregar lógica adicional basada en el estado de los límites
     const hasAnyActivatedLimits = Object.values(newLimitsState).some(limits => 
@@ -472,7 +536,7 @@ export default function ReportManager() {
     );
     
     console.log("📊 ¿Alguna variable tiene límites activados?", hasAnyActivatedLimits);
-  }, []);
+  }, [selectedSystem]);
 
   
 
