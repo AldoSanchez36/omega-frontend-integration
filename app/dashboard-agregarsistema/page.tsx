@@ -114,6 +114,12 @@ export default function ParameterManager() {
   // Estado para variables globales
   const [allVariables, setAllVariables] = useState<Parameter[]>([]);
   const [selectedImportVariableId, setSelectedImportVariableId] = useState<string>("");
+  
+  // Estado para importar de otro sistema
+  const [showImportFromSystem, setShowImportFromSystem] = useState(false);
+  const [selectedSourceSystemId, setSelectedSourceSystemId] = useState<string>("");
+  const [sourceSystemParameters, setSourceSystemParameters] = useState<Parameter[]>([]);
+  const [sourceSystemTolerances, setSourceSystemTolerances] = useState<Record<string, any>>({});
 
   // Estado para tolerancias por parámetro
   const [tolerancias, setTolerancias] = useState<Record<string, any>>({})
@@ -816,6 +822,129 @@ export default function ParameterManager() {
     }
   }, [selectedImportVariableId, allVariables]);
 
+  // Función para cargar parámetros y tolerancias de otro sistema
+  const loadSourceSystemParameters = async (systemId: string) => {
+    if (!systemId || !token) return;
+    
+    try {
+      // Cargar parámetros del sistema fuente
+      const paramsRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(systemId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (!paramsRes.ok) {
+        throw new Error("No se pudieron cargar los parámetros del sistema fuente");
+      }
+      
+      const paramsData = await paramsRes.json();
+      const parameters = paramsData.variables || [];
+      setSourceSystemParameters(parameters);
+      console.log(`📋 Parámetros cargados del sistema ${systemId}:`, parameters);
+
+      // Cargar tolerancias del sistema fuente
+      const tolerancesRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (tolerancesRes.ok) {
+        const tolerancesData = await tolerancesRes.json();
+        const tolerancesArray = Array.isArray(tolerancesData) ? tolerancesData : tolerancesData.tolerancias || [];
+        
+        // Filtrar solo las tolerancias del sistema fuente
+        const systemTolerances: Record<string, any> = {};
+        tolerancesArray.forEach((tol: any) => {
+          if (tol.proceso_id === systemId && parameters.some((p: any) => p.id === tol.variable_id)) {
+            systemTolerances[tol.variable_id] = tol;
+          }
+        });
+        
+        setSourceSystemTolerances(systemTolerances);
+        console.log(`📊 Tolerancias cargadas del sistema ${systemId}:`, systemTolerances);
+      }
+    } catch (error) {
+      console.error("Error cargando datos del sistema fuente:", error);
+      setSourceSystemParameters([]);
+      setSourceSystemTolerances({});
+    }
+  };
+
+  // Cargar parámetros cuando se selecciona un sistema fuente
+  useEffect(() => {
+    if (selectedSourceSystemId) {
+      loadSourceSystemParameters(selectedSourceSystemId);
+    } else {
+      setSourceSystemParameters([]);
+    }
+  }, [selectedSourceSystemId, token]);
+
+  // Función para importar todos los parámetros y tolerancias de otro sistema
+  const handleImportFromSystem = () => {
+    if (!selectedSourceSystemId || sourceSystemParameters.length === 0) {
+      alert("Por favor, selecciona un sistema fuente con parámetros.");
+      return;
+    }
+
+    if (!selectedSystemId) {
+      alert("No hay sistema destino seleccionado.");
+      return;
+    }
+
+    // Filtrar parámetros que no estén ya en el sistema actual
+    const existingParameterNames = parameters.map(p => p.nombre.toLowerCase());
+    const parametersToImport = sourceSystemParameters.filter(param => 
+      !existingParameterNames.includes(param.nombre.toLowerCase())
+    );
+
+    if (parametersToImport.length === 0) {
+      alert("Todos los parámetros del sistema fuente ya están en el sistema actual.");
+      return;
+    }
+
+    // Agregar los parámetros al sistema actual
+    const newParameters: Parameter[] = parametersToImport.map(param => ({
+      ...param,
+      id: uuidv4(), // Nuevo ID para evitar conflictos
+      proceso_id: selectedSystemId, // Cambiar al sistema actual
+      isNew: true, // Marcar como nuevo para guardar
+    }));
+
+    setParameters(prev => [...prev, ...newParameters]);
+
+    // Importar las tolerancias correspondientes
+    const newTolerances: Record<string, any> = {};
+    parametersToImport.forEach(param => {
+      const originalParam = sourceSystemParameters.find(p => p.nombre === param.nombre);
+      if (originalParam && sourceSystemTolerances[originalParam.id]) {
+        const originalTolerance = sourceSystemTolerances[originalParam.id];
+        newTolerances[param.id] = {
+          ...originalTolerance,
+          id: undefined, // Remover ID para crear nueva tolerancia
+          variable_id: param.id, // Usar el nuevo ID del parámetro
+          proceso_id: selectedSystemId, // Cambiar al sistema actual
+          planta_id: selectedPlant?.id,
+          cliente_id: selectedUser?.id,
+        };
+      }
+    });
+
+    // Agregar las nuevas tolerancias al estado
+    setTolerancias(prev => ({
+      ...prev,
+      ...newTolerances
+    }));
+    
+    // Cerrar el modal y limpiar selección
+    setShowImportFromSystem(false);
+    setSelectedSourceSystemId("");
+    setSourceSystemParameters([]);
+    setSourceSystemTolerances({});
+    
+    const toleranceCount = Object.keys(newTolerances).length;
+    alert(`✅ Se importaron ${newParameters.length} parámetros y ${toleranceCount} tolerancias del sistema fuente.`);
+    console.log(`📥 Parámetros importados:`, newParameters);
+    console.log(`📊 Tolerancias importadas:`, newTolerances);
+  };
+
   const handleSaveParameters = async (e: React.FormEvent) => {
     e.preventDefault() // Prevent default form submission
     const newParamsToSave = parameters.filter((p) => p.isNew)
@@ -826,6 +955,8 @@ export default function ParameterManager() {
     setLoading(true)
     setError(null)
     try {
+      // 1. Guardar parámetros primero
+      console.log("💾 Guardando parámetros...");
       for (const param of newParamsToSave) {
         const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_CREATE}`, {
           method: "POST",
@@ -841,10 +972,52 @@ export default function ParameterManager() {
           throw new Error(errorData.message || `Error guardando el parámetro ${param.nombre}`)
         }
       }
-      alert("Nuevos parámetros guardados exitosamente.")
-      await fetchParameters() // Refetch all parameters to update their 'isNew' status and get server IDs
+      console.log("✅ Parámetros guardados exitosamente");
+
+      // 2. Refetch parámetros para obtener los IDs del servidor
+      await fetchParameters();
+
+      // 3. Guardar tolerancias automáticamente
+      console.log("💾 Guardando tolerancias...");
+      const tolerancePromises = Object.entries(tolerancias).map(async ([variableId, tolerance]) => {
+        // Solo guardar tolerancias de parámetros nuevos
+        const isNewParameter = newParamsToSave.some(p => p.id === variableId);
+        if (!isNewParameter) return;
+
+        const toleranceData = {
+          ...tolerance,
+          variable_id: variableId,
+          proceso_id: selectedSystemId,
+          planta_id: selectedPlant?.id,
+          cliente_id: selectedUser?.id,
+        };
+
+        try {
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify(toleranceData),
+          });
+          
+          if (!res.ok) {
+            throw new Error(`Error guardando tolerancia para ${variableId}`);
+          }
+          
+          console.log(`✅ Tolerancia guardada para ${variableId}`);
+        } catch (error) {
+          console.error(`❌ Error guardando tolerancia para ${variableId}:`, error);
+          throw error;
+        }
+      });
+
+      // Esperar a que todas las tolerancias se guarden
+      await Promise.all(tolerancePromises);
+      console.log("✅ Todas las tolerancias guardadas exitosamente");
+
+      alert("✅ Parámetros y tolerancias guardados exitosamente.")
     } catch (e: any) {
       setError(`Error al guardar cambios: ${e.message}`)
+      alert(`Error al guardar cambios: ${e.message}`)
     } finally {
       setLoading(false)
     }
@@ -1117,6 +1290,96 @@ export default function ParameterManager() {
                 {selectedSystemId && (
                   <div className="border-t border-gray-200 pt-6 bg-blue-50 p-6 rounded-lg">
                     <h2 className="text-lg font-medium leading-6 text-gray-900">Agregar Nuevo Parámetro</h2>
+                    
+                    {/* Opción para importar de otro sistema */}
+                    <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-md font-semibold text-purple-800">📋 Importar de Otro Sistema</h3>
+                        <Button
+                          type="button"
+                          onClick={() => setShowImportFromSystem(!showImportFromSystem)}
+                          className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                        >
+                          {showImportFromSystem ? "Ocultar" : "Mostrar"}
+                        </Button>
+                      </div>
+                      
+                      {showImportFromSystem && (
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="source-system">Seleccionar Sistema Fuente</Label>
+                            <Select
+                              value={selectedSourceSystemId}
+                              onValueChange={setSelectedSourceSystemId}
+                            >
+                              <SelectTrigger className="w-full bg-white text-gray-900 border border-gray-300 rounded-md">
+                                <SelectValue placeholder="Selecciona un sistema para importar sus parámetros" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white text-gray-900">
+                                {systems
+                                  .filter(system => system.id !== selectedSystemId) // Excluir el sistema actual
+                                  .map((system) => (
+                                    <SelectItem key={system.id} value={system.id}>
+                                      {system.nombre}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          {selectedSourceSystemId && sourceSystemParameters.length > 0 && (
+                            <div className="bg-white p-3 rounded border">
+                              <h4 className="font-medium text-gray-700 mb-2">
+                                Parámetros disponibles en {systems.find(s => s.id === selectedSourceSystemId)?.nombre}:
+                              </h4>
+                              <div className="space-y-2">
+                                {sourceSystemParameters.map((param, index) => {
+                                  const hasTolerance = sourceSystemTolerances[param.id];
+                                  return (
+                                    <div key={index} className="text-sm text-gray-600 flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                                        {param.nombre} ({param.unidad})
+                                      </div>
+                                      {hasTolerance && (
+                                        <div className="flex items-center gap-1 text-xs text-green-600">
+                                          <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
+                                          Con límites
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <div className="mt-3 pt-3 border-t">
+                                <div className="text-xs text-gray-500 mb-2">
+                                  {Object.keys(sourceSystemTolerances).length > 0 && (
+                                    <span className="text-green-600">
+                                      ✅ {Object.keys(sourceSystemTolerances).length} parámetros incluyen límites de tolerancia
+                                    </span>
+                                  )}
+                                </div>
+                                <Button
+                                  type="button"
+                                  onClick={handleImportFromSystem}
+                                  className="w-full bg-green-500 hover:bg-green-600 text-white"
+                                >
+                                  📥 Importar Parámetros y Límites
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {selectedSourceSystemId && sourceSystemParameters.length === 0 && (
+                            <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
+                              <p className="text-sm text-yellow-700">
+                                El sistema seleccionado no tiene parámetros para importar.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     
                     {/* Droplist de variables existentes */}
                     {allVariables.length > 0 && (
