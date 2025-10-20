@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
-import { Eye, Download, Calendar, Filter, RefreshCw } from "lucide-react";
+import { Eye, Download, Calendar, Filter, RefreshCw, ChevronUp, ChevronDown } from "lucide-react";
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants";
 
 interface Reporte {
@@ -19,6 +20,7 @@ interface Reporte {
   comentarios: string;
   fechaGeneracion: string;
   usuario_id: string;
+  planta_id: string;
   // Datos JSONB reconstruidos
   datosJsonb?: {
     user?: {
@@ -26,6 +28,7 @@ interface Reporte {
       username: string;
       email?: string;
       puesto?: string;
+      cliente_id?: string;
     };
     plant?: {
       id: string;
@@ -57,8 +60,10 @@ interface Reporte {
 }
 
 export default function ReportList() {
+  const router = useRouter();
   const [reportes, setReportes] = useState<Reporte[]>([]);
-  const [fechaFiltro, setFechaFiltro] = useState("");
+  const [fechaInicio, setFechaInicio] = useState("");
+  const [fechaFin, setFechaFin] = useState("");
   const [plantaFiltro, setPlantaFiltro] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +71,10 @@ export default function ReportList() {
   const [user, setUser] = useState<any>(null);
   const [selectedReporte, setSelectedReporte] = useState<Reporte | null>(null);
   const [showJsonbModal, setShowJsonbModal] = useState(false);
+  
+  // Estados para ordenamiento
+  const [sortField, setSortField] = useState<string>("");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -103,6 +112,17 @@ export default function ReportList() {
 
       const data = await response.json();
       console.log("📊 ReportList - Datos recibidos:", data);
+      console.log("📊 ReportList - Cantidad de reportes:", data.reportes?.length || 0);
+      
+      if (data.reportes && data.reportes.length > 0) {
+        console.log("🔍 Primer reporte recibido:", {
+          id: data.reportes[0].id,
+          planta_id: data.reportes[0].planta_id,
+          proceso_id: data.reportes[0].proceso_id,
+          usuario_id: data.reportes[0].usuario_id,
+          cliente_id: data.reportes[0].cliente_id
+        });
+      }
 
       if (data.ok && data.reportes) {
         const reportesFormateados = data.reportes.map((reporte: any) => {
@@ -138,6 +158,8 @@ export default function ReportList() {
             comentarios: datosJsonb.comentarios || reporte.comentarios || "",
             fechaGeneracion: datosJsonb.generatedDate || reporte.fechaGeneracion || reporte.generada_en || new Date().toISOString(),
             usuario_id: datosJsonb.user?.id || reporte.usuario_id || "",
+            // Incluir planta_id de la tabla reportes
+            planta_id: reporte.planta_id || "",
             // Incluir datos JSONB completos para análisis
             datosJsonb: datosJsonb
           };
@@ -167,12 +189,50 @@ export default function ReportList() {
   // Obtener plantas únicas para el filtro
   const plantasUnicas = [...new Set(reportes.map(r => r.planta))].filter(Boolean);
 
-  // Aplicar filtros
-  const reportesFiltrados = reportes.filter(reporte => {
-    const cumpleFecha = !fechaFiltro || reporte.fecha.startsWith(fechaFiltro);
-    const cumplePlanta = !plantaFiltro || reporte.planta === plantaFiltro;
-    return cumpleFecha && cumplePlanta;
-  });
+  // Aplicar filtros y ordenamiento
+  const reportesFiltrados = reportes
+    .filter(reporte => {
+      // Filtro por rango de fechas
+      let cumpleFecha = true;
+      if (fechaInicio || fechaFin) {
+        const fechaReporte = new Date(reporte.fecha);
+        if (fechaInicio) {
+          const fechaInicioDate = new Date(fechaInicio);
+          cumpleFecha = cumpleFecha && fechaReporte >= fechaInicioDate;
+        }
+        if (fechaFin) {
+          const fechaFinDate = new Date(fechaFin);
+          // Agregar un día para incluir la fecha fin
+          fechaFinDate.setDate(fechaFinDate.getDate() + 1);
+          cumpleFecha = cumpleFecha && fechaReporte < fechaFinDate;
+        }
+      }
+      
+      const cumplePlanta = !plantaFiltro || reporte.planta === plantaFiltro;
+      return cumpleFecha && cumplePlanta;
+    })
+    .sort((a, b) => {
+      if (!sortField) return 0;
+      
+      let aValue: any = a[sortField as keyof Reporte];
+      let bValue: any = b[sortField as keyof Reporte];
+      
+      // Manejar casos especiales
+      if (sortField === "fecha") {
+        aValue = new Date(a.fecha).getTime();
+        bValue = new Date(b.fecha).getTime();
+      } else if (sortField === "totalParametros" || sortField === "totalTolerancias") {
+        aValue = Number(aValue) || 0;
+        bValue = Number(bValue) || 0;
+      } else {
+        aValue = String(aValue || "").toLowerCase();
+        bValue = String(bValue || "").toLowerCase();
+      }
+      
+      if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
 
   const getStatusColor = (estado: string) => {
     switch (estado.toLowerCase()) {
@@ -193,6 +253,26 @@ export default function ReportList() {
     }
   };
 
+  // Función para manejar el ordenamiento
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  // Función para obtener el icono de ordenamiento
+  const getSortIcon = (field: string) => {
+    if (sortField !== field) {
+      return <ChevronUp className="w-4 h-4 text-gray-400" />;
+    }
+    return sortDirection === "asc" ? 
+      <ChevronUp className="w-4 h-4 text-blue-600" /> : 
+      <ChevronDown className="w-4 h-4 text-blue-600" />;
+  };
+
   const formatDate = (dateString: string) => {
     try {
       return new Date(dateString).toLocaleDateString('es-ES', {
@@ -202,6 +282,180 @@ export default function ReportList() {
       });
     } catch {
       return dateString;
+    }
+  };
+
+  // Función para manejar la vista del reporte
+  const handleViewReport = (reporte: Reporte) => {
+    try {
+      console.log("👁️ Visualizando reporte:", reporte);
+      
+      // Validar que tenemos los datos mínimos necesarios
+      if (!reporte.planta_id) {
+        console.error("❌ Error: No se encontró planta_id en los datos del reporte");
+        alert("Error: No se pueden visualizar reportes sin datos de planta completos");
+        return;
+      }
+      
+      // Reconstruir reportSelection desde los datos del reporte
+      const reportSelection = {
+        user: {
+          id: reporte.usuario_id,
+          username: reporte.usuario,
+          email: reporte.datosJsonb?.user?.email || "",
+          puesto: reporte.datosJsonb?.user?.puesto || "client",
+          cliente_id: reporte.datosJsonb?.user?.cliente_id || null
+        },
+        plant: {
+          id: reporte.planta_id, // Usar planta_id de la tabla reportes
+          nombre: reporte.planta,
+          systemName: reporte.datosJsonb?.systemName || reporte.sistema
+        },
+        systemName: reporte.datosJsonb?.systemName || reporte.sistema,
+        parameters: reporte.datosJsonb?.parameters ? Object.entries(reporte.datosJsonb.parameters).map(([key, value]) => ({
+          id: key,
+          nombre: key,
+          unidad: Object.values(value)[0]?.unidad || "",
+          limite_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.limite_min || null,
+          limite_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.limite_max || null,
+          bien_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.bien_min || null,
+          bien_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.bien_max || null,
+          usar_limite_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.usar_limite_min || false,
+          usar_limite_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.usar_limite_max || false
+        })) : [],
+        mediciones: [], // Los datos de mediciones se reconstruirán en la página reports
+        fecha: reporte.fecha,
+        comentarios: reporte.comentarios,
+        generatedDate: reporte.fechaGeneracion,
+        cliente_id: reporte.datosJsonb?.user?.cliente_id || null
+      };
+
+      console.log("📄 reportSelection reconstruido:", reportSelection);
+      console.log("🔍 Validación plant.id:", reportSelection.plant.id);
+      console.log("🏭 Datos de planta:", {
+        planta_id: reporte.planta_id,
+        planta_nombre: reporte.planta,
+        systemName: reporte.datosJsonb?.systemName || reporte.sistema
+      });
+      
+      // Guardar en localStorage
+      localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
+      
+      // Redirigir a la página de reports
+      router.push("/reports");
+      
+    } catch (error) {
+      console.error("❌ Error al preparar vista del reporte:", error);
+      alert("Error al preparar la vista del reporte");
+    }
+  };
+
+  // Función para manejar la descarga del PDF
+  const handleDownloadPDF = async (reporte: Reporte) => {
+    try {
+      console.log("📥 ===== INICIANDO DESCARGA DE PDF =====");
+      console.log("📥 Reporte completo recibido:", reporte);
+      console.log("📥 Datos básicos del reporte:", {
+        id: reporte.id,
+        titulo: reporte.titulo,
+        planta: reporte.planta,
+        sistema: reporte.sistema,
+        usuario: reporte.usuario,
+        fecha: reporte.fecha,
+        estado: reporte.estado,
+        planta_id: reporte.planta_id,
+        usuario_id: reporte.usuario_id
+      });
+      console.log("📥 Datos JSONB disponibles:", reporte.datosJsonb);
+      console.log("📥 Parámetros en JSONB:", reporte.datosJsonb?.parameters);
+      console.log("📥 Variables de tolerancia:", reporte.datosJsonb?.variablesTolerancia);
+      console.log("📥 Usuario en JSONB:", reporte.datosJsonb?.user);
+      console.log("📥 Planta en JSONB:", reporte.datosJsonb?.plant);
+      console.log("📥 SystemName en JSONB:", reporte.datosJsonb?.systemName);
+      console.log("📥 Comentarios:", reporte.comentarios);
+      console.log("📥 Fecha de generación:", reporte.fechaGeneracion);
+      console.log("📥 ===== FIN DE DATOS DISPONIBLES =====");
+      
+      // Validar que tenemos los datos mínimos necesarios
+      if (!reporte.planta_id) {
+        console.error("❌ Error: No se encontró planta_id en los datos del reporte");
+        alert("Error: No se pueden descargar reportes sin datos de planta completos");
+        return;
+      }
+      
+      // Reconstruir reportSelection con validación completa
+      const reportSelection = {
+        user: {
+          id: reporte.usuario_id,
+          username: reporte.usuario,
+          email: reporte.datosJsonb?.user?.email || "",
+          puesto: reporte.datosJsonb?.user?.puesto || "client",
+          cliente_id: reporte.datosJsonb?.user?.cliente_id || null
+        },
+        plant: {
+          id: reporte.planta_id, // Usar planta_id de la tabla reportes
+          nombre: reporte.planta,
+          systemName: reporte.datosJsonb?.systemName || reporte.sistema
+        },
+        systemName: reporte.datosJsonb?.systemName || reporte.sistema,
+        parameters: reporte.datosJsonb?.parameters ? Object.entries(reporte.datosJsonb.parameters).map(([key, value]) => ({
+          id: key,
+          nombre: key,
+          unidad: Object.values(value)[0]?.unidad || "",
+          limite_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.limite_min || null,
+          limite_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.limite_max || null,
+          bien_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.bien_min || null,
+          bien_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.bien_max || null,
+          usar_limite_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.usar_limite_min || false,
+          usar_limite_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.usar_limite_max || false
+        })) : [],
+        mediciones: [],
+        fecha: reporte.fecha,
+        comentarios: reporte.comentarios,
+        generatedDate: reporte.fechaGeneracion,
+        cliente_id: reporte.datosJsonb?.user?.cliente_id || null
+      };
+
+      console.log("📄 ===== REPORT SELECTION RECONSTRUIDO =====");
+      console.log("📄 reportSelection completo:", reportSelection);
+      console.log("📄 Estructura del reportSelection:", {
+        user: {
+          id: reportSelection.user.id,
+          username: reportSelection.user.username,
+          email: reportSelection.user.email,
+          puesto: reportSelection.user.puesto,
+          cliente_id: reportSelection.user.cliente_id
+        },
+        plant: {
+          id: reportSelection.plant.id,
+          nombre: reportSelection.plant.nombre,
+          systemName: reportSelection.plant.systemName
+        },
+        systemName: reportSelection.systemName,
+        parameters_count: reportSelection.parameters.length,
+        mediciones_count: reportSelection.mediciones.length,
+        fecha: reportSelection.fecha,
+        comentarios: reportSelection.comentarios,
+        generatedDate: reportSelection.generatedDate,
+        cliente_id: reportSelection.cliente_id
+      });
+      console.log("📄 Parámetros detallados:", reportSelection.parameters);
+      console.log("📄 Validación plant.id:", reportSelection.plant.id);
+      console.log("📄 ===== FIN REPORT SELECTION =====");
+
+      // Guardar temporalmente en localStorage
+      console.log("💾 Guardando reportSelection en localStorage...");
+      localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
+      console.log("✅ reportSelection guardado exitosamente");
+      
+      // Redirigir a reports para generar el PDF
+      console.log("🚀 Redirigiendo a /reports?download=true");
+      router.push("/reports?download=true");
+      console.log("✅ Redirección completada");
+      
+    } catch (error) {
+      console.error("❌ Error al preparar descarga del PDF:", error);
+      alert("Error al preparar la descarga del PDF");
     }
   };
 
@@ -238,15 +492,26 @@ export default function ReportList() {
             <Filter className="w-5 h-5 text-gray-600" />
             <h3 className="text-lg font-semibold text-gray-900">Filtros</h3>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Fecha
+                Fecha Inicio
               </label>
               <input
                 type="date"
-                value={fechaFiltro}
-                onChange={(e) => setFechaFiltro(e.target.value)}
+                value={fechaInicio}
+                onChange={(e) => setFechaInicio(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Fecha Fin
+              </label>
+              <input
+                type="date"
+                value={fechaFin}
+                onChange={(e) => setFechaFin(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -268,7 +533,8 @@ export default function ReportList() {
             <div className="flex items-end">
               <button
                 onClick={() => {
-                  setFechaFiltro("");
+                  setFechaInicio("");
+                  setFechaFin("");
                   setPlantaFiltro("");
                 }}
                 className="w-full bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors"
@@ -323,25 +589,49 @@ export default function ReportList() {
               <thead className="bg-gray-100 border-b">
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    Reporte
+                    <button
+                      onClick={() => handleSort("titulo")}
+                      className="flex items-center gap-1 hover:text-blue-600 transition-colors"
+                    >
+                      Reporte
+                      {getSortIcon("titulo")}
+                    </button>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    Planta
+                    <button
+                      onClick={() => handleSort("planta")}
+                      className="flex items-center gap-1 hover:text-blue-600 transition-colors"
+                    >
+                      Planta
+                      {getSortIcon("planta")}
+                    </button>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    Sistema
+                    <button
+                      onClick={() => handleSort("estado")}
+                      className="flex items-center gap-1 hover:text-blue-600 transition-colors"
+                    >
+                      Estado
+                      {getSortIcon("estado")}
+                    </button>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    Estado
+                    <button
+                      onClick={() => handleSort("fecha")}
+                      className="flex items-center gap-1 hover:text-blue-600 transition-colors"
+                    >
+                      Fecha
+                      {getSortIcon("fecha")}
+                    </button>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    Fecha
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    Usuario
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    Resumen
+                    <button
+                      onClick={() => handleSort("totalParametros")}
+                      className="flex items-center gap-1 hover:text-blue-600 transition-colors"
+                    >
+                      Resumen
+                      {getSortIcon("totalParametros")}
+                    </button>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
                     Acciones
@@ -351,7 +641,7 @@ export default function ReportList() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
+                    <td colSpan={6} className="px-6 py-12 text-center">
                       <div className="flex items-center justify-center">
                         <RefreshCw className="w-6 h-6 animate-spin text-blue-600 mr-2" />
                         <span className="text-gray-600">Cargando reportes...</span>
@@ -360,7 +650,7 @@ export default function ReportList() {
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
+                    <td colSpan={6} className="px-6 py-12 text-center">
                       <div className="text-red-600">
                         <p className="font-medium">Error al cargar reportes</p>
                         <p className="text-sm mt-1">{error}</p>
@@ -403,20 +693,12 @@ export default function ReportList() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="bg-cyan-500 text-white text-xs px-2 py-1 rounded-full">
-                          {reporte.sistema}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
                         <span className={`${getStatusColor(reporte.estado)} text-white text-xs px-2 py-1 rounded-full flex items-center`}>
                           {reporte.estado}
                         </span>
                       </td>
                       <td className="px-6 py-4">
                         {formatDate(reporte.fecha)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {reporte.usuario}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
@@ -430,21 +712,16 @@ export default function ReportList() {
                       </td>
                       <td className="px-6 py-4 flex gap-2">
                         <button
-                          onClick={() => {
-                            setSelectedReporte(reporte);
-                            setShowJsonbModal(true);
-                          }}
+                          onClick={() => handleViewReport(reporte)}
                           className="border border-gray-300 p-2 rounded hover:bg-gray-100"
-                          title="Ver datos JSONB"
+                          title="Ver reporte"
                         >
                           <Eye className="w-5 h-5" />
                         </button>
                         <button
-                          onClick={() => {
-                            console.log("Descargar reporte:", reporte.id);
-                          }}
+                          onClick={() => handleDownloadPDF(reporte)}
                           className="border border-gray-300 p-2 rounded hover:bg-gray-100"
-                          title="Descargar reporte"
+                          title="Descargar PDF"
                         >
                           <Download className="w-5 h-5" />
                         </button>
@@ -458,14 +735,15 @@ export default function ReportList() {
                         <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                         <p className="text-lg font-medium">No hay reportes disponibles</p>
                         <p className="text-sm mt-1">
-                          {fechaFiltro || plantaFiltro 
+                          {fechaInicio || fechaFin || plantaFiltro 
                             ? "No se encontraron reportes con los filtros aplicados" 
                             : "No se han generado reportes aún"}
                         </p>
-                        {(fechaFiltro || plantaFiltro) && (
+                        {(fechaInicio || fechaFin || plantaFiltro) && (
                           <button
                             onClick={() => {
-                              setFechaFiltro("");
+                              setFechaInicio("");
+                              setFechaFin("");
                               setPlantaFiltro("");
                             }}
                             className="mt-3 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"

@@ -443,20 +443,13 @@ export default function Reporte() {
           id: reportSelection.user?.id, // Usuario conectado que está generando el reporte
           username: reportSelection.user?.username,
           email: reportSelection.user?.email,
-          puesto: reportSelection.user?.puesto,
-          cliente_id: reportSelection.user?.cliente_id || reportSelection.cliente_id // Usuario seleccionado como cliente
+          puesto: reportSelection.user?.puesto
         },
-        cliente_id: reportSelection.cliente_id || reportSelection.user?.cliente_id, // Usuario seleccionado como cliente
         proceso_id: proceso_id // Agregar el proceso_id obtenido
       }
 
       console.log("👤 Usuario generador:", reportDataToSend.user)
       console.log("🆔 ID del usuario generador:", reportDataToSend.user.id)
-      console.log("🆔 Cliente ID (usuario seleccionado):", reportDataToSend.cliente_id)
-      console.log("👥 Usuario generador vs Cliente:", {
-        generador: reportDataToSend.user.id,
-        cliente: reportDataToSend.cliente_id
-      })
       console.log("📄 Datos del reporte a enviar:", reportDataToSend)
       console.log("🔍 Proceso ID obtenido:", proceso_id)
       console.log("📋 Payload completo que se enviará al servidor:")
