@@ -324,7 +324,7 @@ export default function Dashboard() {
         parameters: report.datos?.parameters ? Object.entries(report.datos.parameters).map(([key, value]) => ({
           id: key,
           nombre: key,
-          unidad: Object.values(value)[0]?.unidad || "",
+          unidad: (Object.values(value as any) as any[])[0]?.unidad || "",
           limite_min: report.datos?.variablesTolerancia?.[key]?.limite_min || null,
           limite_max: report.datos?.variablesTolerancia?.[key]?.limite_max || null,
           bien_min: report.datos?.variablesTolerancia?.[key]?.bien_min || null,
@@ -389,7 +389,7 @@ export default function Dashboard() {
         parameters: report.datos?.parameters ? Object.entries(report.datos.parameters).map(([key, value]) => ({
           id: key,
           nombre: key,
-          unidad: Object.values(value)[0]?.unidad || "",
+          unidad: (Object.values(value as any) as any[])[0]?.unidad || "",
           limite_min: report.datos?.variablesTolerancia?.[key]?.limite_min || null,
           limite_max: report.datos?.variablesTolerancia?.[key]?.limite_max || null,
           bien_min: report.datos?.variablesTolerancia?.[key]?.bien_min || null,
@@ -527,9 +527,9 @@ export default function Dashboard() {
         
         if (response.ok) {
           const data = await response.json()
-          console.log('📊 Respuesta del backend:', data)
+          //console.log('📊 Respuesta del backend:', data)
           reportesData = Array.isArray(data.reportes) ? data.reportes : []
-          console.log('📋 Reportes recibidos:', reportesData.length, reportesData)
+          //console.log('📋 Reportes recibidos:', reportesData.length, reportesData)
         } else {
           console.error("Error en la respuesta de reportes:", response.status, response.statusText)
         }

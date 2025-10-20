@@ -26,6 +26,8 @@ interface ReportData {
   plant: {
     id: string;
     nombre: string;
+    mensaje_cliente?: string;
+    dirigido_a?: string;
   } | null;
   systemName: string | undefined;
   parameters: {
@@ -108,7 +110,9 @@ export function useMeasurements(
         } : null,
         plant: selectedPlant ? { 
           id: selectedPlant.id, 
-          nombre: selectedPlant.nombre 
+          nombre: selectedPlant.nombre,
+          mensaje_cliente: selectedPlant.mensaje_cliente,
+          dirigido_a: selectedPlant.dirigido_a
         } : null,
         systemName: selectedPlant?.nombre, // Cambiar a nombre de la planta en lugar del sistema
         parameters: {},

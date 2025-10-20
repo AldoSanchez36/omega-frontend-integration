@@ -17,7 +17,7 @@ export const useDebugLogger = () => {
       timestamp
     }
     
-    console.log(`🐛 Dashboard [${type.toUpperCase()}]: ${message}`)
+    //console.log(`🐛 Dashboard [${type.toUpperCase()}]: ${message}`)
     
     setDebugInfo((prev) => {
       const updated = [...prev, newLog]
