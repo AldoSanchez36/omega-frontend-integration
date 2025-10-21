@@ -126,16 +126,27 @@ export default function ReportList() {
 
       if (data.ok && data.reportes) {
         const reportesFormateados = data.reportes.map((reporte: any) => {
-          // Usar la misma estructura que dashboard
+          // Extraer datos del JSONB (igual que dashboard)
+          const datosJsonb = reporte.datos || {};
+          
+          console.log("🔍 ReportList - Procesando reporte:", {
+            id: reporte.id,
+            titulo: reporte.titulo,
+            datosJsonb: datosJsonb,
+            plantName_from_jsonb: datosJsonb.plant?.nombre,
+            systemName_from_jsonb: datosJsonb.systemName,
+            user_from_jsonb: datosJsonb.user?.username,
+            fecha_from_jsonb: datosJsonb.fecha
+          });
+          
           const titulo = reporte.titulo || reporte.nombre || `Reporte ${reporte.id}`;
-          const planta = reporte.planta || reporte.plantName || "Planta no especificada";
-          const sistema = reporte.sistema || reporte.systemName || "Sistema no especificado";
-          const usuario = reporte.usuario || "Usuario desconocido";
-          const fecha = reporte.fecha || new Date().toISOString().split('T')[0];
+          const planta = datosJsonb.plant?.nombre || reporte.planta || reporte.plantName || "Planta no especificada";
+          const sistema = datosJsonb.systemName || reporte.sistema || reporte.systemName || "Sistema no especificado";
+          const usuario = datosJsonb.user?.username || reporte.usuario || "Usuario desconocido";
+          const fecha = datosJsonb.fecha || reporte.fecha || new Date().toISOString().split('T')[0];
           const estado = reporte.estado || "Completado";
           
           // Contar parámetros y tolerancias desde datos JSONB
-          const datosJsonb = reporte.datos || {};
           const totalParametros = datosJsonb.parameters ? 
             Object.values(datosJsonb.parameters).reduce((acc: number, sistema: any) => 
               acc + Object.keys(sistema).length, 0) : 0;

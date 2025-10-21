@@ -537,22 +537,37 @@ export default function Dashboard() {
           })
         }
         
-        // Convertir formato de reportes para el dashboard
-        const formattedReports = reportesData.map((report: any) => ({
-          id: report.id?.toString() || report.id,
-          title: report.titulo || report.nombre || `Reporte ${report.id}`,
-          plantName: report.planta || report.plantName || "Planta no especificada",
-          systemName: report.sistema || report.systemName || "Sistema no especificado",
-          status: report.estado || report.status || "completed",
-          created_at: report.fechaGeneracion || report.fecha_creacion || report.created_at || new Date().toISOString(),
-          usuario_id: report.usuario_id || user.id,
-          planta_id: report.planta_id || "planta-unknown",
-          proceso_id: report.proceso_id || "sistema-unknown",
-          datos: report.reportSelection || report.datos || {},
-          observaciones: report.comentarios || report.observaciones || "",
-          usuario: report.usuario || user.username,
-          puesto: report.puesto || user.puesto
-        }))
+        // Convertir formato de reportes para el dashboard (extraer datos del JSONB)
+        const formattedReports = reportesData.map((report: any) => {
+          // Extraer datos del JSONB
+          const datosJsonb = report.datos || {};
+          
+          console.log("🔍 Dashboard - Procesando reporte:", {
+            id: report.id,
+            titulo: report.titulo,
+            datosJsonb: datosJsonb,
+            plantName_from_jsonb: datosJsonb.plant?.nombre,
+            systemName_from_jsonb: datosJsonb.systemName,
+            generatedDate_from_jsonb: datosJsonb.generatedDate,
+            user_from_jsonb: datosJsonb.user?.username
+          });
+          
+          return {
+            id: report.id?.toString() || report.id,
+            title: report.titulo || report.nombre || `Reporte ${report.id}`,
+            plantName: datosJsonb.plant?.nombre || report.planta || report.plantName || "Planta no especificada",
+            systemName: datosJsonb.systemName || report.sistema || report.systemName || "Sistema no especificado",
+            status: report.estado || report.status || "completed",
+            created_at: datosJsonb.generatedDate || report.fechaGeneracion || report.fecha_creacion || report.created_at || new Date().toISOString(),
+            usuario_id: report.usuario_id || user.id,
+            planta_id: report.planta_id || "planta-unknown",
+            proceso_id: report.proceso_id || "sistema-unknown",
+            datos: report.reportSelection || report.datos || {},
+            observaciones: datosJsonb.comentarios || report.comentarios || report.observaciones || "",
+            usuario: datosJsonb.user?.username || report.usuario || user.username,
+            puesto: datosJsonb.user?.puesto || report.puesto || user.puesto
+          };
+        })
         setReports(formattedReports)
         
         addDebugLog(`Reportes cargados: ${formattedReports.length} reportes (rol: ${userRole})`)
