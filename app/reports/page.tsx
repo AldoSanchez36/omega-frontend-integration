@@ -444,9 +444,8 @@ export default function Reporte() {
           username: reportSelection.user?.username,
           email: reportSelection.user?.email,
           puesto: reportSelection.user?.puesto,
-          cliente_id: reportSelection.user?.cliente_id || reportSelection.cliente_id // Usuario seleccionado como cliente
         },
-        cliente_id: reportSelection.cliente_id || reportSelection.user?.cliente_id, // Usuario seleccionado como cliente
+        cliente_id: reportSelection.user?.id, // Usuario seleccionado como cliente
         proceso_id: proceso_id // Agregar el proceso_id obtenido
       }
 
@@ -582,55 +581,53 @@ export default function Reporte() {
     return "";
   }
 
-  // Obtener todos los sistemas únicos de las mediciones
+  // Obtener todos los sistemas únicos de los parámetros
   const sistemasUnicos = Array.from(
     new Set(
-      (reportSelection?.mediciones || []).flatMap((med: any) => Object.keys(med.valores || {}))
+      Object.keys(reportSelection?.parameters || {})
     )
   ).sort();
 
-  // Función auxiliar para agrupar mediciones por parámetro
-  const agruparMedicionesPorParametro = () => {
-    const mediciones = reportSelection?.mediciones || [];
-    const parametrosAgrupados: Record<string, any[]> = {};
+  // Función auxiliar para agrupar parámetros por variable
+  const agruparParametrosPorVariable = () => {
+    const parameters = reportSelection?.parameters || {};
+    const parametrosAgrupados: Record<string, any> = {};
     
-    // Agrupar mediciones por variable_id
-    mediciones.forEach((med: any) => {
-      if (!parametrosAgrupados[med.variable_id]) {
-        parametrosAgrupados[med.variable_id] = [];
-      }
-      parametrosAgrupados[med.variable_id].push(med);
+    // Obtener todas las variables únicas de todos los sistemas
+    const allVariables = new Set<string>();
+    Object.values(parameters).forEach((systemData: any) => {
+      Object.keys(systemData).forEach(variable => allVariables.add(variable));
     });
     
-    // Convertir a array de objetos con valores combinados
-    return Object.entries(parametrosAgrupados).map(([variableId, medicionesParam]) => {
-      // Combinar todos los valores de sistema
-      const valoresCombinados: Record<string, any> = {};
-      medicionesParam.forEach((med: any) => {
-        Object.assign(valoresCombinados, med.valores || {});
-      });
-      
-      // Obtener información del parámetro
-      const param = (reportSelection?.parameters || []).find(
-        (p) => p.id === variableId
-      ) || {};
-      
-      const primerMedicion = medicionesParam[0];
-      
-      return {
-        variable_id: variableId,
-        nombre: primerMedicion?.nombre || "Parámetro desconocido",
-        valores: valoresCombinados,
-        param: param
+    // Agrupar por variable
+    Array.from(allVariables).forEach(variable => {
+      parametrosAgrupados[variable] = {
+        nombre: variable,
+        valores: {},
+        param: null
       };
+      
+      // Obtener valores de cada sistema para esta variable
+      Object.entries(parameters).forEach(([systemName, systemData]: [string, any]) => {
+        const paramData = systemData[variable];
+        if (paramData) {
+          parametrosAgrupados[variable].valores[systemName] = paramData.valor;
+          // Usar el primer parámetro encontrado como referencia para límites
+          if (!parametrosAgrupados[variable].param) {
+            parametrosAgrupados[variable].param = paramData;
+          }
+        }
+      });
     });
+    
+    return Object.values(parametrosAgrupados);
   };
   
-  const parametrosAgrupados = agruparMedicionesPorParametro();
+  const parametrosAgrupados = agruparParametrosPorVariable();
 
   // Obtener variables disponibles para gráficos
   const variablesDisponibles = parametrosAgrupados.map(param => ({
-    id: param.variable_id,
+    id: param.nombre, // Usar el nombre como ID
     nombre: param.nombre
   }));
 
@@ -800,7 +797,7 @@ export default function Reporte() {
                     <tbody>
                       {parametrosAgrupados.map((paramGroup: any) => {
                         return (
-                          <tr key={paramGroup.variable_id}>
+                          <tr key={paramGroup.nombre}>
                             <td><strong>{paramGroup.nombre}</strong></td>
                             {sistemasUnicos.map((sis: any) => {
                               const valor = paramGroup.valores?.[sis] ?? "";
