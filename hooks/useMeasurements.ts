@@ -40,6 +40,7 @@ interface ReportData {
   };
   variablesTolerancia: {
     [parameterId: string]: {
+      nombre: string;
       limite_min: number | null;
       limite_max: number | null;
       bien_min: number | null;
@@ -124,9 +125,9 @@ export function useMeasurements(
 
       // Agregar parámetros de TODOS los sistemas de la planta
       if (allSystems && allParameters && parameterValuesBySystem) {
-        console.log(`💾 Guardando datos de TODOS los sistemas de la planta`);
-        console.log(`📊 Sistemas disponibles:`, allSystems.map(s => s.nombre));
-        console.log(`📝 Valores por sistema:`, parameterValuesBySystem);
+        // console.log(`💾 Guardando datos de TODOS los sistemas de la planta`);
+        // console.log(`📊 Sistemas disponibles:`, allSystems.map(s => s.nombre));
+        // console.log(`📝 Valores por sistema:`, parameterValuesBySystem);
         
         allSystems.forEach(system => {
           const systemParameters = allParameters[system.id];
@@ -135,9 +136,9 @@ export function useMeasurements(
           if (systemParameters && systemParameters.length > 0 && systemValues) {
             reportData.parameters[system.nombre] = {};
             
-            console.log(`🔍 Procesando sistema: ${system.nombre}`);
-            console.log(`📋 Parámetros del sistema:`, systemParameters);
-            console.log(`📝 Valores del sistema:`, systemValues);
+            // console.log(`🔍 Procesando sistema: ${system.nombre}`);
+            // console.log(`📋 Parámetros del sistema:`, systemParameters);
+            // console.log(`📝 Valores del sistema:`, systemValues);
             
             // Agregar valores de parámetros para este sistema
             systemParameters.forEach(param => {
@@ -151,7 +152,7 @@ export function useMeasurements(
                   unidad: unidadSeleccionada
                 };
                 
-                console.log(`✅ Agregado parámetro ${param.nombre} en ${system.nombre}: ${paramValue.value} ${unidadSeleccionada}`);
+                //console.log(`✅ Agregado parámetro ${param.nombre} en ${system.nombre}: ${paramValue.value} ${unidadSeleccionada}`);
               }
             });
           }
@@ -168,6 +169,7 @@ export function useMeasurements(
             const usarLimiteMax = currentLimitsState?.limite_max ?? !!tolerancias[param.id].usar_limite_max;
             
             reportData.variablesTolerancia[param.id] = {
+              nombre: param.nombre,
               // Si el límite está desactivado, establecer como null, sino usar el valor de la base de datos
               limite_min: usarLimiteMin ? (tolerancias[param.id].limite_min ?? null) : null,
               limite_max: usarLimiteMax ? (tolerancias[param.id].limite_max ?? null) : null,
@@ -191,7 +193,7 @@ export function useMeasurements(
         totalParameters += Object.keys(systemParams).length;
       });
       
-      console.log(`Saved data for ${totalParameters} parameters across ${Object.keys(reportData.parameters).length} systems in plant: ${selectedPlant?.nombre}`);
+      //console.log(`Saved data for ${totalParameters} parameters across ${Object.keys(reportData.parameters).length} systems in plant: ${selectedPlant?.nombre}`);
       
       // Notificar éxito al componente padre
       if (onSaveSuccess) {

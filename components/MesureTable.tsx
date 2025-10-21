@@ -129,7 +129,7 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
         
         // Si no hay datos específicos, no mostrar nada
         if (finalData.length === 0) {
-          console.log(`[MesureTable] No se encontraron datos específicos para ${variable} en el proceso/cliente seleccionado`);
+          //console.log(`[MesureTable] No se encontraron datos específicos para ${variable} en el proceso/cliente seleccionado`);
           setData([]);
           setSensors([]);
           setLoading(false);

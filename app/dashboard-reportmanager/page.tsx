@@ -551,15 +551,15 @@ export default function ReportManager() {
     const savedReportData = localStorage.getItem("reportSelection");
     
     if (savedReportData) {
-      console.log("📊 Usando datos previamente guardados para generar reporte");
-      console.log("💾 Datos guardados:", JSON.parse(savedReportData));
+      //console.log("📊 Usando datos previamente guardados para generar reporte");
+      //console.log("💾 Datos guardados:", JSON.parse(savedReportData));
       
       // Solo actualizar la fecha de generación
       const reportData = JSON.parse(savedReportData);
       reportData.generatedDate = new Date().toISOString();
       
       localStorage.setItem("reportSelection", JSON.stringify(reportData));
-      console.log("✅ reportSelection actualizado con nueva fecha de generación");
+      //console.log("✅ reportSelection actualizado con nueva fecha de generación");
       router.push("/reports");
       return;
     }
