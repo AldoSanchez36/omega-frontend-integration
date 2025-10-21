@@ -247,7 +247,11 @@ export default function Reporte() {
 
     // Obtener reportSelection
     const reportSelectionRaw = localStorage.getItem("reportSelection");
-    setReportSelection(reportSelectionRaw ? JSON.parse(reportSelectionRaw) : null);
+    const parsedReportSelection = reportSelectionRaw ? JSON.parse(reportSelectionRaw) : null;
+    console.log("📄 Reports - Datos recibidos del localStorage:", parsedReportSelection);
+    console.log("📊 Reports - Parámetros recibidos:", parsedReportSelection?.parameters);
+    console.log("📊 Reports - Tolerancias recibidas:", parsedReportSelection?.variablesTolerancia);
+    setReportSelection(parsedReportSelection);
 
     // Obtener fecha actual
     const today = new Date()

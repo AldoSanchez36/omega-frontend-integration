@@ -306,36 +306,29 @@ export default function Dashboard() {
         return;
       }
       
-      // Reconstruir reportSelection desde los datos del reporte
+      // Reconstruir reportSelection desde los datos JSONB completos (igual que dashboard-reportmanager)
       const reportSelection = {
         user: {
-          id: report.usuario_id,
-          username: report.usuario,
+          id: report.datos?.user?.id || report.usuario_id,
+          username: report.datos?.user?.username || report.usuario,
           email: report.datos?.user?.email || "",
           puesto: report.datos?.user?.puesto || "client",
           cliente_id: report.datos?.user?.cliente_id || null
         },
         plant: {
-          id: report.planta_id, // Usar planta_id de la tabla reportes
-          nombre: report.plantName,
-          systemName: report.systemName
+          id: report.datos?.plant?.id || report.planta_id,
+          nombre: report.datos?.plant?.nombre || report.plantName,
+          dirigido_a: report.datos?.plant?.dirigido_a,
+          mensaje_cliente: report.datos?.plant?.mensaje_cliente,
+          systemName: report.datos?.plant?.systemName || report.datos?.systemName || report.systemName
         },
-        systemName: report.systemName,
-        parameters: report.datos?.parameters ? Object.entries(report.datos.parameters).map(([key, value]) => ({
-          id: key,
-          nombre: key,
-          unidad: (Object.values(value as any) as any[])[0]?.unidad || "",
-          limite_min: report.datos?.variablesTolerancia?.[key]?.limite_min || null,
-          limite_max: report.datos?.variablesTolerancia?.[key]?.limite_max || null,
-          bien_min: report.datos?.variablesTolerancia?.[key]?.bien_min || null,
-          bien_max: report.datos?.variablesTolerancia?.[key]?.bien_max || null,
-          usar_limite_min: report.datos?.variablesTolerancia?.[key]?.usar_limite_min || false,
-          usar_limite_max: report.datos?.variablesTolerancia?.[key]?.usar_limite_max || false
-        })) : [],
+        systemName: report.datos?.systemName || report.systemName,
+        parameters: report.datos?.parameters || {},
+        variablesTolerancia: report.datos?.variablesTolerancia || {},
         mediciones: [], // Los datos de mediciones se reconstruirán en la página reports
-        fecha: report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        comentarios: report.observaciones || "",
-        generatedDate: report.created_at || new Date().toISOString(),
+        fecha: report.datos?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+        comentarios: report.datos?.comentarios || report.observaciones || "",
+        generatedDate: report.datos?.generatedDate || report.created_at || new Date().toISOString(),
         cliente_id: report.datos?.user?.cliente_id || null
       };
 
@@ -371,36 +364,29 @@ export default function Dashboard() {
         return;
       }
       
-      // Reconstruir reportSelection con validación completa
+      // Reconstruir reportSelection desde los datos JSONB completos (igual que dashboard-reportmanager)
       const reportSelection = {
         user: {
-          id: report.usuario_id,
-          username: report.usuario,
+          id: report.datos?.user?.id || report.usuario_id,
+          username: report.datos?.user?.username || report.usuario,
           email: report.datos?.user?.email || "",
           puesto: report.datos?.user?.puesto || "client",
           cliente_id: report.datos?.user?.cliente_id || null
         },
         plant: {
-          id: report.planta_id, // Usar planta_id de la tabla reportes
-          nombre: report.plantName,
-          systemName: report.systemName
+          id: report.datos?.plant?.id || report.planta_id,
+          nombre: report.datos?.plant?.nombre || report.plantName,
+          dirigido_a: report.datos?.plant?.dirigido_a,
+          mensaje_cliente: report.datos?.plant?.mensaje_cliente,
+          systemName: report.datos?.plant?.systemName || report.datos?.systemName || report.systemName
         },
-        systemName: report.systemName,
-        parameters: report.datos?.parameters ? Object.entries(report.datos.parameters).map(([key, value]) => ({
-          id: key,
-          nombre: key,
-          unidad: (Object.values(value as any) as any[])[0]?.unidad || "",
-          limite_min: report.datos?.variablesTolerancia?.[key]?.limite_min || null,
-          limite_max: report.datos?.variablesTolerancia?.[key]?.limite_max || null,
-          bien_min: report.datos?.variablesTolerancia?.[key]?.bien_min || null,
-          bien_max: report.datos?.variablesTolerancia?.[key]?.bien_max || null,
-          usar_limite_min: report.datos?.variablesTolerancia?.[key]?.usar_limite_min || false,
-          usar_limite_max: report.datos?.variablesTolerancia?.[key]?.usar_limite_max || false
-        })) : [],
+        systemName: report.datos?.systemName || report.systemName,
+        parameters: report.datos?.parameters || {},
+        variablesTolerancia: report.datos?.variablesTolerancia || {},
         mediciones: [],
-        fecha: report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        comentarios: report.observaciones || "",
-        generatedDate: report.created_at || new Date().toISOString(),
+        fecha: report.datos?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+        comentarios: report.datos?.comentarios || report.observaciones || "",
+        generatedDate: report.datos?.generatedDate || report.created_at || new Date().toISOString(),
         cliente_id: report.datos?.user?.cliente_id || null
       };
 

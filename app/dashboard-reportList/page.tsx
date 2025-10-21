@@ -98,9 +98,9 @@ export default function ReportList() {
         return;
       }
 
-      console.log("📊 ReportList - Cargando reportes desde:", `${API_BASE_URL}${API_ENDPOINTS.REPORTS_DASHBOARD}`);
+      console.log("📊 ReportList - Cargando reportes desde:", `${API_BASE_URL}${API_ENDPOINTS.REPORTS}`);
       
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS_DASHBOARD}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -126,18 +126,16 @@ export default function ReportList() {
 
       if (data.ok && data.reportes) {
         const reportesFormateados = data.reportes.map((reporte: any) => {
-          // Reconstruir datos desde JSONB con prioridad
-          const datosJsonb = reporte.datos || {};
-          
-          // Extraer información resumen consistente
+          // Usar la misma estructura que dashboard
           const titulo = reporte.titulo || reporte.nombre || `Reporte ${reporte.id}`;
-          const planta = datosJsonb.plant?.nombre || reporte.planta || "Sin planta";
-          const sistema = datosJsonb.systemName || reporte.sistema || "Sin sistema";
-          const usuario = datosJsonb.user?.username || reporte.usuario || "Usuario desconocido";
-          const fecha = datosJsonb.fecha || reporte.fecha || new Date().toISOString().split('T')[0];
+          const planta = reporte.planta || reporte.plantName || "Planta no especificada";
+          const sistema = reporte.sistema || reporte.systemName || "Sistema no especificado";
+          const usuario = reporte.usuario || "Usuario desconocido";
+          const fecha = reporte.fecha || new Date().toISOString().split('T')[0];
           const estado = reporte.estado || "Completado";
           
-          // Contar parámetros y tolerancias
+          // Contar parámetros y tolerancias desde datos JSONB
+          const datosJsonb = reporte.datos || {};
           const totalParametros = datosJsonb.parameters ? 
             Object.values(datosJsonb.parameters).reduce((acc: number, sistema: any) => 
               acc + Object.keys(sistema).length, 0) : 0;
@@ -155,13 +153,13 @@ export default function ReportList() {
             // Datos resumen
             totalParametros,
             totalTolerancias,
-            comentarios: datosJsonb.comentarios || reporte.comentarios || "",
-            fechaGeneracion: datosJsonb.generatedDate || reporte.fechaGeneracion || reporte.generada_en || new Date().toISOString(),
-            usuario_id: datosJsonb.user?.id || reporte.usuario_id || "",
+            comentarios: reporte.comentarios || reporte.observaciones || "",
+            fechaGeneracion: reporte.fechaGeneracion || reporte.fecha_creacion || reporte.created_at || new Date().toISOString(),
+            usuario_id: reporte.usuario_id || "",
             // Incluir planta_id de la tabla reportes
             planta_id: reporte.planta_id || "",
-            // Incluir datos JSONB completos para análisis
-            datosJsonb: datosJsonb
+            // Incluir datos JSONB completos para análisis (igual que dashboard)
+            datosJsonb: reporte.datos || {}
           };
         });
 
@@ -297,36 +295,29 @@ export default function ReportList() {
         return;
       }
       
-      // Reconstruir reportSelection desde los datos del reporte
+      // Reconstruir reportSelection desde los datos JSONB completos (igual que dashboard)
       const reportSelection = {
         user: {
-          id: reporte.usuario_id,
-          username: reporte.usuario,
+          id: reporte.datosJsonb?.user?.id || reporte.usuario_id,
+          username: reporte.datosJsonb?.user?.username || reporte.usuario,
           email: reporte.datosJsonb?.user?.email || "",
           puesto: reporte.datosJsonb?.user?.puesto || "client",
           cliente_id: reporte.datosJsonb?.user?.cliente_id || null
         },
         plant: {
-          id: reporte.planta_id, // Usar planta_id de la tabla reportes
-          nombre: reporte.planta,
-          systemName: reporte.datosJsonb?.systemName || reporte.sistema
+          id: reporte.datosJsonb?.plant?.id || reporte.planta_id,
+          nombre: reporte.datosJsonb?.plant?.nombre || reporte.planta,
+          dirigido_a: reporte.datosJsonb?.plant?.dirigido_a,
+          mensaje_cliente: reporte.datosJsonb?.plant?.mensaje_cliente,
+          systemName: reporte.datosJsonb?.plant?.systemName || reporte.datosJsonb?.systemName || reporte.sistema
         },
         systemName: reporte.datosJsonb?.systemName || reporte.sistema,
-        parameters: reporte.datosJsonb?.parameters ? Object.entries(reporte.datosJsonb.parameters).map(([key, value]) => ({
-          id: key,
-          nombre: key,
-          unidad: Object.values(value)[0]?.unidad || "",
-          limite_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.limite_min || null,
-          limite_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.limite_max || null,
-          bien_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.bien_min || null,
-          bien_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.bien_max || null,
-          usar_limite_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.usar_limite_min || false,
-          usar_limite_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.usar_limite_max || false
-        })) : [],
+        parameters: reporte.datosJsonb?.parameters || {},
+        variablesTolerancia: reporte.datosJsonb?.variablesTolerancia || {},
         mediciones: [], // Los datos de mediciones se reconstruirán en la página reports
-        fecha: reporte.fecha,
-        comentarios: reporte.comentarios,
-        generatedDate: reporte.fechaGeneracion,
+        fecha: reporte.datosJsonb?.fecha || reporte.fecha,
+        comentarios: reporte.datosJsonb?.comentarios || reporte.comentarios,
+        generatedDate: reporte.datosJsonb?.generatedDate || reporte.fechaGeneracion,
         cliente_id: reporte.datosJsonb?.user?.cliente_id || null
       };
 
@@ -337,6 +328,9 @@ export default function ReportList() {
         planta_nombre: reporte.planta,
         systemName: reporte.datosJsonb?.systemName || reporte.sistema
       });
+      console.log("📊 Datos de parámetros:", reportSelection.parameters);
+      console.log("📊 Datos de tolerancias:", reportSelection.variablesTolerancia);
+      console.log("📊 Datos JSONB originales:", reporte.datosJsonb);
       
       // Guardar en localStorage
       localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
@@ -383,41 +377,37 @@ export default function ReportList() {
         return;
       }
       
-      // Reconstruir reportSelection con validación completa
+      // Reconstruir reportSelection desde los datos JSONB completos (igual que dashboard-reportmanager)
       const reportSelection = {
         user: {
-          id: reporte.usuario_id,
-          username: reporte.usuario,
+          id: reporte.datosJsonb?.user?.id || reporte.usuario_id,
+          username: reporte.datosJsonb?.user?.username || reporte.usuario,
           email: reporte.datosJsonb?.user?.email || "",
           puesto: reporte.datosJsonb?.user?.puesto || "client",
           cliente_id: reporte.datosJsonb?.user?.cliente_id || null
         },
         plant: {
-          id: reporte.planta_id, // Usar planta_id de la tabla reportes
-          nombre: reporte.planta,
-          systemName: reporte.datosJsonb?.systemName || reporte.sistema
+          id: reporte.datosJsonb?.plant?.id || reporte.planta_id,
+          nombre: reporte.datosJsonb?.plant?.nombre || reporte.planta,
+          dirigido_a: reporte.datosJsonb?.plant?.dirigido_a,
+          mensaje_cliente: reporte.datosJsonb?.plant?.mensaje_cliente,
+          systemName: reporte.datosJsonb?.plant?.systemName || reporte.datosJsonb?.systemName || reporte.sistema
         },
         systemName: reporte.datosJsonb?.systemName || reporte.sistema,
-        parameters: reporte.datosJsonb?.parameters ? Object.entries(reporte.datosJsonb.parameters).map(([key, value]) => ({
-          id: key,
-          nombre: key,
-          unidad: Object.values(value)[0]?.unidad || "",
-          limite_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.limite_min || null,
-          limite_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.limite_max || null,
-          bien_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.bien_min || null,
-          bien_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.bien_max || null,
-          usar_limite_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.usar_limite_min || false,
-          usar_limite_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.usar_limite_max || false
-        })) : [],
+        parameters: reporte.datosJsonb?.parameters || {},
+        variablesTolerancia: reporte.datosJsonb?.variablesTolerancia || {},
         mediciones: [],
-        fecha: reporte.fecha,
-        comentarios: reporte.comentarios,
-        generatedDate: reporte.fechaGeneracion,
+        fecha: reporte.datosJsonb?.fecha || reporte.fecha,
+        comentarios: reporte.datosJsonb?.comentarios || reporte.comentarios,
+        generatedDate: reporte.datosJsonb?.generatedDate || reporte.fechaGeneracion,
         cliente_id: reporte.datosJsonb?.user?.cliente_id || null
       };
 
       console.log("📄 ===== REPORT SELECTION RECONSTRUIDO =====");
       console.log("📄 reportSelection completo:", reportSelection);
+      console.log("📊 Datos de parámetros:", reportSelection.parameters);
+      console.log("📊 Datos de tolerancias:", reportSelection.variablesTolerancia);
+      console.log("📊 Datos JSONB originales:", reporte.datosJsonb);
       console.log("📄 Estructura del reportSelection:", {
         user: {
           id: reportSelection.user.id,
@@ -432,7 +422,7 @@ export default function ReportList() {
           systemName: reportSelection.plant.systemName
         },
         systemName: reportSelection.systemName,
-        parameters_count: reportSelection.parameters.length,
+        parameters_count: Object.keys(reportSelection.parameters).length,
         mediciones_count: reportSelection.mediciones.length,
         fecha: reportSelection.fecha,
         comentarios: reportSelection.comentarios,
