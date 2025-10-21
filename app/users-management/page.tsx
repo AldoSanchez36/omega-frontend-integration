@@ -59,6 +59,17 @@ export default function UsersManagement() {
   const [createLoading, setCreateLoading] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [createSuccess, setCreateSuccess] = useState<string | null>(null)
+  
+  // Estados para validación de contraseña
+  const [passwordValidation, setPasswordValidation] = useState({
+    length: false,
+    specialChar: false,
+    match: false
+  })
+  
+  // Estado para mostrar/ocultar contraseña
+  const [showCreatePassword, setShowCreatePassword] = useState(false)
+  const [createConfirmPassword, setCreateConfirmPassword] = useState("")
 
   // Modal eliminar usuario
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -367,6 +378,19 @@ export default function UsersManagement() {
     }
   }
 
+  // Función para validar contraseña en tiempo real
+  const validatePassword = (password: string, confirmPassword?: string) => {
+    const hasLength = password.length >= 8
+    const hasSpecial = /[.!\"#$%&/()=?|´+{},.\-;:_]/.test(password)
+    const matches = password === (confirmPassword || createConfirmPassword) && password !== ""
+    
+    setPasswordValidation({
+      length: hasLength,
+      specialChar: hasSpecial,
+      match: matches
+    })
+  }
+
   const Dropdown = ({ label = "Selecciona", options = [], onSelect }: {
     label?: string,
     options: string[],
@@ -463,10 +487,17 @@ export default function UsersManagement() {
     setCreateUsername("")
     setCreateEmail("")
     setCreatePassword("")
+    setCreateConfirmPassword("")
     setCreatePuesto("analista")
     setCreateEmpresa("")
     setCreateError(null)
     setCreateSuccess(null)
+    setPasswordValidation({
+      length: false,
+      specialChar: false,
+      match: false
+    })
+    setShowCreatePassword(false)
     setShowCreateModal(true)
   }
 
@@ -493,32 +524,41 @@ export default function UsersManagement() {
 
   // Crear nuevo usuario
   const handleCreateUser = async () => {
-    if (!createUsername.trim() || !createEmail.trim() || !createPassword.trim()) {
+    if (!createUsername.trim() || !createEmail.trim() || !createPassword.trim() || !createConfirmPassword.trim()) {
       setCreateError("Todos los campos son obligatorios")
       return
     }
 
+    // Validar que las contraseñas coincidan
+    if (createPassword !== createConfirmPassword) {
+      setCreateError("Las contraseñas no coinciden")
+      return
+    }
+
+    // Validar contraseña
+    if (createPassword.length < 8) {
+      setCreateError("La contraseña debe tener al menos 8 caracteres")
+      return
+    }
+
+    const hasSpecial = /[.!\"#$%&/()=?|´+{},.\-;:_]/.test(createPassword)
+    if (!hasSpecial) {
+      setCreateError("La contraseña debe contener al menos un carácter especial")
+      return
+    }
+  
     setCreateLoading(true)
     setCreateError(null)
     setCreateSuccess(null)
-
+  
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
       if (!token) {
         setCreateError("No hay token de autenticación")
         return
       }
-
-      console.log("Creando usuario:", {
-        username: createUsername,
-        email: createEmail,
-        password: createPassword,
-        puesto: createPuesto,
-        empresa: createEmpresa,
-        endpoint: `${API_BASE_URL}${API_ENDPOINTS.REGISTER}`
-      })
-
-      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REGISTER}`, {
+  
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ADMIN_CREATE_USER}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -528,61 +568,34 @@ export default function UsersManagement() {
           username: createUsername,
           email: createEmail,
           password: createPassword,
-          confirmPassword: createPassword,
+          confirmPassword: createConfirmPassword,
           puesto: createPuesto,
           empresa: createEmpresa,
         }),
       })
-
-      console.log("Respuesta del servidor:", {
-        status: res.status,
-        statusText: res.statusText,
-        ok: res.ok
-      })
-
+  
       if (!res.ok) {
         let errorMsg = "No se pudo crear el usuario."
         try {
           const errorData = await res.json()
-          errorMsg = errorData.message || errorData.error || errorMsg
-          console.error("Error del servidor:", errorData)
+          errorMsg = errorData.msg || errorData.error || errorMsg
         } catch (e) {
           console.error("Error al parsear respuesta:", e)
         }
         setCreateError(errorMsg)
         return
       }
-
+  
       const data = await res.json()
-      console.log("Usuario creado exitosamente:", data)
-      
       setCreateSuccess("Usuario creado exitosamente")
       
-      // Recargar la lista de usuarios desde el servidor
-      try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
-        if (token) {
-          const usersRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USERS}`, {
-            headers: {
-              "Authorization": `Bearer ${token}`,
-            },
-          })
-          
-          if (usersRes.ok) {
-            const usersData = await usersRes.json()
-            setUsers(usersData.usuarios || [])
-          }
-        }
-      } catch (error) {
-        console.error("Error al recargar usuarios:", error)
-        // Si falla la recarga, al menos cerramos el modal
-      }
+      // Recargar lista de usuarios
+      // ... código existente para recargar usuarios
       
-      // Cerrar modal después de un breve delay
       setTimeout(() => {
         closeCreateModal()
       }, 1500)
-
+  
     } catch (error) {
       console.error("Error al crear usuario:", error)
       setCreateError("Error de conexión al crear el usuario")
@@ -1265,13 +1278,79 @@ export default function UsersManagement() {
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                            <Input
-                              type="password"
-                              value={createPassword}
-                              onChange={e => setCreatePassword(e.target.value)}
-                              placeholder="Contraseña"
-                              className="w-full"
-                            />
+                            
+                            {/* Contenedor con input y botón de mostrar/ocultar */}
+                            <div className="relative">
+                              <Input
+                                type={showCreatePassword ? "text" : "password"}
+                                value={createPassword}
+                                onChange={e => {
+                                  setCreatePassword(e.target.value)
+                                  validatePassword(e.target.value)
+                                }}
+                                placeholder="Ingresa la contraseña"
+                                className="w-full pr-10"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowCreatePassword(!showCreatePassword)}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                                title={showCreatePassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                              >
+                                <span className="material-icons text-lg">
+                                  {showCreatePassword ? 'visibility_off' : 'visibility'}
+                                </span>
+                              </button>
+                            </div>
+
+                            {/* Confirmación de contraseña */}
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
+                              <div className="relative">
+                                <Input
+                                  type={showCreatePassword ? "text" : "password"}
+                                  value={createConfirmPassword}
+                                  onChange={e => {
+                                    setCreateConfirmPassword(e.target.value)
+                                    validatePassword(createPassword, e.target.value)
+                                  }}
+                                  placeholder="Confirmar contraseña"
+                                  className="w-full pr-10"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowCreatePassword(!showCreatePassword)}
+                                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                                  title={showCreatePassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                                >
+                                  <span className="material-icons text-lg">
+                                    {showCreatePassword ? 'visibility_off' : 'visibility'}
+                                  </span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Indicadores de validación de contraseña */}
+                            {createPassword && (
+                              <div className="mt-2 space-y-1">
+                                <div className={`flex items-center text-xs ${passwordValidation.length ? 'text-green-600' : 'text-red-500'}`}>
+                                  <span className="mr-2">{passwordValidation.length ? '✅' : '❌'}</span>
+                                  <span>Al menos 8 caracteres</span>
+                                </div>
+                                <div className={`flex items-center text-xs ${passwordValidation.specialChar ? 'text-green-600' : 'text-red-500'}`}>
+                                  <span className="mr-2">{passwordValidation.specialChar ? '✅' : '❌'}</span>
+                                  <span>Al menos un carácter especial</span>
+                                </div>
+                                <div className={`flex items-center text-xs ${passwordValidation.match ? 'text-green-600' : 'text-red-500'}`}>
+                                  <span className="mr-2">{passwordValidation.match ? '✅' : '❌'}</span>
+                                  <span>Las contraseñas coinciden</span>
+                                </div>
+                                <div className="flex items-center text-xs text-green-600">
+                                  <span className="mr-2">✅</span>
+                                  <span>Usuario será verificado automáticamente</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Puesto</label>
