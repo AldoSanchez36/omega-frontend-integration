@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
-import { Eye, Download, Calendar, Filter, RefreshCw } from "lucide-react";
+import { Eye, Download, Calendar, Filter, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants";
 
 interface Reporte {
@@ -58,7 +58,8 @@ interface Reporte {
 
 export default function ReportList() {
   const [reportes, setReportes] = useState<Reporte[]>([]);
-  const [fechaFiltro, setFechaFiltro] = useState("");
+  const [fechaInicio, setFechaInicio] = useState("");
+  const [fechaFin, setFechaFin] = useState("");
   const [plantaFiltro, setPlantaFiltro] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +67,10 @@ export default function ReportList() {
   const [user, setUser] = useState<any>(null);
   const [selectedReporte, setSelectedReporte] = useState<Reporte | null>(null);
   const [showJsonbModal, setShowJsonbModal] = useState(false);
+  
+  // Estados para ordenamiento
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -167,12 +172,74 @@ export default function ReportList() {
   // Obtener plantas únicas para el filtro
   const plantasUnicas = [...new Set(reportes.map(r => r.planta))].filter(Boolean);
 
-  // Aplicar filtros
-  const reportesFiltrados = reportes.filter(reporte => {
-    const cumpleFecha = !fechaFiltro || reporte.fecha.startsWith(fechaFiltro);
-    const cumplePlanta = !plantaFiltro || reporte.planta === plantaFiltro;
-    return cumpleFecha && cumplePlanta;
-  });
+  // Función para manejar el ordenamiento
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Función para obtener el icono de ordenamiento
+  const getSortIcon = (field: string) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-4 h-4 text-gray-400" />;
+    }
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="w-4 h-4 text-blue-600" />
+      : <ArrowDown className="w-4 h-4 text-blue-600" />;
+  };
+
+  // Validar que fecha inicio no sea mayor que fecha fin
+  const fechaInicioDate = fechaInicio ? new Date(fechaInicio) : null;
+  const fechaFinDate = fechaFin ? new Date(fechaFin) : null;
+  const fechasValidas = !fechaInicioDate || !fechaFinDate || fechaInicioDate <= fechaFinDate;
+
+  // Aplicar filtros y ordenamiento
+  const reportesFiltrados = reportes
+    .filter(reporte => {
+      // Filtro por rango de fechas
+      let cumpleFecha = true;
+      if (fechaInicio || fechaFin) {
+        const fechaReporte = new Date(reporte.fecha);
+        
+        if (fechaInicioDate && fechaFinDate) {
+          // Rango completo: fecha debe estar entre inicio y fin
+          cumpleFecha = fechaReporte >= fechaInicioDate && fechaReporte <= fechaFinDate;
+        } else if (fechaInicioDate) {
+          // Solo fecha inicio: fecha debe ser mayor o igual
+          cumpleFecha = fechaReporte >= fechaInicioDate;
+        } else if (fechaFinDate) {
+          // Solo fecha fin: fecha debe ser menor o igual
+          cumpleFecha = fechaReporte <= fechaFinDate;
+        }
+      }
+      
+      const cumplePlanta = !plantaFiltro || reporte.planta === plantaFiltro;
+      return cumpleFecha && cumplePlanta;
+    })
+    .sort((a, b) => {
+      if (!sortField) return 0;
+      
+      let aValue = a[sortField as keyof Reporte];
+      let bValue = b[sortField as keyof Reporte];
+      
+      // Manejar diferentes tipos de datos
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+      
+      if (aValue < bValue) {
+        return sortDirection === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortDirection === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
 
   const getStatusColor = (estado: string) => {
     switch (estado.toLowerCase()) {
@@ -238,16 +305,49 @@ export default function ReportList() {
             <Filter className="w-5 h-5 text-gray-600" />
             <h3 className="text-lg font-semibold text-gray-900">Filtros</h3>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Fecha
+                Fecha Inicio
+                {fechaInicio && (
+                  <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                    Desde: {fechaInicio}
+                  </span>
+                )}
               </label>
               <input
                 type="date"
-                value={fechaFiltro}
-                onChange={(e) => setFechaFiltro(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={fechaInicio}
+                onChange={(e) => setFechaInicio(e.target.value)}
+                className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 ${
+                  !fechasValidas && fechaInicio && fechaFin 
+                    ? 'border-red-300 focus:ring-red-500' 
+                    : 'border-gray-300 focus:ring-blue-500'
+                }`}
+                placeholder="Desde"
+                max={fechaFin || undefined}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Fecha Fin
+                {fechaFin && (
+                  <span className="ml-2 text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                    Hasta: {fechaFin}
+                  </span>
+                )}
+              </label>
+              <input
+                type="date"
+                value={fechaFin}
+                onChange={(e) => setFechaFin(e.target.value)}
+                className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 ${
+                  !fechasValidas && fechaInicio && fechaFin 
+                    ? 'border-red-300 focus:ring-red-500' 
+                    : 'border-gray-300 focus:ring-blue-500'
+                }`}
+                placeholder="Hasta"
+                min={fechaInicio || undefined}
               />
             </div>
             <div>
@@ -268,7 +368,8 @@ export default function ReportList() {
             <div className="flex items-end">
               <button
                 onClick={() => {
-                  setFechaFiltro("");
+                  setFechaInicio("");
+                  setFechaFin("");
                   setPlantaFiltro("");
                 }}
                 className="w-full bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors"
@@ -277,6 +378,15 @@ export default function ReportList() {
               </button>
             </div>
           </div>
+          
+          {/* Mensaje de error para fechas inválidas */}
+          {!fechasValidas && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-600 text-sm">
+                ⚠️ La fecha de inicio no puede ser mayor que la fecha de fin
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Estadísticas */}
@@ -322,26 +432,50 @@ export default function ReportList() {
             <table className="min-w-full">
               <thead className="bg-gray-100 border-b">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    Reporte
+                  <th 
+                    className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider cursor-pointer hover:bg-gray-200 transition-colors"
+                    onClick={() => handleSort('titulo')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Reporte
+                      {getSortIcon('titulo')}
+                    </div>
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    Planta
+                  <th 
+                    className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider cursor-pointer hover:bg-gray-200 transition-colors"
+                    onClick={() => handleSort('planta')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Planta
+                      {getSortIcon('planta')}
+                    </div>
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    Sistema
+                  <th 
+                    className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider cursor-pointer hover:bg-gray-200 transition-colors"
+                    onClick={() => handleSort('estado')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Estado
+                      {getSortIcon('estado')}
+                    </div>
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    Estado
+                  <th 
+                    className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider cursor-pointer hover:bg-gray-200 transition-colors"
+                    onClick={() => handleSort('fecha')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Fecha
+                      {getSortIcon('fecha')}
+                    </div>
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    Fecha
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    Usuario
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    Resumen
+                  <th 
+                    className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider cursor-pointer hover:bg-gray-200 transition-colors"
+                    onClick={() => handleSort('totalParametros')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Resumen
+                      {getSortIcon('totalParametros')}
+                    </div>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
                     Acciones
@@ -351,7 +485,7 @@ export default function ReportList() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
+                    <td colSpan={6} className="px-6 py-12 text-center">
                       <div className="flex items-center justify-center">
                         <RefreshCw className="w-6 h-6 animate-spin text-blue-600 mr-2" />
                         <span className="text-gray-600">Cargando reportes...</span>
@@ -360,7 +494,7 @@ export default function ReportList() {
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
+                    <td colSpan={6} className="px-6 py-12 text-center">
                       <div className="text-red-600">
                         <p className="font-medium">Error al cargar reportes</p>
                         <p className="text-sm mt-1">{error}</p>
@@ -403,20 +537,12 @@ export default function ReportList() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="bg-cyan-500 text-white text-xs px-2 py-1 rounded-full">
-                          {reporte.sistema}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
                         <span className={`${getStatusColor(reporte.estado)} text-white text-xs px-2 py-1 rounded-full flex items-center`}>
                           {reporte.estado}
                         </span>
                       </td>
                       <td className="px-6 py-4">
                         {formatDate(reporte.fecha)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {reporte.usuario}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
@@ -453,19 +579,20 @@ export default function ReportList() {
               ))
                 ) : (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
+                    <td colSpan={6} className="px-6 py-12 text-center">
                       <div className="text-gray-500">
                         <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                         <p className="text-lg font-medium">No hay reportes disponibles</p>
                         <p className="text-sm mt-1">
-                          {fechaFiltro || plantaFiltro 
+                          {(fechaInicio || fechaFin || plantaFiltro)
                             ? "No se encontraron reportes con los filtros aplicados" 
                             : "No se han generado reportes aún"}
                         </p>
-                        {(fechaFiltro || plantaFiltro) && (
+                        {(fechaInicio || fechaFin || plantaFiltro) && (
                           <button
                             onClick={() => {
-                              setFechaFiltro("");
+                              setFechaInicio("");
+                              setFechaFin("");
                               setPlantaFiltro("");
                             }}
                             className="mt-3 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
