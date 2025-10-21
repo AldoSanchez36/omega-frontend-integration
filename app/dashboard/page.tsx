@@ -519,7 +519,7 @@ export default function Dashboard() {
         if (!token) return
 
         // Usar el endpoint de reportes con filtrado por rol
-        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS_DASHBOARD}`, {
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         
@@ -567,8 +567,8 @@ export default function Dashboard() {
           usuario: report.usuario || user.username,
           puesto: report.puesto || user.puesto
         }))
-        
         setReports(formattedReports)
+        
         addDebugLog(`Reportes cargados: ${formattedReports.length} reportes (rol: ${userRole})`)
         
       } catch (error) {
