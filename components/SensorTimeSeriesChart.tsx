@@ -151,7 +151,7 @@ export function SensorTimeSeriesChart({
                  // 3. Si no hay datos por cliente ni por proceso, NO mostrar datos generales
         // Solo mostrar datos específicos para el usuario/proceso seleccionado
         if (finalData.length === 0) {
-          console.log(`No se encontraron datos específicos para ${variable} en el proceso/cliente seleccionado`);
+          //console.log(`No se encontraron datos específicos para ${variable} en el proceso/cliente seleccionado`);
           setData([]);
           setSensors([]);
           setLoading(false);

@@ -91,10 +91,10 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
   }, [selectedPlant, activeSystem]);
 
   // Debug logging
-  console.log("ChartsDashboard - Plants:", plants.length);
-  console.log("ChartsDashboard - Historical Data Keys:", Object.keys(historicalData));
-  console.log("ChartsDashboard - Selected Plant:", selectedPlant?.nombre);
-  console.log("ChartsDashboard - Selected System:", selectedSystem?.name);
+  // console.log("ChartsDashboard - Plants:", plants.length);
+  // console.log("ChartsDashboard - Historical Data Keys:", Object.keys(historicalData));
+  // console.log("ChartsDashboard - Selected Plant:", selectedPlant?.nombre);
+  // console.log("ChartsDashboard - Selected System:", selectedSystem?.name);
 
   return (
     <div className="row mb-4">

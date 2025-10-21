@@ -19,6 +19,8 @@ interface Plant {
   clientName?: string
   status?: string
   createdAt?: string
+  mensaje_cliente?:string
+  dirigido_a?:string
 }
 
 interface System {
@@ -79,7 +81,7 @@ export function useUserAccess(token: string | null, options: UseUserAccessOption
       if (storedUser) {
         userData = JSON.parse(storedUser)
         setUserRole(userData.puesto || "user")
-        console.log("Puesto:", userData.puesto)
+        //console.log("Puesto:", userData.puesto)
       }
     }
 
@@ -227,6 +229,26 @@ export function useUserAccess(token: string | null, options: UseUserAccessOption
     setLoading(true)
     setError(null)
     try {
+      // Obtener los datos completos de la planta seleccionada
+      const plantRes = await fetch(`${API_BASE_URL}/api/plantas/all`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      
+      let completePlant = plant
+      if (plantRes.ok) {
+        const plantData = await plantRes.json()
+        const fullPlant = plantData.plantas?.find((p: any) => p.id === plantId)
+        if (fullPlant) {
+          completePlant = {
+            ...plant,
+            mensaje_cliente: fullPlant.mensaje_cliente,
+            dirigido_a: fullPlant.dirigido_a
+          }
+          setSelectedPlant(completePlant)
+        }
+      }
+
+      // Luego obtener los sistemas de la planta
       const res = await fetch(`${API_BASE_URL}/api/procesos/planta/${plant.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       })

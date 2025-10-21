@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import jsPDF from "jspdf"
+import { jsPDF } from "jspdf"
 import autoTable from "jspdf-autotable"
 import Navbar from "@/components/Navbar"
 import html2canvas from "html2canvas"
@@ -27,18 +27,89 @@ interface RangeLimits {
     fuera: string
     limite: string
     bien: string
+    } 
   }
-}
 
-interface Medicion {
-  id: string;
-  fecha: string;
-  valor: number;
-  variable_id: string;
-  proceso_id: string;
-  sistema: string;
-  comentarios?: string;
-}
+  // Exportar DOM a PDF con html2canvas (captura exacta de lo que se ve)
+  const exportDOMToPDF = async (reportSelection: ReportSelection | null) => {
+    try {
+      console.log("🎯 Iniciando exportDOMToPDF...");
+      
+      const wrapper = document.getElementById("reporte-pdf-wrapper") as HTMLElement | null;
+      if (!wrapper) throw new Error("Elemento 'reporte-pdf-wrapper' no encontrado");
+      
+      console.log("📦 Wrapper encontrado:", wrapper);
+
+      // Esperar a que las imágenes dentro del wrapper estén listas
+      const imgs = Array.from(wrapper.querySelectorAll("img"));
+      console.log("🖼️ Imágenes encontradas:", imgs.length);
+      
+      await Promise.all(
+        imgs.map((img) =>
+          img.complete && img.naturalWidth !== 0
+            ? Promise.resolve()
+            : new Promise<void>((res) => {
+                img.onload = () => res();
+                img.onerror = () => res(); // no bloquear si falla
+              })
+        )
+      );
+
+      console.log("🎨 Capturando con html2canvas...");
+      // Capturar a canvas
+      const canvas = await html2canvas(wrapper, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: true,
+        windowWidth: document.documentElement.clientWidth,
+        scrollX: 0,
+        scrollY: -window.scrollY,
+      });
+
+      console.log("🖼️ Canvas creado:", { width: canvas.width, height: canvas.height });
+      const imgData = canvas.toDataURL("image/png");
+
+      console.log("📄 Creando PDF...");
+      // Crear PDF A4 y paginar si es alto
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      console.log("📐 Dimensiones PDF:", { pageWidth, pageHeight, imgWidth, imgHeight });
+
+      if (imgHeight <= pageHeight) {
+        console.log("📄 Agregando imagen a una página");
+        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+      } else {
+        console.log("📄 Agregando imagen a múltiples páginas");
+        let y = 0;
+        let page = 1;
+        while (y < imgHeight) {
+          console.log(`🧾 Renderizando página ${page}, offsetY=${y.toFixed(2)}mm`);
+          pdf.addImage(imgData, "PNG", 0, -y, imgWidth, imgHeight);
+          y += pageHeight;
+          if (y < imgHeight) pdf.addPage();
+          page++;
+        }
+      }
+
+      const fileName = `Reporte_${(reportSelection?.plant?.nombre || "General").replace(/\s+/g, "_")}_${new Date().toISOString().slice(0,10)}.pdf`;
+      console.log("💾 Descargando PDF:", fileName);
+      pdf.save(fileName);
+      
+      console.log("✅ PDF descargado exitosamente");
+      alert("✅ PDF descargado exitosamente!");
+      
+    } catch (error) {
+      console.error("❌ Error en exportDOMToPDF:", error);
+      throw error;
+    }
+  };
+
 
 // Estructura para la fecha en formato día, mes (texto), año
 interface FormattedDate {
@@ -71,6 +142,8 @@ interface User {
 interface Plant {
   id: string;
   nombre: string;
+  dirigido_a?: string;
+  mensaje_cliente?: string;
 }
 
 // Interfaz para los parámetros en el reporte
@@ -94,8 +167,26 @@ interface ReportSelection {
   plant: Plant;
   systemName: string;
   generatedDate: string;
-  parameters: ReportParameter[];
-  mediciones: Medicion[];
+  parameters: {
+    [systemName: string]: {
+      [parameterName: string]: {
+        valor: number;
+        unidad: string;
+      };
+    };
+  };
+  variablesTolerancia: {
+    [systemName: string]: {
+      [parameterId: string]: {
+        limite_min: number | null;
+        limite_max: number | null;
+        bien_min: number | null;
+        bien_max: number | null;
+        usar_limite_min: boolean;
+        usar_limite_max: boolean;
+      };
+    };
+  };
 }
 
 export default function Reporte() {
@@ -191,8 +282,8 @@ export default function Reporte() {
 
       doc.setFontSize(12)
       doc.text(`Fecha: ${currentDate}`, 20, 35)
-      doc.text(`Dirigido a: ${reportNotes["dirigido"] || "ING. ABDIEL ZENTELLA"}`, 20, 45)
-      doc.text(`Asunto: ${reportNotes["asunto"] || "REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS"}`, 20, 55)
+      doc.text(`Dirigido a: ${reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING. "}`, 20, 45)
+      doc.text(`Asunto: ${reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente || "REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS"}`, 20, 55)
       doc.text(`Sistema Evaluado: ${reportNotes["sistema"] || (reportSelection ? reportSelection.systemName : "Todos los sistemas") || "Todos los sistemas"}`, 20, 65)
       doc.text(`Ubicación: ${reportNotes["ubicacion"] || "San Luis Potosí, S.L.P."}`, 20, 75)
       
@@ -234,24 +325,18 @@ export default function Reporte() {
 
       // Crear tabla comparativa
       const allParams = new Set<string>();
-      (reportSelection?.parameters || []).forEach((param: any) => {
-        if (param.checked) allParams.add(param.nombre);
+      Object.values(reportSelection?.parameters || {}).forEach((systemData: any) => {
+        Object.keys(systemData).forEach(variable => allParams.add(variable));
       });
 
-      // Since parameters is an array, we need to group by system
-      // This is a placeholder - you'll need to adjust based on your actual data structure
-      const systemNames: string[] = [];
-      const tableHeaders = ["Parámetro", ...systemNames.map((_, idx) => `S${idx + 1}`)];
+      const systemNames = Object.keys(reportSelection?.parameters || {});
+      const tableHeaders = ["Parámetro", ...systemNames];
       const tableData = Array.from(allParams).map((paramName: string) => {
         const row: string[] = [paramName];
         systemNames.forEach((systemName: string) => {
-          // Find parameters for this specific system
-          // This is a placeholder - adjust based on how your data is structured
-          const systemParam = reportSelection?.parameters?.find((param: ReportParameter) => 
-            param.nombre === paramName
-            // && param.systemName === systemName // Add system identification if available
-          );
-          const value = systemParam ? systemParam.limite_min?.toString() || systemParam.limite_max?.toString() || "N/A" : "—";
+          const systemData = reportSelection?.parameters?.[systemName];
+          const paramData = systemData?.[paramName];
+          const value = paramData ? `${paramData.valor} ${paramData.unidad}` : "—";
           row.push(value);
         });
         
@@ -281,9 +366,11 @@ export default function Reporte() {
         currentY += 10;
 
         const systemTableHeaders = ["Parámetro", "Valor", "Unidad"];
-        const systemTableData = (parameters as any[])
-          .filter((param: any) => param.checked)
-          .map((param: any) => [param.name, param.value || "N/A", param.unit]);
+        const systemTableData = Object.entries(parameters || {}).map(([paramName, paramData]: [string, any]) => [
+          paramName, 
+          paramData?.valor || "N/A", 
+          paramData?.unidad || ""
+        ]);
         autoTable(doc, {
           head: [systemTableHeaders],
           body: systemTableData as string[][],
@@ -354,76 +441,6 @@ export default function Reporte() {
         return
       }
 
-      // Obtener el proceso_id basado en el nombre de la planta
-      let proceso_id = null
-      
-      console.log("🔍 Verificando datos para consulta de procesos:")
-      console.log("reportSelection.plant?.nombre:", reportSelection.plant?.nombre)
-      console.log("reportSelection.systemName:", reportSelection.systemName)
-      console.log("¿Tiene planta?:", !!reportSelection.plant?.nombre)
-      console.log("¿Tiene systemName?:", !!reportSelection.systemName)
-      
-      if (reportSelection.plant?.nombre && reportSelection.systemName) {
-        try {
-          console.log("🔍 Obteniendo proceso_id para:", {
-            planta: reportSelection.plant.nombre,
-            systemName: reportSelection.systemName
-          })
-
-          const endpoint = `${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT_NAME(reportSelection.plant.nombre)}`
-          console.log("🌐 Endpoint a consultar:", endpoint)
-
-          const procesosResponse = await fetch(endpoint, {
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
-          })
-
-          console.log("📡 Respuesta de procesos:", {
-            status: procesosResponse.status,
-            statusText: procesosResponse.statusText,
-            ok: procesosResponse.ok
-          })
-
-          if (procesosResponse.ok) {
-            const procesos = await procesosResponse.json()
-            console.log("📋 Procesos encontrados:", procesos)
-            console.log("🔍 Buscando proceso con nombre:", reportSelection.systemName)
-
-            // Buscar el proceso que coincida con el systemName
-            const procesoEncontrado = procesos.find((proceso: any) => {
-              console.log("Comparando:", {
-                procesoNombre: proceso.nombre,
-                systemName: reportSelection.systemName,
-                coincide: proceso.nombre === reportSelection.systemName
-              })
-              return proceso.nombre === reportSelection.systemName
-            })
-
-            if (procesoEncontrado) {
-              proceso_id = procesoEncontrado.id
-              console.log("✅ Proceso encontrado:", {
-                id: proceso_id,
-                nombre: procesoEncontrado.nombre
-              })
-            } else {
-              console.warn("⚠️ No se encontró proceso con systemName:", reportSelection.systemName)
-              console.log("📋 Procesos disponibles:", procesos.map((p: any) => p.nombre))
-            }
-          } else {
-            console.warn("⚠️ Error obteniendo procesos:", procesosResponse.status)
-            const errorText = await procesosResponse.text()
-            console.error("❌ Error detallado:", errorText)
-          }
-        } catch (error) {
-          console.warn("⚠️ Error consultando procesos:", error)
-        }
-      } else {
-        console.log("⚠️ No se puede consultar procesos - datos faltantes:", {
-          tienePlanta: !!reportSelection.plant?.nombre,
-          tieneSystemName: !!reportSelection.systemName
-        })
-      }
 
       // Preparar el reportSelection completo para enviar
       const reportDataToSend = {
@@ -432,10 +449,11 @@ export default function Reporte() {
         plant: {
           id: reportSelection.plant?.id,
           nombre: reportSelection.plant?.nombre,
-          systemName: reportSelection.systemName
+          systemName: reportSelection.systemName,
+          mensaje_cliente: reportSelection.plant?.mensaje_cliente,
+          dirigido_a: reportSelection.plant?.dirigido_a
         },
         parameters: reportSelection.parameters || [],
-        mediciones: reportSelection.mediciones || [],
         comentarios: reportSelection.comentarios || "",
         fecha: reportSelection.fecha || new Date().toISOString().split('T')[0],
         generatedDate: reportSelection.generatedDate || new Date().toISOString(),
@@ -445,22 +463,12 @@ export default function Reporte() {
           email: reportSelection.user?.email,
           puesto: reportSelection.user?.puesto
         },
-        proceso_id: proceso_id // Agregar el proceso_id obtenido
+        cliente_id: reportSelection.user?.id
       }
 
-      console.log("👤 Usuario generador:", reportDataToSend.user)
-      console.log("🆔 ID del usuario generador:", reportDataToSend.user.id)
-      console.log("📄 Datos del reporte a enviar:", reportDataToSend)
-      console.log("🔍 Proceso ID obtenido:", proceso_id)
       console.log("📋 Payload completo que se enviará al servidor:")
       console.log(JSON.stringify(reportDataToSend, null, 2))
 
-      // Verificar que el proceso_id esté incluido
-      if (reportDataToSend.proceso_id) {
-        console.log("✅ Proceso ID incluido en el payload:", reportDataToSend.proceso_id)
-      } else {
-        console.warn("⚠️ Proceso ID NO incluido en el payload")
-      }
 
       // Enviar el reportSelection completo al nuevo endpoint
       const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
@@ -497,32 +505,10 @@ export default function Reporte() {
       console.log("✅ Reporte guardado exitosamente:", result)
 
       // Generar y descargar el PDF
-      const doc = new jsPDF("p", "pt", "a4")
-    
-      const reportElement = document.getElementById("reporte-pdf")
-      if (!reportElement) {
-        throw new Error("Elemento del reporte no encontrado")
-      }
-    
-      const canvas = await html2canvas(reportElement, {
-        scale: 2,
-        useCORS: true,
-      })
-    
-      const imgData = canvas.toDataURL("image/png")
-      const imgProps = doc.getImageProperties(imgData)
-      const pdfWidth = doc.internal.pageSize.getWidth()
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
-    
-      doc.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight)
+      console.log("📄 Generando PDF...")
       
-      // Generar nombre de archivo con timestamp
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5)
-      const fileName = `Reporte_${reportSelection.plant?.nombre || 'General'}_${timestamp}.pdf`
-      
-      //doc.save(fileName)
-      
-      alert("✅ Reporte guardado y PDF descargado exitosamente!")
+       // Capturar el HTML con html2canvas y descargar PDF
+       await exportDOMToPDF(reportSelection)
       
     } catch (error) {
       console.error("❌ Error en handleDownloadPDF:", error)
@@ -575,57 +561,18 @@ export default function Reporte() {
     return "";
   }
 
-  // Obtener todos los sistemas únicos de las mediciones
-  const sistemasUnicos = Array.from(
-    new Set(
-      (reportSelection?.mediciones || []).flatMap((med: any) => Object.keys(med.valores || {}))
-    )
-  ).sort();
-
-  // Función auxiliar para agrupar mediciones por parámetro
-  const agruparMedicionesPorParametro = () => {
-    const mediciones = reportSelection?.mediciones || [];
-    const parametrosAgrupados: Record<string, any[]> = {};
-    
-    // Agrupar mediciones por variable_id
-    mediciones.forEach((med: any) => {
-      if (!parametrosAgrupados[med.variable_id]) {
-        parametrosAgrupados[med.variable_id] = [];
-      }
-      parametrosAgrupados[med.variable_id].push(med);
+  // Obtener variables disponibles para gráficos desde parameters
+  const variablesDisponibles = (() => {
+    const allVariables = new Set<string>();
+    Object.values(reportSelection?.parameters || {}).forEach((systemData: any) => {
+      Object.keys(systemData).forEach(variable => allVariables.add(variable));
     });
     
-    // Convertir a array de objetos con valores combinados
-    return Object.entries(parametrosAgrupados).map(([variableId, medicionesParam]) => {
-      // Combinar todos los valores de sistema
-      const valoresCombinados: Record<string, any> = {};
-      medicionesParam.forEach((med: any) => {
-        Object.assign(valoresCombinados, med.valores || {});
-      });
-      
-      // Obtener información del parámetro
-      const param = (reportSelection?.parameters || []).find(
-        (p) => p.id === variableId
-      ) || {};
-      
-      const primerMedicion = medicionesParam[0];
-      
-      return {
-        variable_id: variableId,
-        nombre: primerMedicion?.nombre || "Parámetro desconocido",
-        valores: valoresCombinados,
-        param: param
-      };
-    });
-  };
-  
-  const parametrosAgrupados = agruparMedicionesPorParametro();
-
-  // Obtener variables disponibles para gráficos
-  const variablesDisponibles = parametrosAgrupados.map(param => ({
-    id: param.variable_id,
-    nombre: param.nombre
-  }));
+    return Array.from(allVariables).map(variable => ({
+      id: variable, // Usar el nombre como ID para los gráficos
+      nombre: variable
+    }));
+  })();
 
   return (
     <ProtectedRoute>
@@ -653,7 +600,8 @@ export default function Reporte() {
         </div>
 
         {/* Report Content */}
-        <div id="reporte-pdf" className="container py-4">
+        <div id="reporte-pdf-wrapper">
+          <div id="reporte-pdf" className="container py-4">
           <div className="card shadow">
             <div className="card-body">
               {/* Report Header */}
@@ -691,7 +639,7 @@ export default function Reporte() {
                         className="border-bottom"
                         style={{ minWidth: "300px", display: "inline-block" }}
                       >
-                        {reportNotes["dirigido"] || "ING. ABDIEL ZENTELLA"}
+                        {reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING."}
                       </span>
                     </p>
 
@@ -704,7 +652,7 @@ export default function Reporte() {
                         className="border-bottom"
                         style={{ minWidth: "400px", display: "inline-block" }}
                       >
-                        {reportNotes["asunto"] ||
+                        {reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente ||
                           `REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE ${(reportSelection?.plant?.nombre) || "NOMBRE DE LA PLANTA"}`}
                       </span>
                     </p>
@@ -784,27 +732,60 @@ export default function Reporte() {
                   <table className="table table-bordered">
                     <thead className="table-dark">
                       <tr>
-                        <th>Parámetro</th>
-                        {sistemasUnicos.map((sis: any) => (
-                          <th key={String(sis)}>{String(sis)}</th>
+                        <th>Variable</th>
+                        {Object.keys(reportSelection?.parameters || {}).map(systemName => (
+                          <th key={systemName} className="text-center">{systemName}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {parametrosAgrupados.map((paramGroup: any) => {
-                        return (
-                          <tr key={paramGroup.variable_id}>
-                            <td><strong>{paramGroup.nombre}</strong></td>
-                            {sistemasUnicos.map((sis: any) => {
-                              const valor = paramGroup.valores?.[sis] ?? "";
-                              const bgColor = getCellColor(valor, paramGroup.param);
+                      {(() => {
+                        // Obtener todas las variables únicas
+                        const allVariables = new Set<string>();
+                        Object.values(reportSelection?.parameters || {}).forEach((systemData: any) => {
+                          Object.keys(systemData).forEach(variable => allVariables.add(variable));
+                        });
+                        
+                        return Array.from(allVariables).map(variable => (
+                          <tr key={variable} className="hover:bg-gray-50">
+                            <td className="font-medium">{variable}</td>
+                            {Object.keys(reportSelection?.parameters || {}).map(systemName => {
+                              const systemData = reportSelection?.parameters?.[systemName];
+                              const paramData = systemData?.[variable];
+                              
+                              // Buscar el ID de la variable en las tolerancias
+                              let toleranceData = null;
+                              if (reportSelection?.variablesTolerancia) {
+                                // Primero intentar con la nueva estructura (por sistema)
+                                if (reportSelection.variablesTolerancia[systemName] && reportSelection.variablesTolerancia[systemName][variable]) {
+                                  toleranceData = reportSelection.variablesTolerancia[systemName][variable];
+                                } else {
+                                  // Si no existe, buscar por ID de variable en la estructura antigua
+                                  Object.keys(reportSelection.variablesTolerancia).forEach(varId => {
+                                    const varData = reportSelection.variablesTolerancia[varId];
+                                    if (varData && typeof varData === 'object' && !Array.isArray(varData)) {
+                                      // Verificar si este ID corresponde a la variable actual
+                                      // Esto es un fallback para la estructura antigua
+                                      if (varId === '945a1539-59a1-4319-90de-61933dd48533' && variable === 'Cloro Libre') {
+                                        toleranceData = varData;
+                                      } else if (varId === 'f5ed17dc-d353-4a24-8452-393d217e0935' && variable === 'Cloruros') {
+                                        toleranceData = varData;
+                                      }
+                                    }
+                                  });
+                                }
+                              }
+                              
+                              const bgColor = paramData && toleranceData ? getCellColor(paramData.valor?.toString() || "", toleranceData) : "";
                               return (
-                                <td key={sis} style={{ backgroundColor: bgColor }}>{valor}</td>
+                                <td key={systemName} className="text-center" style={{ backgroundColor: bgColor }}>
+                                  {paramData ? `${paramData.valor} ${paramData.unidad}` : '—'}
+                                </td>
                               );
                             })}
                           </tr>
-                        );
-                      })}
+                        ));
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -872,7 +853,7 @@ export default function Reporte() {
                         </div>
                         <div className="col-md-6">
                           <p><strong>Generado por:</strong> {reportSelection.user.username}</p>
-                          <p><strong>Fecha de generación:</strong> {new Date(reportSelection.generatedDate).toLocaleString('es-ES')}</p>
+                          <p><strong>Fecha de generación:</strong> {(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleString('es-ES')}</p>
                         </div>
                       </div>
                     </div>
@@ -922,13 +903,12 @@ export default function Reporte() {
                     <li>Recarga la página</li>
                   </ol>
                 </div>
-              )}
-
+               )}
               
-            </div>
+               </div>
+             </div>
+           </div>
           </div>
-        </div>
-
        
 
         {/* Action Buttons */}
@@ -960,7 +940,13 @@ export default function Reporte() {
                 <i className="material-icons me-2">bug_report</i>
                 Prueba PDF
               </button> */}
-              <button onClick={handleDownloadPDF}>Descargar PDF</button>
+              <button 
+                className="btn btn-danger"
+                onClick={handleDownloadPDF}
+              >
+                <i className="material-icons me-2">download</i>
+                Descargar PDF
+              </button>
             </div>
           </div>
         </div>

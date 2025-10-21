@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -132,6 +132,26 @@ export default function ParameterManager() {
   const [tolLoading, setTolLoading] = useState<Record<string, boolean>>({})
   const [tolError, setTolError] = useState<Record<string, string | null>>({})
   const [tolSuccess, setTolSuccess] = useState<Record<string, string | null>>({})
+  
+  // Ref para manejar timeouts de mensajes de éxito
+  const successTimeouts = useRef<Record<string, NodeJS.Timeout>>({})
+
+  // Función helper para mostrar mensaje de éxito con auto-limpieza
+  const showSuccessMessage = useCallback((variableId: string, message: string = '¡Guardado!') => {
+    // Limpiar timeout anterior si existe
+    if (successTimeouts.current[variableId]) {
+      clearTimeout(successTimeouts.current[variableId])
+    }
+    
+    // Mostrar mensaje
+    setTolSuccess((prev) => ({ ...prev, [variableId]: message }))
+    
+    // Programar limpieza después de 3 segundos
+    successTimeouts.current[variableId] = setTimeout(() => {
+      setTolSuccess((prev) => ({ ...prev, [variableId]: null }))
+      delete successTimeouts.current[variableId]
+    }, 3000)
+  }, [])
 
   // Edit parameter modal state
   const [editingParam, setEditingParam] = useState<Parameter | null>(null)
@@ -297,7 +317,7 @@ export default function ParameterManager() {
           body: JSON.stringify(tol),
         })
         if (!res.ok) throw new Error("Error al actualizar tolerancia")
-        setTolSuccess((prev) => ({ ...prev, [variableId]: '¡Guardado!' }))
+        showSuccessMessage(variableId)
       } else {
         const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
           method: "POST",
@@ -305,7 +325,7 @@ export default function ParameterManager() {
           body: JSON.stringify(tol),
         })
         if (!res.ok) throw new Error("Error al crear tolerancia")
-        setTolSuccess((prev) => ({ ...prev, [variableId]: '¡Guardado!' }))
+        showSuccessMessage(variableId)
       }
     } catch (e: any) {
       setTolError((prev) => ({ ...prev, [variableId]: e.message }))
@@ -618,6 +638,17 @@ export default function ParameterManager() {
   useEffect(() => {
     fetchParameters()
   }, [fetchParameters])
+
+  // Cleanup timeouts al desmontar el componente
+  useEffect(() => {
+    return () => {
+      // Limpiar todos los timeouts pendientes
+      Object.values(successTimeouts.current).forEach(timeout => {
+        clearTimeout(timeout)
+      })
+      successTimeouts.current = {}
+    }
+  }, [])
 
   // Cargar tolerancias al cargar parámetros o sistema
   useEffect(() => {
@@ -1624,10 +1655,10 @@ export default function ParameterManager() {
                                   <TableCell className="text-right flex gap-2 justify-end items-center">
                                     {/* Inputs de tolerancia: Lim-min | Bien (min/max) | Lim-max */}
                                     <div className="flex flex-row items-end gap-2">
-                                      {/* Lim-min */}
+                                      {/* Bajo bajo */}
                                       <div className="flex flex-col items-center">
                                         <div className="flex items-center gap-1 mb-0.5">
-                                          <span className="text-xs font-semibold text-yellow-700">Lim-min</span>
+                                          <span className="text-xs font-semibold text-yellow-700">Bajo bajo</span>
                                           <button type="button" onClick={() => handleTolChange(param.id, 'usar_limite_min', String(!usarLimiteMin))} className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${usarLimiteMin ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'}`}>{usarLimiteMin ? <span className="material-icons text-yellow-700 text-xs">check</span> : null}</button>
                                         </div>
                                         <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMin ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="min" value={tolerancias[param.id]?.limite_min ?? ''} onChange={e => handleTolChange(param.id, 'limite_min', e.target.value)} disabled={!usarLimiteMin} />
@@ -1637,13 +1668,18 @@ export default function ParameterManager() {
                                         <span className="text-xs font-semibold text-green-700 text-center w-full mb-1">Bien</span>
                                         <div className="flex flex-row gap-1">
                                           <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[param.id]?.bien_min ?? ''} onChange={e => handleTolChange(param.id, 'bien_min', e.target.value)} />
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-col items-center" style={{minWidth: '60px'}}>
+                                        <span className="text-xs font-semibold text-green-700 text-center w-full mb-1">Alto</span>
+                                        <div className="flex flex-row gap-1">
                                           <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[param.id]?.bien_max ?? ''} onChange={e => handleTolChange(param.id, 'bien_max', e.target.value)} />
                                         </div>
                                       </div>
                                       {/* Lim-max */}
                                       <div className="flex flex-col items-center">
                                         <div className="flex items-center gap-1 mb-0.5">
-                                          <span className="text-xs font-semibold text-yellow-700">Lim-max</span>
+                                          <span className="text-xs font-semibold text-yellow-700">Alto alto</span>
                                           <button type="button" onClick={() => handleTolChange(param.id, 'usar_limite_max', String(!usarLimiteMax))} className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${usarLimiteMax ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'}`}>{usarLimiteMax ? <span className="material-icons text-yellow-700 text-xs">check</span> : null}</button>
                                         </div>
                                         <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMax ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="max" value={tolerancias[param.id]?.limite_max ?? ''} onChange={e => handleTolChange(param.id, 'limite_max', e.target.value)} disabled={!usarLimiteMax} />

@@ -39,6 +39,8 @@ interface Plant {
   clientName?: string
   status?: string
   createdAt?: string
+  mensaje_cliente?: string
+  dirigido_a?: string
 }
 
 interface System {
@@ -92,6 +94,7 @@ export default function ReportManager() {
     handleSelectPlant
   } = useUserAccess(token)
 
+
   // Local state for conditional plants/users
   const [displayedPlants, setDisplayedPlants] = useState<Plant[]>([]);
   const [displayedUsers, setDisplayedUsers] = useState<User[]>([]);
@@ -99,15 +102,15 @@ export default function ReportManager() {
   // Obtener usuario conectado
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      console.log('🔍 Buscando usuario en localStorage...');
+      //console.log('🔍 Buscando usuario en localStorage...');
       const userData = localStorage.getItem('Organomex_user');
-      console.log('📄 Datos del localStorage:', userData);
+      //console.log('📄 Datos del localStorage:', userData);
       
       if (userData) {
         try {
           const user = JSON.parse(userData);
           setCurrentUser(user);
-          console.log('👤 Usuario conectado obtenido:', user);
+          //console.log('👤 Usuario conectado obtenido:', user);
         } catch (error) {
           console.error('❌ Error parsing user data:', error);
         }
@@ -122,7 +125,8 @@ export default function ReportManager() {
     async function loadPlants() {
       if (!selectedUser) {
         try {
-          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ALL}`, {
+          // Usar el endpoint que devuelve todos los campos
+          const res = await fetch(`${API_BASE_URL}/api/plantas/all`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
           });
           if (res.ok) {
@@ -261,18 +265,18 @@ export default function ReportManager() {
   // Debug: Log del estado por sistema
   useEffect(() => {
     if (selectedSystem) {
-      console.log(`🔍 Estado del sistema ${selectedSystem}:`, {
-        parameterValues: parameterValues,
-        limitsState: limitsState,
-        tolerances: getCurrentSystemTolerances(selectedSystem)
-      });
+      //console.log(`🔍 Estado del sistema ${selectedSystem}:`, {
+      //  parameterValues: parameterValues,
+      //  limitsState: limitsState,
+      //  tolerances: getCurrentSystemTolerances(selectedSystem)
+      //});
       
       // Log de todos los sistemas para verificar independencia
-      console.log(`📊 Estado completo por sistemas:`, {
-        parameterValuesBySystem,
-        limitsStateBySystem,
-        tolerancesBySystem
-      });
+      //console.log(`📊 Estado completo por sistemas:`, {
+      //  parameterValuesBySystem,
+      //  limitsStateBySystem,
+      //  tolerancesBySystem
+      //});
     }
   }, [selectedSystem, parameterValues, limitsState, parameterValuesBySystem, limitsStateBySystem, tolerancesBySystem]);
 
@@ -516,7 +520,7 @@ export default function ReportManager() {
         },
       },
     }));
-    console.log("📥 Medición ingresada:", parameterId, data);
+    //console.log("📥 Medición ingresada:", parameterId, data);
   }, [selectedSystem]);
 
   // Función para manejar cambios de estado de límites por sistema
@@ -547,15 +551,15 @@ export default function ReportManager() {
     const savedReportData = localStorage.getItem("reportSelection");
     
     if (savedReportData) {
-      console.log("📊 Usando datos previamente guardados para generar reporte");
-      console.log("💾 Datos guardados:", JSON.parse(savedReportData));
+      //console.log("📊 Usando datos previamente guardados para generar reporte");
+      //console.log("💾 Datos guardados:", JSON.parse(savedReportData));
       
       // Solo actualizar la fecha de generación
       const reportData = JSON.parse(savedReportData);
       reportData.generatedDate = new Date().toISOString();
       
       localStorage.setItem("reportSelection", JSON.stringify(reportData));
-      console.log("✅ reportSelection actualizado con nueva fecha de generación");
+      //console.log("✅ reportSelection actualizado con nueva fecha de generación");
       router.push("/reports");
       return;
     }
@@ -571,7 +575,12 @@ export default function ReportManager() {
         puesto: currentUser.puesto,
         cliente_id: selectedUser?.id || null
       } : null,
-      plant: selectedPlant ? { id: selectedPlant.id, nombre: selectedPlant.nombre } : null,
+      plant: selectedPlant ? { 
+        id: selectedPlant.id, 
+        nombre: selectedPlant.nombre,
+        mensaje_cliente: selectedPlant.mensaje_cliente,
+        dirigido_a: selectedPlant.dirigido_a
+      } : null,
       systemName: selectedSystemData?.nombre,
       parameters: [],
       mediciones: [],
@@ -629,7 +638,7 @@ export default function ReportManager() {
 
           <UserPlantSelector
             displayedUsers={displayedUsers}
-            displayedPlants={displayedPlants}
+            displayedPlants={selectedUser ? plants : displayedPlants}
             selectedUser={selectedUser}
             selectedPlant={selectedPlant}
             handleSelectUser={handleSelectUserWithReset}

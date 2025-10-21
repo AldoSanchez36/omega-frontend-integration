@@ -56,7 +56,7 @@ class HttpService {
         throw new Error("Token inválido")
       }
       if (response.status === 401) {
-        console.log("🔒 Token expirado o inválido")
+        //console.log("🔒 Token expirado o inválido")
         if (typeof window !== "undefined") {
           localStorage.removeItem("Organomex_token")
           localStorage.removeItem("Organomex_user")
@@ -66,7 +66,7 @@ class HttpService {
         }
         throw new Error("Session expired")
       }
-      console.error("❌ Error HTTP:", errorData)
+      //console.error("❌ Error HTTP:", errorData)
       throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
     }
 
@@ -154,26 +154,26 @@ export const httpService = new HttpService(API_BASE_URL)
 
 // Helpers para variables_tolerancia
 export const getTolerancias = () => {
-  console.log('📡 Llamada HTTP: getTolerancias -> GET /api/variables-tolerancia')
+  //console.log('📡 Llamada HTTP: getTolerancias -> GET /api/variables-tolerancia')
   return httpService.get('/api/variables-tolerancia')
     .then(resp => {
-      console.log('📦 Respuesta getTolerancias:', resp)
+      //console.log('📦 Respuesta getTolerancias:', resp)
       return resp
     })
 }
 export const createTolerancia = (data: any) => {
-  console.log('📡 Llamada HTTP: createTolerancia -> POST /api/variables-tolerancia', data)
+  //console.log('📡 Llamada HTTP: createTolerancia -> POST /api/variables-tolerancia', data)
   return httpService.post('/api/variables-tolerancia', data)
     .then(resp => {
-      console.log('📦 Respuesta createTolerancia:', resp)
+      //console.log('📦 Respuesta createTolerancia:', resp)
       return resp
     })
 }
 export const updateTolerancia = (id: string, data: any) => {
-  console.log(`📡 Llamada HTTP: updateTolerancia -> PATCH /api/variables-tolerancia/${id}`, data)
+  //console.log(`📡 Llamada HTTP: updateTolerancia -> PATCH /api/variables-tolerancia/${id}`, data)
   return httpService.patch(`/api/variables-tolerancia/${id}`, data)
     .then(resp => {
-      console.log('📦 Respuesta updateTolerancia:', resp)
+      //console.log('📦 Respuesta updateTolerancia:', resp)
       return resp
     })
 }
