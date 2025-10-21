@@ -12,6 +12,7 @@ export const API_ENDPOINTS = {
   // Auth
   LOGIN: '/api/auth/login',
   REGISTER: '/api/auth/register',
+  ADMIN_CREATE_USER: "/api/auth/admin-create-user",
   LOGOUT: '/api/auth/logout',
   USERS: '/api/auth/users',
   USER_BY_ID: (userId: string) => `/api/auth/user/${userId}`,
