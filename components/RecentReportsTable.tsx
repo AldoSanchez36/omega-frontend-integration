@@ -63,7 +63,6 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                     <tr>
                       <th>Título</th>
                       <th>Planta</th>
-                      <th>Sistema</th>
                       <th>Estado</th>
                       <th>Usuario</th>
                       <th>Fecha</th>
@@ -78,9 +77,6 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                         </td>
                         <td>
                           <span className="badge bg-primary">{report.plantName || report.planta_id}</span>
-                        </td>
-                        <td>
-                          <span className="badge bg-info">{report.systemName || report.proceso_id}</span>
                         </td>
                         <td>
                           <span className={`badge ${getStatusColor(report.status || "completed")}`}>

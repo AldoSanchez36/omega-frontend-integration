@@ -247,7 +247,11 @@ export default function Reporte() {
 
     // Obtener reportSelection
     const reportSelectionRaw = localStorage.getItem("reportSelection");
-    setReportSelection(reportSelectionRaw ? JSON.parse(reportSelectionRaw) : null);
+    const parsedReportSelection = reportSelectionRaw ? JSON.parse(reportSelectionRaw) : null;
+    console.log("📄 Reports - Datos recibidos del localStorage:", parsedReportSelection);
+    console.log("📊 Reports - Parámetros recibidos:", parsedReportSelection?.parameters);
+    console.log("📊 Reports - Tolerancias recibidas:", parsedReportSelection?.variablesTolerancia);
+    setReportSelection(parsedReportSelection);
 
     // Obtener fecha actual
     const today = new Date()
@@ -423,10 +427,10 @@ export default function Reporte() {
     return ""
   }
 
-  // Función para descargar el reporte en PDF
-  const handleDownloadPDF = async () => {
+  // Función para guardar el reporte en el sistema
+  const handleSaveReport = async () => {
     try {
-      console.log("🚀 Iniciando proceso de guardado de reporte...")
+      console.log("💾 Iniciando proceso de guardado de reporte...")
       
       // Validar que tenemos datos del reporte
       if (!reportSelection) {
@@ -440,7 +444,6 @@ export default function Reporte() {
         alert("No hay token de autenticación")
         return
       }
-
 
       // Preparar el reportSelection completo para enviar
       const reportDataToSend = {
@@ -458,7 +461,7 @@ export default function Reporte() {
         fecha: reportSelection.fecha || new Date().toISOString().split('T')[0],
         generatedDate: reportSelection.generatedDate || new Date().toISOString(),
         user: {
-          id: reportSelection.user?.id, // Usuario conectado que está generando el reporte
+          id: reportSelection.user?.id,
           username: reportSelection.user?.username,
           email: reportSelection.user?.email,
           puesto: reportSelection.user?.puesto
@@ -469,8 +472,7 @@ export default function Reporte() {
       console.log("📋 Payload completo que se enviará al servidor:")
       console.log(JSON.stringify(reportDataToSend, null, 2))
 
-
-      // Enviar el reportSelection completo al nuevo endpoint
+      // Enviar el reportSelection completo al endpoint
       const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
         method: "POST",
         headers: {
@@ -503,12 +505,28 @@ export default function Reporte() {
 
       const result = await response.json()
       console.log("✅ Reporte guardado exitosamente:", result)
-
-      // Generar y descargar el PDF
-      console.log("📄 Generando PDF...")
+      alert("✅ Reporte guardado exitosamente en el sistema")
       
-       // Capturar el HTML con html2canvas y descargar PDF
-       await exportDOMToPDF(reportSelection)
+    } catch (error) {
+      console.error("❌ Error en handleSaveReport:", error)
+      alert(`Error: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  // Función para descargar el reporte en PDF (solo descarga, no guarda)
+  const handleDownloadPDF = async () => {
+    try {
+      console.log("📄 Iniciando descarga de PDF...")
+      
+      // Validar que tenemos datos del reporte
+      if (!reportSelection) {
+        alert("No hay datos de reporte disponibles")
+        return
+      }
+
+      // Generar y descargar el PDF directamente
+      console.log("📄 Generando PDF...")
+      await exportDOMToPDF(reportSelection)
       
     } catch (error) {
       console.error("❌ Error en handleDownloadPDF:", error)
@@ -940,13 +958,24 @@ export default function Reporte() {
                 <i className="material-icons me-2">bug_report</i>
                 Prueba PDF
               </button> */}
-              <button 
-                className="btn btn-danger"
-                onClick={handleDownloadPDF}
-              >
-                <i className="material-icons me-2">download</i>
-                Descargar PDF
-              </button>
+              {userRole !== "client" && (
+                <>
+                  <button 
+                    className="btn btn-success"
+                    onClick={handleSaveReport}
+                  >
+                    <i className="material-icons me-2">save</i>
+                    Guardar
+                  </button>
+                  <button 
+                    className="btn btn-danger"
+                    onClick={handleDownloadPDF}
+                  >
+                    <i className="material-icons me-2">download</i>
+                    Descargar PDF
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

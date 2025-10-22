@@ -98,9 +98,9 @@ export default function ReportList() {
         return;
       }
 
-      console.log("📊 ReportList - Cargando reportes desde:", `${API_BASE_URL}${API_ENDPOINTS.REPORTS_DASHBOARD}`);
+      console.log("📊 ReportList - Cargando reportes desde:", `${API_BASE_URL}${API_ENDPOINTS.REPORTS}`);
       
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS_DASHBOARD}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -126,18 +126,27 @@ export default function ReportList() {
 
       if (data.ok && data.reportes) {
         const reportesFormateados = data.reportes.map((reporte: any) => {
-          // Reconstruir datos desde JSONB con prioridad
+          // Extraer datos del JSONB (igual que dashboard)
           const datosJsonb = reporte.datos || {};
           
-          // Extraer información resumen consistente
+          console.log("🔍 ReportList - Procesando reporte:", {
+            id: reporte.id,
+            titulo: reporte.titulo,
+            datosJsonb: datosJsonb,
+            plantName_from_jsonb: datosJsonb.plant?.nombre,
+            systemName_from_jsonb: datosJsonb.systemName,
+            user_from_jsonb: datosJsonb.user?.username,
+            fecha_from_jsonb: datosJsonb.fecha
+          });
+          
           const titulo = reporte.titulo || reporte.nombre || `Reporte ${reporte.id}`;
-          const planta = datosJsonb.plant?.nombre || reporte.planta || "Sin planta";
-          const sistema = datosJsonb.systemName || reporte.sistema || "Sin sistema";
+          const planta = datosJsonb.plant?.nombre || reporte.planta || reporte.plantName || "Planta no especificada";
+          const sistema = datosJsonb.systemName || reporte.sistema || reporte.systemName || "Sistema no especificado";
           const usuario = datosJsonb.user?.username || reporte.usuario || "Usuario desconocido";
           const fecha = datosJsonb.fecha || reporte.fecha || new Date().toISOString().split('T')[0];
           const estado = reporte.estado || "Completado";
           
-          // Contar parámetros y tolerancias
+          // Contar parámetros y tolerancias desde datos JSONB
           const totalParametros = datosJsonb.parameters ? 
             Object.values(datosJsonb.parameters).reduce((acc: number, sistema: any) => 
               acc + Object.keys(sistema).length, 0) : 0;
@@ -155,13 +164,13 @@ export default function ReportList() {
             // Datos resumen
             totalParametros,
             totalTolerancias,
-            comentarios: datosJsonb.comentarios || reporte.comentarios || "",
-            fechaGeneracion: datosJsonb.generatedDate || reporte.fechaGeneracion || reporte.generada_en || new Date().toISOString(),
-            usuario_id: datosJsonb.user?.id || reporte.usuario_id || "",
+            comentarios: reporte.comentarios || reporte.observaciones || "",
+            fechaGeneracion: reporte.fechaGeneracion || reporte.fecha_creacion || reporte.created_at || new Date().toISOString(),
+            usuario_id: reporte.usuario_id || "",
             // Incluir planta_id de la tabla reportes
             planta_id: reporte.planta_id || "",
-            // Incluir datos JSONB completos para análisis
-            datosJsonb: datosJsonb
+            // Incluir datos JSONB completos para análisis (igual que dashboard)
+            datosJsonb: reporte.datos || {}
           };
         });
 
@@ -286,66 +295,60 @@ export default function ReportList() {
   };
 
   // Función para manejar la vista del reporte
-  const handleViewReport = (reporte: Reporte) => {
+  const handleViewReport = (report: any) => {
     try {
-      console.log("👁️ Visualizando reporte:", reporte);
+      console.log("👁️ Visualizando reporte desde dashboard-reportList:", report);
       
       // Validar que tenemos los datos mínimos necesarios
-      if (!reporte.planta_id) {
+      if (!report.planta_id) {
         console.error("❌ Error: No se encontró planta_id en los datos del reporte");
         alert("Error: No se pueden visualizar reportes sin datos de planta completos");
         return;
       }
       
-      // Reconstruir reportSelection desde los datos del reporte
+      // Reconstruir reportSelection desde los datos JSONB completos (igual que dashboard-reportmanager)
       const reportSelection = {
         user: {
-          id: reporte.usuario_id,
-          username: reporte.usuario,
-          email: reporte.datosJsonb?.user?.email || "",
-          puesto: reporte.datosJsonb?.user?.puesto || "client",
-          cliente_id: reporte.datosJsonb?.user?.cliente_id || null
+          id: report.datosJsonb?.user?.id || report.usuario_id,
+          username: report.datosJsonb?.user?.username || report.usuario,
+          email: report.datosJsonb?.user?.email || "",
+          puesto: report.datosJsonb?.user?.puesto || "client",
+          cliente_id: report.datosJsonb?.user?.cliente_id || null
         },
         plant: {
-          id: reporte.planta_id, // Usar planta_id de la tabla reportes
-          nombre: reporte.planta,
-          systemName: reporte.datosJsonb?.systemName || reporte.sistema
+          id: report.datosJsonb?.plant?.id || report.planta_id,
+          nombre: report.datosJsonb?.plant?.nombre || report.plantName,
+          dirigido_a: report.datosJsonb?.plant?.dirigido_a,
+          mensaje_cliente: report.datosJsonb?.plant?.mensaje_cliente,
+          systemName: report.datosJsonb?.plant?.systemName || report.datosJsonb?.systemName || report.systemName
         },
-        systemName: reporte.datosJsonb?.systemName || reporte.sistema,
-        parameters: reporte.datosJsonb?.parameters ? Object.entries(reporte.datosJsonb.parameters).map(([key, value]) => ({
-          id: key,
-          nombre: key,
-          unidad: Object.values(value)[0]?.unidad || "",
-          limite_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.limite_min || null,
-          limite_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.limite_max || null,
-          bien_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.bien_min || null,
-          bien_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.bien_max || null,
-          usar_limite_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.usar_limite_min || false,
-          usar_limite_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.usar_limite_max || false
-        })) : [],
+        systemName: report.datosJsonb?.systemName || report.systemName,
+        parameters: report.datosJsonb?.parameters || {},
+        variablesTolerancia: report.datosJsonb?.variablesTolerancia || {},
         mediciones: [], // Los datos de mediciones se reconstruirán en la página reports
-        fecha: reporte.fecha,
-        comentarios: reporte.comentarios,
-        generatedDate: reporte.fechaGeneracion,
-        cliente_id: reporte.datosJsonb?.user?.cliente_id || null
+        fecha: report.datosJsonb?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+        comentarios: report.datosJsonb?.comentarios || report.observaciones || "",
+        generatedDate: report.datosJsonb?.generatedDate || report.created_at || new Date().toISOString(),
+        cliente_id: report.datosJsonb?.user?.cliente_id || null
       };
 
-      console.log("📄 reportSelection reconstruido:", reportSelection);
+      console.log("📄 reportSelection reconstruido desde dashboard-reportList:", reportSelection);
       console.log("🔍 Validación plant.id:", reportSelection.plant.id);
       console.log("🏭 Datos de planta:", {
-        planta_id: reporte.planta_id,
-        planta_nombre: reporte.planta,
-        systemName: reporte.datosJsonb?.systemName || reporte.sistema
+        planta_id: report.planta_id,
+        planta_nombre: report.plantName,
+        systemName: report.systemName
       });
       
       // Guardar en localStorage
       localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
       
       // Redirigir a la página de reports
+      localStorage.setItem("viewMode", "preview");
       router.push("/reports");
       
     } catch (error) {
-      console.error("❌ Error al preparar vista del reporte:", error);
+      console.error("❌ Error al preparar vista del reporte desde dashboard-reportList:", error);
       alert("Error al preparar la vista del reporte");
     }
   };
@@ -383,41 +386,37 @@ export default function ReportList() {
         return;
       }
       
-      // Reconstruir reportSelection con validación completa
+      // Reconstruir reportSelection desde los datos JSONB completos (igual que dashboard-reportmanager)
       const reportSelection = {
         user: {
-          id: reporte.usuario_id,
-          username: reporte.usuario,
+          id: reporte.datosJsonb?.user?.id || reporte.usuario_id,
+          username: reporte.datosJsonb?.user?.username || reporte.usuario,
           email: reporte.datosJsonb?.user?.email || "",
           puesto: reporte.datosJsonb?.user?.puesto || "client",
           cliente_id: reporte.datosJsonb?.user?.cliente_id || null
         },
         plant: {
-          id: reporte.planta_id, // Usar planta_id de la tabla reportes
-          nombre: reporte.planta,
-          systemName: reporte.datosJsonb?.systemName || reporte.sistema
+          id: reporte.datosJsonb?.plant?.id || reporte.planta_id,
+          nombre: reporte.datosJsonb?.plant?.nombre || reporte.planta,
+          dirigido_a: (reporte.datosJsonb?.plant as any)?.dirigido_a,
+          mensaje_cliente: (reporte.datosJsonb?.plant as any)?.mensaje_cliente,
+          systemName: (reporte.datosJsonb?.plant as any)?.systemName || reporte.datosJsonb?.systemName || reporte.sistema
         },
         systemName: reporte.datosJsonb?.systemName || reporte.sistema,
-        parameters: reporte.datosJsonb?.parameters ? Object.entries(reporte.datosJsonb.parameters).map(([key, value]) => ({
-          id: key,
-          nombre: key,
-          unidad: Object.values(value)[0]?.unidad || "",
-          limite_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.limite_min || null,
-          limite_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.limite_max || null,
-          bien_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.bien_min || null,
-          bien_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.bien_max || null,
-          usar_limite_min: reporte.datosJsonb?.variablesTolerancia?.[key]?.usar_limite_min || false,
-          usar_limite_max: reporte.datosJsonb?.variablesTolerancia?.[key]?.usar_limite_max || false
-        })) : [],
+        parameters: reporte.datosJsonb?.parameters || {},
+        variablesTolerancia: reporte.datosJsonb?.variablesTolerancia || {},
         mediciones: [],
-        fecha: reporte.fecha,
-        comentarios: reporte.comentarios,
-        generatedDate: reporte.fechaGeneracion,
+        fecha: reporte.datosJsonb?.fecha || reporte.fecha,
+        comentarios: reporte.datosJsonb?.comentarios || reporte.comentarios,
+        generatedDate: reporte.datosJsonb?.generatedDate || reporte.fechaGeneracion,
         cliente_id: reporte.datosJsonb?.user?.cliente_id || null
       };
 
       console.log("📄 ===== REPORT SELECTION RECONSTRUIDO =====");
       console.log("📄 reportSelection completo:", reportSelection);
+      console.log("📊 Datos de parámetros:", reportSelection.parameters);
+      console.log("📊 Datos de tolerancias:", reportSelection.variablesTolerancia);
+      console.log("📊 Datos JSONB originales:", reporte.datosJsonb);
       console.log("📄 Estructura del reportSelection:", {
         user: {
           id: reportSelection.user.id,
@@ -432,7 +431,7 @@ export default function ReportList() {
           systemName: reportSelection.plant.systemName
         },
         systemName: reportSelection.systemName,
-        parameters_count: reportSelection.parameters.length,
+        parameters_count: Object.keys(reportSelection.parameters).length,
         mediciones_count: reportSelection.mediciones.length,
         fecha: reportSelection.fecha,
         comentarios: reportSelection.comentarios,
