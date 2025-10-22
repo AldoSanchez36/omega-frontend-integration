@@ -295,62 +295,60 @@ export default function ReportList() {
   };
 
   // Función para manejar la vista del reporte
-  const handleViewReport = (reporte: Reporte) => {
+  const handleViewReport = (report: any) => {
     try {
-      console.log("👁️ Visualizando reporte:", reporte);
+      console.log("👁️ Visualizando reporte desde dashboard-reportList:", report);
       
       // Validar que tenemos los datos mínimos necesarios
-      if (!reporte.planta_id) {
+      if (!report.planta_id) {
         console.error("❌ Error: No se encontró planta_id en los datos del reporte");
         alert("Error: No se pueden visualizar reportes sin datos de planta completos");
         return;
       }
       
-      // Reconstruir reportSelection desde los datos JSONB completos (igual que dashboard)
+      // Reconstruir reportSelection desde los datos JSONB completos (igual que dashboard-reportmanager)
       const reportSelection = {
         user: {
-          id: reporte.datosJsonb?.user?.id || reporte.usuario_id,
-          username: reporte.datosJsonb?.user?.username || reporte.usuario,
-          email: reporte.datosJsonb?.user?.email || "",
-          puesto: reporte.datosJsonb?.user?.puesto || "client",
-          cliente_id: reporte.datosJsonb?.user?.cliente_id || null
+          id: report.datosJsonb?.user?.id || report.usuario_id,
+          username: report.datosJsonb?.user?.username || report.usuario,
+          email: report.datosJsonb?.user?.email || "",
+          puesto: report.datosJsonb?.user?.puesto || "client",
+          cliente_id: report.datosJsonb?.user?.cliente_id || null
         },
         plant: {
-          id: reporte.datosJsonb?.plant?.id || reporte.planta_id,
-          nombre: reporte.datosJsonb?.plant?.nombre || reporte.planta,
-          dirigido_a: reporte.datosJsonb?.plant?.dirigido_a,
-          mensaje_cliente: reporte.datosJsonb?.plant?.mensaje_cliente,
-          systemName: reporte.datosJsonb?.plant?.systemName || reporte.datosJsonb?.systemName || reporte.sistema
+          id: report.datosJsonb?.plant?.id || report.planta_id,
+          nombre: report.datosJsonb?.plant?.nombre || report.plantName,
+          dirigido_a: report.datosJsonb?.plant?.dirigido_a,
+          mensaje_cliente: report.datosJsonb?.plant?.mensaje_cliente,
+          systemName: report.datosJsonb?.plant?.systemName || report.datosJsonb?.systemName || report.systemName
         },
-        systemName: reporte.datosJsonb?.systemName || reporte.sistema,
-        parameters: reporte.datosJsonb?.parameters || {},
-        variablesTolerancia: reporte.datosJsonb?.variablesTolerancia || {},
+        systemName: report.datosJsonb?.systemName || report.systemName,
+        parameters: report.datosJsonb?.parameters || {},
+        variablesTolerancia: report.datosJsonb?.variablesTolerancia || {},
         mediciones: [], // Los datos de mediciones se reconstruirán en la página reports
-        fecha: reporte.datosJsonb?.fecha || reporte.fecha,
-        comentarios: reporte.datosJsonb?.comentarios || reporte.comentarios,
-        generatedDate: reporte.datosJsonb?.generatedDate || reporte.fechaGeneracion,
-        cliente_id: reporte.datosJsonb?.user?.cliente_id || null
+        fecha: report.datosJsonb?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+        comentarios: report.datosJsonb?.comentarios || report.observaciones || "",
+        generatedDate: report.datosJsonb?.generatedDate || report.created_at || new Date().toISOString(),
+        cliente_id: report.datosJsonb?.user?.cliente_id || null
       };
 
-      console.log("📄 reportSelection reconstruido:", reportSelection);
+      console.log("📄 reportSelection reconstruido desde dashboard-reportList:", reportSelection);
       console.log("🔍 Validación plant.id:", reportSelection.plant.id);
       console.log("🏭 Datos de planta:", {
-        planta_id: reporte.planta_id,
-        planta_nombre: reporte.planta,
-        systemName: reporte.datosJsonb?.systemName || reporte.sistema
+        planta_id: report.planta_id,
+        planta_nombre: report.plantName,
+        systemName: report.systemName
       });
-      console.log("📊 Datos de parámetros:", reportSelection.parameters);
-      console.log("📊 Datos de tolerancias:", reportSelection.variablesTolerancia);
-      console.log("📊 Datos JSONB originales:", reporte.datosJsonb);
       
       // Guardar en localStorage
       localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
       
       // Redirigir a la página de reports
+      localStorage.setItem("viewMode", "preview");
       router.push("/reports");
       
     } catch (error) {
-      console.error("❌ Error al preparar vista del reporte:", error);
+      console.error("❌ Error al preparar vista del reporte desde dashboard-reportList:", error);
       alert("Error al preparar la vista del reporte");
     }
   };
@@ -400,9 +398,9 @@ export default function ReportList() {
         plant: {
           id: reporte.datosJsonb?.plant?.id || reporte.planta_id,
           nombre: reporte.datosJsonb?.plant?.nombre || reporte.planta,
-          dirigido_a: reporte.datosJsonb?.plant?.dirigido_a,
-          mensaje_cliente: reporte.datosJsonb?.plant?.mensaje_cliente,
-          systemName: reporte.datosJsonb?.plant?.systemName || reporte.datosJsonb?.systemName || reporte.sistema
+          dirigido_a: (reporte.datosJsonb?.plant as any)?.dirigido_a,
+          mensaje_cliente: (reporte.datosJsonb?.plant as any)?.mensaje_cliente,
+          systemName: (reporte.datosJsonb?.plant as any)?.systemName || reporte.datosJsonb?.systemName || reporte.sistema
         },
         systemName: reporte.datosJsonb?.systemName || reporte.sistema,
         parameters: reporte.datosJsonb?.parameters || {},
