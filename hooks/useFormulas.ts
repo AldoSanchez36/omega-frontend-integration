@@ -26,10 +26,10 @@ export function useFormulas(token: string | null, selectedSystem?: string) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Cargar fórmulas del sistema seleccionado
+  // Cargar todas las fórmulas (no filtradas por sistema)
   useEffect(() => {
     const loadFormulas = async () => {
-      if (!token || !selectedSystem) {
+      if (!token) {
         setFormulas([])
         return
       }
@@ -49,12 +49,8 @@ export function useFormulas(token: string | null, selectedSystem?: string) {
         const data = await res.json()
         const formulasData = data.formulas || data || []
         
-        // Filtrar fórmulas por proceso/sistema
-        const systemFormulas = formulasData.filter((formula: Formula) => 
-          formula.proceso_id === selectedSystem
-        )
-        
-        setFormulas(systemFormulas)
+        // No filtrar por proceso - cargar todas las fórmulas
+        setFormulas(formulasData)
       } catch (err: any) {
         setError(err.message)
         setFormulas([])
@@ -64,7 +60,7 @@ export function useFormulas(token: string | null, selectedSystem?: string) {
     }
 
     loadFormulas()
-  }, [token, selectedSystem])
+  }, [token])
 
   // Función para evaluar una fórmula
   const evaluateFormula = useCallback((formula: Formula, variableValues: Record<string, number>): number | null => {
@@ -123,12 +119,13 @@ export function useFormulas(token: string | null, selectedSystem?: string) {
 
     parameters.forEach(param => {
       // Buscar fórmulas que tengan este parámetro como variable resultado
+      // Ahora busca por ID de variable, independientemente del proceso
       const applicableFormulas = formulas.filter(formula => 
         formula.variable_resultado_id === param.id
       )
 
       if (applicableFormulas.length > 0) {
-        // Usar la primera fórmula aplicable (podrías modificar esto para manejar múltiples fórmulas)
+        // Usar la primera fórmula aplicable
         const formula = applicableFormulas[0]
         
         // Crear objeto con el valor del parámetro como variable

@@ -166,12 +166,13 @@ export default function AgregarFormula() {
     if (!expresion.trim()) return alert("La expresión es obligatoria")
     if (!variableResultadoId) return alert("Selecciona el parámetro (variable) resultado")
 
-    // inferir proceso_id a partir de la variable seleccionada (tu BD lo exige NOT NULL)
+    // Obtener proceso_id de la variable seleccionada (requerido por BD)
     const varOpt = variablesOptions.find(v => v.id === variableResultadoId)
     let finalProcesoId = varOpt?.proceso_id
 
-    // Si no vino en el listado, intenta pedir el detalle
+    // Si no se puede obtener el proceso_id, usar un proceso genérico o el primero disponible
     if (!finalProcesoId) {
+      // Intentar obtener el detalle de la variable
       const token = getToken()
       if (!token) {
         alert("No hay token de autenticación. Por favor, inicia sesión de nuevo.")
@@ -189,8 +190,32 @@ export default function AgregarFormula() {
       } catch {
         /* noop */
       }
+      
+      // Si aún no se puede obtener, intentar obtener un proceso válido
       if (!finalProcesoId) {
-        return alert("No se pudo inferir el proceso de la variable seleccionada.")
+        console.warn("No se pudo obtener proceso_id de la variable, intentando obtener un proceso válido")
+        
+        try {
+          // Intentar obtener el primer proceso disponible
+          const resProcesos = await fetch(`${API_BASE_URL}/api/procesos`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (resProcesos.ok) {
+            const procesosData = await resProcesos.json().catch(() => ({}))
+            const procesos = procesosData.procesos || procesosData.data || procesosData || []
+            if (procesos.length > 0) {
+              finalProcesoId = procesos[0].id
+              console.log("✅ Usando proceso:", procesos[0].nombre, "ID:", finalProcesoId)
+            }
+          }
+        } catch {
+          console.error("❌ No se pudo obtener ningún proceso")
+        }
+        
+        // Si aún no hay proceso, mostrar error más específico
+        if (!finalProcesoId) {
+          return alert("No se pudo determinar el proceso para la fórmula. Verifica que existan procesos en el sistema.")
+        }
       }
     }
 
@@ -202,7 +227,23 @@ export default function AgregarFormula() {
       variable_resultado_id: variableResultadoId,
     }
 
-    console.log("Payload enviado al guardar fórmula:", payload)
+    // Validar que todos los campos requeridos estén presentes
+    if (!payload.nombre || !payload.expresion || !payload.proceso_id || !payload.variable_resultado_id) {
+      console.error("❌ Campos faltantes en el payload:", {
+        nombre: !!payload.nombre,
+        expresion: !!payload.expresion,
+        proceso_id: !!payload.proceso_id,
+        variable_resultado_id: !!payload.variable_resultado_id
+      })
+      return alert("Faltan campos requeridos para guardar la fórmula")
+    }
+
+    console.log("🔍 DEBUG - Payload completo:", payload)
+    console.log("🔍 DEBUG - Variables usadas:", variablesUsadas)
+    console.log("🔍 DEBUG - Variable resultado ID:", variableResultadoId)
+    console.log("🔍 DEBUG - Proceso ID:", finalProcesoId)
+    console.log("🔍 DEBUG - Endpoint:", `${API_BASE_URL}${API_ENDPOINTS.FORMULA_CREATE}`)
+    
     await doPost(payload)
   }
 
@@ -223,8 +264,10 @@ export default function AgregarFormula() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        console.error("Error backend:", data)
-        return alert(data?.message || "No se pudo guardar la fórmula")
+        console.error("❌ Error backend - Status:", res.status)
+        console.error("❌ Error backend - Response:", data)
+        console.error("❌ Error backend - Headers:", res.headers)
+        return alert(`Error ${res.status}: ${data?.message || data?.error || "No se pudo guardar la fórmula"}`)
       }
       alert("Fórmula guardada correctamente")
       router.push("/dashboard")
@@ -469,7 +512,7 @@ export default function AgregarFormula() {
                       {/* Parámetro (variable) resultado */}
                       <div>
                         <label htmlFor="variable-resultado" className="block text-sm font-medium text-gray-700 mb-1">
-                          Parámetro (variable) resultado
+                          Variable que recibirá el resultado
                         </label>
                         {variablesOptions.length === 0 ? (
                           <div className="text-sm text-red-500 bg-red-50 rounded p-2 mt-1" role="alert">
@@ -481,8 +524,8 @@ export default function AgregarFormula() {
                             onValueChange={setVariableResultadoId}
                             disabled={variablesOptions.length === 0}
                           >
-                            <SelectTrigger id="variable-resultado" className="w-full" aria-label="Parámetro (variable) resultado">
-                              <SelectValue placeholder={"Selecciona la variable resultado"} />
+                            <SelectTrigger id="variable-resultado" className="w-full" aria-label="Variable resultado">
+                              <SelectValue placeholder={"Selecciona la variable que recibirá el resultado"} />
                             </SelectTrigger>
                             <SelectContent className="bg-[#f6f6f6] text-gray-900">
                               {variablesOptions.map((v) => (
@@ -494,7 +537,7 @@ export default function AgregarFormula() {
                           </Select>
                         )}
                         <p className="text-xs text-gray-500 mt-1">
-                          Esta es la variable que se calculará al aplicar la fórmula.
+                          Esta fórmula se aplicará automáticamente a esta variable en cualquier proceso donde aparezca.
                         </p>
                       </div>
                     </div>
