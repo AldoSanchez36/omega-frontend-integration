@@ -172,6 +172,9 @@ interface ReportSelection {
       [parameterName: string]: {
         valor: number;
         unidad: string;
+        valorOriginal?: number;
+        formulaAplicada?: string;
+        calculado?: boolean;
       };
     };
   };
