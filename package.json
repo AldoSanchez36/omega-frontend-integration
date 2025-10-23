@@ -2,11 +2,13 @@
   "name": "my-v0-project",
   "version": "0.1.0",
   "private": true,
+  "engines": { "node": "22.x" },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "heroku-postbuild": "next build",
     "test:dashboard": "node testers/run-dashboard-tests.js",
     "test:dashboard:verbose": "node testers/run-dashboard-tests.js --verbose",
     "test:dashboard:help": "node testers/run-dashboard-tests.js --help",
