@@ -270,7 +270,7 @@ export default function AgregarFormula() {
         return alert(`Error ${res.status}: ${data?.message || data?.error || "No se pudo guardar la fórmula"}`)
       }
       alert("Fórmula guardada correctamente")
-      router.push("/dashboard")
+      // No redirigir automáticamente - el usuario puede seguir trabajando en la página
     } catch (err) {
       console.error(err)
       alert("Error guardando la fórmula")
