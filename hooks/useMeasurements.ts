@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { API_BASE_URL, API_ENDPOINTS } from '@/config/constants';
+import { useFormulas } from './useFormulas';
 
 interface Measurement {
   fecha: string;
@@ -35,6 +36,9 @@ interface ReportData {
       [parameterName: string]: {
         valor: number;
         unidad: string;
+        valorOriginal?: number;
+        formulaAplicada?: string;
+        calculado?: boolean;
       };
     };
   };
@@ -91,6 +95,9 @@ export function useMeasurements(
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Hook para manejar fórmulas
+  const { applyFormulasToParameters } = useFormulas(token, selectedSystem);
+
   const handleSaveData = useCallback(async () => {
     if (!token) {
       setSaveError("Authentication token not found.");
@@ -140,19 +147,53 @@ export function useMeasurements(
             // console.log(`📋 Parámetros del sistema:`, systemParameters);
             // console.log(`📝 Valores del sistema:`, systemValues);
             
-            // Agregar valores de parámetros para este sistema
+            // Preparar parámetros para aplicar fórmulas
+            const parametersForFormulas = systemParameters
+              .filter(param => {
+                const paramValue = systemValues[param.id];
+                return paramValue?.checked && paramValue?.value !== undefined && paramValue?.value !== null;
+              })
+              .map(param => ({
+                id: param.id,
+                nombre: param.nombre,
+                value: systemValues[param.id].value
+              }));
+
+            // Aplicar fórmulas a los parámetros
+            const formulaCalculations = applyFormulasToParameters(parametersForFormulas, system.nombre);
+            
+            // Agregar valores de parámetros para este sistema (con fórmulas aplicadas)
             systemParameters.forEach(param => {
               const paramValue = systemValues[param.id];
               if (paramValue?.checked && paramValue?.value !== undefined && paramValue?.value !== null) {
                 // Obtener la unidad seleccionada o usar la primera unidad disponible
                 const unidadSeleccionada = paramValue.unidadSeleccionada || param.unidad.split(',')[0].trim();
                 
-                reportData.parameters[system.nombre][param.nombre] = {
-                  valor: paramValue.value,
-                  unidad: unidadSeleccionada
-                };
+                // Buscar si hay una fórmula aplicada para este parámetro
+                const calculation = formulaCalculations.find(calc => calc.parameterId === param.id);
                 
-                //console.log(`✅ Agregado parámetro ${param.nombre} en ${system.nombre}: ${paramValue.value} ${unidadSeleccionada}`);
+                if (calculation && calculation.applied) {
+                  // Usar el valor calculado por la fórmula
+                  reportData.parameters[system.nombre][param.nombre] = {
+                    valor: calculation.calculatedValue,
+                    unidad: unidadSeleccionada,
+                    valorOriginal: calculation.originalValue,
+                    formulaAplicada: calculation.formula.nombre,
+                    calculado: true
+                  };
+                  
+                  console.log(`🧮 Fórmula aplicada a ${param.nombre}: ${calculation.originalValue} → ${calculation.calculatedValue} (${calculation.formula.nombre})`);
+                } else {
+                  // Usar el valor original
+                  reportData.parameters[system.nombre][param.nombre] = {
+                    valor: paramValue.value,
+                    unidad: unidadSeleccionada,
+                    valorOriginal: paramValue.value,
+                    calculado: false
+                  };
+                  
+                  console.log(`📊 Valor original para ${param.nombre}: ${paramValue.value}`);
+                }
               }
             });
           }
