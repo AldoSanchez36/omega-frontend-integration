@@ -95,7 +95,6 @@ export function SensorTimeSeriesChart({
             
             if (filteredClientData.length > 0) {
               finalData = filteredClientData;
-              console.log(`Datos encontrados por cliente: ${filteredClientData.length} registros`);
             }
           }
         }
@@ -119,7 +118,6 @@ export function SensorTimeSeriesChart({
             
             if (filteredUserProcessData.length > 0) {
               finalData = filteredUserProcessData;
-              console.log(`Datos encontrados por usuario y proceso: ${filteredUserProcessData.length} registros`);
             }
           }
         }
@@ -191,7 +189,7 @@ export function SensorTimeSeriesChart({
          setSensors(sensorList);
          setData(pivotData);
        } catch (e) {
-         console.error(e)
+         // noop
          setError("Error obteniendo datos")
        } finally {
          setLoading(false)

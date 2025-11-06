@@ -182,7 +182,6 @@ export function useMeasurements(
                     calculado: true
                   };
                   
-                  console.log(`🧮 Fórmula aplicada a ${param.nombre}: ${calculation.originalValue} → ${calculation.calculatedValue} (${calculation.formula.nombre})`);
                 } else {
                   // Usar el valor original
                   reportData.parameters[system.nombre][param.nombre] = {
@@ -191,8 +190,6 @@ export function useMeasurements(
                     valorOriginal: paramValue.value,
                     calculado: false
                   };
-                  
-                  console.log(`📊 Valor original para ${param.nombre}: ${paramValue.value}`);
                 }
               }
             });
@@ -226,8 +223,6 @@ export function useMeasurements(
       // Guardar en localStorage (como antes)
       localStorage.setItem("reportSelection", JSON.stringify(reportData));
       
-      console.log("Report data saved successfully:", reportData);
-      
       // Contar parámetros totales de todos los sistemas
       let totalParameters = 0;
       Object.values(reportData.parameters).forEach(systemParams => {
@@ -243,7 +238,6 @@ export function useMeasurements(
       
     } catch (error: any) {
       setSaveError(error.message);
-      console.error("Error saving report data:", error);
     } finally {
       setIsSaving(false);
     }

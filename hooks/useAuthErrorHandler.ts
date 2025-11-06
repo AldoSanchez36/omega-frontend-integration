@@ -8,7 +8,6 @@ export function useAuthErrorHandler() {
   const handleAuthError = (response: Response) => {
     if (response.status === 401) {
       // Token inválido - redirigir al logout
-      console.error('Token inválido detectado, redirigiendo al logout');
       localStorage.removeItem('Organomex_token');
       localStorage.removeItem('Organomex_user');
       router.push('/logout');
@@ -28,7 +27,6 @@ export function useAuthErrorHandler() {
       
       return response;
     } catch (error) {
-      console.error('Error en fetch:', error);
       return null;
     }
   };

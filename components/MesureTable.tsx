@@ -74,7 +74,6 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
             
             if (filteredUserProcessData.length > 0) {
               finalData = filteredUserProcessData;
-              console.log(`[MesureTable] Datos encontrados por usuario y proceso: ${filteredUserProcessData.length} registros`);
             }
           }
         }
@@ -98,7 +97,6 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
             
             if (filteredClientData.length > 0) {
               finalData = filteredClientData;
-              console.log(`[MesureTable] Datos encontrados por cliente: ${filteredClientData.length} registros`);
             }
           }
         }

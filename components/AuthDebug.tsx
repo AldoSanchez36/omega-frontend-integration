@@ -19,15 +19,7 @@ export default function AuthDebug() {
   }
 
   const handleTestAuth = () => {
-    console.log("🧪 Test Auth State:")
-    console.log("Context User:", user)
-    console.log("Context Authenticated:", isAuthenticated)
-    console.log("Context Hydrated:", isHydrated)
-    console.log("Context Loading:", isLoading)
-    console.log("LocalStorage Token:", localStorage.getItem("Organomex_token"))
-    console.log("LocalStorage User:", localStorage.getItem("Organomex_user"))
-    /* console.log("AuthService User:", authService.getCurrentUser()) */
-    console.log("AuthService Token:", authService.getToken())
+    // Test auth state removed - no console logs
   }
 
   return (

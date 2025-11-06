@@ -134,7 +134,6 @@ export default function AgregarFormula() {
         })
         if (!res.ok) return
         const json = await res.json().catch(() => ({}))
-        console.log("Respuesta variables:", json) // DEPURACIÓN
 
         let arr: any[] = []
         if (Array.isArray(json?.variables)) arr = json.variables
@@ -184,7 +183,6 @@ export default function AgregarFormula() {
         })
         if (resVar.ok) {
           const v = await resVar.json().catch(() => ({}))
-          console.log("Detalle variable:", v) // DEPURACIÓN
           finalProcesoId = extractProcesoId(v)
         }
       } catch {
@@ -193,8 +191,6 @@ export default function AgregarFormula() {
       
       // Si aún no se puede obtener, intentar obtener un proceso válido
       if (!finalProcesoId) {
-        console.warn("No se pudo obtener proceso_id de la variable, intentando obtener un proceso válido")
-        
         try {
           // Intentar obtener el primer proceso disponible
           const resProcesos = await fetch(`${API_BASE_URL}/api/procesos`, {
@@ -205,11 +201,10 @@ export default function AgregarFormula() {
             const procesos = procesosData.procesos || procesosData.data || procesosData || []
             if (procesos.length > 0) {
               finalProcesoId = procesos[0].id
-              console.log("✅ Usando proceso:", procesos[0].nombre, "ID:", finalProcesoId)
             }
           }
         } catch {
-          console.error("❌ No se pudo obtener ningún proceso")
+          // noop
         }
         
         // Si aún no hay proceso, mostrar error más específico
@@ -229,21 +224,9 @@ export default function AgregarFormula() {
 
     // Validar que todos los campos requeridos estén presentes
     if (!payload.nombre || !payload.expresion || !payload.proceso_id || !payload.variable_resultado_id) {
-      console.error("❌ Campos faltantes en el payload:", {
-        nombre: !!payload.nombre,
-        expresion: !!payload.expresion,
-        proceso_id: !!payload.proceso_id,
-        variable_resultado_id: !!payload.variable_resultado_id
-      })
       return alert("Faltan campos requeridos para guardar la fórmula")
     }
 
-    console.log("🔍 DEBUG - Payload completo:", payload)
-    console.log("🔍 DEBUG - Variables usadas:", variablesUsadas)
-    console.log("🔍 DEBUG - Variable resultado ID:", variableResultadoId)
-    console.log("🔍 DEBUG - Proceso ID:", finalProcesoId)
-    console.log("🔍 DEBUG - Endpoint:", `${API_BASE_URL}${API_ENDPOINTS.FORMULA_CREATE}`)
-    
     await doPost(payload)
   }
 
@@ -256,7 +239,6 @@ export default function AgregarFormula() {
     }
     try {
       setGuardando(true)
-      console.log("Payload enviado al guardar fórmula:", payload)
       const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.FORMULA_CREATE}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -264,15 +246,11 @@ export default function AgregarFormula() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        console.error("❌ Error backend - Status:", res.status)
-        console.error("❌ Error backend - Response:", data)
-        console.error("❌ Error backend - Headers:", res.headers)
         return alert(`Error ${res.status}: ${data?.message || data?.error || "No se pudo guardar la fórmula"}`)
       }
       alert("Fórmula guardada correctamente")
       // No redirigir automáticamente - el usuario puede seguir trabajando en la página
     } catch (err) {
-      console.error(err)
       alert("Error guardando la fórmula")
     } finally {
       setGuardando(false)

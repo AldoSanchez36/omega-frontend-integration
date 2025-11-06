@@ -64,7 +64,6 @@ const userReducer = (state: UserState, action: UserAction): UserState => {
         error: action.payload,
       }
     case "LOGOUT":
-      console.log("🚪 LOGOUT")
       return {
         ...state,
         user: null,
@@ -144,7 +143,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           }
         }
       } catch (error) {
-        console.error("❌ Error inicializando auth:", error)
         if (mountedRef.current) {
           dispatch({ type: "SET_LOADING", payload: false })
         }
@@ -208,7 +206,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     try {
       authService.logout() // NO await
     } catch (error) {
-      console.error("Logout error:", error)
+      // noop
     } finally {
       dispatch({ type: "LOGOUT" })
     }

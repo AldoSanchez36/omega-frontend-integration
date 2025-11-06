@@ -75,7 +75,6 @@ export function useFormulas(token: string | null, selectedSystem?: string) {
       )
 
       if (missingVariables.length > 0) {
-        console.warn(`Variables faltantes para fórmula ${formula.nombre}:`, missingVariables)
         return null
       }
 
@@ -85,7 +84,6 @@ export function useFormulas(token: string | null, selectedSystem?: string) {
       // Validar que la expresión solo contenga caracteres seguros
       const safeExpression = /^[a-zA-Z0-9\s+\-*/().]+$/.test(expression)
       if (!safeExpression) {
-        console.error(`Expresión no segura en fórmula ${formula.nombre}:`, expression)
         return null
       }
 
@@ -99,13 +97,11 @@ export function useFormulas(token: string | null, selectedSystem?: string) {
 
       // Validar que el resultado sea un número
       if (typeof result !== 'number' || isNaN(result) || !isFinite(result)) {
-        console.error(`Resultado inválido para fórmula ${formula.nombre}:`, result)
         return null
       }
 
       return result
     } catch (err) {
-      console.error(`Error evaluando fórmula ${formula.nombre}:`, err)
       return null
     }
   }, [])

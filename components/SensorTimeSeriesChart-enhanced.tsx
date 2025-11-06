@@ -69,7 +69,6 @@ export function SensorTimeSeriesChart({
   const [suggestedVariables, setSuggestedVariables] = useState<string[]>([]);
 
   const addDebugInfo = (message: string) => {
-    console.log(`🔍 [${variable}] ${message}`);
     setDebugInfo(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
   };
 
