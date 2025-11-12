@@ -7,9 +7,9 @@ import { API_ENDPOINTS } from '@/config/constants';
 interface Tolerance {
   id?: string;
   variable_id: string;
-  proceso_id?: string;
-  planta_id?: string;
-  cliente_id?: string;
+  proceso_id?: string | null;
+  planta_id?: string | null;
+  cliente_id?: string | null;
   limite_min?: number | null;
   limite_max?: number | null;
   bien_min?: number | null;
@@ -68,37 +68,46 @@ export function useTolerances(parameters: Parameter[], selectedSystem?: string, 
   };
 
   const handleTolSave = async (variableId: string) => {
-    if (!selectedSystem) {
-        setTolError((prev) => ({ ...prev, [variableId]: "System not selected" }));
-        return;
-    }
-
     setTolLoading((prev) => ({ ...prev, [variableId]: true }));
     setTolError((prev) => ({ ...prev, [variableId]: null }));
     setTolSuccess((prev) => ({ ...prev, [variableId]: null }));
 
     const tolData = tolerancias[variableId];
+    
+    // Preparar datos para enviar - sin validaciones, cualquier límite puede ser null
+    // Función helper para convertir valores a número o null
+    const toNumberOrNull = (value: any): number | null => {
+      if (value === null || value === undefined || value === '') return null;
+      const num = Number(value);
+      return isNaN(num) ? null : num;
+    };
+    
     const tolToSave: Tolerance = {
         ...tolData,
         variable_id: variableId,
-        proceso_id: selectedSystem,
-        planta_id: selectedPlantId,
-        cliente_id: selectedUserId,
-        limite_min: tolData?.usar_limite_min ? tolData?.limite_min : null,
-        limite_max: tolData?.usar_limite_max ? tolData?.limite_max : null,
+        proceso_id: selectedSystem || null,
+        planta_id: selectedPlantId || null,
+        cliente_id: selectedUserId || null,
+        // Convertir a número solo si hay valor, sino null - todos los límites pueden ser null
+        bien_min: toNumberOrNull(tolData?.bien_min),
+        bien_max: toNumberOrNull(tolData?.bien_max),
+        limite_min: toNumberOrNull(tolData?.limite_min),
+        limite_max: toNumberOrNull(tolData?.limite_max),
+        usar_limite_min: tolData?.usar_limite_min || false,
+        usar_limite_max: tolData?.usar_limite_max || false,
     };
 
     try {
-      let response;
+      let response: any;
       if (tolToSave.id) {
         response = await updateTolerancia(tolToSave.id, tolToSave);
       } else {
         response = await createTolerancia(tolToSave);
       }
-      setTolerancias(prev => ({...prev, [variableId]: response.tolerancia || response}));
+      setTolerancias(prev => ({...prev, [variableId]: response?.tolerancia || response || tolToSave}));
       setTolSuccess((prev) => ({ ...prev, [variableId]: '¡Guardado!' }));
     } catch (e: any) {
-      setTolError((prev) => ({ ...prev, [variableId]: e.message }));
+      setTolError((prev) => ({ ...prev, [variableId]: e.message || "Error al guardar tolerancia" }));
     } finally {
       setTolLoading((prev) => ({ ...prev, [variableId]: false }));
     }
