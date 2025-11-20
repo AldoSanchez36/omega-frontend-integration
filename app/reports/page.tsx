@@ -538,10 +538,12 @@ export default function Reporte() {
   }
   
   // Función para obtener el color de celda según los límites
+  // Usa la misma lógica que getInputColor en dashboard-reportmanager
   function getCellColor(valorStr: string, param: any) {
     if (valorStr === undefined || valorStr === null || valorStr === "") return "";
     const valor = parseFloat(valorStr);
     if (isNaN(valor)) return "";
+    
     const {
       bien_min,
       bien_max,
@@ -550,36 +552,79 @@ export default function Reporte() {
       usar_limite_min,
       usar_limite_max,
     } = param;
-    // Verde: bien
-    if (bien_min !== null && bien_max !== null && valor >= bien_min && valor <= bien_max) {
-      return "#C5EECE";
+    
+    // CASO 1: Verificar primero los límites críticos (limite_min/limite_max) - ROJO
+    if (usar_limite_min && limite_min !== null && limite_min !== undefined) {
+      if (valor < limite_min) {
+        return "#FFC6CE"; // Rojo - fuera del límite crítico mínimo
+      }
     }
-    // Amarillo: cerca de límite inferior
-    if (
-      usar_limite_min &&
-      limite_min !== null && bien_min !== null &&
-      valor >= limite_min && valor < bien_min
-    ) {
-      return "#FFEB9C";
+    
+    if (usar_limite_max && limite_max !== null && limite_max !== undefined) {
+      if (valor > limite_max) {
+        return "#FFC6CE"; // Rojo - fuera del límite crítico máximo
+      }
     }
-    // Amarillo: cerca de límite superior
-    if (
-      usar_limite_max &&
-      limite_max !== null && bien_max !== null &&
-      valor > bien_max && valor <= limite_max
-    ) {
-      return "#FFEB9C";
+    
+    // CASO 2: Verificar si excede bien_max (sin bien_min) - ROJO
+    // Si no hay bien_min pero sí hay bien_max, solo es rojo si excede bien_max
+    if ((bien_min === null || bien_min === undefined) && 
+        bien_max !== null && bien_max !== undefined) {
+      if (valor > bien_max) {
+        return "#FFC6CE"; // Rojo - excede el máximo
+      }
+      // Si no excede bien_max, es verde
+      return "#C6EFCE"; // Verde - dentro del rango aceptable
     }
-    // Rojo: fuera de rango
-    if (
-      (bien_min !== null && valor < bien_min && (!usar_limite_min || limite_min === null || valor < limite_min)) ||
-      (bien_max !== null && valor > bien_max && (!usar_limite_max || limite_max === null || valor > limite_max)) ||
-      (usar_limite_min && limite_min !== null && valor < limite_min) ||
-      (usar_limite_max && limite_max !== null && valor > limite_max)
-    ) {
-      return "#FFC6CE";
+    
+    // CASO 3: Verificar si está por debajo de bien_min (sin bien_max) - ROJO
+    // Si no hay bien_max pero sí hay bien_min, solo es rojo si está por debajo de bien_min
+    if ((bien_max === null || bien_max === undefined) && 
+        bien_min !== null && bien_min !== undefined) {
+      if (valor < bien_min) {
+        return "#FFC6CE"; // Rojo - por debajo del mínimo
+      }
+      // Si no está por debajo de bien_min, es verde
+      return "#C6EFCE"; // Verde - dentro del rango aceptable
     }
-    return "";
+    
+    // CASO 4: Si existen ambos bienMin y bienMax (sin limite_min/limite_max)
+    if (!usar_limite_min && !usar_limite_max && 
+        bien_min !== null && bien_min !== undefined && 
+        bien_max !== null && bien_max !== undefined) {
+      
+      if (valor < bien_min || valor > bien_max) {
+        return "#FFC6CE"; // Rojo - fuera del rango bien
+      } else {
+        return "#C6EFCE"; // Verde - dentro del rango bien
+      }
+    }
+    
+    // CASO 5: Verificar rango de advertencia (amarillo)
+    // Si está por debajo del rango bien_min pero por encima del límite_min
+    if (usar_limite_min && limite_min !== null && limite_min !== undefined) {
+      if (valor >= limite_min && bien_min !== null && bien_min !== undefined && valor < bien_min) {
+        return "#FFEB9C"; // Amarillo
+      }
+    }
+    
+    // Si está por encima del rango bien_max pero por debajo del límite_max
+    if (usar_limite_max && limite_max !== null && limite_max !== undefined) {
+      if (valor <= limite_max && bien_max !== null && bien_max !== undefined && valor > bien_max) {
+        return "#FFEB9C"; // Amarillo
+      }
+    }
+    
+    // CASO 6: Si está dentro del rango bien_min y bien_max (verde)
+    if (bien_min !== null && bien_min !== undefined && bien_max !== null && bien_max !== undefined) {
+      if (valor >= bien_min && valor <= bien_max) {
+        return "#C6EFCE"; // Verde
+      }
+    }
+    
+    // CASO 7: Si no hay límites definidos o solo hay bien_max sin bien_min y no excede
+    // Por defecto, mostrar verde (no rojo) cuando no hay límites o cuando no se excede el máximo
+    return "#C6EFCE"; // Verde por defecto si no hay límites o no se excede el máximo
   }
 
   // Obtener variables disponibles para gráficos desde parameters
@@ -774,22 +819,20 @@ export default function Reporte() {
                               const systemData = reportSelection?.parameters?.[systemName];
                               const paramData = systemData?.[variable];
                               
-                              // Buscar el ID de la variable en las tolerancias
+                              // Buscar las tolerancias para esta variable
                               let toleranceData = null;
                               if (reportSelection?.variablesTolerancia) {
                                 // Primero intentar con la nueva estructura (por sistema)
                                 if (reportSelection.variablesTolerancia[systemName] && reportSelection.variablesTolerancia[systemName][variable]) {
                                   toleranceData = reportSelection.variablesTolerancia[systemName][variable];
                                 } else {
-                                  // Si no existe, buscar por ID de variable en la estructura antigua
+                                  // Buscar por nombre de variable en la estructura actual (por ID de parámetro)
+                                  // Las tolerancias se guardan con el ID del parámetro como clave
                                   Object.keys(reportSelection.variablesTolerancia).forEach(varId => {
                                     const varData = reportSelection.variablesTolerancia[varId];
                                     if (varData && typeof varData === 'object' && !Array.isArray(varData)) {
-                                      // Verificar si este ID corresponde a la variable actual
-                                      // Esto es un fallback para la estructura antigua
-                                      if (varId === '945a1539-59a1-4319-90de-61933dd48533' && variable === 'Cloro Libre') {
-                                        toleranceData = varData;
-                                      } else if (varId === 'f5ed17dc-d353-4a24-8452-393d217e0935' && variable === 'Cloruros') {
+                                      // Verificar si el nombre de la variable coincide
+                                      if (varData.nombre === variable) {
                                         toleranceData = varData;
                                       }
                                     }
