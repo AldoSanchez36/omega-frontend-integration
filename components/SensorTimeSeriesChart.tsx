@@ -75,6 +75,18 @@ export function SensorTimeSeriesChart({
       try {
         let finalData: RawMeasurement[] = [];
         
+        // Normalizar fechas para comparación (solo YYYY-MM-DD)
+        const normalizeDate = (dateStr: string): string => {
+          if (!dateStr) return ''
+          if (dateStr.includes('T')) return dateStr.split('T')[0]
+          if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr
+          const date = new Date(dateStr)
+          return !isNaN(date.getTime()) ? date.toISOString().split('T')[0] : dateStr
+        }
+        
+        const startDateNormalized = normalizeDate(startDate)
+        const endDateNormalized = normalizeDate(endDate)
+        
         // Lógica de cascada: primero verificar por cliente, luego por proceso
         if (clientName) {
           // 1. Primera llamada: MEASUREMENTS_BY_VARIABLE_AND_CLIENT
@@ -89,8 +101,8 @@ export function SensorTimeSeriesChart({
             
             // Filtrar datos del cliente por fecha
             const filteredClientData = clientData.filter((m: any) => {
-              const d = new Date(m.fecha);
-              return d >= new Date(startDate) && d <= new Date(endDate);
+              const fechaNormalizada = normalizeDate(m.fecha)
+              return fechaNormalizada >= startDateNormalized && fechaNormalizada <= endDateNormalized
             });
             
             if (filteredClientData.length > 0) {
@@ -112,8 +124,8 @@ export function SensorTimeSeriesChart({
             
             // Filtrar datos por fecha
             const filteredUserProcessData = userProcessData.filter((m: any) => {
-              const d = new Date(m.fecha);
-              return d >= new Date(startDate) && d <= new Date(endDate);
+              const fechaNormalizada = normalizeDate(m.fecha)
+              return fechaNormalizada >= startDateNormalized && fechaNormalizada <= endDateNormalized
             });
             
             if (filteredUserProcessData.length > 0) {
@@ -135,8 +147,8 @@ export function SensorTimeSeriesChart({
             
             // Filtrar datos del proceso por fecha
             const filteredProcessData = processData.filter((m: any) => {
-              const d = new Date(m.fecha);
-              return d >= new Date(startDate) && d <= new Date(endDate);
+              const fechaNormalizada = normalizeDate(m.fecha)
+              return fechaNormalizada >= startDateNormalized && fechaNormalizada <= endDateNormalized
             });
             
             if (filteredProcessData.length > 0) {
@@ -156,10 +168,10 @@ export function SensorTimeSeriesChart({
           return;
         }
          
-         // Filtrar registros por fecha
+         // Filtrar registros por fecha (ya normalizado arriba)
          const filtered = finalData.filter(m => {
-           const d = new Date(m.fecha);
-           return d >= new Date(startDate) && d <= new Date(endDate);
+           const fechaNormalizada = normalizeDate(m.fecha)
+           return fechaNormalizada >= startDateNormalized && fechaNormalizada <= endDateNormalized
          });
 
          // Detectar sensores únicos

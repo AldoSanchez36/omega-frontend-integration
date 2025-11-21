@@ -56,6 +56,9 @@ interface ReportData {
   fecha: string;
   comentarios: string;
   generatedDate: string;
+  parameterComments?: {
+    [parameterId: string]: string;
+  };
 }
 
 interface Parameter {
@@ -89,6 +92,7 @@ export function useMeasurements(
   allParameters?: Record<string, Parameter[]>,
   limitsState?: Record<string, { limite_min: boolean; limite_max: boolean }>,
   parameterValuesBySystem?: Record<string, Record<string, any>>, // Nuevo parámetro
+  parameterComments?: Record<string, string>, // Comentarios por parámetro
   onSaveSuccess?: (reportData: ReportData) => void
 ) {
   const [medicionesPreview, setMedicionesPreview] = useState<Measurement[]>([]);
@@ -128,6 +132,7 @@ export function useMeasurements(
         fecha: globalFecha || "",
         comentarios: globalComentarios || "",
         generatedDate: new Date().toISOString(),
+        parameterComments: parameterComments || {},
       };
 
       // Agregar parámetros de TODOS los sistemas de la planta
