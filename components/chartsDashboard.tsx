@@ -208,7 +208,6 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                             <div className="row g-3">
                               {selectedSystem.parameters.map((param) => {
                               const data = historicalData[param.id] || [];
-                              console.log(`Parameter ${param.name} (${param.id}):`, data.length, "data points");
                               
                               // Si no hay datos históricos, mostrar datos mock o placeholder
                               if (!data.length) {

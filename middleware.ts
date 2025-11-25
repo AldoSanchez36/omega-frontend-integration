@@ -4,7 +4,6 @@ import type { NextRequest } from "next/server"
 export function middleware(request: NextRequest) {
   // Para desarrollo, permitir acceso a todas las rutas sin verificación
   // Esto evita problemas de hidratación
-  console.log("🛣️ Middleware - Permitiendo acceso a:", request.nextUrl.pathname)
   return NextResponse.next()
 }
 

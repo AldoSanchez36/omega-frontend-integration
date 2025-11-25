@@ -56,6 +56,9 @@ interface ReportData {
   fecha: string;
   comentarios: string;
   generatedDate: string;
+  parameterComments?: {
+    [parameterId: string]: string;
+  };
 }
 
 interface Parameter {
@@ -89,6 +92,7 @@ export function useMeasurements(
   allParameters?: Record<string, Parameter[]>,
   limitsState?: Record<string, { limite_min: boolean; limite_max: boolean }>,
   parameterValuesBySystem?: Record<string, Record<string, any>>, // Nuevo parámetro
+  parameterComments?: Record<string, string>, // Comentarios por parámetro
   onSaveSuccess?: (reportData: ReportData) => void
 ) {
   const [medicionesPreview, setMedicionesPreview] = useState<Measurement[]>([]);
@@ -128,6 +132,7 @@ export function useMeasurements(
         fecha: globalFecha || "",
         comentarios: globalComentarios || "",
         generatedDate: new Date().toISOString(),
+        parameterComments: parameterComments || {},
       };
 
       // Agregar parámetros de TODOS los sistemas de la planta
@@ -182,7 +187,6 @@ export function useMeasurements(
                     calculado: true
                   };
                   
-                  console.log(`🧮 Fórmula aplicada a ${param.nombre}: ${calculation.originalValue} → ${calculation.calculatedValue} (${calculation.formula.nombre})`);
                 } else {
                   // Usar el valor original
                   reportData.parameters[system.nombre][param.nombre] = {
@@ -191,8 +195,6 @@ export function useMeasurements(
                     valorOriginal: paramValue.value,
                     calculado: false
                   };
-                  
-                  console.log(`📊 Valor original para ${param.nombre}: ${paramValue.value}`);
                 }
               }
             });
@@ -226,8 +228,6 @@ export function useMeasurements(
       // Guardar en localStorage (como antes)
       localStorage.setItem("reportSelection", JSON.stringify(reportData));
       
-      console.log("Report data saved successfully:", reportData);
-      
       // Contar parámetros totales de todos los sistemas
       let totalParameters = 0;
       Object.values(reportData.parameters).forEach(systemParams => {
@@ -243,7 +243,6 @@ export function useMeasurements(
       
     } catch (error: any) {
       setSaveError(error.message);
-      console.error("Error saving report data:", error);
     } finally {
       setIsSaving(false);
     }

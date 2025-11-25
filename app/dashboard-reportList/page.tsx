@@ -53,6 +53,9 @@ interface Reporte {
         usar_limite_max: boolean;
       };
     };
+    parameterComments?: {
+      [variableName: string]: string;
+    };
     fecha?: string;
     comentarios?: string;
     generatedDate?: string;
@@ -325,6 +328,7 @@ export default function ReportList() {
         systemName: report.datosJsonb?.systemName || report.systemName,
         parameters: report.datosJsonb?.parameters || {},
         variablesTolerancia: report.datosJsonb?.variablesTolerancia || {},
+        parameterComments: report.datosJsonb?.parameterComments || {}, // Comentarios por parámetro
         mediciones: [], // Los datos de mediciones se reconstruirán en la página reports
         fecha: report.datosJsonb?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
         comentarios: report.datosJsonb?.comentarios || report.observaciones || "",
@@ -405,6 +409,7 @@ export default function ReportList() {
         systemName: reporte.datosJsonb?.systemName || reporte.sistema,
         parameters: reporte.datosJsonb?.parameters || {},
         variablesTolerancia: reporte.datosJsonb?.variablesTolerancia || {},
+        parameterComments: reporte.datosJsonb?.parameterComments || {}, // Comentarios por parámetro
         mediciones: [],
         fecha: reporte.datosJsonb?.fecha || reporte.fecha,
         comentarios: reporte.datosJsonb?.comentarios || reporte.comentarios,

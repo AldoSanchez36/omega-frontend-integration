@@ -92,7 +92,42 @@ const ParametersVariableList: React.FC<Props> = ({
     const bienMin = tolerancia.bien_min;
     const bienMax = tolerancia.bien_max;
     
-    // CASO 1: Si solo existen bienMin y bienMax (sin limite_min/limite_max)
+    // CASO 1: Verificar primero los límites críticos (limite_min/limite_max) - ROJO
+    if (usarLimiteMin && tolerancia.limite_min !== null && tolerancia.limite_min !== undefined) {
+      if (numValue < tolerancia.limite_min) {
+        return '#FFC6CE'; // Rojo - fuera del límite crítico mínimo
+      }
+    }
+    
+    if (usarLimiteMax && tolerancia.limite_max !== null && tolerancia.limite_max !== undefined) {
+      if (numValue > tolerancia.limite_max) {
+        return '#FFC6CE'; // Rojo - fuera del límite crítico máximo
+      }
+    }
+    
+    // CASO 2: Verificar si excede bien_max (sin bien_min) - ROJO
+    // Si no hay bien_min pero sí hay bien_max, solo es rojo si excede bien_max
+    if ((bienMin === null || bienMin === undefined) && 
+        bienMax !== null && bienMax !== undefined) {
+      if (numValue > bienMax) {
+        return '#FFC6CE'; // Rojo - excede el máximo
+      }
+      // Si no excede bien_max, es verde
+      return '#C6EFCE'; // Verde - dentro del rango aceptable
+    }
+    
+    // CASO 3: Verificar si está por debajo de bien_min (sin bien_max) - ROJO
+    // Si no hay bien_max pero sí hay bien_min, solo es rojo si está por debajo de bien_min
+    if ((bienMax === null || bienMax === undefined) && 
+        bienMin !== null && bienMin !== undefined) {
+      if (numValue < bienMin) {
+        return '#FFC6CE'; // Rojo - por debajo del mínimo
+      }
+      // Si no está por debajo de bien_min, es verde
+      return '#C6EFCE'; // Verde - dentro del rango aceptable
+    }
+    
+    // CASO 4: Si existen ambos bienMin y bienMax (sin limite_min/limite_max)
     if (!usarLimiteMin && !usarLimiteMax && 
         bienMin !== null && bienMin !== undefined && 
         bienMax !== null && bienMax !== undefined) {
@@ -104,21 +139,7 @@ const ParametersVariableList: React.FC<Props> = ({
       }
     }
     
-    // CASO 2: Si existen limite_min y/o limite_max
-    // Verificar si está fuera de los límites críticos (rojo)
-    if (usarLimiteMin && tolerancia.limite_min !== null && tolerancia.limite_min !== undefined) {
-      if (numValue < tolerancia.limite_min) {
-        return '#FFC6CE'; // Rojo
-      }
-    }
-    
-    if (usarLimiteMax && tolerancia.limite_max !== null && tolerancia.limite_max !== undefined) {
-      if (numValue > tolerancia.limite_max) {
-        return '#FFC6CE'; // Rojo
-      }
-    }
-    
-    // Verificar si está en el rango de advertencia (amarillo)
+    // CASO 5: Verificar rango de advertencia (amarillo)
     // Si está por debajo del rango bien_min pero por encima del límite_min
     if (usarLimiteMin && tolerancia.limite_min !== null && tolerancia.limite_min !== undefined) {
       if (numValue >= tolerancia.limite_min && bienMin !== null && bienMin !== undefined && numValue < bienMin) {
@@ -133,15 +154,16 @@ const ParametersVariableList: React.FC<Props> = ({
       }
     }
     
-    // Si está dentro del rango bien_min y bien_max (verde)
+    // CASO 6: Si está dentro del rango bien_min y bien_max (verde)
     if (bienMin !== null && bienMin !== undefined && bienMax !== null && bienMax !== undefined) {
       if (numValue >= bienMin && numValue <= bienMax) {
         return '#C6EFCE'; // Verde
       }
     }
     
-    // Si no hay límites definidos, mostrar rojo por defecto
-    return '#FFC6CE';
+    // CASO 7: Si no hay límites definidos o solo hay bien_max sin bien_min y no excede
+    // Por defecto, mostrar verde (no rojo) cuando no hay límites o cuando no se excede el máximo
+    return '#C6EFCE'; // Verde por defecto si no hay límites o no se excede el máximo
   };
   return (
     <div className="space-y-4"> 

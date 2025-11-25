@@ -104,7 +104,6 @@ class AuthService {
         console.log("  Usuario guardado:", !!savedUser) */
 
         if (!savedToken || !savedUser) {
-          console.error("❌ Error: Los datos no se guardaron correctamente")
           throw new Error("Failed to save authentication data")
         }
       }
@@ -154,8 +153,8 @@ class AuthService {
 
     // Notifica al backend, pero NO esperes la respuesta
     if (typeof window !== "undefined") {
-      httpService.post(API_ENDPOINTS.AUTH.LOGOUT).catch((error) => {
-        console.warn("No se pudo notificar logout al backend:", error)
+      httpService.post(API_ENDPOINTS.AUTH.LOGOUT).catch(() => {
+        // noop
       })
     }
   }
@@ -173,10 +172,8 @@ class AuthService {
       }
 
       const user = JSON.parse(userStr)
-      /* console.log("👤 getCurrentUser:", user.username) */
       return user
     } catch (error) {
-      console.error("❌ Error parseando usuario:", error)
       return null
     }
   }

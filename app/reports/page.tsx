@@ -10,6 +10,7 @@ import autoTable from "jspdf-autotable"
 import Navbar from "@/components/Navbar"
 import html2canvas from "html2canvas"
 import { SensorTimeSeriesChart } from "@/components/SensorTimeSeriesChart"
+import { MesureTable } from "@/components/MesureTable-fixed-auth"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 
 
@@ -76,24 +77,34 @@ interface RangeLimits {
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
 
-      const imgWidth = pageWidth;
+      // Márgenes: 10mm en cada lado (superior, inferior, izquierdo, derecho)
+      const marginTop = 10;
+      const marginBottom = 10;
+      const marginLeft = 10;
+      const marginRight = 10;
+      const contentWidth = pageWidth - marginLeft - marginRight;
+      const contentHeight = pageHeight - marginTop - marginBottom;
+
+      const imgWidth = contentWidth;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      console.log("📐 Dimensiones PDF:", { pageWidth, pageHeight, imgWidth, imgHeight });
+      console.log("📐 Dimensiones PDF:", { pageWidth, pageHeight, imgWidth, imgHeight, contentWidth, contentHeight });
 
-      if (imgHeight <= pageHeight) {
+      if (imgHeight <= contentHeight) {
         console.log("📄 Agregando imagen a una página");
-        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+        pdf.addImage(imgData, "PNG", marginLeft, marginTop, imgWidth, imgHeight);
       } else {
         console.log("📄 Agregando imagen a múltiples páginas");
         let y = 0;
         let page = 1;
         while (y < imgHeight) {
           console.log(`🧾 Renderizando página ${page}, offsetY=${y.toFixed(2)}mm`);
-          pdf.addImage(imgData, "PNG", 0, -y, imgWidth, imgHeight);
-          y += pageHeight;
-          if (y < imgHeight) pdf.addPage();
-          page++;
+          pdf.addImage(imgData, "PNG", marginLeft, marginTop - y, imgWidth, imgHeight);
+          y += contentHeight;
+          if (y < imgHeight) {
+            pdf.addPage();
+            page++;
+          }
         }
       }
 
@@ -190,6 +201,9 @@ interface ReportSelection {
       };
     };
   };
+  parameterComments?: {
+    [variableName: string]: string;
+  };
 }
 
 export default function Reporte() {
@@ -202,8 +216,30 @@ export default function Reporte() {
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
   const [reportSelection, setReportSelection] = useState<ReportSelection | null>(null)
   
+  // Estado para comentarios por parámetro/variable
+  const [parameterComments, setParameterComments] = useState<{ [variableName: string]: string }>({})
+  
   // Estado para gráficos
   const [selectedVariableForChart, setSelectedVariableForChart] = useState<string>("")
+  
+  // Función para manejar cambios en comentarios de parámetros
+  const handleParameterCommentChange = (variableName: string, comment: string) => {
+    const newComments = {
+      ...parameterComments,
+      [variableName]: comment
+    }
+    setParameterComments(newComments)
+    
+    // Guardar en localStorage para persistencia
+    if (reportSelection) {
+      const updatedReportSelection = {
+        ...reportSelection,
+        parameterComments: newComments
+      }
+      localStorage.setItem("reportSelection", JSON.stringify(updatedReportSelection))
+      setReportSelection(updatedReportSelection)
+    }
+  }
 
   const [rangeLimits] = useState<RangeLimits>({
     pH: {
@@ -255,6 +291,11 @@ export default function Reporte() {
     console.log("📊 Reports - Parámetros recibidos:", parsedReportSelection?.parameters);
     console.log("📊 Reports - Tolerancias recibidas:", parsedReportSelection?.variablesTolerancia);
     setReportSelection(parsedReportSelection);
+    
+    // Cargar comentarios guardados si existen
+    if (parsedReportSelection?.parameterComments) {
+      setParameterComments(parsedReportSelection.parameterComments);
+    }
 
     // Obtener fecha actual
     const today = new Date()
@@ -469,7 +510,8 @@ export default function Reporte() {
           email: reportSelection.user?.email,
           puesto: reportSelection.user?.puesto
         },
-        cliente_id: reportSelection.user?.id
+        cliente_id: reportSelection.user?.id,
+        parameterComments: parameterComments // Incluir comentarios por parámetro
       }
 
       console.log("📋 Payload completo que se enviará al servidor:")
@@ -508,7 +550,169 @@ export default function Reporte() {
 
       const result = await response.json()
       console.log("✅ Reporte guardado exitosamente:", result)
-      alert("✅ Reporte guardado exitosamente en el sistema")
+      
+      // Ahora guardar las mediciones individuales por parámetro
+      if (reportSelection.parameters && reportSelection.fecha) {
+        console.log("💾 Guardando mediciones individuales por parámetro...")
+        
+        try {
+          // Obtener todos los sistemas de la planta para mapear nombres a IDs
+          const systemsResponse = await fetch(
+            `${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT_NAME(reportSelection.plant?.nombre || "")}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            }
+          )
+          
+          let systemsMap: Record<string, { id: string; nombre: string }> = {}
+          if (systemsResponse.ok) {
+            const systemsData = await systemsResponse.json()
+            const systemsList = systemsData.procesos || systemsData || []
+            systemsList.forEach((sys: any) => {
+              systemsMap[sys.nombre] = { id: sys.id, nombre: sys.nombre }
+            })
+          }
+          
+          // Crear array de promesas para obtener variables de cada sistema
+          const variablePromises = Object.entries(reportSelection.parameters).map(async ([systemName, systemParams]: [string, any]) => {
+            const systemInfo = systemsMap[systemName]
+            if (!systemInfo) {
+              console.warn(`⚠️ Sistema "${systemName}" no encontrado, saltando...`)
+              return { systemName, variables: null, systemParams: null }
+            }
+            
+            // Obtener parámetros del sistema para mapear nombres a IDs
+            try {
+              const varsResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(systemInfo.id)}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              })
+              
+              if (!varsResponse.ok) {
+                console.error(`❌ Error obteniendo variables del sistema ${systemName}`)
+                return { systemName, variables: null, systemParams: null }
+              }
+              
+              const varsData = await varsResponse.json()
+              const variablesList = varsData.variables || varsData || []
+              const variablesMap: Record<string, { id: string; nombre: string }> = {}
+              variablesList.forEach((v: any) => {
+                variablesMap[v.nombre] = { id: v.id, nombre: v.nombre }
+              })
+              
+              return { systemName, variables: variablesMap, systemParams, systemInfo }
+            } catch (error) {
+              console.error(`❌ Error obteniendo variables del sistema ${systemName}:`, error)
+              return { systemName, variables: null, systemParams: null }
+            }
+          })
+          
+          // Esperar a que se obtengan todas las variables
+          const systemsData = await Promise.all(variablePromises)
+          
+          // Crear array de mediciones a guardar
+          const measurementsToSave: any[] = []
+          
+          systemsData.forEach(({ systemName, variables, systemParams, systemInfo }) => {
+            if (!variables || !systemParams || !systemInfo) return
+            
+            // Iterar sobre cada parámetro del sistema
+            Object.entries(systemParams).forEach(([parameterName, paramData]: [string, any]) => {
+              const variableInfo = variables[parameterName]
+              if (!variableInfo) {
+                console.warn(`⚠️ Variable "${parameterName}" no encontrada en sistema "${systemName}", saltando...`)
+                return
+              }
+              
+              // Normalizar fecha a formato YYYY-MM-DD
+              let fechaNormalizada = reportSelection.fecha
+              if (fechaNormalizada) {
+                // Si viene como ISO string completo, extraer solo la fecha
+                if (fechaNormalizada.includes('T')) {
+                  fechaNormalizada = fechaNormalizada.split('T')[0]
+                }
+                // Si viene en otro formato, intentar parsearlo
+                const fechaDate = new Date(fechaNormalizada)
+                if (!isNaN(fechaDate.getTime())) {
+                  fechaNormalizada = fechaDate.toISOString().split('T')[0]
+                }
+              }
+              
+              // Obtener comentario del parámetro si existe
+              const parameterComment = parameterComments[parameterName] || reportSelection.comentarios || ""
+              
+              // Crear medición individual
+              const measurement = {
+                fecha: fechaNormalizada,
+                comentarios: parameterComment,
+                valor: paramData.valor,
+                variable_id: variableInfo.id,
+                proceso_id: systemInfo.id,
+                sistema: systemName, // Usar el nombre del sistema como sistema (S01, S02, etc.)
+                usuario_id: reportSelection.user?.id || null,
+                planta_id: reportSelection.plant?.id || null,
+              }
+              
+              console.log(`📝 Creando medición: ${parameterName} - ${systemName} - Fecha: ${fechaNormalizada} - Comentario: ${parameterComment}`)
+              
+              measurementsToSave.push(measurement)
+            })
+          })
+          
+          // Guardar todas las mediciones
+          if (measurementsToSave.length > 0) {
+            console.log(`📊 Guardando ${measurementsToSave.length} mediciones...`)
+            
+            const saveResults = await Promise.allSettled(
+              measurementsToSave.map(async (measurement) => {
+                const measResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS}`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                  },
+                  body: JSON.stringify(measurement)
+                })
+                
+                if (!measResponse.ok) {
+                  const errorData = await measResponse.json().catch(() => ({}))
+                  throw new Error(`Error ${measResponse.status}: ${JSON.stringify(errorData)}`)
+                }
+                
+                return measResponse.json()
+              })
+            )
+            
+            const successful = saveResults.filter(r => r.status === 'fulfilled').length
+            const failed = saveResults.filter(r => r.status === 'rejected').length
+            
+            console.log(`✅ ${successful} mediciones guardadas exitosamente`)
+            if (failed > 0) {
+              console.warn(`⚠️ ${failed} mediciones fallaron al guardarse`)
+              saveResults.forEach((result, index) => {
+                if (result.status === 'rejected') {
+                  console.error(`❌ Error guardando medición ${index + 1}:`, result.reason)
+                }
+              })
+            }
+            
+            if (failed === 0) {
+              alert("✅ Reporte y mediciones guardados exitosamente en el sistema")
+            } else {
+              alert(`✅ Reporte guardado. ${successful} mediciones guardadas, ${failed} fallaron.`)
+            }
+          } else {
+            console.warn("⚠️ No se encontraron mediciones para guardar")
+            alert("✅ Reporte guardado exitosamente en el sistema")
+          }
+        } catch (error) {
+          console.error("❌ Error guardando mediciones individuales:", error)
+          alert("✅ Reporte guardado, pero hubo errores al guardar las mediciones individuales")
+        }
+      } else {
+        alert("✅ Reporte guardado exitosamente en el sistema")
+      }
       
     } catch (error) {
       console.error("❌ Error en handleSaveReport:", error)
@@ -538,10 +742,12 @@ export default function Reporte() {
   }
   
   // Función para obtener el color de celda según los límites
+  // Usa la misma lógica que getInputColor en dashboard-reportmanager
   function getCellColor(valorStr: string, param: any) {
     if (valorStr === undefined || valorStr === null || valorStr === "") return "";
     const valor = parseFloat(valorStr);
     if (isNaN(valor)) return "";
+    
     const {
       bien_min,
       bien_max,
@@ -550,50 +756,112 @@ export default function Reporte() {
       usar_limite_min,
       usar_limite_max,
     } = param;
-    // Verde: bien
-    if (bien_min !== null && bien_max !== null && valor >= bien_min && valor <= bien_max) {
-      return "#C5EECE";
+    
+    // CASO 1: Verificar primero los límites críticos (limite_min/limite_max) - ROJO
+    if (usar_limite_min && limite_min !== null && limite_min !== undefined) {
+      if (valor < limite_min) {
+        return "#FFC6CE"; // Rojo - fuera del límite crítico mínimo
+      }
     }
-    // Amarillo: cerca de límite inferior
-    if (
-      usar_limite_min &&
-      limite_min !== null && bien_min !== null &&
-      valor >= limite_min && valor < bien_min
-    ) {
-      return "#FFEB9C";
+    
+    if (usar_limite_max && limite_max !== null && limite_max !== undefined) {
+      if (valor > limite_max) {
+        return "#FFC6CE"; // Rojo - fuera del límite crítico máximo
+      }
     }
-    // Amarillo: cerca de límite superior
-    if (
-      usar_limite_max &&
-      limite_max !== null && bien_max !== null &&
-      valor > bien_max && valor <= limite_max
-    ) {
-      return "#FFEB9C";
+    
+    // CASO 2: Verificar si excede bien_max (sin bien_min) - ROJO
+    // Si no hay bien_min pero sí hay bien_max, solo es rojo si excede bien_max
+    if ((bien_min === null || bien_min === undefined) && 
+        bien_max !== null && bien_max !== undefined) {
+      if (valor > bien_max) {
+        return "#FFC6CE"; // Rojo - excede el máximo
+      }
+      // Si no excede bien_max, es verde
+      return "#C6EFCE"; // Verde - dentro del rango aceptable
     }
-    // Rojo: fuera de rango
-    if (
-      (bien_min !== null && valor < bien_min && (!usar_limite_min || limite_min === null || valor < limite_min)) ||
-      (bien_max !== null && valor > bien_max && (!usar_limite_max || limite_max === null || valor > limite_max)) ||
-      (usar_limite_min && limite_min !== null && valor < limite_min) ||
-      (usar_limite_max && limite_max !== null && valor > limite_max)
-    ) {
-      return "#FFC6CE";
+    
+    // CASO 3: Verificar si está por debajo de bien_min (sin bien_max) - ROJO
+    // Si no hay bien_max pero sí hay bien_min, solo es rojo si está por debajo de bien_min
+    if ((bien_max === null || bien_max === undefined) && 
+        bien_min !== null && bien_min !== undefined) {
+      if (valor < bien_min) {
+        return "#FFC6CE"; // Rojo - por debajo del mínimo
+      }
+      // Si no está por debajo de bien_min, es verde
+      return "#C6EFCE"; // Verde - dentro del rango aceptable
     }
-    return "";
+    
+    // CASO 4: Si existen ambos bienMin y bienMax (sin limite_min/limite_max)
+    if (!usar_limite_min && !usar_limite_max && 
+        bien_min !== null && bien_min !== undefined && 
+        bien_max !== null && bien_max !== undefined) {
+      
+      if (valor < bien_min || valor > bien_max) {
+        return "#FFC6CE"; // Rojo - fuera del rango bien
+      } else {
+        return "#C6EFCE"; // Verde - dentro del rango bien
+      }
+    }
+    
+    // CASO 5: Verificar rango de advertencia (amarillo)
+    // Si está por debajo del rango bien_min pero por encima del límite_min
+    if (usar_limite_min && limite_min !== null && limite_min !== undefined) {
+      if (valor >= limite_min && bien_min !== null && bien_min !== undefined && valor < bien_min) {
+        return "#FFEB9C"; // Amarillo
+      }
+    }
+    
+    // Si está por encima del rango bien_max pero por debajo del límite_max
+    if (usar_limite_max && limite_max !== null && limite_max !== undefined) {
+      if (valor <= limite_max && bien_max !== null && bien_max !== undefined && valor > bien_max) {
+        return "#FFEB9C"; // Amarillo
+      }
+    }
+    
+    // CASO 6: Si está dentro del rango bien_min y bien_max (verde)
+    if (bien_min !== null && bien_min !== undefined && bien_max !== null && bien_max !== undefined) {
+      if (valor >= bien_min && valor <= bien_max) {
+        return "#C6EFCE"; // Verde
+      }
+    }
+    
+    // CASO 7: Si no hay límites definidos o solo hay bien_max sin bien_min y no excede
+    // Por defecto, mostrar verde (no rojo) cuando no hay límites o cuando no se excede el máximo
+    return "#C6EFCE"; // Verde por defecto si no hay límites o no se excede el máximo
   }
 
-  // Obtener variables disponibles para gráficos desde parameters
+  // Obtener variables disponibles para gráficos desde parameters con sus unidades
   const variablesDisponibles = (() => {
-    const allVariables = new Set<string>();
+    const variablesMap = new Map<string, string>(); // Map<variableName, unidad>
+    
     Object.values(reportSelection?.parameters || {}).forEach((systemData: any) => {
-      Object.keys(systemData).forEach(variable => allVariables.add(variable));
+      Object.entries(systemData).forEach(([variableName, paramData]: [string, any]) => {
+        // Si la variable ya existe, mantener la unidad existente o usar la nueva si no tenía
+        if (!variablesMap.has(variableName) && paramData?.unidad) {
+          variablesMap.set(variableName, paramData.unidad);
+        }
+      });
     });
     
-    return Array.from(allVariables).map(variable => ({
-      id: variable, // Usar el nombre como ID para los gráficos
-      nombre: variable
+    return Array.from(variablesMap.entries()).map(([nombre, unidad]) => ({
+      id: nombre, // Usar el nombre como ID para los gráficos
+      nombre: nombre,
+      unidad: unidad
     }));
   })();
+  
+  // Calcular fechas para los últimos 12 meses
+  const getLast12MonthsDates = () => {
+    const today = new Date()
+    const endDate = today.toISOString().split('T')[0]
+    const startDateObj = new Date(today)
+    startDateObj.setMonth(today.getMonth() - 12)
+    const startDate = startDateObj.toISOString().split('T')[0]
+    return { startDate, endDate }
+  }
+  
+  const { startDate: chartStartDate, endDate: chartEndDate } = getLast12MonthsDates()
 
   return (
     <ProtectedRoute>
@@ -774,22 +1042,20 @@ export default function Reporte() {
                               const systemData = reportSelection?.parameters?.[systemName];
                               const paramData = systemData?.[variable];
                               
-                              // Buscar el ID de la variable en las tolerancias
+                              // Buscar las tolerancias para esta variable
                               let toleranceData = null;
                               if (reportSelection?.variablesTolerancia) {
                                 // Primero intentar con la nueva estructura (por sistema)
                                 if (reportSelection.variablesTolerancia[systemName] && reportSelection.variablesTolerancia[systemName][variable]) {
                                   toleranceData = reportSelection.variablesTolerancia[systemName][variable];
                                 } else {
-                                  // Si no existe, buscar por ID de variable en la estructura antigua
+                                  // Buscar por nombre de variable en la estructura actual (por ID de parámetro)
+                                  // Las tolerancias se guardan con el ID del parámetro como clave
                                   Object.keys(reportSelection.variablesTolerancia).forEach(varId => {
                                     const varData = reportSelection.variablesTolerancia[varId];
                                     if (varData && typeof varData === 'object' && !Array.isArray(varData)) {
-                                      // Verificar si este ID corresponde a la variable actual
-                                      // Esto es un fallback para la estructura antigua
-                                      if (varId === '945a1539-59a1-4319-90de-61933dd48533' && variable === 'Cloro Libre') {
-                                        toleranceData = varData;
-                                      } else if (varId === 'f5ed17dc-d353-4a24-8452-393d217e0935' && variable === 'Cloruros') {
+                                      // Verificar si el nombre de la variable coincide
+                                      if (varData.nombre === variable) {
                                         toleranceData = varData;
                                       }
                                     }
@@ -816,42 +1082,61 @@ export default function Reporte() {
               {variablesDisponibles.length > 0 && (
                 <div className="mb-4 ml-10 mr-10">
                   <h5>Gráficos de Series Temporales</h5>
+                  <p className="text-sm text-muted mb-3">
+                    Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)
+                  </p>
                   
-                  {/* Selector de variable */}
-                  <div className="mb-4">
-                    <label htmlFor="variable-select" className="form-label">
-                      Selecciona una variable para visualizar su gráfico:
-                    </label>
-                    <select
-                      id="variable-select"
-                      className="form-select"
-                      value={selectedVariableForChart}
-                      onChange={(e) => setSelectedVariableForChart(e.target.value)}
-                    >
-                      <option value="">Selecciona una variable...</option>
-                      {variablesDisponibles.map((variable) => (
-                        <option key={variable.id} value={variable.id}>
-                          {variable.nombre}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Gráfico */}
-                  {selectedVariableForChart && (
-                    <div className="card">
-                      <div className="card-body">
-                        <SensorTimeSeriesChart
-                          variable={variablesDisponibles.find(v => v.id === selectedVariableForChart)?.nombre || ""}
-                          startDate={reportSelection?.fecha || new Date().toISOString().split('T')[0]}
-                          endDate={new Date().toISOString().split('T')[0]}
-                          apiBase={API_BASE_URL}
-                          unidades=""
-                          processName={reportSelection?.systemName}
-                        />
+                  {/* Mostrar todos los gráficos */}
+                  <div className="space-y-6">
+                    {variablesDisponibles.map((variable) => (
+                      <div key={variable.id} className="border rounded-lg p-4 bg-white">
+                        <h3 className="text-lg font-semibold mb-4">{variable.nombre} ({variable.unidad})</h3>
+                        
+                        <div className="mb-6">
+                          <h4 className="text-md font-medium mb-2">Tabla de Mediciones</h4>
+                          <MesureTable
+                            variable={variable.nombre}
+                            startDate={chartStartDate}
+                            endDate={chartEndDate}
+                            apiBase={API_BASE_URL}
+                            unidades={variable.unidad}
+                            clientName={reportSelection?.plant?.nombre}
+                            processName={reportSelection?.systemName}
+                            userId={reportSelection?.user?.id}
+                          />
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-md font-medium mb-2">Gráfico de Series Temporales</h4>
+                          <SensorTimeSeriesChart
+                            variable={variable.nombre}
+                            startDate={chartStartDate}
+                            endDate={chartEndDate}
+                            apiBase={API_BASE_URL}
+                            unidades={variable.unidad}
+                            clientName={reportSelection?.plant?.nombre}
+                            processName={reportSelection?.systemName}
+                            userId={reportSelection?.user?.id}
+                          />
+                        </div>
+                        
+                        {/* Sección de comentarios por parámetro */}
+                        <div className="mt-4 pt-4 border-t">
+                          <label htmlFor={`comment-${variable.id}`} className="block text-sm font-medium text-gray-700 mb-2">
+                            Comentarios para {variable.nombre}:
+                          </label>
+                          <textarea
+                            id={`comment-${variable.id}`}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            rows={3}
+                            placeholder="Agregar comentarios sobre este parámetro..."
+                            value={parameterComments[variable.nombre] || ""}
+                            onChange={(e) => handleParameterCommentChange(variable.nombre, e.target.value)}
+                          />
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    ))}
+                  </div>
                 </div>
               )}
 

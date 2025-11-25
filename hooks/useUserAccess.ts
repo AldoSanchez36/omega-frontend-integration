@@ -92,7 +92,6 @@ export function useUserAccess(token: string | null, options: UseUserAccessOption
       })
       if (!res.ok) throw new Error("No se pudo obtener el id del usuario")
       const data = await res.json()
-      console.log("ID del usuario desde backend:", data.usuario?.id)
       return data.usuario?.id
     }
 

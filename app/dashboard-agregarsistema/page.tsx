@@ -285,30 +285,126 @@ export default function ParameterManager() {
 
   // Funciones para manejo de tolerancias
   const handleTolChange = (variableId: string, field: string, value: string) => {
-    setTolerancias((prev) => ({
-      ...prev,
-      [variableId]: {
-        ...prev[variableId],
-        [field]: (field === 'usar_limite_min' || field === 'usar_limite_max') ? value === 'true' : (value === '' ? '' : Number(value)),
-        variable_id: variableId,
-        proceso_id: selectedSystemId,
-        planta_id: selectedPlant?.id,
-        cliente_id: selectedUser?.id,
-      },
-    }))
+    setTolerancias((prev) => {
+      let processedValue: any = value;
+      
+      // Manejar campos booleanos
+      if (field === 'usar_limite_min' || field === 'usar_limite_max') {
+        processedValue = value === 'true' || value === '1';
+      } 
+      // Manejar campos numéricos - convertir string vacío a null (todos los límites pueden ser null)
+      else if (field === 'limite_min' || field === 'limite_max' || field === 'bien_min' || field === 'bien_max') {
+        processedValue = value === '' || value === null || value === undefined ? null : Number(value);
+      }
+      // Otros campos numéricos
+      else {
+        processedValue = value === '' ? '' : Number(value);
+      }
+      
+      return {
+        ...prev,
+        [variableId]: {
+          ...prev[variableId],
+          [field]: processedValue,
+          variable_id: variableId,
+          proceso_id: selectedSystemId,
+          planta_id: selectedPlant?.id,
+          cliente_id: selectedUser?.id,
+        },
+      };
+    });
+  }
+
+  // Función para resetear los límites de tolerancia a valores por defecto
+  const handleResetTolerance = async (variableId: string) => {
+    // Confirmar antes de resetear
+    const confirmReset = window.confirm(
+      "¿Estás seguro de que quieres resetear los límites de tolerancia? Esto eliminará todos los valores configurados."
+    )
+    
+    if (!confirmReset) return
+    
+    setTolLoading((prev) => ({ ...prev, [variableId]: true }))
+    setTolError((prev) => ({ ...prev, [variableId]: null }))
+    setTolSuccess((prev) => ({ ...prev, [variableId]: null }))
+    
+    try {
+      const tolData = tolerancias[variableId]
+      
+      // Si existe una tolerancia guardada en BD (tiene id), eliminarla
+      if (tolData?.id) {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCE_DELETE(tolData.id)}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        
+        if (!res.ok) {
+          const errorData = await res.json()
+          throw new Error(errorData.msg || errorData.message || "Error al eliminar tolerancia")
+        }
+      }
+      
+      // Resetear el estado local a valores por defecto
+      setTolerancias((prev) => ({
+        ...prev,
+        [variableId]: {
+          variable_id: variableId,
+          proceso_id: selectedSystemId,
+          planta_id: selectedPlant?.id,
+          cliente_id: selectedUser?.id,
+          bien_min: '',
+          bien_max: '',
+          limite_min: null,
+          limite_max: null,
+          usar_limite_min: false,
+          usar_limite_max: false,
+        },
+      }))
+      
+      setTolSuccess((prev) => ({ ...prev, [variableId]: 'Límites reseteados' }))
+      
+      // Limpiar el mensaje de éxito después de 3 segundos
+      setTimeout(() => {
+        setTolSuccess((prev) => ({ ...prev, [variableId]: null }))
+      }, 3000)
+    } catch (e: any) {
+      setTolError((prev) => ({ ...prev, [variableId]: e.message || "Error al resetear límites" }))
+    } finally {
+      setTolLoading((prev) => ({ ...prev, [variableId]: false }))
+    }
   }
 
   const handleTolSave = async (variableId: string) => {
     setTolLoading((prev) => ({ ...prev, [variableId]: true }))
     setTolError((prev) => ({ ...prev, [variableId]: null }))
     setTolSuccess((prev) => ({ ...prev, [variableId]: null }))
+    
+    const tolData = tolerancias[variableId]
+    
+    // Preparar datos para enviar - sin validaciones, cualquier límite puede ser null
     const tol = {
-      ...tolerancias[variableId],
+      ...tolData,
       variable_id: variableId,
-      proceso_id: selectedSystemId,
-      planta_id: selectedPlant?.id,
-      cliente_id: selectedUser?.id,
+      proceso_id: selectedSystemId || null,
+      planta_id: selectedPlant?.id || null,
+      cliente_id: selectedUser?.id || null,
+      // Convertir a número solo si hay valor, sino null - todos los límites pueden ser null
+      bien_min: tolData?.bien_min !== null && tolData?.bien_min !== undefined && tolData?.bien_min !== '' 
+        ? Number(tolData.bien_min) 
+        : null,
+      bien_max: tolData?.bien_max !== null && tolData?.bien_max !== undefined && tolData?.bien_max !== '' 
+        ? Number(tolData.bien_max) 
+        : null,
+      limite_min: tolData?.limite_min !== null && tolData?.limite_min !== undefined && tolData?.limite_min !== '' 
+        ? Number(tolData.limite_min) 
+        : null,
+      limite_max: tolData?.limite_max !== null && tolData?.limite_max !== undefined && tolData?.limite_max !== '' 
+        ? Number(tolData.limite_max) 
+        : null,
+      usar_limite_min: tolData?.usar_limite_min || false,
+      usar_limite_max: tolData?.usar_limite_max || false,
     }
+    
     try {
       if (tol && tol.id) {
         const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCE_UPDATE(tol.id)}`, {
@@ -316,7 +412,12 @@ export default function ParameterManager() {
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify(tol),
         })
-        if (!res.ok) throw new Error("Error al actualizar tolerancia")
+        const responseData = await res.json()
+        if (!res.ok) {
+          throw new Error(responseData.msg || responseData.message || "Error al actualizar tolerancia")
+        }
+        // Actualizar el estado con la respuesta del servidor
+        setTolerancias((prev) => ({ ...prev, [variableId]: responseData.tolerancia || tol }))
         showSuccessMessage(variableId)
       } else {
         const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
@@ -324,11 +425,16 @@ export default function ParameterManager() {
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify(tol),
         })
-        if (!res.ok) throw new Error("Error al crear tolerancia")
+        const responseData = await res.json()
+        if (!res.ok) {
+          throw new Error(responseData.msg || responseData.message || "Error al crear tolerancia")
+        }
+        // Actualizar el estado con la respuesta del servidor (incluye el ID generado)
+        setTolerancias((prev) => ({ ...prev, [variableId]: responseData.tolerancia || tol }))
         showSuccessMessage(variableId)
       }
     } catch (e: any) {
-      setTolError((prev) => ({ ...prev, [variableId]: e.message }))
+      setTolError((prev) => ({ ...prev, [variableId]: e.message || "Error al guardar tolerancia" }))
     } finally {
       setTolLoading((prev) => ({ ...prev, [variableId]: false }))
     }
@@ -1652,28 +1758,29 @@ export default function ParameterManager() {
                                 <TableRow key={param.id}>
                                   <TableCell className="font-medium">{param.nombre}</TableCell>
                                   <TableCell>{param.unidad}</TableCell>
-                                  <TableCell className="text-right flex gap-2 justify-end items-center">
+                                  <TableCell className="text-right">
+                                    <div className="flex flex-col items-end gap-2">
                                     {/* Inputs de tolerancia: Lim-min | Bien (min/max) | Lim-max */}
-                                    <div className="flex flex-row items-end gap-2">
+                                    <div className="flex flex-row items-end gap-2 flex-wrap">
                                       {/* Bajo bajo */}
                                       <div className="flex flex-col items-center">
                                         <div className="flex items-center gap-1 mb-0.5">
                                           <span className="text-xs font-semibold text-yellow-700">Bajo bajo</span>
                                           <button type="button" onClick={() => handleTolChange(param.id, 'usar_limite_min', String(!usarLimiteMin))} className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${usarLimiteMin ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'}`}>{usarLimiteMin ? <span className="material-icons text-yellow-700 text-xs">check</span> : null}</button>
                                         </div>
-                                        <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMin ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="min" value={tolerancias[param.id]?.limite_min ?? ''} onChange={e => handleTolChange(param.id, 'limite_min', e.target.value)} disabled={!usarLimiteMin} />
+                                        <Input type="number" className={`w-20 min-w-[80px] text-xs py-1 px-1 ${usarLimiteMin ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="min" value={tolerancias[param.id]?.limite_min ?? ''} onChange={e => handleTolChange(param.id, 'limite_min', e.target.value)} disabled={!usarLimiteMin} />
                                       </div>
                                       {/* Bien (min/max) con letrero centrado */}
-                                      <div className="flex flex-col items-center" style={{minWidth: '60px'}}>
+                                      <div className="flex flex-col items-center" style={{minWidth: '90px'}}>
                                         <span className="text-xs font-semibold text-green-700 text-center w-full mb-1">Bien</span>
                                         <div className="flex flex-row gap-1">
-                                          <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[param.id]?.bien_min ?? ''} onChange={e => handleTolChange(param.id, 'bien_min', e.target.value)} />
+                                          <Input type="number" className="w-20 min-w-[80px] bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="min" value={tolerancias[param.id]?.bien_min ?? ''} onChange={e => handleTolChange(param.id, 'bien_min', e.target.value)} />
                                         </div>
                                       </div>
-                                      <div className="flex flex-col items-center" style={{minWidth: '60px'}}>
+                                      <div className="flex flex-col items-center" style={{minWidth: '90px'}}>
                                         <span className="text-xs font-semibold text-green-700 text-center w-full mb-1">Alto</span>
                                         <div className="flex flex-row gap-1">
-                                          <Input type="number" className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[param.id]?.bien_max ?? ''} onChange={e => handleTolChange(param.id, 'bien_max', e.target.value)} />
+                                          <Input type="number" className="w-20 min-w-[80px] bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1" placeholder="max" value={tolerancias[param.id]?.bien_max ?? ''} onChange={e => handleTolChange(param.id, 'bien_max', e.target.value)} />
                                         </div>
                                       </div>
                                       {/* Lim-max */}
@@ -1682,31 +1789,43 @@ export default function ParameterManager() {
                                           <span className="text-xs font-semibold text-yellow-700">Alto alto</span>
                                           <button type="button" onClick={() => handleTolChange(param.id, 'usar_limite_max', String(!usarLimiteMax))} className={`rounded-full border-2 ml-1 w-5 h-5 flex items-center justify-center transition-colors duration-150 ${usarLimiteMax ? 'border-yellow-500 bg-yellow-100 cursor-pointer' : 'border-gray-300 bg-gray-100 cursor-pointer'}`}>{usarLimiteMax ? <span className="material-icons text-yellow-700 text-xs">check</span> : null}</button>
                                         </div>
-                                        <Input type="number" className={`w-14 text-xs py-1 px-1 ${usarLimiteMax ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="max" value={tolerancias[param.id]?.limite_max ?? ''} onChange={e => handleTolChange(param.id, 'limite_max', e.target.value)} disabled={!usarLimiteMax} />
+                                        <Input type="number" className={`w-20 min-w-[80px] text-xs py-1 px-1 ${usarLimiteMax ? 'bg-yellow-100 border-yellow-400 text-yellow-900' : 'bg-gray-100 border-gray-300 text-gray-400'}`} placeholder="max" value={tolerancias[param.id]?.limite_max ?? ''} onChange={e => handleTolChange(param.id, 'limite_max', e.target.value)} disabled={!usarLimiteMax} />
                                       </div>
                                      
                                     </div>
-                                    <div className="flex flex-col items-center justify-end">
+                                    {/* Mensajes de error/éxito */}
+                                    <div className="flex flex-col items-end">
                                       {tolError[param.id] && <div className="text-xs text-red-600">{tolError[param.id]}</div>}
                                       {tolSuccess[param.id] && <div className="text-xs text-green-600">{tolSuccess[param.id]}</div>}
                                     </div>
-                                    {/* Acciones originales */}
+                                    {/* Botones de acciones */}
+                                    <div className="flex flex-row items-center gap-1 flex-shrink-0">
                                      {/* Botón guardar límites */}
                                      <Button 
                                         size="icon" 
                                         variant="ghost"
-                                        className="ml-2 h-7 w-7 p-0 flex items-center justify-center" 
+                                        className="h-7 w-7 p-0 flex items-center justify-center" 
                                         onClick={() => handleTolSave(param.id)} 
                                         disabled={tolLoading[param.id]} 
                                         title="Guardar límites">
                                         <span className="material-icons text-base">save</span>
+                                    </Button>
+                                    {/* Botón resetear límites */}
+                                    <Button 
+                                        size="icon" 
+                                        variant="ghost"
+                                        className="h-7 w-7 p-0 flex items-center justify-center text-orange-500 hover:text-orange-700" 
+                                        onClick={() => handleResetTolerance(param.id)} 
+                                        disabled={tolLoading[param.id]} 
+                                        title="Resetear límites">
+                                        <span className="material-icons text-base">refresh</span>
                                     </Button>
                                     <Button
                                       type="button"
                                       variant="ghost"
                                       size="icon"
                                       onClick={() => handleOpenEditModal(param)}
-                                      className="h-8 w-8 text-blue-500 hover:text-blue-700"
+                                      className="h-7 w-7 text-blue-500 hover:text-blue-700"
                                       aria-label={`Editar ${param.nombre}`}
                                     >
                                       <Edit className="h-4 w-4" />
@@ -1716,11 +1835,13 @@ export default function ParameterManager() {
                                       variant="ghost"
                                       size="icon"
                                       onClick={() => handleDeleteParameter(param.id)}
-                                      className="h-8 w-8 text-red-500 hover:text-red-700"
+                                      className="h-7 w-7 text-red-500 hover:text-red-700"
                                       aria-label={`Eliminar ${param.nombre}`}
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
+                                    </div>
+                                    </div>
                                   </TableCell>
                                 </TableRow>
                               );

@@ -69,9 +69,22 @@ import { useRef } from "react"
 
 export default function ReportManager() {
   const router = useRouter()
-  // Parámetros de fechas y URL para SensorTimeSeriesChart
-  const startDate = "2025-04-04"
-  const endDate   = "2025-06-04"
+  
+  // Calcular fechas para los últimos 12 meses desde hoy
+  const getLast12MonthsDates = () => {
+    const today = new Date()
+    const endDate = today.toISOString().split('T')[0] // Fecha de hoy en formato YYYY-MM-DD
+    
+    // Calcular fecha de hace 12 meses
+    const startDateObj = new Date(today)
+    startDateObj.setMonth(today.getMonth() - 12)
+    const startDate = startDateObj.toISOString().split('T')[0] // Fecha de hace 12 meses en formato YYYY-MM-DD
+    
+    return { startDate, endDate }
+  }
+  
+  const { startDate, endDate } = getLast12MonthsDates()
+  
   const { addDebugLog } = useDebugLogger()
   const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
   const [globalFecha, setGlobalFecha] = useState<string>("");
@@ -229,6 +242,17 @@ export default function ReportManager() {
   
   // Determinar el parámetro seleccionado para el gráfico
   const selectedParameters = parameters.filter(param => parameterValues[param.id]?.checked);
+  
+  // Estado para comentarios por parámetro en gráficos
+  const [parameterComments, setParameterComments] = useState<{ [parameterId: string]: string }>({})
+  
+  // Función para manejar cambios en comentarios de parámetros
+  const handleParameterCommentChange = (parameterId: string, comment: string) => {
+    setParameterComments(prev => ({
+      ...prev,
+      [parameterId]: comment
+    }))
+  }
 
   const { 
     tolerancias,
@@ -432,6 +456,7 @@ export default function ReportManager() {
     allParameters, // allParameters - ahora con todos los sistemas
     limitsState, // Pasar el estado de límites actual
     parameterValuesBySystem, // Pasar todos los valores por sistema
+    parameterComments, // Pasar comentarios por parámetro
     (reportData) => {
       // Callback cuando se guardan exitosamente los datos
       setSavedReportData(reportData);
@@ -789,6 +814,8 @@ export default function ReportManager() {
             clientName={selectedPlantData?.clientName}
             processName={selectedSystemData?.nombre}
             userId={selectedUser?.id}
+            parameterComments={parameterComments}
+            onParameterCommentChange={handleParameterCommentChange}
           />
           
 

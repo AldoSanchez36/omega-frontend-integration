@@ -9,10 +9,14 @@ interface RawMeasurement {
   fecha: string
   sistema: string
   valor: number
+  comentarios?: string
+  id?: string | number
 }
 
 interface PivotData {
   fecha: string
+  fechaEtiqueta: string
+  comentarios?: string // Comentarios de las mediciones guardadas
   [sensor: string]: string | number | undefined
 }
 
@@ -49,6 +53,9 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
     //console.log(`🔍 [MesureTable-${variable}] ${message}`);
     setDebugInfo(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
   };
+  
+  // Los comentarios ahora vienen directamente de las mediciones guardadas en la BD
+  // NOTA: Ya no se usa parameterComment - los comentarios se obtienen de las mediciones guardadas
 
   // Fetch mediciones con lógica de cascada usando httpService
   useEffect(() => {
@@ -141,12 +148,37 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
         
         // Filtrar datos por fecha si tenemos datos
         if (finalData.length > 0) {
+          // Normalizar fechas para comparación (solo YYYY-MM-DD)
+          const normalizeDate = (dateStr: string): string => {
+            if (!dateStr) return ''
+            // Si viene como ISO string completo, extraer solo la fecha
+            if (dateStr.includes('T')) {
+              return dateStr.split('T')[0]
+            }
+            // Si ya está en formato YYYY-MM-DD, retornarlo
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+              return dateStr
+            }
+            // Intentar parsear y normalizar
+            const date = new Date(dateStr)
+            if (!isNaN(date.getTime())) {
+              return date.toISOString().split('T')[0]
+            }
+            return dateStr
+          }
+          
+          const startDateNormalized = normalizeDate(startDate)
+          const endDateNormalized = normalizeDate(endDate)
+          
           const filteredData = finalData.filter((m: any) => {
-            const d = new Date(m.fecha);
-            return d >= new Date(startDate) && d <= new Date(endDate);
+            const fechaNormalizada = normalizeDate(m.fecha)
+            return fechaNormalizada >= startDateNormalized && fechaNormalizada <= endDateNormalized
           });
           
-          addDebugInfo(`📅 Date filtered: ${filteredData.length} records between ${startDate} and ${endDate}`);
+          addDebugInfo(`📅 Date filtered: ${filteredData.length} records between ${startDateNormalized} and ${endDateNormalized}`);
+          if (finalData.length > 0) {
+            addDebugInfo(`📊 Sample dates from data (first 5): ${finalData.slice(0, 5).map((m: any) => `${normalizeDate(m.fecha)} (original: ${m.fecha})`).join(', ')}`);
+          }
           finalData = filteredData;
         }
         
@@ -165,22 +197,28 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
         const pivotData = processDataForTable(finalData);
         setData(pivotData);
         
-        // Extraer sensores únicos
+        // Extraer sensores únicos (solo los valores de 'sistema' de las mediciones)
+        // Filtrar solo sistemas que empiezan con 'S' seguido de números (S01, S02, etc.)
         const uniqueSensors = [...new Set(
-          finalData.flatMap((m: any) => Object.keys(m).filter(key => 
-            key !== 'fecha' && 
-            key !== 'variable' && 
-            key !== 'variable_id' &&
-            key !== 'proceso_id' &&
-            key !== 'sistema' &&
-            key !== 'usuario_id' &&
-            key !== 'planta_id'
-          ))
-        )];
+          finalData
+            .map((m: any) => m.sistema)
+            .filter((sistema: any) => {
+              if (!sistema || typeof sistema !== 'string') return false;
+              const trimmed = sistema.trim();
+              // Solo aceptar sistemas que coincidan con el patrón S01, S02, etc.
+              return /^S\d+$/i.test(trimmed);
+            })
+        )].sort();
         setSensors(uniqueSensors);
         
         addDebugInfo(`📊 Table data processed: ${pivotData.length} time points`);
         addDebugInfo(`🔧 Available sensors: ${uniqueSensors.join(', ')}`);
+        
+        // Debug: Ver qué campos tienen los datos
+        if (finalData.length > 0) {
+          const sampleData = finalData[0];
+          addDebugInfo(`📋 Sample data keys: ${Object.keys(sampleData).join(', ')}`);
+        }
         
       } catch (err: any) {
         addDebugInfo(`💥 Error: ${err.message}`);
@@ -220,14 +258,33 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
         })
       };
       
-      // Agregar valores de sensores
-      measurements.forEach(measurement => {
-        Object.entries(measurement).forEach(([key, value]) => {
-          if (key !== 'fecha' && typeof value === 'number') {
-            pivotPoint[key] = value;
-          }
-        });
+      // Agregar valores de sensores (usar el campo 'sistema' como clave y 'valor' como valor)
+      // Solo agregar si el sistema coincide con el patrón S01, S02, etc.
+      measurements.forEach((measurement: RawMeasurement) => {
+        if (measurement.sistema && 
+            measurement.valor !== undefined && 
+            typeof measurement.sistema === 'string' &&
+            /^S\d+$/i.test(measurement.sistema.trim())) {
+          pivotPoint[measurement.sistema] = measurement.valor;
+        }
       });
+      
+      // Agregar comentarios de las mediciones guardadas (tomar el primero no vacío)
+      const comentariosEncontrados = measurements
+        .map((m: RawMeasurement) => m.comentarios)
+        .filter((c: string | undefined) => {
+          // Validación defensiva: verificar que c existe y es string antes de usar trim
+          if (!c || typeof c !== 'string') return false;
+          return c.trim() !== '';
+        });
+      
+      if (comentariosEncontrados.length > 0) {
+        // Si hay múltiples comentarios, tomar el primero (o podrías concatenarlos)
+        const primerComentario = comentariosEncontrados[0];
+        if (primerComentario && typeof primerComentario === 'string') {
+          pivotPoint.comentarios = primerComentario;
+        }
+      }
       
       return pivotPoint;
     });
@@ -255,25 +312,7 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
   }
 
   if (error) {
-    return (
-      <div className="text-center text-red-600 p-4">
-        <div className="mb-2">
-          <svg className="mx-auto h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-          </svg>
-        </div>
-        <h3 className="text-sm font-medium mb-1">Error cargando datos</h3>
-        <p className="text-xs">{error}</p>
-        {debugInfo.length > 0 && (
-          <div className="mt-2 max-h-16 overflow-y-auto bg-gray-100 p-2 rounded text-xs">
-            <strong>Debug:</strong>
-            {debugInfo.slice(-3).map((info, index) => (
-              <div key={index}>{info}</div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
+    return null; // No mostrar nada cuando hay error
   }
 
   if (data.length === 0) {
@@ -296,13 +335,16 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
         <thead className="bg-gray-50">
           <tr>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Fecha
+              FECHA
             </th>
             {sensors.map(sensor => (
               <th key={sensor} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 {sensor}
               </th>
             ))}
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              COMENTARIOS
+            </th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
@@ -316,6 +358,9 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
                   {row[sensor] !== undefined ? row[sensor] : '-'}
                 </td>
               ))}
+              <td className="px-6 py-4 text-sm text-gray-900">
+                {(row.comentarios && typeof row.comentarios === 'string') ? row.comentarios : '-'}
+              </td>
             </tr>
           ))}
         </tbody>

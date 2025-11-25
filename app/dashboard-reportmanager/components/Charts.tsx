@@ -1,6 +1,6 @@
 "use client"
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SensorTimeSeriesChart } from "@/components/SensorTimeSeriesChart";
 import { MesureTable } from "@/components/MesureTable-fixed-auth";
@@ -19,15 +19,39 @@ interface ChartsProps {
   clientName?: string;
   processName?: string;
   userId?: string;
+  parameterComments?: { [parameterId: string]: string };
+  onParameterCommentChange?: (parameterId: string, comment: string) => void;
 }
 
-const Charts: React.FC<ChartsProps> = ({ selectedParameters, startDate, endDate, clientName, processName, userId }) => {
+const Charts: React.FC<ChartsProps> = ({ selectedParameters, startDate, endDate, clientName, processName, userId, parameterComments: externalComments, onParameterCommentChange }) => {
+  // Estado local para comentarios si no se proporcionan externamente
+  const [localComments, setLocalComments] = useState<{ [parameterId: string]: string }>({})
+  
+  // Usar comentarios externos si están disponibles, sino usar locales
+  const parameterComments = externalComments || localComments
+  
+  // Función para manejar cambios en comentarios de parámetros
+  const handleParameterCommentChange = (parameterId: string, comment: string) => {
+    if (onParameterCommentChange) {
+      // Si hay callback externo, usarlo
+      onParameterCommentChange(parameterId, comment)
+    } else {
+      // Sino, usar estado local
+      setLocalComments(prev => ({
+        ...prev,
+        [parameterId]: comment
+      }))
+    }
+  }
   return (
     <Card className="mb-6">
       <CardHeader>
         <CardTitle>Gráficos de Series Temporales</CardTitle>
         <p className="text-sm text-gray-600">
           Visualización de datos históricos para las variables seleccionadas
+        </p>
+        <p className="text-xs text-gray-500 mt-1">
+          Período: {new Date(startDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(endDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)
         </p>
       </CardHeader>
       <CardContent>
@@ -62,6 +86,21 @@ const Charts: React.FC<ChartsProps> = ({ selectedParameters, startDate, endDate,
                     clientName={clientName}
                     processName={processName}
                     userId={userId}
+                  />
+                </div>
+                
+                {/* Sección de comentarios por parámetro */}
+                <div className="mt-4 pt-4 border-t">
+                  <label htmlFor={`comment-${param.id}`} className="block text-sm font-medium text-gray-700 mb-2">
+                    Comentarios para {param.nombre}:
+                  </label>
+                  <textarea
+                    id={`comment-${param.id}`}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    rows={3}
+                    placeholder="Agregar comentarios sobre este parámetro..."
+                    value={parameterComments[param.id] || ""}
+                    onChange={(e) => handleParameterCommentChange(param.id, e.target.value)}
                   />
                 </div>
               </div>
