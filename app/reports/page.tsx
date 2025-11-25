@@ -77,24 +77,34 @@ interface RangeLimits {
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
 
-      const imgWidth = pageWidth;
+      // Márgenes: 10mm en cada lado (superior, inferior, izquierdo, derecho)
+      const marginTop = 10;
+      const marginBottom = 10;
+      const marginLeft = 10;
+      const marginRight = 10;
+      const contentWidth = pageWidth - marginLeft - marginRight;
+      const contentHeight = pageHeight - marginTop - marginBottom;
+
+      const imgWidth = contentWidth;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      console.log("📐 Dimensiones PDF:", { pageWidth, pageHeight, imgWidth, imgHeight });
+      console.log("📐 Dimensiones PDF:", { pageWidth, pageHeight, imgWidth, imgHeight, contentWidth, contentHeight });
 
-      if (imgHeight <= pageHeight) {
+      if (imgHeight <= contentHeight) {
         console.log("📄 Agregando imagen a una página");
-        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+        pdf.addImage(imgData, "PNG", marginLeft, marginTop, imgWidth, imgHeight);
       } else {
         console.log("📄 Agregando imagen a múltiples páginas");
         let y = 0;
         let page = 1;
         while (y < imgHeight) {
           console.log(`🧾 Renderizando página ${page}, offsetY=${y.toFixed(2)}mm`);
-          pdf.addImage(imgData, "PNG", 0, -y, imgWidth, imgHeight);
-          y += pageHeight;
-          if (y < imgHeight) pdf.addPage();
-          page++;
+          pdf.addImage(imgData, "PNG", marginLeft, marginTop - y, imgWidth, imgHeight);
+          y += contentHeight;
+          if (y < imgHeight) {
+            pdf.addPage();
+            page++;
+          }
         }
       }
 

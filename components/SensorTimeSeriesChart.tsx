@@ -210,7 +210,7 @@ export function SensorTimeSeriesChart({
     load()
   }, [variable, startDate, endDate, apiBase, token, processName, clientName, userId])
 
-  if (error) return <div className="text-red-600">Error: {error}</div>;
+  if (error) return null; // No mostrar nada cuando hay error
   if (loading) return <div>Cargando…</div>
   if (data.length === 0) return (
     <div className="text-center py-8">

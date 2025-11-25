@@ -312,25 +312,7 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
   }
 
   if (error) {
-    return (
-      <div className="text-center text-red-600 p-4">
-        <div className="mb-2">
-          <svg className="mx-auto h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-          </svg>
-        </div>
-        <h3 className="text-sm font-medium mb-1">Error cargando datos</h3>
-        <p className="text-xs">{error}</p>
-        {debugInfo.length > 0 && (
-          <div className="mt-2 max-h-16 overflow-y-auto bg-gray-100 p-2 rounded text-xs">
-            <strong>Debug:</strong>
-            {debugInfo.slice(-3).map((info, index) => (
-              <div key={index}>{info}</div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
+    return null; // No mostrar nada cuando hay error
   }
 
   if (data.length === 0) {
