@@ -6,9 +6,10 @@ interface QuickActionsProps {
   handleNewSystem: () => void
   handleNewVariable: () => void
   handleNewParameter: () => void
+  handleNavigateToHistoricos: () => void
 }
 
-const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport, handleNewSystem, handleNewVariable, handleNewParameter }) => (
+const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport, handleNewSystem, handleNewVariable, handleNewParameter, handleNavigateToHistoricos }) => (
   <div className="row mb-4">
     <div className="col-12">
       <div className="card shadow-sm border-0">
@@ -55,6 +56,19 @@ const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport, handleNewS
                   </div>
                   <h6 className="action-title">Gestión Parámetros</h6>
                   <p className="action-description">Editar parámetros</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Históricos */}
+            <div className="col-lg-3 col-md-6 mb-3">
+              <div className="action-card h-100" onClick={handleNavigateToHistoricos}>
+                <div className="action-card-body">
+                  <div className="action-icon bg-info">
+                    <i className="material-icons">timeline</i>
+                  </div>
+                  <h6 className="action-title">Históricos</h6>
+                  <p className="action-description">Ver datos históricos</p>
                 </div>
               </div>
             </div>
