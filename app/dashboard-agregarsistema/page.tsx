@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2, Plus, Edit, Save, Check } from "lucide-react"
+import { Trash2, Plus, Edit, Save, Check, ChevronUp, ChevronDown } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { v4 as uuidv4 } from "uuid"
 import ProtectedRoute from "@/components/ProtectedRoute"
@@ -51,6 +51,7 @@ interface System {
   nombre: string
   descripcion: string
   planta_id: string
+  orden?: number
 }
 
 interface Parameter {
@@ -541,10 +542,17 @@ export default function ParameterManager() {
         throw new Error(errorData.message || "No se pudieron cargar los sistemas para la planta.")
       }
       const data = await res.json()
-      setSystems(data.procesos || [])
-      if (data.procesos.length > 0 && !data.procesos.some((sys: System) => sys.id === selectedSystemId)) {
-        setSelectedSystemId(data.procesos[0].id) // Select the first system by default if current is invalid
-      } else if (data.procesos.length === 0) {
+      const sistemas = data.procesos || []
+      // El backend ya devuelve los sistemas ordenados por 'orden', pero ordenamos por si acaso
+      const sistemasOrdenados = sistemas.sort((a: System, b: System) => {
+        const ordenA = a.orden ?? 999999
+        const ordenB = b.orden ?? 999999
+        return ordenA - ordenB
+      })
+      setSystems(sistemasOrdenados)
+      if (sistemasOrdenados.length > 0 && !sistemasOrdenados.some((sys: System) => sys.id === selectedSystemId)) {
+        setSelectedSystemId(sistemasOrdenados[0].id) // Select the first system by default if current is invalid
+      } else if (sistemasOrdenados.length === 0) {
         setSelectedSystemId(null)
       }
     } catch (e: any) {
@@ -880,6 +888,21 @@ export default function ParameterManager() {
     setLoading(true)
     setError(null)
     try {
+      // Calcular el siguiente orden (máximo orden + 1, o 0 si no hay sistemas)
+      // Si no hay sistemas o todos tienen orden null/undefined, empezar en 0
+      let nuevoOrden = 0
+      if (systems.length > 0) {
+        const ordenesExistentes = systems
+          .map(s => s.orden)
+          .filter(orden => orden !== null && orden !== undefined) as number[]
+        
+        if (ordenesExistentes.length > 0) {
+          nuevoOrden = Math.max(...ordenesExistentes) + 1
+        } else {
+          nuevoOrden = systems.length // Si no hay órdenes, usar la cantidad de sistemas
+        }
+      }
+
       const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEM_CREATE}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -887,6 +910,7 @@ export default function ParameterManager() {
           nombre: newSystemName,
           descripcion: newSystemDescription,
           planta_id: selectedPlant.id,
+          orden: nuevoOrden,
         }),
       })
       if (!res.ok) {
@@ -899,6 +923,106 @@ export default function ParameterManager() {
       await handleSelectPlant(selectedPlant.id) // Refetch systems for the selected plant
     } catch (e: any) {
       setError(`Error al crear sistema: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Función para mover un sistema hacia arriba
+  const handleMoveSystemUp = async (system: System) => {
+    const currentIndex = systems.findIndex(s => s.id === system.id)
+    if (currentIndex <= 0) return // Ya está en la primera posición
+
+    const prevSystem = systems[currentIndex - 1]
+    
+    // Usar los valores reales de orden, si no existen, usar el índice como fallback
+    const currentOrden = system.orden ?? currentIndex
+    const prevOrden = prevSystem.orden ?? currentIndex - 1
+
+    setLoading(true)
+    setError(null)
+    try {
+      // Intercambiar los órdenes
+      const [res1, res2] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/procesos/${system.id}`, {
+          method: 'PATCH',
+          headers: { 
+            'Content-Type': 'application/json', 
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({ orden: prevOrden }),
+        }),
+        fetch(`${API_BASE_URL}/api/procesos/${prevSystem.id}`, {
+          method: 'PATCH',
+          headers: { 
+            'Content-Type': 'application/json', 
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({ orden: currentOrden }),
+        }),
+      ])
+
+      if (!res1.ok || !res2.ok) {
+        const errorData1 = await res1.json().catch(() => ({}))
+        const errorData2 = await res2.json().catch(() => ({}))
+        throw new Error(errorData1.msg || errorData2.msg || 'Error al actualizar el orden')
+      }
+
+      // Recargar los sistemas para reflejar el nuevo orden
+      await handleSelectPlant(selectedPlant!.id)
+    } catch (e: any) {
+      setError(`Error al mover sistema: ${e.message}`)
+      console.error('Error al mover sistema hacia arriba:', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Función para mover un sistema hacia abajo
+  const handleMoveSystemDown = async (system: System) => {
+    const currentIndex = systems.findIndex(s => s.id === system.id)
+    if (currentIndex >= systems.length - 1) return // Ya está en la última posición
+
+    const nextSystem = systems[currentIndex + 1]
+    
+    // Usar los valores reales de orden, si no existen, usar el índice como fallback
+    const currentOrden = system.orden ?? currentIndex
+    const nextOrden = nextSystem.orden ?? currentIndex + 1
+
+    setLoading(true)
+    setError(null)
+    try {
+      // Intercambiar los órdenes
+      const [res1, res2] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/procesos/${system.id}`, {
+          method: 'PATCH',
+          headers: { 
+            'Content-Type': 'application/json', 
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({ orden: nextOrden }),
+        }),
+        fetch(`${API_BASE_URL}/api/procesos/${nextSystem.id}`, {
+          method: 'PATCH',
+          headers: { 
+            'Content-Type': 'application/json', 
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({ orden: currentOrden }),
+        }),
+      ])
+
+      if (!res1.ok || !res2.ok) {
+        const errorData1 = await res1.json().catch(() => ({}))
+        const errorData2 = await res2.json().catch(() => ({}))
+        throw new Error(errorData1.msg || errorData2.msg || 'Error al actualizar el orden')
+      }
+
+      // Recargar los sistemas para reflejar el nuevo orden
+      await handleSelectPlant(selectedPlant!.id)
+    } catch (e: any) {
+      setError(`Error al mover sistema: ${e.message}`)
+      console.error('Error al mover sistema hacia abajo:', e)
     } finally {
       setLoading(false)
     }
@@ -1406,7 +1530,35 @@ export default function ParameterManager() {
                                  }`}
                                >
                                  <div className="flex-grow flex items-center justify-center text-center font-semibold">{system.nombre}</div>
-                                 <div className="flex justify-center mt-3 pt-3 border-t border-gray-300 border-opacity-30">
+                                 <div className="flex justify-center items-center gap-1 mt-3 pt-3 border-t border-gray-300 border-opacity-30">
+                                   {/* Botones de orden */}
+                                   <div className="flex flex-col gap-1">
+                                     <button
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         handleMoveSystemUp(system);
+                                       }}
+                                       disabled={systems.findIndex(s => s.id === system.id) === 0 || loading}
+                                       className="px-2 py-1 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                                       aria-label={`Mover ${system.nombre} hacia arriba`}
+                                       title="Mover hacia arriba"
+                                     >
+                                       <ChevronUp className="h-3 w-3" />
+                                     </button>
+                                     <button
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         handleMoveSystemDown(system);
+                                       }}
+                                       disabled={systems.findIndex(s => s.id === system.id) === systems.length - 1 || loading}
+                                       className="px-2 py-1 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                                       aria-label={`Mover ${system.nombre} hacia abajo`}
+                                       title="Mover hacia abajo"
+                                     >
+                                       <ChevronDown className="h-3 w-3" />
+                                     </button>
+                                   </div>
+                                   <div className="w-2"></div>
                                    <button
                                      onClick={(e) => {
                                        e.stopPropagation();
