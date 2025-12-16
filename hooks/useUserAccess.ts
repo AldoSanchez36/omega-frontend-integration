@@ -30,6 +30,7 @@ interface System {
   planta_id: string
   type?: string
   status?: string
+  orden?: number
 }
 
 interface UseUserAccessReturn {
@@ -256,9 +257,16 @@ export function useUserAccess(token: string | null, options: UseUserAccessOption
         throw new Error(errorData.message || "No se pudieron cargar los sistemas para la planta.")
       }
       const data = await res.json()
-      setSystems(data.procesos || [])
-      if (data.procesos.length > 0 && autoSelectFirstSystem) {
-        setSelectedSystem(data.procesos[0].id)
+      const sistemas = data.procesos || []
+      // Ordenar sistemas por el campo 'orden', si no existe usar el orden actual
+      const sistemasOrdenados = sistemas.sort((a: System, b: System) => {
+        const ordenA = a.orden ?? 999999
+        const ordenB = b.orden ?? 999999
+        return ordenA - ordenB
+      })
+      setSystems(sistemasOrdenados)
+      if (sistemasOrdenados.length > 0 && autoSelectFirstSystem) {
+        setSelectedSystem(sistemasOrdenados[0].id)
       }
     } catch (e: any) {
       setError(`Error al cargar sistemas: ${e.message}`)

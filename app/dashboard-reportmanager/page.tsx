@@ -50,6 +50,7 @@ interface System {
   planta_id: string
   type?: string
   status?: string
+  orden?: number
 }
 
 interface Parameter {

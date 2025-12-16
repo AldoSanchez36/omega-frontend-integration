@@ -82,6 +82,7 @@ export default function Dashboard() {
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
   const [dashboardResumen, setDashboardResumen] = useState<{ plantas: number; procesos: number; variables: number; reportes: number } | null>(null)
   const [historicalData, setHistoricalData] = useState<Record<string, any[]>>({});
+  const [totalHistoricos, setTotalHistoricos] = useState<number>(0);
   const today = new Date();
   const defaultStartDate = `${today.getFullYear()}-01-01`;
   const defaultEndDate = today.toISOString().slice(0, 10);
@@ -286,6 +287,11 @@ export default function Dashboard() {
   const handleNewParameters = () => {
     /* addDebugLog("Nuevo Parametro clickeado - redirigiendo a parámetros") */
     router.push("/dashboard-parameters")
+  }
+
+  const handleNavigateToHistoricos = () => {
+    /* addDebugLog("Históricos clickeado - redirigiendo a dashboard-historicos") */
+    router.push("/dashboard-historicos")
   }
 
   // look repots for client
@@ -654,6 +660,10 @@ export default function Dashboard() {
         }
       }
       setHistoricalData(allData);
+      
+      // Calcular total de puntos de datos históricos
+      const total = Object.values(allData).reduce((sum, dataArray) => sum + dataArray.length, 0);
+      setTotalHistoricos(total);
     };
 
     fetchAllHistoricalData();
@@ -689,7 +699,7 @@ export default function Dashboard() {
 
 
         {/* Stats Cards */}
-        <StatsCards dashboardResumen={dashboardResumen} userRole={userRole} />
+        <StatsCards dashboardResumen={dashboardResumen} userRole={userRole} totalHistoricos={totalHistoricos} />
 
         {/* Quick Actions */}
         {userRole === "admin" && (
@@ -698,6 +708,7 @@ export default function Dashboard() {
             handleNewVariable={handleNewVariable}
             handleNewSystem={handleNewSystem}
             handleNewParameter={handleNewParameters}
+            handleNavigateToHistoricos={handleNavigateToHistoricos}
           />
         )}
         {userRole === "user" && (
