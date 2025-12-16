@@ -59,6 +59,7 @@ interface Parameter {
   nombre: string
   unidad: string
   proceso_id: string
+  orden?: number
   isNew?: boolean
   /** Valor mínimo dentro del rango recomendado (limite inferior) */
   limMin?: string
@@ -734,6 +735,7 @@ export default function ParameterManager() {
         (data.variables || []).map((p: any) => ({
           ...p,
           // Si el backend ya devuelve estos campos, se conservarán; de lo contrario se inicializan.
+          orden: p.orden ?? null,
           limMin: p.limMin ?? "",
           limMinActive: p.limMinActive ?? false,
           limMax: p.limMax ?? "",
@@ -741,7 +743,13 @@ export default function ParameterManager() {
           goodMin: p.goodMin ?? "",
           goodMax: p.goodMax ?? "",
         })) || []
-      setParameters(mappedParams)
+      // Ordenar por orden
+      const sortedParams = mappedParams.sort((a: Parameter, b: Parameter) => {
+        const ordenA = a.orden ?? 999999
+        const ordenB = b.orden ?? 999999
+        return ordenA - ordenB
+      })
+      setParameters(sortedParams)
     } catch (e: any) {
       setError(`Error al cargar parámetros: ${e.message}`)
     } finally {
@@ -978,6 +986,106 @@ export default function ParameterManager() {
     }
   }
 
+  // Función para mover un parámetro hacia arriba
+  const handleMoveParameterUp = async (param: Parameter) => {
+    const currentIndex = parameters.findIndex(p => p.id === param.id)
+    if (currentIndex <= 0) return // Ya está en la primera posición
+
+    const prevParam = parameters[currentIndex - 1]
+    
+    // Usar los valores reales de orden, si no existen, usar el índice como fallback
+    const currentOrden = param.orden ?? currentIndex
+    const prevOrden = prevParam.orden ?? currentIndex - 1
+
+    setLoading(true)
+    setError(null)
+    try {
+      // Intercambiar los órdenes
+      const [res1, res2] = await Promise.all([
+        fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE_ORDER(param.id, selectedSystemId!)}`, {
+          method: 'PATCH',
+          headers: { 
+            'Content-Type': 'application/json', 
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({ orden: prevOrden }),
+        }),
+        fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE_ORDER(prevParam.id, selectedSystemId!)}`, {
+          method: 'PATCH',
+          headers: { 
+            'Content-Type': 'application/json', 
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({ orden: currentOrden }),
+        }),
+      ])
+
+      if (!res1.ok || !res2.ok) {
+        const errorData1 = await res1.json().catch(() => ({}))
+        const errorData2 = await res2.json().catch(() => ({}))
+        throw new Error(errorData1.msg || errorData2.msg || 'Error al actualizar el orden')
+      }
+
+      // Recargar los parámetros para reflejar el nuevo orden
+      await fetchParameters()
+    } catch (e: any) {
+      setError(`Error al mover parámetro: ${e.message}`)
+      console.error('Error al mover parámetro hacia arriba:', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Función para mover un parámetro hacia abajo
+  const handleMoveParameterDown = async (param: Parameter) => {
+    const currentIndex = parameters.findIndex(p => p.id === param.id)
+    if (currentIndex >= parameters.length - 1) return // Ya está en la última posición
+
+    const nextParam = parameters[currentIndex + 1]
+    
+    // Usar los valores reales de orden, si no existen, usar el índice como fallback
+    const currentOrden = param.orden ?? currentIndex
+    const nextOrden = nextParam.orden ?? currentIndex + 1
+
+    setLoading(true)
+    setError(null)
+    try {
+      // Intercambiar los órdenes
+      const [res1, res2] = await Promise.all([
+        fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE_ORDER(param.id, selectedSystemId!)}`, {
+          method: 'PATCH',
+          headers: { 
+            'Content-Type': 'application/json', 
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({ orden: nextOrden }),
+        }),
+        fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE_ORDER(nextParam.id, selectedSystemId!)}`, {
+          method: 'PATCH',
+          headers: { 
+            'Content-Type': 'application/json', 
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({ orden: currentOrden }),
+        }),
+      ])
+
+      if (!res1.ok || !res2.ok) {
+        const errorData1 = await res1.json().catch(() => ({}))
+        const errorData2 = await res2.json().catch(() => ({}))
+        throw new Error(errorData1.msg || errorData2.msg || 'Error al actualizar el orden')
+      }
+
+      // Recargar los parámetros para reflejar el nuevo orden
+      await fetchParameters()
+    } catch (e: any) {
+      setError(`Error al mover parámetro: ${e.message}`)
+      console.error('Error al mover parámetro hacia abajo:', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Función para mover un sistema hacia abajo
   const handleMoveSystemDown = async (system: System) => {
     const currentIndex = systems.findIndex(s => s.id === system.id)
@@ -1096,11 +1204,25 @@ export default function ParameterManager() {
       alert("Por favor, ingrese un nombre para el parámetro y seleccione un sistema.")
       return
     }
+    // Calcular el siguiente orden (máximo orden + 1, o 0 si no hay parámetros)
+    let nuevoOrden = 0
+    if (parameters.length > 0) {
+      const ordenesExistentes = parameters
+        .map(p => p.orden)
+        .filter(orden => orden !== null && orden !== undefined) as number[]
+      
+      if (ordenesExistentes.length > 0) {
+        nuevoOrden = Math.max(...ordenesExistentes) + 1
+      } else {
+        nuevoOrden = parameters.length // Si no hay órdenes, usar la cantidad de parámetros
+      }
+    }
     const newParam: Parameter = {
       id: uuidv4(), // Generate a unique ID for client-side tracking
       nombre: newParameterName.trim(),
       unidad: newParameterUnit.trim(),
       proceso_id: selectedSystemId,
+      orden: nuevoOrden,
       isNew: true, // Mark as new for saving later
       // Inicializa los campos de límites para nuevos parámetros
       limMin: "",
@@ -1243,11 +1365,26 @@ export default function ParameterManager() {
       return;
     }
 
+    // Calcular el orden inicial para los parámetros importados
+    let ordenInicial = 0
+    if (parameters.length > 0) {
+      const ordenesExistentes = parameters
+        .map(p => p.orden)
+        .filter(orden => orden !== null && orden !== undefined) as number[]
+      
+      if (ordenesExistentes.length > 0) {
+        ordenInicial = Math.max(...ordenesExistentes) + 1
+      } else {
+        ordenInicial = parameters.length
+      }
+    }
+
     // Agregar los parámetros al sistema actual
-    const newParameters: Parameter[] = parametersToImport.map(param => ({
+    const newParameters: Parameter[] = parametersToImport.map((param, index) => ({
       ...param,
       id: uuidv4(), // Nuevo ID para evitar conflictos
       proceso_id: selectedSystemId, // Cambiar al sistema actual
+      orden: ordenInicial + index, // Asignar orden secuencial
       isNew: true, // Marcar como nuevo para guardar
     }));
 
@@ -1308,6 +1445,7 @@ export default function ParameterManager() {
             nombre: param.nombre,
             unidad: param.unidad,
             proceso_id: param.proceso_id,
+            orden: param.orden,
           }),
         })
         if (!res.ok) {
@@ -1908,7 +2046,38 @@ export default function ParameterManager() {
                               const usarLimiteMax = !!tolerancias[param.id]?.usar_limite_max;
                               return (
                                 <TableRow key={param.id}>
-                                  <TableCell className="font-medium">{param.nombre}</TableCell>
+                                  <TableCell className="font-medium">
+                                    <div className="flex items-center gap-2">
+                                      {/* Botones de orden */}
+                                      <div className="flex flex-col gap-1">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleMoveParameterUp(param);
+                                          }}
+                                          disabled={parameters.findIndex(p => p.id === param.id) === 0 || loading}
+                                          className="px-2 py-1 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                                          aria-label={`Mover ${param.nombre} hacia arriba`}
+                                          title="Mover hacia arriba"
+                                        >
+                                          <ChevronUp className="h-3 w-3" />
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleMoveParameterDown(param);
+                                          }}
+                                          disabled={parameters.findIndex(p => p.id === param.id) === parameters.length - 1 || loading}
+                                          className="px-2 py-1 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+                                          aria-label={`Mover ${param.nombre} hacia abajo`}
+                                          title="Mover hacia abajo"
+                                        >
+                                          <ChevronDown className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                      <span>{param.nombre}</span>
+                                    </div>
+                                  </TableCell>
                                   <TableCell>{param.unidad}</TableCell>
                                   <TableCell className="text-right">
                                     <div className="flex flex-col items-end gap-2">
