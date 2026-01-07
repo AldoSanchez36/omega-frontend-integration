@@ -15,10 +15,10 @@ import { useUserAccess } from "@/hooks/useUserAccess"
 import { useMeasurements } from "@/hooks/useMeasurements";
 import { useTolerances } from "@/hooks/useTolerances"
 
-import UserPlantSelector from "./components/UserPlantSelector"
-import SystemSelector from "./components/SystemSelector"
+import TabbedSelector from "./components/TabbedSelector"
 import ParametersList from "./components/ParametersList"
 import Charts from "./components/Charts"
+import ScrollArrow from "./components/ScrollArrow"
 
 // Interfaces
 interface User {
@@ -662,31 +662,27 @@ export default function ReportManager() {
             <p className="text-gray-600">Selecciona parámetros y genera reportes personalizados</p>
           </div>
 
-          <UserPlantSelector
+          <TabbedSelector
             displayedUsers={displayedUsers}
             displayedPlants={selectedUser ? plants : displayedPlants}
+            systems={systems}
             selectedUser={selectedUser}
             selectedPlant={selectedPlant}
+            selectedSystem={selectedSystem}
+            selectedSystemData={selectedSystemData}
             handleSelectUser={handleSelectUserWithReset}
             handleSelectPlant={handleSelectPlantWithReset}
-            isPlantSelectorDisabled={!selectedUser}
+            setSelectedSystem={setSelectedSystem}
+            plantName={selectedPlantData?.nombre || ""}
+            globalFecha={globalFecha}
+            globalComentarios={globalComentarios}
+            handleGlobalFechaChange={setGlobalFecha}
+            handleGlobalComentariosChange={setGlobalComentarios}
+            ocultarFecha={globalFecha !== ""}
+            onSaveData={handleSaveData}
+            onGenerateReport={handleGenerateReport}
+            isGenerateDisabled={isGenerateDisabled}
           />
-
-          {selectedPlantData && systems.length > 0 && (
-            <SystemSelector
-              systems={systems}
-              selectedSystem={selectedSystem}
-              selectedSystemData={selectedSystemData}
-              setSelectedSystem={setSelectedSystem}
-              plantName={selectedPlantData.nombre}
-              globalFecha={globalFecha}
-              globalComentarios={globalComentarios}
-              handleGlobalFechaChange={setGlobalFecha}
-              handleGlobalComentariosChange={setGlobalComentarios}
-              hasCheckedParameters={Object.values(parameterValues).some(value => value.checked)}
-              ocultarFecha={globalFecha !== ""}
-            />
-          )}
 
           {/* Parámetros */}
           {selectedSystemData && parameters.length > 0 && (
@@ -821,6 +817,7 @@ export default function ReportManager() {
           
 
         </div>
+        <ScrollArrow />
       </div>
     </ProtectedRoute>
   )
