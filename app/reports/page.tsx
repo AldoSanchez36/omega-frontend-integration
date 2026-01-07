@@ -1,16 +1,14 @@
 "use client"
 
 import ProtectedRoute from "@/components/ProtectedRoute"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { jsPDF } from "jspdf"
 import autoTable from "jspdf-autotable"
 import Navbar from "@/components/Navbar"
-import html2canvas from "html2canvas"
-import { SensorTimeSeriesChart } from "@/components/SensorTimeSeriesChart"
-import { MesureTable } from "@/components/MesureTable-fixed-auth"
+import { SensorTimeSeriesChart, type ChartExportRef } from "@/components/SensorTimeSeriesChart"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 
 
@@ -28,98 +26,9 @@ interface RangeLimits {
     fuera: string
     limite: string
     bien: string
-    } 
   }
+}
 
-  // Exportar DOM a PDF con html2canvas (captura exacta de lo que se ve)
-  const exportDOMToPDF = async (reportSelection: ReportSelection | null) => {
-    try {
-      console.log("🎯 Iniciando exportDOMToPDF...");
-      
-      const wrapper = document.getElementById("reporte-pdf-wrapper") as HTMLElement | null;
-      if (!wrapper) throw new Error("Elemento 'reporte-pdf-wrapper' no encontrado");
-      
-      console.log("📦 Wrapper encontrado:", wrapper);
-
-      // Esperar a que las imágenes dentro del wrapper estén listas
-      const imgs = Array.from(wrapper.querySelectorAll("img"));
-      console.log("🖼️ Imágenes encontradas:", imgs.length);
-      
-      await Promise.all(
-        imgs.map((img) =>
-          img.complete && img.naturalWidth !== 0
-            ? Promise.resolve()
-            : new Promise<void>((res) => {
-                img.onload = () => res();
-                img.onerror = () => res(); // no bloquear si falla
-              })
-        )
-      );
-
-      console.log("🎨 Capturando con html2canvas...");
-      // Capturar a canvas
-      const canvas = await html2canvas(wrapper, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: true,
-        windowWidth: document.documentElement.clientWidth,
-        scrollX: 0,
-        scrollY: -window.scrollY,
-      });
-
-      console.log("🖼️ Canvas creado:", { width: canvas.width, height: canvas.height });
-      const imgData = canvas.toDataURL("image/png");
-
-      console.log("📄 Creando PDF...");
-      // Crear PDF A4 y paginar si es alto
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-
-      // Márgenes: 10mm en cada lado (superior, inferior, izquierdo, derecho)
-      const marginTop = 10;
-      const marginBottom = 10;
-      const marginLeft = 10;
-      const marginRight = 10;
-      const contentWidth = pageWidth - marginLeft - marginRight;
-      const contentHeight = pageHeight - marginTop - marginBottom;
-
-      const imgWidth = contentWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      console.log("📐 Dimensiones PDF:", { pageWidth, pageHeight, imgWidth, imgHeight, contentWidth, contentHeight });
-
-      if (imgHeight <= contentHeight) {
-        console.log("📄 Agregando imagen a una página");
-        pdf.addImage(imgData, "PNG", marginLeft, marginTop, imgWidth, imgHeight);
-      } else {
-        console.log("📄 Agregando imagen a múltiples páginas");
-        let y = 0;
-        let page = 1;
-        while (y < imgHeight) {
-          console.log(`🧾 Renderizando página ${page}, offsetY=${y.toFixed(2)}mm`);
-          pdf.addImage(imgData, "PNG", marginLeft, marginTop - y, imgWidth, imgHeight);
-          y += contentHeight;
-          if (y < imgHeight) {
-            pdf.addPage();
-            page++;
-          }
-        }
-      }
-
-      const fileName = `Reporte_${(reportSelection?.plant?.nombre || "General").replace(/\s+/g, "_")}_${new Date().toISOString().slice(0,10)}.pdf`;
-      console.log("💾 Descargando PDF:", fileName);
-      pdf.save(fileName);
-      
-      console.log("✅ PDF descargado exitosamente");
-      alert("✅ PDF descargado exitosamente!");
-      
-    } catch (error) {
-      console.error("❌ Error en exportDOMToPDF:", error);
-      throw error;
-    }
-  };
 
 
 // Estructura para la fecha en formato día, mes (texto), año
@@ -222,6 +131,14 @@ export default function Reporte() {
   // Estado para gráficos
   const [selectedVariableForChart, setSelectedVariableForChart] = useState<string>("")
   
+  // Refs para exportar gráficos directamente desde los componentes
+  const chartRefs = useRef<Map<string, ChartExportRef>>(new Map())
+  
+  // Función para obtener o crear ref para un gráfico
+  const getChartRef = (variableName: string): ChartExportRef | null => {
+    return chartRefs.current.get(variableName) || null
+  }
+  
   // Función para manejar cambios en comentarios de parámetros
   const handleParameterCommentChange = (variableName: string, comment: string) => {
     const newComments = {
@@ -274,17 +191,23 @@ export default function Reporte() {
     // Verificar si las imágenes existen
     setImagesLoaded(true);
 
+    // Asegurar que solo se ejecute en el cliente
+    if (typeof window === 'undefined') return;
+
     // Obtener usuario y rol
-    if (typeof window !== 'undefined') {
       const storedUser = localStorage.getItem('Organomex_user')
       if (storedUser) {
+      try {
         const userData = JSON.parse(storedUser)
         setUser(userData)
         setUserRole(userData.puesto || "user")
+      } catch (error) {
+        console.error("Error parsing user data:", error)
       }
     }
 
     // Obtener reportSelection
+    try {
     const reportSelectionRaw = localStorage.getItem("reportSelection");
     const parsedReportSelection = reportSelectionRaw ? JSON.parse(reportSelectionRaw) : null;
     console.log("📄 Reports - Datos recibidos del localStorage:", parsedReportSelection);
@@ -295,9 +218,12 @@ export default function Reporte() {
     // Cargar comentarios guardados si existen
     if (parsedReportSelection?.parameterComments) {
       setParameterComments(parsedReportSelection.parameterComments);
+      }
+    } catch (error) {
+      console.error("Error parsing report selection:", error)
     }
 
-    // Obtener fecha actual
+    // Obtener fecha actual (solo en cliente para evitar diferencias de hidratación)
     const today = new Date()
     const formattedDate = today.toLocaleDateString("es-ES", {
       year: "numeric",
@@ -720,6 +646,351 @@ export default function Reporte() {
     }
   }
 
+  // Función para exportar gráfico desde el componente usando ref
+  const exportChartFromComponent = async (variableName: string): Promise<string | null> => {
+    try {
+      const chartRef = chartRefs.current.get(variableName);
+      if (!chartRef) {
+        console.warn(`⚠️ No se encontró ref para el gráfico: ${variableName}`);
+        return null;
+      }
+      
+      console.log(`📸 Exportando gráfico desde componente: ${variableName}`);
+      const imageData = await chartRef.exportAsImage();
+      
+      if (imageData) {
+        console.log(`✅ Gráfico ${variableName} exportado: ${(imageData.length / 1024).toFixed(2)}KB`);
+          } else {
+        console.warn(`⚠️ No se pudo exportar el gráfico: ${variableName}`);
+      }
+      
+      return imageData;
+    } catch (error) {
+      console.error(`❌ Error exportando gráfico ${variableName}:`, error);
+      return null;
+    }
+  };
+
+  // Función para cargar imagen y convertir a base64
+  const loadImageAsBase64 = (url: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('No se pudo obtener contexto del canvas'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = () => reject(new Error('Error cargando imagen'));
+      img.src = url.startsWith('/') ? window.location.origin + url : url;
+    });
+  };
+
+  // Exportar a PDF usando jsPDF y AutoTable directamente
+  const exportDOMToPDF = async (reportSelection: ReportSelection | null) => {
+    try {
+      console.log("🎯 Iniciando generación de PDF con jsPDF y AutoTable...");
+      
+      if (!reportSelection) {
+        throw new Error("No hay datos de reporte disponibles");
+      }
+
+      // Crear PDF
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pageWidthMM = pdf.internal.pageSize.getWidth(); // 210mm
+      const pageHeightMM = pdf.internal.pageSize.getHeight(); // 297mm
+      const contentWidthMM = pageWidthMM * 0.7; // 70% del ancho: ~147mm
+      const marginLeft = (pageWidthMM - contentWidthMM) / 2; // Centrar el contenido
+      const marginTop = 20;
+      const marginBottom = 20;
+      let currentY = marginTop;
+      const spacingMM = 8;
+
+      // Función para verificar espacio y agregar nueva página
+      const checkSpaceAndAddPage = (elementHeightMM: number, currentY: number): number => {
+        const margin = 10;
+        const availableSpace = pageHeightMM - currentY - marginBottom - margin;
+        
+        if (elementHeightMM > availableSpace) {
+          pdf.addPage();
+          return marginTop;
+        }
+        return currentY;
+      };
+
+      // Cargar header y footer si existen
+      let headerData: string | null = null;
+      let footerData: string | null = null;
+      
+      try {
+        const headerImg = document.querySelector('#header-img img') as HTMLImageElement;
+        if (headerImg?.src) {
+          headerData = await loadImageAsBase64(headerImg.src);
+        }
+      } catch (error) {
+        console.warn("⚠️ No se pudo cargar header:", error);
+      }
+
+      try {
+        const footerImg = document.querySelector('#footer-img img') as HTMLImageElement;
+        if (footerImg?.src) {
+          footerData = await loadImageAsBase64(footerImg.src);
+          }
+        } catch (error) {
+        console.warn("⚠️ No se pudo cargar footer:", error);
+      }
+
+      // Agregar header
+      if (headerData) {
+        const headerImg = new window.Image();
+        headerImg.src = headerData;
+        await new Promise((resolve) => {
+          headerImg.onload = () => {
+            const headerHeightMM = (headerImg.height / headerImg.width) * pageWidthMM;
+            pdf.addImage(headerData!, "JPEG", 0, 0, pageWidthMM, headerHeightMM);
+            currentY = headerHeightMM + spacingMM;
+            resolve(null);
+          };
+          headerImg.onerror = () => resolve(null);
+        });
+      }
+
+      // Información del reporte
+      pdf.setFontSize(12);
+      const reportInfo = [
+        `Dirigido a: ${reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING."}`,
+        `Asunto: ${reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente || `REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE ${reportSelection?.plant?.nombre || "NOMBRE DE LA PLANTA"}`}`,
+        `Sistema Evaluado: ${reportNotes["sistema"] || reportSelection?.systemName || "Todos los sistemas"}`,
+        `Fecha de muestra: ${reportSelection?.fecha || currentDate}`,
+      ];
+
+      reportInfo.forEach((line, index) => {
+        currentY = checkSpaceAndAddPage(10, currentY);
+        const lines = pdf.splitTextToSize(line, contentWidthMM);
+        pdf.text(lines, marginLeft, currentY);
+        currentY += lines.length * 5 + 2;
+      });
+
+      currentY += spacingMM;
+
+      // Leyenda de colores usando AutoTable
+      currentY = checkSpaceAndAddPage(30, currentY);
+      pdf.setFontSize(14);
+      pdf.text("Leyenda de colores", marginLeft, currentY);
+      currentY += 8;
+
+      const legendData = [
+        ["Estado", "Descripción"],
+        ["Fuera", "FUERA DE RANGO"],
+        ["Límite", "CERCA DE LÍMITE RECOMENDADO"],
+        ["Bien", "DENTRO DE RANGO ÓPTIMO"],
+      ];
+
+      autoTable(pdf, {
+        head: [legendData[0]],
+        body: legendData.slice(1),
+        startY: currentY,
+        theme: "grid",
+        headStyles: { fillColor: [66, 139, 202] },
+        didParseCell: (data: any) => {
+          if (data.section === 'body' && data.row.index !== undefined) {
+            if (data.row.index === 0) {
+              data.cell.styles.fillColor = [255, 198, 206]; // Rojo para "Fuera"
+            } else if (data.row.index === 1) {
+              data.cell.styles.fillColor = [255, 235, 156]; // Amarillo para "Límite"
+            } else if (data.row.index === 2) {
+              data.cell.styles.fillColor = [197, 238, 206]; // Verde para "Bien"
+            }
+          }
+        },
+        margin: { left: marginLeft, right: marginLeft },
+        styles: { fontSize: 10 },
+      });
+
+      currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
+
+      // Capturar y agregar gráficos
+      console.log("📊 Buscando sección de gráficos...");
+      
+      // Calcular variables disponibles para verificar si hay gráficos
+      const variablesDisponibles = (() => {
+        const variablesMap = new Map<string, string>();
+        Object.values(reportSelection?.parameters || {}).forEach((systemData: any) => {
+          Object.entries(systemData).forEach(([variableName, paramData]: [string, any]) => {
+            if (!variablesMap.has(variableName) && paramData?.unidad) {
+              variablesMap.set(variableName, paramData.unidad);
+            }
+          });
+        });
+        return Array.from(variablesMap.entries()).map(([nombre, unidad]) => ({
+          id: nombre,
+          nombre: nombre,
+          unidad: unidad
+        }));
+      })();
+      
+      // Usar las fechas del estado o calcular si no están disponibles
+      const pdfChartStartDate = chartStartDate || (() => {
+        const today = new Date();
+        const startDateObj = new Date(today);
+        startDateObj.setMonth(today.getMonth() - 12);
+        return startDateObj.toISOString().split('T')[0];
+      })();
+      const pdfChartEndDate = chartEndDate || new Date().toISOString().split('T')[0];
+      
+      // Agregar título de sección de gráficos
+      const hasCharts = variablesDisponibles.length > 0;
+      if (hasCharts) {
+        currentY = checkSpaceAndAddPage(15, currentY);
+        pdf.setFontSize(14);
+        pdf.text("Gráficos de Series Temporales", marginLeft, currentY);
+        currentY += 8;
+        
+        // Agregar período
+        pdf.setFontSize(10);
+        const periodText = `Período: ${new Date(pdfChartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - ${new Date(pdfChartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)`;
+        pdf.text(periodText, marginLeft, currentY);
+        currentY += spacingMM;
+      }
+      
+      // Exportar gráficos directamente desde los componentes usando refs
+      if (hasCharts && variablesDisponibles.length > 0) {
+        console.log(`📊 Exportando ${variablesDisponibles.length} gráficos desde componentes...`);
+        
+        // Esperar un momento para que los gráficos se rendericen completamente
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        for (let i = 0; i < variablesDisponibles.length; i++) {
+          const variable = variablesDisponibles[i];
+          const variableName = variable.nombre;
+          const chartTitle = `${variableName} (${variable.unidad})`;
+          
+          console.log(`📸 Exportando gráfico ${i + 1}/${variablesDisponibles.length}: ${chartTitle}`);
+          
+          // Exportar gráfico desde el componente usando ref
+          const chartData = await exportChartFromComponent(variableName);
+          
+          if (chartData) {
+            console.log(`✅ Gráfico ${i + 1} exportado exitosamente`);
+            
+            const chartImg = new window.Image();
+            chartImg.src = chartData;
+            
+            await new Promise((resolve) => {
+              chartImg.onload = () => {
+                const chartHeightMM = (chartImg.height / chartImg.width) * contentWidthMM;
+                
+                // Agregar título del gráfico
+                currentY = checkSpaceAndAddPage(10 + chartHeightMM + spacingMM, currentY);
+                pdf.setFontSize(12);
+                pdf.text(chartTitle, marginLeft, currentY);
+                currentY += 8;
+                
+                // Agregar el gráfico
+                currentY = checkSpaceAndAddPage(chartHeightMM + spacingMM, currentY);
+                pdf.addImage(chartData, "JPEG", marginLeft, currentY, contentWidthMM, chartHeightMM);
+                currentY += chartHeightMM + spacingMM;
+                
+                // Buscar y agregar comentarios del gráfico si existen
+                const comment = parameterComments[variableName];
+                if (comment && comment.trim()) {
+                  currentY = checkSpaceAndAddPage(15, currentY);
+                  pdf.setFontSize(10);
+                  pdf.text("Comentarios:", marginLeft, currentY);
+                  currentY += 5;
+                  const commentLines = pdf.splitTextToSize(comment, contentWidthMM);
+                  pdf.text(commentLines, marginLeft, currentY);
+                  currentY += commentLines.length * 4 + spacingMM;
+                }
+                
+                console.log(`✅ Gráfico ${i + 1} agregado al PDF`);
+                resolve(null);
+              };
+              chartImg.onerror = () => {
+                console.error(`❌ Error cargando imagen del gráfico ${i + 1}`);
+                resolve(null);
+              };
+            });
+      } else {
+            console.warn(`⚠️ No se pudo exportar el gráfico ${i + 1}: ${chartTitle}`);
+          }
+        }
+      } else {
+        console.log("ℹ️ No hay gráficos para exportar");
+      }
+
+      // Comentarios globales
+      if (reportSelection.comentarios) {
+        currentY = checkSpaceAndAddPage(20, currentY);
+        pdf.setFontSize(12);
+        pdf.text("Comentarios globales:", marginLeft, currentY);
+        currentY += 6;
+        const commentLines = pdf.splitTextToSize(reportSelection.comentarios, contentWidthMM);
+        pdf.setFontSize(10);
+        pdf.text(commentLines, marginLeft, currentY);
+        currentY += commentLines.length * 5 + spacingMM;
+      }
+
+      // Detalles de mediciones
+      if (reportSelection.user) {
+        currentY = checkSpaceAndAddPage(30, currentY);
+        pdf.setFontSize(14);
+        pdf.text("Detalles de Mediciones", marginLeft, currentY);
+        currentY += 8;
+        pdf.setFontSize(10);
+        pdf.text(`Planta: ${reportSelection.user.username}`, marginLeft, currentY);
+        currentY += 5;
+        pdf.text(`Sistema: ${reportSelection.systemName}`, marginLeft, currentY);
+        currentY += 5;
+        pdf.text(`Generado por: ${reportSelection.user.username}`, marginLeft, currentY);
+        currentY += 5;
+        pdf.text(`Fecha de generación: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleString('es-ES')}`, marginLeft, currentY);
+        currentY += spacingMM;
+    }
+
+    // Agregar footer a la última página
+      if (footerData) {
+    const totalPages = pdf.internal.pages.length;
+    pdf.setPage(totalPages);
+        const footerImg = new window.Image();
+        footerImg.src = footerData;
+        await new Promise((resolve) => {
+          footerImg.onload = () => {
+            const footerHeightMM = (footerImg.height / footerImg.width) * pageWidthMM;
+            const footerY = pageHeightMM - footerHeightMM - marginBottom;
+            pdf.addImage(footerData!, "JPEG", 0, footerY, pageWidthMM, footerHeightMM);
+            resolve(null);
+          };
+          footerImg.onerror = () => resolve(null);
+        });
+      }
+
+      // Descargar PDF
+    const fileName = `Reporte_${(reportSelection?.plant?.nombre || "General").replace(/\s+/g, "_")}_${new Date().toISOString().slice(0,10)}.pdf`;
+    console.log("💾 Descargando PDF:", fileName);
+    pdf.save(fileName);
+    
+    console.log("✅ PDF descargado exitosamente");
+    alert("✅ PDF descargado exitosamente!");
+    
+  } catch (error) {
+    console.error("❌ Error en exportDOMToPDF:", error);
+    if (error instanceof Error) {
+        alert(`Error al generar PDF: ${error.message}\n\nRevisa la consola para más detalles.`);
+      } else {
+        alert(`Error al generar PDF: ${String(error)}\n\nRevisa la consola para más detalles.`);
+    }
+    throw error;
+  }
+};
+
   // Función para descargar el reporte en PDF (solo descarga, no guarda)
   const handleDownloadPDF = async () => {
     try {
@@ -851,17 +1122,22 @@ export default function Reporte() {
     }));
   })();
   
-  // Calcular fechas para los últimos 12 meses
-  const getLast12MonthsDates = () => {
+  // Calcular fechas para los últimos 12 meses (solo en cliente)
+  const [chartStartDate, setChartStartDate] = useState<string>("")
+  const [chartEndDate, setChartEndDate] = useState<string>("")
+  
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     const today = new Date()
     const endDate = today.toISOString().split('T')[0]
     const startDateObj = new Date(today)
     startDateObj.setMonth(today.getMonth() - 12)
     const startDate = startDateObj.toISOString().split('T')[0]
-    return { startDate, endDate }
-  }
-  
-  const { startDate: chartStartDate, endDate: chartEndDate } = getLast12MonthsDates()
+    
+    setChartStartDate(startDate)
+    setChartEndDate(endDate)
+  }, [])
 
   return (
     <ProtectedRoute>
@@ -1014,110 +1290,47 @@ export default function Reporte() {
                 </div>
               </div>
 
-              {/* Comparative Analysis Table */}
-              <div className="mb-4 ml-10 mr-10">
-                <h5>Análisis Comparativo por Parámetro</h5>
-                <div className="table-responsive">
-                  <table className="table table-bordered">
-                    <thead className="table-dark">
-                      <tr>
-                        <th>Variable</th>
-                        {Object.keys(reportSelection?.parameters || {}).map(systemName => (
-                          <th key={systemName} className="text-center">{systemName}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        // Obtener todas las variables únicas
-                        const allVariables = new Set<string>();
-                        Object.values(reportSelection?.parameters || {}).forEach((systemData: any) => {
-                          Object.keys(systemData).forEach(variable => allVariables.add(variable));
-                        });
-                        
-                        return Array.from(allVariables).map(variable => (
-                          <tr key={variable} className="hover:bg-gray-50">
-                            <td className="font-medium">{variable}</td>
-                            {Object.keys(reportSelection?.parameters || {}).map(systemName => {
-                              const systemData = reportSelection?.parameters?.[systemName];
-                              const paramData = systemData?.[variable];
-                              
-                              // Buscar las tolerancias para esta variable
-                              let toleranceData = null;
-                              if (reportSelection?.variablesTolerancia) {
-                                // Primero intentar con la nueva estructura (por sistema)
-                                if (reportSelection.variablesTolerancia[systemName] && reportSelection.variablesTolerancia[systemName][variable]) {
-                                  toleranceData = reportSelection.variablesTolerancia[systemName][variable];
-                                } else {
-                                  // Buscar por nombre de variable en la estructura actual (por ID de parámetro)
-                                  // Las tolerancias se guardan con el ID del parámetro como clave
-                                  Object.keys(reportSelection.variablesTolerancia).forEach(varId => {
-                                    const varData = reportSelection.variablesTolerancia[varId];
-                                    if (varData && typeof varData === 'object' && !Array.isArray(varData)) {
-                                      // Verificar si el nombre de la variable coincide
-                                      if (varData.nombre === variable) {
-                                        toleranceData = varData;
-                                      }
-                                    }
-                                  });
-                                }
-                              }
-                              
-                              const bgColor = paramData && toleranceData ? getCellColor(paramData.valor?.toString() || "", toleranceData) : "";
-                              return (
-                                <td key={systemName} className="text-center" style={{ backgroundColor: bgColor }}>
-                                  {paramData ? `${paramData.valor} ${paramData.unidad}` : '—'}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ));
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
               {/* Gráficos de Series Temporales */}
               {variablesDisponibles.length > 0 && (
                 <div className="mb-4 ml-10 mr-10">
                   <h5>Gráficos de Series Temporales</h5>
-                  <p className="text-sm text-muted mb-3">
-                    Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)
-                  </p>
+                  {chartStartDate && chartEndDate && (
+                    <p className="text-sm text-muted mb-3">
+                      Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)
+                    </p>
+                  )}
                   
                   {/* Mostrar todos los gráficos */}
                   <div className="space-y-6">
-                    {variablesDisponibles.map((variable) => (
+                    {variablesDisponibles.map((variable) => {
+                      // Crear ref para este gráfico si no existe
+                      if (!chartRefs.current.has(variable.nombre)) {
+                        chartRefs.current.set(variable.nombre, null as any)
+                      }
+                      
+                      return (
                       <div key={variable.id} className="border rounded-lg p-4 bg-white">
                         <h3 className="text-lg font-semibold mb-4">{variable.nombre} ({variable.unidad})</h3>
                         
-                        <div className="mb-6">
-                          <h4 className="text-md font-medium mb-2">Tabla de Mediciones</h4>
-                          <MesureTable
-                            variable={variable.nombre}
-                            startDate={chartStartDate}
-                            endDate={chartEndDate}
-                            apiBase={API_BASE_URL}
-                            unidades={variable.unidad}
-                            clientName={reportSelection?.plant?.nombre}
-                            processName={reportSelection?.systemName}
-                            userId={reportSelection?.user?.id}
-                          />
-                        </div>
-                        
                         <div>
                           <h4 className="text-md font-medium mb-2">Gráfico de Series Temporales</h4>
-                          <SensorTimeSeriesChart
-                            variable={variable.nombre}
-                            startDate={chartStartDate}
-                            endDate={chartEndDate}
-                            apiBase={API_BASE_URL}
-                            unidades={variable.unidad}
-                            clientName={reportSelection?.plant?.nombre}
-                            processName={reportSelection?.systemName}
-                            userId={reportSelection?.user?.id}
-                          />
+                          {chartStartDate && chartEndDate && (
+                            <SensorTimeSeriesChart
+                              ref={(ref) => {
+                                if (ref) {
+                                  chartRefs.current.set(variable.nombre, ref)
+                                }
+                              }}
+                              variable={variable.nombre}
+                              startDate={chartStartDate}
+                              endDate={chartEndDate}
+                              apiBase={API_BASE_URL}
+                              unidades={variable.unidad}
+                              clientName={reportSelection?.plant?.nombre}
+                              processName={reportSelection?.systemName}
+                              userId={reportSelection?.user?.id}
+                            />
+                          )}
                         </div>
                         
                         {/* Sección de comentarios por parámetro */}
@@ -1135,7 +1348,8 @@ export default function Reporte() {
                           />
                         </div>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -1159,7 +1373,7 @@ export default function Reporte() {
                         </div>
                         <div className="col-md-6">
                           <p><strong>Generado por:</strong> {reportSelection.user.username}</p>
-                          <p><strong>Fecha de generación:</strong> {(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleString('es-ES')}</p>
+                          <p><strong>Fecha de generación:</strong> {reportSelection?.generatedDate ? new Date(reportSelection.generatedDate).toLocaleString('es-ES') : currentDate}</p>
                         </div>
                       </div>
                     </div>
