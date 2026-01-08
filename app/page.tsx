@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useUser } from "@/context/UserContext"
 import Link from "next/link"
+import Image from "next/image"
 
 export default function Home() {
   const { isAuthenticated, isLoading } = useUser()
@@ -73,10 +74,20 @@ export default function Home() {
               </div>
             </div>
             <div className="col-lg-6">
-              <div className="text-center">
-                <i className="material-icons" style={{ fontSize: "10rem", opacity: 0.8 }}>
-                  factory
-                </i>
+              <div className="text-center d-flex align-items-center justify-content-center" style={{ minHeight: "300px" }}>
+                <Image
+                  src="/logo_empresa.jpeg"
+                  alt="STATU QUO Servicios Ambientales"
+                  width={400}
+                  height={300}
+                  style={{ 
+                    objectFit: 'contain',
+                    maxWidth: '100%',
+                    height: 'auto',
+                    opacity: 0.9
+                  }}
+                  priority
+                />
               </div>
             </div>
           </div>

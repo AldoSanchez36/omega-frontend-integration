@@ -165,9 +165,21 @@ export default function ReportManager() {
     loadPlants();
   }, [selectedUser, plants, token, router]);
 
-  // Load users - always show all available users, not filtered by plant
+  // Load users - filter to show only users with puesto "client"
   useEffect(() => {
     async function loadUsers() {
+      // Función helper para verificar si un usuario es cliente
+      const isClientUser = (user: User): boolean => {
+        const puesto = user.puesto?.toLowerCase().trim();
+        const role = user.role?.toLowerCase().trim();
+        const isClient = puesto === 'client' || role === 'client';
+        // Debug: descomentar para ver qué usuarios se están filtrando
+        // if (!isClient) {
+        //   console.log('Usuario filtrado:', user.username, 'puesto:', user.puesto, 'role:', user.role);
+        // }
+        return isClient;
+      };
+
       if (selectedPlant) {
         try {
           const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USERS_BY_PLANT(selectedPlant.nombre)}`, {
@@ -175,7 +187,10 @@ export default function ReportManager() {
           });
           if (res.ok) {
             const data = await res.json();
-            setDisplayedUsers(data.usuarios || data);
+            const allUsers = data.usuarios || data;
+            // Filtrar solo usuarios con puesto o role "client"
+            const clientUsers = allUsers.filter(isClientUser);
+            setDisplayedUsers(clientUsers);
           } else if (res.status === 401) {
             // Token inválido - redirigir al logout
             console.error('Token inválido detectado, redirigiendo al logout');
@@ -189,7 +204,9 @@ export default function ReportManager() {
           setDisplayedUsers([]);
         }
       } else {
-        setDisplayedUsers(users);
+        // Filtrar solo usuarios con puesto o role "client"
+        const clientUsers = users.filter(isClientUser);
+        setDisplayedUsers(clientUsers);
       }
     }
     loadUsers();

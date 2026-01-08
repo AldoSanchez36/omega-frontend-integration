@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { useUser } from "@/context/UserContext"
 import { useLanguage } from "@/context/LanguageContext"
 import SelectLanguage from "@/components/SelectLanguage";
@@ -17,6 +18,7 @@ const NAV_LINKS = [
   // Para admin y user
   { path: "/users-management",      label: "Gestión de usuarios", icon: "people", roles: ["admin", "user"] },
   { path: "/dashboard-reportmanager",  label: "Reportes", icon: "article", roles: ["admin", "user"] },
+  { path: "/dashboard-agregarvariables",  label: "Gestor de parámetros", icon: "tune", roles: ["admin", "user"] },
   //{ path: "/reports", label: "Reporte", icon: "assessment", roles: ["admin", "user"/* , "client" */] },
   // Para admin, user y client
 
@@ -127,9 +129,22 @@ export const Navbar: React.FC<NavbarProps> = ({ role }) => {
       }}
     >
       <div className="container d-flex justify-content-between align-items-center">
-        <Link className="navbar-brand fw-bold" href="/">
-          <span className="material-icons me-2">business</span>
-          Organomex
+        <Link className="navbar-brand fw-bold d-flex align-items-center" href="/" style={{ textDecoration: 'none', height: '56px' }}>
+          <Image
+            src="/logo_empresa.jpeg"
+            alt="STATU QUO Servicios Ambientales"
+            width={180}
+            height={56}
+            style={{ 
+              objectFit: 'contain',
+              height: '100%',
+              width: 'auto',
+              maxWidth: '200px',
+              marginRight: '12px'
+            }}
+            priority
+          />
+          <span className="text-white" style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>Organomex</span>
         </Link>
         <div className="d-flex align-items-center">
           {currentDate && (

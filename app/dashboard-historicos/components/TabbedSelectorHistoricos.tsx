@@ -2,10 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import ReactSelect from 'react-select';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 
 interface User {
   id: string;
@@ -25,7 +24,7 @@ interface System {
   descripcion: string;
 }
 
-interface TabbedSelectorProps {
+interface TabbedSelectorHistoricosProps {
   displayedUsers: User[];
   displayedPlants: Plant[];
   systems: System[];
@@ -37,17 +36,13 @@ interface TabbedSelectorProps {
   handleSelectPlant: (plantId: string | '') => void;
   setSelectedSystem: (systemId: string) => void;
   plantName: string;
-  globalFecha: string;
-  globalComentarios: string;
-  handleGlobalFechaChange: (fecha: string) => void;
-  handleGlobalComentariosChange: (comentarios: string) => void;
-  ocultarFecha: boolean;
-  onSaveData: () => Promise<void>;
-  onGenerateReport: () => Promise<void>;
-  isGenerateDisabled: boolean;
+  startDate: string;
+  endDate: string;
+  onStartDateChange: (fecha: string) => void;
+  onEndDateChange: (fecha: string) => void;
 }
 
-const TabbedSelector: React.FC<TabbedSelectorProps> = ({
+const TabbedSelectorHistoricos: React.FC<TabbedSelectorHistoricosProps> = ({
   displayedUsers,
   displayedPlants,
   systems,
@@ -59,14 +54,10 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
   handleSelectPlant,
   setSelectedSystem,
   plantName,
-  globalFecha,
-  globalComentarios,
-  handleGlobalFechaChange,
-  handleGlobalComentariosChange,
-  ocultarFecha,
-  onSaveData,
-  onGenerateReport,
-  isGenerateDisabled,
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
 }) => {
   const [activeTab, setActiveTab] = useState<string>("cliente");
 
@@ -307,60 +298,43 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                     </div>
                   )}
 
-                  {/* Inputs globales fecha / comentarios - Siempre visible */}
-                  <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <h3 className="text-lg font-semibold mb-4 text-blue-800">
-                      Configuración Global
-                    </h3>
-                    <div className="flex flex-wrap gap-6">
-                      <div className="flex flex-col">
-                        <label htmlFor="globalFecha" className="text-sm font-medium text-blue-700 mb-1">
-                          Fecha global
-                        </label>
-                        <Input
-                          id="globalFecha"
-                          type="date"
-                          value={globalFecha}
-                          onChange={e => handleGlobalFechaChange(e.target.value)}
-                          className="mt-1"
-                        />
+                  {/* Selector de rango de fechas */}
+                  {selectedSystem && (
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-4 text-blue-800">
+                        Rango de Fechas
+                      </h3>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <label htmlFor="startDate" className="block text-sm font-medium text-blue-700 mb-1">
+                            Fecha Inicio
+                          </label>
+                          <Input
+                            id="startDate"
+                            type="date"
+                            value={startDate}
+                            onChange={e => onStartDateChange(e.target.value)}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="endDate" className="block text-sm font-medium text-blue-700 mb-1">
+                            Fecha Fin
+                          </label>
+                          <Input
+                            id="endDate"
+                            type="date"
+                            value={endDate}
+                            onChange={e => onEndDateChange(e.target.value)}
+                            className="mt-1"
+                          />
+                        </div>
                       </div>
-                      <div className="flex-1 flex flex-col min-w-[300px]">
-                        <label htmlFor="globalComentarios" className="text-sm font-medium text-blue-700 mb-1">
-                          Comentarios globales
-                        </label>
-                        <Input
-                          id="globalComentarios"
-                          value={globalComentarios}
-                          onChange={e => handleGlobalComentariosChange(e.target.value)}
-                          className="mt-1"
-                          placeholder="Ingresa comentarios globales..."
-                        />
-                      </div>
+                      <p className="text-sm text-blue-600 mt-2">
+                        Selecciona el rango de fechas para consultar los datos históricos
+                      </p>
                     </div>
-                    <p className="text-sm text-blue-600 mt-2">
-                      Esta configuración se aplicará a todos los sistemas de {plantName}
-                    </p>
-                    
-                    {/* Botones de acción */}
-                    <div className="flex space-x-4 mt-4 pt-4 border-t border-blue-200">
-                      <Button 
-                        onClick={onSaveData} 
-                        variant="outline"
-                        disabled={!globalFecha}
-                        className={!globalFecha ? "opacity-50 cursor-not-allowed" : ""}
-                      >
-                        💾 Guardar Datos
-                      </Button>
-                      <Button 
-                        onClick={onGenerateReport} 
-                        disabled={isGenerateDisabled} 
-                        className={`bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 ${isGenerateDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
-                      >
-                        📊 Generar Reporte
-                      </Button>
-                    </div>
-                  </div>
+                  )}
                 </>
               )}
             </div>
@@ -371,5 +345,5 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
   );
 };
 
-export default TabbedSelector;
+export default TabbedSelectorHistoricos;
 

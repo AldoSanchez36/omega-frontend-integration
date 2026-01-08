@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Navbar } from "@/components/Navbar"
 import ProtectedRoute from "@/components/ProtectedRoute"
-import ReactSelect from 'react-select'
 
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import { authService } from "@/services/authService"
 import { useUserAccess } from "@/hooks/useUserAccess"
+import TabbedSelectorHistoricos from "./components/TabbedSelectorHistoricos"
+import ScrollArrow from "../dashboard-reportmanager/components/ScrollArrow"
 
 // Interfaces
 interface User {
@@ -82,6 +83,7 @@ interface HistoricalDataByDate {
       unidad: string
       comentarios?: string
     }
+  } & {
     comentarios_globales?: string
   }
 }
@@ -161,9 +163,16 @@ export default function HistoricosPage() {
     loadPlants();
   }, [selectedUser, plants, token, router]);
 
-  // Load users
+  // Load users - filter to show only users with puesto "client"
   useEffect(() => {
     async function loadUsers() {
+      // Función helper para verificar si un usuario es cliente
+      const isClientUser = (user: User): boolean => {
+        const puesto = user.puesto?.toLowerCase().trim();
+        const role = user.role?.toLowerCase().trim();
+        return puesto === 'client' || role === 'client';
+      };
+
       if (selectedPlant) {
         try {
           const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USERS_BY_PLANT(selectedPlant.nombre)}`, {
@@ -171,7 +180,10 @@ export default function HistoricosPage() {
           });
           if (res.ok) {
             const data = await res.json();
-            setDisplayedUsers(data.usuarios || data);
+            const allUsers = data.usuarios || data;
+            // Filtrar solo usuarios con puesto o role "client"
+            const clientUsers = allUsers.filter(isClientUser);
+            setDisplayedUsers(clientUsers);
           } else if (res.status === 401) {
             authService.logout();
             localStorage.removeItem('Organomex_user');
@@ -183,7 +195,9 @@ export default function HistoricosPage() {
           setDisplayedUsers([]);
         }
       } else {
-        setDisplayedUsers(users);
+        // Filtrar solo usuarios con puesto o role "client"
+        const clientUsers = users.filter(isClientUser);
+        setDisplayedUsers(clientUsers);
       }
     }
     loadUsers();
@@ -364,7 +378,10 @@ export default function HistoricosPage() {
     
     parameters.forEach(param => {
       const values = Object.values(historicalData)
-        .map(dateData => dateData[param.id]?.valor)
+        .map(dateData => {
+          const paramData = dateData[param.id]
+          return paramData && typeof paramData === 'object' && 'valor' in paramData ? paramData.valor : undefined
+        })
         .filter((val): val is number => val !== undefined)
       
       if (values.length > 0) {
@@ -454,107 +471,30 @@ export default function HistoricosPage() {
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
         <Navbar role={userRole} />
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1600px] mx-auto py-6 px-2 sm:px-4 lg:px-6">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Históricos de Reportes</h1>
             <p className="text-gray-600">Consulta el historial de reportes por sistema y rango de fechas</p>
           </div>
 
-          {/* Selectores */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Selección de Cliente, Planta y Sistema</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Cliente</label>
-                  <ReactSelect
-                    options={displayedUsers.map((user) => ({ value: user.id, label: user.username }))}
-                    value={
-                      selectedUser
-                        ? { value: selectedUser.id, label: selectedUser.username }
-                        : null
-                    }
-                    onChange={(option) => handleSelectUserWithReset(option ? option.value : '')}
-                    placeholder="Seleccionar cliente"
-                    isClearable
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Planta</label>
-                  <ReactSelect
-                    options={displayedPlants.map((plant) => ({ value: plant.id, label: plant.nombre }))}
-                    value={
-                      selectedPlant
-                        ? { value: selectedPlant.id, label: selectedPlant.nombre }
-                        : null
-                    }
-                    onChange={(option) => handleSelectPlantWithReset(option ? option.value : '')}
-                    placeholder="Seleccionar planta"
-                    isClearable
-                    isDisabled={!selectedUser}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-
-              {selectedPlantData && systems.length > 0 && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-2">Sistema</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {systems.map((system) => (
-                      <button
-                        key={system.id}
-                        onClick={() => handleSystemChange(system.id)}
-                        className={`px-4 py-2 text-sm font-medium rounded border ${
-                          selectedSystem === system.id
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                        }`}
-                      >
-                        {system.nombre}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Selector de rango de fechas */}
-              {selectedSystem && (
-                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h3 className="text-lg font-semibold mb-4 text-blue-800">Rango de Fechas</h3>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="startDate" className="block text-sm font-medium text-blue-700 mb-1">
-                        Fecha Inicio
-                      </label>
-                      <Input
-                        id="startDate"
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="endDate" className="block text-sm font-medium text-blue-700 mb-1">
-                        Fecha Fin
-                      </label>
-                      <Input
-                        id="endDate"
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        className="mt-1"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Selectores con pestañas */}
+          <TabbedSelectorHistoricos
+            displayedUsers={displayedUsers}
+            displayedPlants={selectedUser ? plants : displayedPlants}
+            systems={systems}
+            selectedUser={selectedUser}
+            selectedPlant={selectedPlant}
+            selectedSystem={selectedSystem}
+            selectedSystemData={selectedSystemData}
+            handleSelectUser={handleSelectUserWithReset}
+            handleSelectPlant={handleSelectPlantWithReset}
+            setSelectedSystem={handleSystemChange}
+            plantName={selectedPlantData?.nombre || ""}
+            startDate={startDate}
+            endDate={endDate}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
+          />
 
           {/* Tabla Histórica */}
           {selectedSystem && parameters.length > 0 && (
@@ -564,7 +504,7 @@ export default function HistoricosPage() {
                   Historial de Reportes - {selectedSystemData?.nombre}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-2 sm:px-4">
                 {historicalLoading ? (
                   <div className="flex items-center justify-center py-10">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -578,59 +518,58 @@ export default function HistoricosPage() {
                     No se encontraron datos históricos para el rango de fechas seleccionado.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full border border-gray-300 bg-white text-sm">
+                  <div className="w-full">
+                    <table className="w-full border border-gray-300 bg-white text-xs table-fixed">
                       <thead>
                         <tr className="bg-blue-800 text-white">
-                          <th className="border px-3 py-2 text-left font-semibold sticky left-0 bg-blue-800 z-10">
+                          <th className="border px-2 py-2 text-left font-semibold w-24">
                             PARAMETROS
                           </th>
                           {parameters.map((param) => (
-                            <th key={param.id} className="border px-3 py-2 text-center font-semibold">
-                              {param.nombre}
-                              <br />
-                              <span className="text-xs font-normal">({param.unidad})</span>
+                            <th key={param.id} className="border px-1 py-2 text-center font-semibold">
+                              <div className="text-xs">{param.nombre}</div>
+                              <div className="text-xs font-normal">({param.unidad})</div>
                             </th>
                           ))}
-                          <th className="border px-3 py-2 text-left font-semibold">COMENTARIOS</th>
+                          <th className="border px-2 py-2 text-left font-semibold w-32">COMENTARIOS</th>
                         </tr>
                       </thead>
                       <tbody>
                         {/* Fila ALTO */}
                         <tr className="bg-green-100">
-                          <td className="border px-3 py-2 font-semibold sticky left-0 bg-green-100 z-10">
+                          <td className="border px-2 py-2 font-semibold bg-green-100">
                             ALTO
                           </td>
                           {parameters.map((param) => (
-                            <td key={param.id} className="border px-3 py-2 text-center">
+                            <td key={param.id} className="border px-1 py-2 text-center text-xs">
                               {highLowValues[param.id]?.alto.toFixed(2) || "—"}
                             </td>
                           ))}
-                          <td className="border px-3 py-2">—</td>
+                          <td className="border px-2 py-2 text-xs">—</td>
                         </tr>
                         {/* Fila BAJO */}
                         <tr className="bg-green-100">
-                          <td className="border px-3 py-2 font-semibold sticky left-0 bg-green-100 z-10">
+                          <td className="border px-2 py-2 font-semibold bg-green-100">
                             BAJO
                           </td>
                           {parameters.map((param) => (
-                            <td key={param.id} className="border px-3 py-2 text-center">
+                            <td key={param.id} className="border px-1 py-2 text-center text-xs">
                               {highLowValues[param.id]?.bajo.toFixed(2) || "—"}
                             </td>
                           ))}
-                          <td className="border px-3 py-2">—</td>
+                          <td className="border px-2 py-2 text-xs">—</td>
                         </tr>
                         {/* Fila RANGOS */}
                         <tr className="bg-blue-800 text-white">
-                          <td className="border px-3 py-2 font-semibold sticky left-0 bg-blue-800 z-10">
+                          <td className="border px-2 py-2 font-semibold bg-blue-800">
                             FECHA/RANGOS
                           </td>
                           {parameters.map((param) => (
-                            <td key={param.id} className="border px-3 py-2 text-center">
+                            <td key={param.id} className="border px-1 py-2 text-center text-xs">
                               {getAcceptableRange(param.id)}
                             </td>
                           ))}
-                          <td className="border px-3 py-2">—</td>
+                          <td className="border px-2 py-2 text-xs">—</td>
                         </tr>
                         {/* Filas de datos por fecha */}
                         {sortedDates.map((fecha, index) => {
@@ -641,20 +580,20 @@ export default function HistoricosPage() {
                               key={fecha}
                               className={isEven ? "bg-green-50" : "bg-pink-50"}
                             >
-                              <td className={`border px-3 py-2 font-medium sticky left-0 z-10 ${
+                              <td className={`border px-2 py-2 font-medium text-xs ${
                                 isEven ? "bg-green-50" : "bg-pink-50"
                               }`}>
                                 {formatDate(fecha)}
                               </td>
                               {parameters.map((param) => {
                                 const value = dateData[param.id]
-                                const valor = value?.valor
+                                const valor = value && typeof value === 'object' && 'valor' in value ? value.valor : undefined
                                 const isOutOfRange = valor !== undefined && isValueOutOfRange(param.id, valor)
                                 
                                 return (
                                   <td
                                     key={param.id}
-                                    className={`border px-3 py-2 text-center ${
+                                    className={`border px-1 py-2 text-center text-xs ${
                                       isOutOfRange ? "bg-yellow-300 font-semibold" : ""
                                     }`}
                                   >
@@ -662,7 +601,7 @@ export default function HistoricosPage() {
                                   </td>
                                 )
                               })}
-                              <td className={`border px-3 py-2 ${
+                              <td className={`border px-2 py-2 text-xs ${
                                 isEven ? "bg-green-50" : "bg-pink-50"
                               }`}>
                                 {dateData.comentarios_globales || "—"}
@@ -688,6 +627,7 @@ export default function HistoricosPage() {
             </Card>
           )}
         </div>
+        <ScrollArrow />
       </div>
     </ProtectedRoute>
   )
