@@ -10,6 +10,7 @@ import autoTable from "jspdf-autotable"
 import Navbar from "@/components/Navbar"
 import { SensorTimeSeriesChart, type ChartExportRef } from "@/components/SensorTimeSeriesChart"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
+import ScrollArrow from "@/app/dashboard-reportmanager/components/ScrollArrow"
 
 
 interface SystemData {
@@ -125,6 +126,10 @@ export default function Reporte() {
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
   const [reportSelection, setReportSelection] = useState<ReportSelection | null>(null)
   
+  // Estados de carga para los botones
+  const [isSaving, setIsSaving] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
+  
   // Estado para comentarios por parámetro/variable
   const [parameterComments, setParameterComments] = useState<{ [variableName: string]: string }>({})
   
@@ -133,6 +138,35 @@ export default function Reporte() {
   
   // Refs para exportar gráficos directamente desde los componentes
   const chartRefs = useRef<Map<string, ChartExportRef>>(new Map())
+  
+  // Estados para datos históricos por sistema
+  interface HistoricalMeasurement {
+    fecha: string
+    variable_id: string
+    variable_nombre: string
+    valor: number
+    unidad: string
+    sistema?: string
+    comentarios?: string
+    proceso_id: string
+  }
+  
+  interface HistoricalDataByDate {
+    [fecha: string]: {
+      [variableId: string]: {
+        valor: number
+        unidad: string
+        comentarios?: string
+      }
+    } & {
+      comentarios_globales?: string
+    }
+  }
+  
+  const [historicalDataBySystem, setHistoricalDataBySystem] = useState<{ [systemName: string]: HistoricalDataByDate }>({})
+  const [historicalLoading, setHistoricalLoading] = useState<{ [systemName: string]: boolean }>({})
+  const [historicalError, setHistoricalError] = useState<{ [systemName: string]: string | null }>({})
+  const [systemParameters, setSystemParameters] = useState<{ [systemName: string]: Array<{ id: string; nombre: string; unidad: string }> }>({})
   
   // Función para obtener o crear ref para un gráfico
   const getChartRef = (variableName: string): ChartExportRef | null => {
@@ -399,6 +433,9 @@ export default function Reporte() {
 
   // Función para guardar el reporte en el sistema
   const handleSaveReport = async () => {
+    if (isSaving) return // Prevenir múltiples clics
+    
+    setIsSaving(true)
     try {
       console.log("💾 Iniciando proceso de guardado de reporte...")
       
@@ -643,6 +680,8 @@ export default function Reporte() {
     } catch (error) {
       console.error("❌ Error en handleSaveReport:", error)
       alert(`Error: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -926,6 +965,272 @@ export default function Reporte() {
         console.log("ℹ️ No hay gráficos para exportar");
       }
 
+      // Agregar tabla histórica por sistema (igual que dashboard-historicos)
+      if (reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
+        currentY = checkSpaceAndAddPage(20, currentY);
+        pdf.setFontSize(14);
+        pdf.text("Historial de Reportes por Sistema", marginLeft, currentY);
+        currentY += 8;
+        
+        // Agregar período
+        pdf.setFontSize(10);
+        const periodText = `Período: ${new Date(pdfChartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - ${new Date(pdfChartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)`;
+        pdf.text(periodText, marginLeft, currentY);
+        currentY += spacingMM;
+        
+        // Obtener token para las peticiones
+        const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
+        const plantName = reportSelection?.plant?.nombre;
+        
+        // Iterar sobre cada sistema
+        for (const systemName of Object.keys(reportSelection.parameters)) {
+          // Obtener todos los parámetros del sistema desde la API (igual que dashboard-historicos)
+          let parameters: Array<{ id: string; nombre: string; unidad: string }> = [];
+          let historicalData: HistoricalDataByDate = {};
+          
+          try {
+            // Obtener el ID del sistema desde su nombre
+            if (token && plantName) {
+              const systemsResponse = await fetch(
+                `${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT_NAME(plantName)}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+              
+              if (systemsResponse.ok) {
+                const systemsData = await systemsResponse.json();
+                const systemsList = systemsData.procesos || systemsData || [];
+                const systemInfo = systemsList.find((sys: any) => sys.nombre === systemName);
+                
+                if (systemInfo?.id) {
+                  // Obtener todos los parámetros del sistema usando el ID (igual que dashboard-historicos)
+                  const varsResponse = await fetch(
+                    `${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(systemInfo.id)}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                  );
+                  
+                  if (varsResponse.ok) {
+                    const varsData = await varsResponse.json();
+                    const variablesList = varsData.variables || varsData || [];
+                    parameters = variablesList.map((v: any) => ({
+                      id: v.id,
+                      nombre: v.nombre,
+                      unidad: v.unidad || ""
+                    }));
+                  }
+                  
+                  // Obtener datos históricos (igual que dashboard-historicos)
+                  const measurementsResponse = await fetch(
+                    `${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_PROCESS(systemInfo.nombre)}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                  );
+                  
+                  if (measurementsResponse.ok) {
+                    const measurementsData = await measurementsResponse.json();
+                    const measurements: HistoricalMeasurement[] = measurementsData.mediciones || [];
+                    
+                    // Filtrar por rango de fechas
+                    const filteredMeasurements = measurements.filter((m: HistoricalMeasurement) => {
+                      const fecha = new Date(m.fecha);
+                      const start = new Date(pdfChartStartDate);
+                      const end = new Date(pdfChartEndDate);
+                      end.setHours(23, 59, 59, 999);
+                      return fecha >= start && fecha <= end;
+                    });
+                    
+                    // Organizar datos por fecha y variable_id (igual que dashboard-historicos)
+                    filteredMeasurements.forEach((measurement: HistoricalMeasurement) => {
+                      const fechaStr = new Date(measurement.fecha).toISOString().split('T')[0];
+                      
+                      if (!historicalData[fechaStr]) {
+                        historicalData[fechaStr] = {};
+                      }
+                      
+                      // Usar variable_id como key (igual que dashboard-historicos)
+                      historicalData[fechaStr][measurement.variable_id] = {
+                        valor: measurement.valor,
+                        unidad: measurement.unidad,
+                        comentarios: measurement.comentarios
+                      };
+                      
+                      if (measurement.comentarios && !historicalData[fechaStr].comentarios_globales) {
+                        historicalData[fechaStr].comentarios_globales = measurement.comentarios;
+                      }
+                    });
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`Error obteniendo datos para sistema ${systemName}:`, error);
+          }
+          
+          if (parameters.length === 0) continue;
+          
+          // Título del sistema
+          currentY = checkSpaceAndAddPage(15, currentY);
+          pdf.setFontSize(12);
+          pdf.text(`Sistema: ${systemName}`, marginLeft, currentY);
+          currentY += 8;
+          
+          // Calcular valores ALTO y BAJO usando param.id (igual que dashboard-historicos)
+          const highLowValues: { [key: string]: { alto: number, bajo: number } } = {};
+          parameters.forEach(param => {
+            const values = Object.values(historicalData)
+              .map(dateData => {
+                // Usar param.id para buscar valores (igual que dashboard-historicos)
+                const paramData = dateData[param.id];
+                return paramData && typeof paramData === 'object' && 'valor' in paramData ? paramData.valor : undefined;
+              })
+              .filter((val): val is number => val !== undefined);
+            
+            if (values.length > 0) {
+              highLowValues[param.id] = {
+                alto: Math.max(...values),
+                bajo: Math.min(...values)
+              };
+            } else {
+              highLowValues[param.id] = { alto: 0, bajo: 0 };
+            }
+          });
+          
+          // Ordenar fechas
+          const sortedDates = Object.keys(historicalData).sort((a, b) => 
+            new Date(a).getTime() - new Date(b).getTime()
+          );
+          
+          // Preparar datos de la tabla (incluyendo columna de COMENTARIOS)
+          const tableHeaders = ["PARAMETROS", ...parameters.map(p => `${p.nombre}\n(${p.unidad})`), "COMENTARIOS"];
+          
+          // Fila ALTO
+          const altoRow = ["ALTO", ...parameters.map(p => 
+            highLowValues[p.id]?.alto.toFixed(2) || "—"
+          ), "—"];
+          
+          // Fila BAJO
+          const bajoRow = ["BAJO", ...parameters.map(p => 
+            highLowValues[p.id]?.bajo.toFixed(2) || "—"
+          ), "—"];
+          
+          // Fila FECHA/RANGOS
+          const rangosRow = ["FECHA/RANGOS", ...parameters.map(p => {
+            const tolerances = reportSelection?.variablesTolerancia?.[systemName] || {};
+            let tolerance = tolerances[p.id] as any;
+            
+            if (!tolerance) {
+              tolerance = Object.values(tolerances).find((tol: any) => tol && typeof tol === 'object') as any;
+            }
+            
+            if (!tolerance) return "—";
+            
+            const min = tolerance.limite_min;
+            const max = tolerance.limite_max;
+            
+            if (min !== undefined && min !== null && max !== undefined && max !== null) {
+              return `${min} - ${max}`;
+            } else if (min !== undefined && min !== null) {
+              return `Min ${min}`;
+            } else if (max !== undefined && max !== null) {
+              return `Max ${max}`;
+            }
+            return "—";
+          }), "—"];
+          
+          // Filas de datos históricos
+          const dataRows: string[][] = [];
+          sortedDates.forEach((fecha) => {
+            const dateData = historicalData[fecha];
+            const fechaFormateada = new Date(fecha).toLocaleDateString('es-ES', {
+              day: '2-digit',
+              month: '2-digit',
+              year: '2-digit'
+            });
+            
+            const row = [
+              fechaFormateada,
+              ...parameters.map((param) => {
+                // Usar param.id para buscar valores (igual que dashboard-historicos)
+                const value = dateData[param.id];
+                const valor = value && typeof value === 'object' && 'valor' in value ? value.valor : undefined;
+                return valor !== undefined ? valor.toFixed(2) : "—";
+              }),
+              dateData.comentarios_globales || "—"
+            ];
+            dataRows.push(row);
+          });
+          
+          // Crear tabla con AutoTable
+          const tableData = [altoRow, bajoRow, rangosRow, ...dataRows];
+          
+          // Reducir el tamaño de la tabla en un 35% (65% del tamaño original)
+          // Si el tamaño original era 95%, ahora será: 95% * 0.65 = 61.75%
+          const tableWidthMM = pageWidthMM * 0.6175; // 65% del tamaño original (95% * 0.65)
+          // Alinear la tabla a la izquierda con un margen pequeño
+          const tableMarginLeft = 10; // Margen izquierdo pequeño para pegar la tabla a la izquierda
+          const tableMarginRight = pageWidthMM - tableWidthMM - tableMarginLeft; // El resto del espacio a la derecha
+          
+          autoTable(pdf, {
+            head: [tableHeaders],
+            body: tableData,
+            startY: currentY,
+            theme: "grid",
+            tableWidth: tableWidthMM, // Especificar el ancho de la tabla explícitamente
+            headStyles: { 
+              fillColor: [31, 78, 121], // Azul oscuro
+              textColor: [255, 255, 255],
+              fontSize: 5.85, // Reducido 35% (9 * 0.65)
+              halign: 'center',
+              cellPadding: 0.975 // Reducido 35% (1.5 * 0.65)
+            },
+            bodyStyles: {
+              fontSize: 4.875, // Reducido 35% (7.5 * 0.65)
+              halign: 'center',
+              cellPadding: 0.975 // Reducido 35% (1.5 * 0.65)
+            },
+            columnStyles: {
+              0: { halign: 'left', cellWidth: 18.2 }, // Reducido 35% (28 * 0.65)
+            },
+            didParseCell: (data: any) => {
+              // Aplicar cellWidth: 9.1 a todas las columnas excepto la primera (reducido 35%)
+              if (data.column.index > 0) {
+                data.cell.styles.cellWidth = 9.1; // Reducido 35% (14 * 0.65)
+              }
+              
+              // Alinear columna de COMENTARIOS a la izquierda
+              if (data.column.index === tableHeaders.length - 1) {
+                data.cell.styles.halign = 'left';
+              }
+              
+              // Colorear filas ALTO y BAJO en verde claro
+              if (data.section === 'body' && data.row.index !== undefined) {
+                if (data.row.index === 0 || data.row.index === 1) {
+                  // Filas ALTO y BAJO
+                  data.cell.styles.fillColor = [220, 255, 220]; // Verde claro
+                } else if (data.row.index === 2) {
+                  // Fila FECHA/RANGOS
+                  data.cell.styles.fillColor = [31, 78, 121]; // Azul oscuro
+                  data.cell.styles.textColor = [255, 255, 255];
+                } else {
+                  // Filas de datos históricos - alternar colores
+                  const dataIndex = data.row.index - 3; // Restar 3 por ALTO, BAJO, RANGOS
+                  if (dataIndex % 2 === 0) {
+                    data.cell.styles.fillColor = [245, 255, 245]; // Verde muy claro
+                  } else {
+                    data.cell.styles.fillColor = [255, 240, 245]; // Rosa claro
+                  }
+                }
+              }
+            },
+            margin: { left: tableMarginLeft, right: tableMarginRight },
+            styles: { 
+              fontSize: 4.875, // Reducido 35% (7.5 * 0.65)
+              cellPadding: 0.975 // Reducido 35% (1.5 * 0.65)
+            },
+          });
+          
+          currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
+        }
+      }
+
       // Comentarios globales
       if (reportSelection.comentarios) {
         currentY = checkSpaceAndAddPage(20, currentY);
@@ -993,6 +1298,9 @@ export default function Reporte() {
 
   // Función para descargar el reporte en PDF (solo descarga, no guarda)
   const handleDownloadPDF = async () => {
+    if (isDownloading) return // Prevenir múltiples clics
+    
+    setIsDownloading(true)
     try {
       console.log("📄 Iniciando descarga de PDF...")
       
@@ -1009,6 +1317,8 @@ export default function Reporte() {
     } catch (error) {
       console.error("❌ Error en handleDownloadPDF:", error)
       alert(`Error: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setIsDownloading(false)
     }
   }
   
@@ -1138,6 +1448,234 @@ export default function Reporte() {
     setChartStartDate(startDate)
     setChartEndDate(endDate)
   }, [])
+  
+  // Función para obtener parámetros de un sistema desde la API (igual que dashboard-historicos)
+  const getSystemParameters = async (systemName: string): Promise<Array<{ id: string; nombre: string; unidad: string }>> => {
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
+      if (!token) return []
+      
+      // Obtener el ID del sistema desde su nombre
+      const plantName = reportSelection?.plant?.nombre
+      if (!plantName) return []
+      
+      // Obtener todos los sistemas de la planta
+      const systemsResponse = await fetch(
+        `${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT_NAME(plantName)}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      )
+      
+      if (!systemsResponse.ok) {
+        console.error(`Error obteniendo sistemas para planta ${plantName}`)
+        return []
+      }
+      
+      const systemsData = await systemsResponse.json()
+      const systemsList = systemsData.procesos || systemsData || []
+      
+      // Buscar el sistema por nombre
+      const systemInfo = systemsList.find((sys: any) => sys.nombre === systemName)
+      if (!systemInfo || !systemInfo.id) {
+        console.warn(`Sistema "${systemName}" no encontrado`)
+        return []
+      }
+      
+      // Obtener todos los parámetros del sistema usando el ID (igual que dashboard-historicos)
+      const varsResponse = await fetch(
+        `${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(systemInfo.id)}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      )
+      
+      if (!varsResponse.ok) {
+        console.error(`Error obteniendo variables del sistema ${systemName}`)
+        return []
+      }
+      
+      const varsData = await varsResponse.json()
+      const variablesList = varsData.variables || varsData || []
+      
+      // Mapear a formato esperado (igual que dashboard-historicos)
+      return variablesList.map((v: any) => ({
+        id: v.id,
+        nombre: v.nombre,
+        unidad: v.unidad || ""
+      }))
+    } catch (error) {
+      console.error(`Error obteniendo parámetros del sistema ${systemName}:`, error)
+      return []
+    }
+  }
+  
+  // Función para cargar datos históricos por sistema (igual que dashboard-historicos)
+  const fetchHistoricalDataForSystem = async (systemName: string) => {
+    if (!reportSelection || !chartStartDate || !chartEndDate) return
+    
+    setHistoricalLoading(prev => ({ ...prev, [systemName]: true }))
+    setHistoricalError(prev => ({ ...prev, [systemName]: null }))
+    
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
+      
+      // Primero obtener todos los parámetros del sistema desde la API
+      const allParameters = await getSystemParameters(systemName)
+      setSystemParameters(prev => ({ ...prev, [systemName]: allParameters }))
+      
+      // Obtener mediciones históricas (igual que dashboard-historicos)
+      const res = await fetch(
+        `${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_PROCESS(systemName)}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      )
+      
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem('Organomex_token')
+          localStorage.removeItem('Organomex_user')
+          router.push('/logout')
+          return
+        }
+        throw new Error("No se pudieron cargar las mediciones históricas.")
+      }
+      
+      const data = await res.json()
+      const measurements: HistoricalMeasurement[] = data.mediciones || []
+      
+      // Filtrar por rango de fechas
+      const filteredMeasurements = measurements.filter((m: HistoricalMeasurement) => {
+        const fecha = new Date(m.fecha)
+        const start = new Date(chartStartDate)
+        const end = new Date(chartEndDate)
+        end.setHours(23, 59, 59, 999)
+        return fecha >= start && fecha <= end
+      })
+      
+      // Organizar datos por fecha y variable_id (igual que dashboard-historicos)
+      const organizedData: HistoricalDataByDate = {}
+      
+      filteredMeasurements.forEach((measurement: HistoricalMeasurement) => {
+        const fechaStr = new Date(measurement.fecha).toISOString().split('T')[0]
+        
+        if (!organizedData[fechaStr]) {
+          organizedData[fechaStr] = {}
+        }
+        
+        // Usar variable_id como key (igual que dashboard-historicos)
+        organizedData[fechaStr][measurement.variable_id] = {
+          valor: measurement.valor,
+          unidad: measurement.unidad,
+          comentarios: measurement.comentarios
+        }
+        
+        if (measurement.comentarios && !organizedData[fechaStr].comentarios_globales) {
+          organizedData[fechaStr].comentarios_globales = measurement.comentarios
+        }
+      })
+      
+      setHistoricalDataBySystem(prev => ({ ...prev, [systemName]: organizedData }))
+    } catch (e: any) {
+      setHistoricalError(prev => ({ ...prev, [systemName]: `Error al cargar datos históricos: ${e.message}` }))
+      console.error(e)
+    } finally {
+      setHistoricalLoading(prev => ({ ...prev, [systemName]: false }))
+    }
+  }
+  
+  // Cargar datos históricos cuando cambie reportSelection o fechas
+  useEffect(() => {
+    if (!reportSelection || !chartStartDate || !chartEndDate) return
+    
+    const systemNames = Object.keys(reportSelection.parameters || {})
+    systemNames.forEach(systemName => {
+      fetchHistoricalDataForSystem(systemName)
+    })
+  }, [reportSelection, chartStartDate, chartEndDate])
+  
+  // Helper functions para cálculos de históricos (igual que dashboard-historicos)
+  const getHighLowValues = (systemName: string, parameters: Array<{ id: string; nombre: string; unidad: string }>) => {
+    const historicalData = historicalDataBySystem[systemName] || {}
+    const highLow: { [key: string]: { alto: number, bajo: number } } = {}
+    
+    parameters.forEach(param => {
+      // Usar param.id para buscar valores (igual que dashboard-historicos)
+      const values = Object.values(historicalData)
+        .map(dateData => {
+          const paramData = dateData[param.id]
+          return paramData && typeof paramData === 'object' && 'valor' in paramData ? paramData.valor : undefined
+        })
+        .filter((val): val is number => val !== undefined)
+      
+      if (values.length > 0) {
+        highLow[param.id] = {
+          alto: Math.max(...values),
+          bajo: Math.min(...values)
+        }
+      } else {
+        highLow[param.id] = { alto: 0, bajo: 0 }
+      }
+    })
+    
+    return highLow
+  }
+  
+  const getAcceptableRange = (systemName: string, parameterId: string): string => {
+    const tolerances = reportSelection?.variablesTolerancia?.[systemName] || {}
+    // Buscar la tolerancia - el key puede ser el ID o el nombre
+    // Intentar primero por ID, luego por nombre
+    let tolerance = tolerances[parameterId] as any
+    
+    if (!tolerance) {
+      // Si no se encuentra por ID, buscar en todos los valores
+      tolerance = Object.values(tolerances).find((tol: any) => tol && typeof tol === 'object') as any
+    }
+    
+    if (!tolerance) return "—"
+    
+    // Usar limite_min y limite_max (igual que dashboard-historicos)
+    const min = tolerance.limite_min
+    const max = tolerance.limite_max
+    
+    if (min !== undefined && min !== null && max !== undefined && max !== null) {
+      return `${min} - ${max}`
+    } else if (min !== undefined && min !== null) {
+      return `Min ${min}`
+    } else if (max !== undefined && max !== null) {
+      return `Max ${max}`
+    }
+    return "—"
+  }
+  
+  const isValueOutOfRange = (systemName: string, parameterId: string, value: number): boolean => {
+    const tolerances = reportSelection?.variablesTolerancia?.[systemName] || {}
+    let tolerance = tolerances[parameterId] as any
+    
+    if (!tolerance) {
+      tolerance = Object.values(tolerances).find((tol: any) => tol && typeof tol === 'object') as any
+    }
+    
+    if (!tolerance) return false
+    
+    // Verificar contra limite_min y limite_max (igual que dashboard-historicos)
+    const min = tolerance.limite_min
+    const max = tolerance.limite_max
+    
+    if (min !== undefined && min !== null && value < min) return true
+    if (max !== undefined && max !== null && value > max) return true
+    return false
+  }
+  
+  const formatDate = (dateStr: string): string => {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit'
+    })
+  }
 
   return (
     <ProtectedRoute>
@@ -1315,21 +1853,23 @@ export default function Reporte() {
                         <div>
                           <h4 className="text-md font-medium mb-2">Gráfico de Series Temporales</h4>
                           {chartStartDate && chartEndDate && (
-                            <SensorTimeSeriesChart
-                              ref={(ref) => {
-                                if (ref) {
-                                  chartRefs.current.set(variable.nombre, ref)
-                                }
-                              }}
-                              variable={variable.nombre}
-                              startDate={chartStartDate}
-                              endDate={chartEndDate}
-                              apiBase={API_BASE_URL}
-                              unidades={variable.unidad}
-                              clientName={reportSelection?.plant?.nombre}
-                              processName={reportSelection?.systemName}
-                              userId={reportSelection?.user?.id}
-                            />
+                            <div className="max-w-4xl [&_svg]:max-h-96">
+                              <SensorTimeSeriesChart
+                                ref={(ref) => {
+                                  if (ref) {
+                                    chartRefs.current.set(variable.nombre, ref)
+                                  }
+                                }}
+                                variable={variable.nombre}
+                                startDate={chartStartDate}
+                                endDate={chartEndDate}
+                                apiBase={API_BASE_URL}
+                                unidades={variable.unidad}
+                                clientName={reportSelection?.plant?.nombre}
+                                processName={reportSelection?.systemName}
+                                userId={reportSelection?.user?.id}
+                              />
+                            </div>
                           )}
                         </div>
                         
@@ -1351,6 +1891,161 @@ export default function Reporte() {
                       )
                     })}
                   </div>
+                </div>
+              )}
+
+              {/* Tablas Históricas por Sistema */}
+              {reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0 && (
+                <div className="mb-4 ml-10 mr-10">
+                  <h5 className="mb-3">Historial de Reportes por Sistema</h5>
+                  {chartStartDate && chartEndDate && (
+                    <p className="text-sm text-muted mb-3">
+                      Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)
+                    </p>
+                  )}
+                  
+                  {Object.keys(reportSelection.parameters).map((systemName) => {
+                    const parameters = systemParameters[systemName] || []
+                    const historicalData = historicalDataBySystem[systemName] || {}
+                    const isLoading = historicalLoading[systemName] || false
+                    const error = historicalError[systemName]
+                    const sortedDates = Object.keys(historicalData).sort((a, b) => 
+                      new Date(a).getTime() - new Date(b).getTime()
+                    )
+                    const highLowValues = getHighLowValues(systemName, parameters)
+                    
+                    // Si no hay parámetros y no está cargando, intentar cargarlos
+                    if (parameters.length === 0 && !isLoading) {
+                      if (reportSelection && chartStartDate && chartEndDate) {
+                        fetchHistoricalDataForSystem(systemName)
+                      }
+                      return (
+                        <div key={systemName} className="mb-6">
+                          <h6 className="mb-3 font-semibold">Sistema: {systemName}</h6>
+                          <div className="flex items-center justify-center py-10">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                          </div>
+                        </div>
+                      )
+                    }
+                    
+                    if (parameters.length === 0) return null
+                    
+                    return (
+                      <div key={systemName} className="mb-6">
+                        <h6 className="mb-3 font-semibold">Sistema: {systemName}</h6>
+                        {isLoading ? (
+                          <div className="flex items-center justify-center py-10">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                          </div>
+                        ) : error ? (
+                          <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                            <p className="text-sm text-red-700">{error}</p>
+                          </div>
+                        ) : sortedDates.length === 0 ? (
+                          <div className="text-center py-10 text-gray-500">
+                            No se encontraron datos históricos para el rango de fechas seleccionado.
+                          </div>
+                        ) : (
+                          <div className="w-full overflow-x-auto">
+                            <table className="w-full border border-gray-300 bg-white text-xs table-fixed">
+                              <thead>
+                                <tr className="bg-blue-800 text-white">
+                                  <th className="border px-2 py-2 text-left font-semibold w-24">
+                                    PARAMETROS
+                                  </th>
+                                  {parameters.map((param) => (
+                                    <th key={param.id} className="border px-1 py-2 text-center font-semibold">
+                                      <div className="text-xs">{param.nombre}</div>
+                                      <div className="text-xs font-normal">({param.unidad})</div>
+                                    </th>
+                                  ))}
+                                  <th className="border px-2 py-2 text-left font-semibold w-32">COMENTARIOS</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {/* Fila ALTO */}
+                                <tr className="bg-green-100">
+                                  <td className="border px-2 py-2 font-semibold bg-green-100">
+                                    ALTO
+                                  </td>
+                                  {parameters.map((param) => (
+                                    <td key={param.id} className="border px-1 py-2 text-center text-xs">
+                                      {highLowValues[param.id]?.alto.toFixed(2) || "—"}
+                                    </td>
+                                  ))}
+                                  <td className="border px-2 py-2 text-xs">—</td>
+                                </tr>
+                                {/* Fila BAJO */}
+                                <tr className="bg-green-100">
+                                  <td className="border px-2 py-2 font-semibold bg-green-100">
+                                    BAJO
+                                  </td>
+                                  {parameters.map((param) => (
+                                    <td key={param.id} className="border px-1 py-2 text-center text-xs">
+                                      {highLowValues[param.id]?.bajo.toFixed(2) || "—"}
+                                    </td>
+                                  ))}
+                                  <td className="border px-2 py-2 text-xs">—</td>
+                                </tr>
+                                {/* Fila RANGOS */}
+                                <tr className="bg-blue-800 text-white">
+                                  <td className="border px-2 py-2 font-semibold bg-blue-800">
+                                    FECHA/RANGOS
+                                  </td>
+                                  {parameters.map((param) => (
+                                    <td key={param.id} className="border px-1 py-2 text-center text-xs">
+                                      {getAcceptableRange(systemName, param.id)}
+                                    </td>
+                                  ))}
+                                  <td className="border px-2 py-2 text-xs">—</td>
+                                </tr>
+                                {/* Filas de datos por fecha */}
+                                {sortedDates.map((fecha, index) => {
+                                  const dateData = historicalData[fecha]
+                                  const isEven = index % 2 === 0
+                                  return (
+                                    <tr
+                                      key={fecha}
+                                      className={isEven ? "bg-green-50" : "bg-pink-50"}
+                                    >
+                                      <td className={`border px-2 py-2 font-medium text-xs ${
+                                        isEven ? "bg-green-50" : "bg-pink-50"
+                                      }`}>
+                                        {formatDate(fecha)}
+                                      </td>
+                                      {parameters.map((param) => {
+                                        // Usar param.id para buscar valores (igual que dashboard-historicos)
+                                        const value = dateData[param.id]
+                                        const valor = value && typeof value === 'object' && 'valor' in value ? value.valor : undefined
+                                        const isOutOfRange = valor !== undefined && isValueOutOfRange(systemName, param.id, valor)
+                                        
+                                        return (
+                                          <td
+                                            key={param.id}
+                                            className={`border px-1 py-2 text-center text-xs ${
+                                              isOutOfRange ? "bg-yellow-300 font-semibold" : ""
+                                            }`}
+                                          >
+                                            {valor !== undefined ? valor.toFixed(2) : "—"}
+                                          </td>
+                                        )
+                                      })}
+                                      <td className={`border px-2 py-2 text-xs ${
+                                        isEven ? "bg-green-50" : "bg-pink-50"
+                                      }`}>
+                                        {dateData.comentarios_globales || "—"}
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
 
@@ -1465,16 +2160,36 @@ export default function Reporte() {
                   <button 
                     className="btn btn-success"
                     onClick={handleSaveReport}
+                    disabled={isSaving || isDownloading}
                   >
-                    <i className="material-icons me-2">save</i>
-                    Guardar
+                    {isSaving ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <i className="material-icons me-2">save</i>
+                        Guardar
+                      </>
+                    )}
                   </button>
                   <button 
                     className="btn btn-danger"
                     onClick={handleDownloadPDF}
+                    disabled={isSaving || isDownloading}
                   >
-                    <i className="material-icons me-2">download</i>
-                    Descargar PDF
+                    {isDownloading ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Generando PDF...
+                      </>
+                    ) : (
+                      <>
+                        <i className="material-icons me-2">download</i>
+                        Descargar PDF
+                      </>
+                    )}
                   </button>
                 </>
               )}
@@ -1482,6 +2197,7 @@ export default function Reporte() {
           </div>
         </div>
       </div>
+      <ScrollArrow />
     </ProtectedRoute>
   )
 }

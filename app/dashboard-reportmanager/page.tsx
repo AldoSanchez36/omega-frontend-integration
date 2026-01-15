@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Navbar } from "@/components/Navbar"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useDebugLogger } from "@/hooks/useDebugLogger"
 import ProtectedRoute from "@/components/ProtectedRoute"
 
@@ -15,10 +16,10 @@ import { useUserAccess } from "@/hooks/useUserAccess"
 import { useMeasurements } from "@/hooks/useMeasurements";
 import { useTolerances } from "@/hooks/useTolerances"
 
-import UserPlantSelector from "./components/UserPlantSelector"
-import SystemSelector from "./components/SystemSelector"
+import TabbedSelector from "./components/TabbedSelector"
 import ParametersList from "./components/ParametersList"
 import Charts from "./components/Charts"
+import ScrollArrow from "./components/ScrollArrow"
 
 // Interfaces
 interface User {
@@ -165,35 +166,22 @@ export default function ReportManager() {
     loadPlants();
   }, [selectedUser, plants, token, router]);
 
-  // Load users - always show all available users, not filtered by plant
+  // Load users - filter to show only users with puesto "client"
+  // Siempre mostrar todos los clientes disponibles para facilitar la navegación
   useEffect(() => {
-    async function loadUsers() {
-      if (selectedPlant) {
-        try {
-          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USERS_BY_PLANT(selectedPlant.nombre)}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setDisplayedUsers(data.usuarios || data);
-          } else if (res.status === 401) {
-            // Token inválido - redirigir al logout
-            console.error('Token inválido detectado, redirigiendo al logout');
-            authService.logout();
-            localStorage.removeItem('Organomex_user');
-            router.push('/logout');
-            return;
-          }
-        } catch (err) {
-          console.error('Error al cargar usuarios por planta:', err);
-          setDisplayedUsers([]);
-        }
-      } else {
-        setDisplayedUsers(users);
-      }
-    }
-    loadUsers();
-  }, [selectedPlant, users, token, router]);
+    // Función helper para verificar si un usuario es cliente
+    const isClientUser = (user: User): boolean => {
+      const puesto = user.puesto?.toLowerCase().trim();
+      const role = user.role?.toLowerCase().trim();
+      const isClient = puesto === 'client' || role === 'client';
+      return isClient;
+    };
+
+    // Siempre mostrar todos los usuarios clientes del hook para facilitar la navegación
+    // Esto permite que al regresar a la pestaña "Clientes" se vean todos los clientes disponibles
+    const clientUsers = users.filter(isClientUser);
+    setDisplayedUsers(clientUsers);
+  }, [users]);
 
     const [parameters, setParameters] = useState<Parameter[]>([])
 
@@ -662,31 +650,27 @@ export default function ReportManager() {
             <p className="text-gray-600">Selecciona parámetros y genera reportes personalizados</p>
           </div>
 
-          <UserPlantSelector
+          <TabbedSelector
             displayedUsers={displayedUsers}
             displayedPlants={selectedUser ? plants : displayedPlants}
+            systems={systems}
             selectedUser={selectedUser}
             selectedPlant={selectedPlant}
+            selectedSystem={selectedSystem}
+            selectedSystemData={selectedSystemData}
             handleSelectUser={handleSelectUserWithReset}
             handleSelectPlant={handleSelectPlantWithReset}
-            isPlantSelectorDisabled={!selectedUser}
+            setSelectedSystem={setSelectedSystem}
+            plantName={selectedPlantData?.nombre || ""}
+            globalFecha={globalFecha}
+            globalComentarios={globalComentarios}
+            handleGlobalFechaChange={setGlobalFecha}
+            handleGlobalComentariosChange={setGlobalComentarios}
+            ocultarFecha={globalFecha !== ""}
+            onSaveData={handleSaveData}
+            onGenerateReport={handleGenerateReport}
+            isGenerateDisabled={isGenerateDisabled}
           />
-
-          {selectedPlantData && systems.length > 0 && (
-            <SystemSelector
-              systems={systems}
-              selectedSystem={selectedSystem}
-              selectedSystemData={selectedSystemData}
-              setSelectedSystem={setSelectedSystem}
-              plantName={selectedPlantData.nombre}
-              globalFecha={globalFecha}
-              globalComentarios={globalComentarios}
-              handleGlobalFechaChange={setGlobalFecha}
-              handleGlobalComentariosChange={setGlobalComentarios}
-              hasCheckedParameters={Object.values(parameterValues).some(value => value.checked)}
-              ocultarFecha={globalFecha !== ""}
-            />
-          )}
 
           {/* Parámetros */}
           {selectedSystemData && parameters.length > 0 && (
@@ -723,14 +707,35 @@ export default function ReportManager() {
                 )}
                 <hr className="my-2 invisible" ></hr>
                 <div className="flex space-x-4">
-                  <Button 
-                    onClick={handleSaveData} 
-                    variant="outline"
-                    disabled={!globalFecha}
-                    className={!globalFecha ? "opacity-50 cursor-not-allowed" : ""}
-                  >
-                    💾 Guardar Datos
-                  </Button>
+                  {!globalFecha ? (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-block">
+                            <Button 
+                              onClick={handleSaveData} 
+                              variant="outline"
+                              disabled={!globalFecha}
+                              className="opacity-50 cursor-not-allowed"
+                            >
+                              💾 Guardar Datos
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-gray-900 text-white border-gray-700">
+                          <p>Selecciona una fecha para poder guardar los datos</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    <Button 
+                      onClick={handleSaveData} 
+                      variant="outline"
+                      disabled={!globalFecha}
+                    >
+                      💾 Guardar Datos
+                    </Button>
+                  )}
                   <Button onClick={handleGenerateReport} disabled={isGenerateDisabled} className={
                     `bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 ${isGenerateDisabled ? "opacity-50 cursor-not-allowed" : ""}`}>
                       📊 Generar Reporte</Button>
@@ -821,6 +826,7 @@ export default function ReportManager() {
           
 
         </div>
+        <ScrollArrow />
       </div>
     </ProtectedRoute>
   )

@@ -157,7 +157,7 @@ const ParametersList: React.FC<ParametersListProps> = ({
   return (
     <Card className="mb-6">
       <ParametersHeader userRole={userRole} router={router} />
-      <CardContent>
+      <CardContent className="py-2 px-2">
         {/* — Inputs globales fecha / comentarios — */}
         {/* Comentado: Movido a SystemSelector.tsx para ser verdaderamente global */}
         {/* {parameters.filter(param => parameterValues[param.id]?.checked).length > 0 && (
@@ -184,7 +184,7 @@ const ParametersList: React.FC<ParametersListProps> = ({
         {/* Checkbox para seleccionar todas las variables */}
         
         {parameters.length > 1 && (
-          <div className="flex items-center space-x-4 p-4 border rounded-lg bg-blue-50 border-blue-200 mb-6">
+          <div className="flex items-center space-x-4 p-2 border rounded-lg bg-blue-50 border-blue-200 mb-3">
             <Checkbox
               checked={parameters.length > 0 && parameters.every(param => parameterValues[param.id]?.checked)}
               onCheckedChange={(checked) => {

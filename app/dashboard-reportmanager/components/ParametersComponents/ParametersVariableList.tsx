@@ -166,7 +166,14 @@ const ParametersVariableList: React.FC<Props> = ({
     return '#C6EFCE'; // Verde por defecto si no hay límites o no se excede el máximo
   };
   return (
-    <div className="space-y-4"> 
+    <div className="space-y-1.5">
+      {/* Header de columnas */}
+      <div className="grid grid-cols-[1fr_auto_1fr] gap-x-2 items-center px-1 py-1 bg-gray-50 rounded-lg">
+        <div className="text-sm font-semibold text-gray-700">Parámetros</div>
+        <div className="text-sm font-semibold text-gray-700 text-center">Unidad de medida</div>
+        <div className="text-sm font-semibold text-gray-700 text-right">Límites</div>
+      </div>
+      
       {parameters.map(parameter => {
         const checked = parameterValues[parameter.id]?.checked || false;
         const unidadesList = parameter.unidad.split(',').map(u => u.trim());
@@ -176,21 +183,20 @@ const ParametersVariableList: React.FC<Props> = ({
         return (
           <div
             key={parameter.id}
-            className="flex flex-col space-y-2 p-4 border rounded-lg md:grid md:grid-cols-[12ch_auto_1fr] md:justify-items-start md:items-center md:gap-x-4"
+            className="flex flex-col space-y-1 px-1 py-1 border rounded-lg md:grid md:grid-cols-[1fr_auto_1fr] md:justify-items-start md:items-center md:gap-x-2 md:space-y-0"
           >
-            <div className="flex items-center space-x-2">
+            {/* Columna 1: Parámetros */}
+            <div className="flex items-center space-x-1.5">
               <Checkbox
                 checked={checked}
                 onCheckedChange={(checked) => handleParameterChange(parameter.id, "checked", checked as boolean)}
               />
-              <span className="font-medium">{parameter.nombre}</span>
-            </div>
-            {checked ? (
-              <div className="flex flex-wrap items-center space-x-2 pl-2.5">
+              <span className="font-medium text-sm">{parameter.nombre}</span>
+              {checked && (
                 <Input
                   type="number"
                   placeholder="Valor"
-                  className="w-[100px] text-sm"
+                  className="w-[80px] text-sm h-7 ml-1.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   style={{
                     backgroundColor: getInputColor(parameter.id, parameterValues[parameter.id]?.value),
                     borderColor: getInputColor(parameter.id, parameterValues[parameter.id]?.value) ? getInputColor(parameter.id, parameterValues[parameter.id]?.value) : undefined
@@ -198,9 +204,15 @@ const ParametersVariableList: React.FC<Props> = ({
                   value={parameterValues[parameter.id]?.value ?? ''}
                   onChange={e => handleParameterChange(parameter.id, 'value', Number(e.target.value))}
                 />
-                {unidadesList.length > 1 ? (
+              )}
+            </div>
+            
+            {/* Columna 2: Unidad de medida */}
+            <div className="flex justify-center md:justify-self-center">
+              {checked ? (
+                unidadesList.length > 1 ? (
                   <select
-                    className="text-sm text-gray-500 border p-1"
+                    className="text-sm text-gray-500 border p-1 h-8"
                     value={parameterValues[parameter.id]?.unidadSeleccionada || ''}
                     onChange={e => handleUnitChange(parameter.id, e.target.value)}
                   >
@@ -211,12 +223,14 @@ const ParametersVariableList: React.FC<Props> = ({
                   </select>
                 ) : (
                   <span className="text-sm text-gray-500">{unidadesList[0]}</span>
-                )}
-              </div>
-            ) : (
-              <span className="text-sm text-gray-500">{parameter.unidad}</span>
-            )}
-            <div className="flex flex-row items-end gap-2 justify-end w-full justify-self-end md:flex-row">
+                )
+              ) : (
+                <span className="text-sm text-gray-500">{parameter.unidad}</span>
+              )}
+            </div>
+            
+            {/* Columna 3: Límites */}
+            <div className="flex flex-row items-end gap-1 justify-end w-full md:justify-self-end">
               {/* Bajo bajo - solo mostrar si existe limite_min en la base de datos */}
               {tolerancias[parameter.id]?.limite_min !== null && tolerancias[parameter.id]?.limite_min !== undefined && (
                 <div className="flex flex-col items-center">
@@ -247,7 +261,7 @@ const ParametersVariableList: React.FC<Props> = ({
                     </button>
                   </div>
                   <span
-                    className={`w-14 text-xs py-1 px-1 text-center rounded h-8 flex items-center justify-center ${
+                    className={`w-12 text-xs py-0.5 px-0.5 text-center rounded h-6 flex items-center justify-center ${
                       usarLimiteMin ? 'bg-yellow-100 border border-yellow-400 text-yellow-900' : 'bg-gray-100 border border-gray-300 text-gray-400'  
                     }`}
                   >
@@ -257,15 +271,15 @@ const ParametersVariableList: React.FC<Props> = ({
               )}
               
               {/* Bajo / Alto - siempre presente, alineados verticalmente */}
-              <div className="flex flex-row gap-2 items-end">
+              <div className="flex flex-row gap-1 items-end">
                 <div className="flex flex-col items-center">
-                  <span className="text-xs font-semibold text-green-700 text-center w-full mb-1">Bajo</span>
-                  <span className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1 h-8 flex items-center justify-center rounded"
+                  <span className="text-xs font-semibold text-green-700 text-center w-full mb-0.5">Bajo</span>
+                  <span className="w-12 bg-green-100 border-green-400 text-green-900 text-xs py-0.5 px-0.5 h-6 flex items-center justify-center rounded"
                     >{tolerancias[parameter.id]?.bien_min ?? '-'}</span>
                 </div>
                 <div className="flex flex-col items-center">
-                  <span className="text-xs font-semibold text-green-700 text-center w-full mb-1">Alto</span>
-                  <span className="w-14 bg-green-100 border-green-400 text-green-900 text-xs py-1 px-1 h-8 flex items-center justify-center rounded"
+                  <span className="text-xs font-semibold text-green-700 text-center w-full mb-0.5">Alto</span>
+                  <span className="w-12 bg-green-100 border-green-400 text-green-900 text-xs py-0.5 px-0.5 h-6 flex items-center justify-center rounded"
                     >{tolerancias[parameter.id]?.bien_max ?? '-'}</span>
                 </div>
               </div>
@@ -300,7 +314,7 @@ const ParametersVariableList: React.FC<Props> = ({
                     </button>
                   </div>
                   <span
-                    className={`w-14 text-xs py-1 px-1 text-center rounded h-8 flex items-center justify-center ${
+                    className={`w-12 text-xs py-0.5 px-0.5 text-center rounded h-6 flex items-center justify-center ${
                       usarLimiteMax ? 'bg-yellow-100 border border-yellow-400 text-yellow-900' : 'bg-gray-100 border border-gray-300 text-gray-400'  
                     }`}
                   >
