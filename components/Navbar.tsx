@@ -129,7 +129,7 @@ export const Navbar: React.FC<NavbarProps> = ({ role }) => {
       }}
     >
       <div className="container d-flex justify-content-between align-items-center">
-        <Link className="navbar-brand fw-bold d-flex align-items-center" href="/" style={{ textDecoration: 'none', height: '56px' }}>
+        <Link className="navbar-brand fw-bold d-flex align-items-center" href="/dashboard" style={{ textDecoration: 'none', height: '56px' }}>
           <Image
             src="/logo_empresa.jpeg"
             alt="STATU QUO Servicios Ambientales"

@@ -574,9 +574,17 @@ export default function Dashboard() {
             puesto: datosJsonb.user?.puesto || report.puesto || user.puesto
           };
         })
-        setReports(formattedReports)
         
-        addDebugLog(`Reportes cargados: ${formattedReports.length} reportes (rol: ${userRole})`)
+        // Ordenar reportes del más reciente al más antiguo por fecha
+        const sortedReports = formattedReports.sort((a, b) => {
+          const dateA = new Date(a.created_at || 0).getTime()
+          const dateB = new Date(b.created_at || 0).getTime()
+          return dateB - dateA // Orden descendente (más reciente primero)
+        })
+        
+        setReports(sortedReports)
+        
+        addDebugLog(`Reportes cargados: ${sortedReports.length} reportes (rol: ${userRole})`)
         
       } catch (error) {
         console.error("Error cargando reportes:", error)

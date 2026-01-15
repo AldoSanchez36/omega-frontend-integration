@@ -126,6 +126,10 @@ export default function Reporte() {
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
   const [reportSelection, setReportSelection] = useState<ReportSelection | null>(null)
   
+  // Estados de carga para los botones
+  const [isSaving, setIsSaving] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
+  
   // Estado para comentarios por parámetro/variable
   const [parameterComments, setParameterComments] = useState<{ [variableName: string]: string }>({})
   
@@ -429,6 +433,9 @@ export default function Reporte() {
 
   // Función para guardar el reporte en el sistema
   const handleSaveReport = async () => {
+    if (isSaving) return // Prevenir múltiples clics
+    
+    setIsSaving(true)
     try {
       console.log("💾 Iniciando proceso de guardado de reporte...")
       
@@ -673,6 +680,8 @@ export default function Reporte() {
     } catch (error) {
       console.error("❌ Error en handleSaveReport:", error)
       alert(`Error: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -1289,6 +1298,9 @@ export default function Reporte() {
 
   // Función para descargar el reporte en PDF (solo descarga, no guarda)
   const handleDownloadPDF = async () => {
+    if (isDownloading) return // Prevenir múltiples clics
+    
+    setIsDownloading(true)
     try {
       console.log("📄 Iniciando descarga de PDF...")
       
@@ -1305,6 +1317,8 @@ export default function Reporte() {
     } catch (error) {
       console.error("❌ Error en handleDownloadPDF:", error)
       alert(`Error: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setIsDownloading(false)
     }
   }
   
@@ -2146,16 +2160,36 @@ export default function Reporte() {
                   <button 
                     className="btn btn-success"
                     onClick={handleSaveReport}
+                    disabled={isSaving || isDownloading}
                   >
-                    <i className="material-icons me-2">save</i>
-                    Guardar
+                    {isSaving ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <i className="material-icons me-2">save</i>
+                        Guardar
+                      </>
+                    )}
                   </button>
                   <button 
                     className="btn btn-danger"
                     onClick={handleDownloadPDF}
+                    disabled={isSaving || isDownloading}
                   >
-                    <i className="material-icons me-2">download</i>
-                    Descargar PDF
+                    {isDownloading ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Generando PDF...
+                      </>
+                    ) : (
+                      <>
+                        <i className="material-icons me-2">download</i>
+                        Descargar PDF
+                      </>
+                    )}
                   </button>
                 </>
               )}
