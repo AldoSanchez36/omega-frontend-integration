@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SensorTimeSeriesChart } from "@/components/SensorTimeSeriesChart";
-import { MesureTable } from "@/components/MesureTable-fixed-auth";
 import { API_BASE_URL } from "@/config/constants";
 
 interface Parameter {
@@ -61,32 +60,20 @@ const Charts: React.FC<ChartsProps> = ({ selectedParameters, startDate, endDate,
               <div key={param.id} className="border rounded-lg p-4">
                 <h3 className="text-lg font-semibold mb-4">{param.nombre} ({param.unidad})</h3>
                 
-                <div className="mb-6">
-                  <h4 className="text-md font-medium mb-2">Tabla de Mediciones</h4>
-                  <MesureTable
-                    variable={param.nombre}
-                    startDate={startDate}
-                    endDate={endDate}
-                    apiBase={API_BASE_URL}
-                    unidades={param.unidad}
-                    clientName={clientName}
-                    processName={processName}
-                    userId={userId}
-                  />
-                </div>
-                
                 <div>
                   <h4 className="text-md font-medium mb-2">Gráfico de Series Temporales</h4>
-                  <SensorTimeSeriesChart
-                    variable={param.nombre}
-                    startDate={startDate}
-                    endDate={endDate}
-                    apiBase={API_BASE_URL}
-                    unidades={param.unidad}
-                    clientName={clientName}
-                    processName={processName}
-                    userId={userId}
-                  />
+                  <div className="max-w-4xl [&_svg]:max-h-96">
+                    <SensorTimeSeriesChart
+                      variable={param.nombre}
+                      startDate={startDate}
+                      endDate={endDate}
+                      apiBase={API_BASE_URL}
+                      unidades={param.unidad}
+                      clientName={clientName}
+                      processName={processName}
+                      userId={userId}
+                    />
+                  </div>
                 </div>
                 
                 {/* Sección de comentarios por parámetro */}

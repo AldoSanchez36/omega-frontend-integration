@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface User {
   id: string;
@@ -308,13 +309,13 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                   )}
 
                   {/* Inputs globales fecha / comentarios - Siempre visible */}
-                  <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <h3 className="text-lg font-semibold mb-4 text-blue-800">
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h3 className="text-base font-semibold mb-2 text-blue-800">
                       Configuración Global
                     </h3>
-                    <div className="flex flex-wrap gap-6">
+                    <div className="flex flex-wrap gap-4">
                       <div className="flex flex-col">
-                        <label htmlFor="globalFecha" className="text-sm font-medium text-blue-700 mb-1">
+                        <label htmlFor="globalFecha" className="text-xs font-medium text-blue-700 mb-0.5">
                           Fecha global
                         </label>
                         <Input
@@ -322,36 +323,57 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                           type="date"
                           value={globalFecha}
                           onChange={e => handleGlobalFechaChange(e.target.value)}
-                          className="mt-1"
+                          className="mt-0.5 h-8 text-sm"
                         />
                       </div>
                       <div className="flex-1 flex flex-col min-w-[300px]">
-                        <label htmlFor="globalComentarios" className="text-sm font-medium text-blue-700 mb-1">
+                        <label htmlFor="globalComentarios" className="text-xs font-medium text-blue-700 mb-0.5">
                           Comentarios globales
                         </label>
                         <Input
                           id="globalComentarios"
                           value={globalComentarios}
                           onChange={e => handleGlobalComentariosChange(e.target.value)}
-                          className="mt-1"
+                          className="mt-0.5 h-8 text-sm"
                           placeholder="Ingresa comentarios globales..."
                         />
                       </div>
                     </div>
-                    <p className="text-sm text-blue-600 mt-2">
+                    <p className="text-xs text-blue-600 mt-1.5">
                       Esta configuración se aplicará a todos los sistemas de {plantName}
                     </p>
                     
                     {/* Botones de acción */}
-                    <div className="flex space-x-4 mt-4 pt-4 border-t border-blue-200">
-                      <Button 
-                        onClick={onSaveData} 
-                        variant="outline"
-                        disabled={!globalFecha}
-                        className={!globalFecha ? "opacity-50 cursor-not-allowed" : ""}
-                      >
-                        💾 Guardar Datos
-                      </Button>
+                    <div className="flex space-x-4 mt-3 pt-3 border-t border-blue-200">
+                      {!globalFecha ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-block">
+                                <Button 
+                                  onClick={onSaveData} 
+                                  variant="outline"
+                                  disabled={!globalFecha}
+                                  className="opacity-50 cursor-not-allowed"
+                                >
+                                  💾 Guardar Datos
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-gray-900 text-white border-gray-700">
+                              <p>Selecciona una fecha para poder guardar los datos</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <Button 
+                          onClick={onSaveData} 
+                          variant="outline"
+                          disabled={!globalFecha}
+                        >
+                          💾 Guardar Datos
+                        </Button>
+                      )}
                       <Button 
                         onClick={onGenerateReport} 
                         disabled={isGenerateDisabled} 

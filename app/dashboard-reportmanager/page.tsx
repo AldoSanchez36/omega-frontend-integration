@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Navbar } from "@/components/Navbar"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useDebugLogger } from "@/hooks/useDebugLogger"
 import ProtectedRoute from "@/components/ProtectedRoute"
 
@@ -166,51 +167,21 @@ export default function ReportManager() {
   }, [selectedUser, plants, token, router]);
 
   // Load users - filter to show only users with puesto "client"
+  // Siempre mostrar todos los clientes disponibles para facilitar la navegación
   useEffect(() => {
-    async function loadUsers() {
-      // Función helper para verificar si un usuario es cliente
-      const isClientUser = (user: User): boolean => {
-        const puesto = user.puesto?.toLowerCase().trim();
-        const role = user.role?.toLowerCase().trim();
-        const isClient = puesto === 'client' || role === 'client';
-        // Debug: descomentar para ver qué usuarios se están filtrando
-        // if (!isClient) {
-        //   console.log('Usuario filtrado:', user.username, 'puesto:', user.puesto, 'role:', user.role);
-        // }
-        return isClient;
-      };
+    // Función helper para verificar si un usuario es cliente
+    const isClientUser = (user: User): boolean => {
+      const puesto = user.puesto?.toLowerCase().trim();
+      const role = user.role?.toLowerCase().trim();
+      const isClient = puesto === 'client' || role === 'client';
+      return isClient;
+    };
 
-      if (selectedPlant) {
-        try {
-          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USERS_BY_PLANT(selectedPlant.nombre)}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          });
-          if (res.ok) {
-            const data = await res.json();
-            const allUsers = data.usuarios || data;
-            // Filtrar solo usuarios con puesto o role "client"
-            const clientUsers = allUsers.filter(isClientUser);
-            setDisplayedUsers(clientUsers);
-          } else if (res.status === 401) {
-            // Token inválido - redirigir al logout
-            console.error('Token inválido detectado, redirigiendo al logout');
-            authService.logout();
-            localStorage.removeItem('Organomex_user');
-            router.push('/logout');
-            return;
-          }
-        } catch (err) {
-          console.error('Error al cargar usuarios por planta:', err);
-          setDisplayedUsers([]);
-        }
-      } else {
-        // Filtrar solo usuarios con puesto o role "client"
-        const clientUsers = users.filter(isClientUser);
-        setDisplayedUsers(clientUsers);
-      }
-    }
-    loadUsers();
-  }, [selectedPlant, users, token, router]);
+    // Siempre mostrar todos los usuarios clientes del hook para facilitar la navegación
+    // Esto permite que al regresar a la pestaña "Clientes" se vean todos los clientes disponibles
+    const clientUsers = users.filter(isClientUser);
+    setDisplayedUsers(clientUsers);
+  }, [users]);
 
     const [parameters, setParameters] = useState<Parameter[]>([])
 
@@ -736,14 +707,35 @@ export default function ReportManager() {
                 )}
                 <hr className="my-2 invisible" ></hr>
                 <div className="flex space-x-4">
-                  <Button 
-                    onClick={handleSaveData} 
-                    variant="outline"
-                    disabled={!globalFecha}
-                    className={!globalFecha ? "opacity-50 cursor-not-allowed" : ""}
-                  >
-                    💾 Guardar Datos
-                  </Button>
+                  {!globalFecha ? (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-block">
+                            <Button 
+                              onClick={handleSaveData} 
+                              variant="outline"
+                              disabled={!globalFecha}
+                              className="opacity-50 cursor-not-allowed"
+                            >
+                              💾 Guardar Datos
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-gray-900 text-white border-gray-700">
+                          <p>Selecciona una fecha para poder guardar los datos</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    <Button 
+                      onClick={handleSaveData} 
+                      variant="outline"
+                      disabled={!globalFecha}
+                    >
+                      💾 Guardar Datos
+                    </Button>
+                  )}
                   <Button onClick={handleGenerateReport} disabled={isGenerateDisabled} className={
                     `bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 ${isGenerateDisabled ? "opacity-50 cursor-not-allowed" : ""}`}>
                       📊 Generar Reporte</Button>

@@ -11,15 +11,25 @@ const ScrollArrow: React.FC = () => {
 
   useEffect(() => {
     const calculatePosition = () => {
-      // Buscar el contenedor principal con max-w-7xl
-      const container = document.querySelector('.max-w-7xl');
+      // Buscar el contenedor principal - primero max-w-7xl, luego reporte-pdf, luego container
+      const maxWContainer = document.querySelector('.max-w-7xl');
+      const reportContainer = document.querySelector('#reporte-pdf') || document.querySelector('.container');
+      const container = maxWContainer || reportContainer;
+      
       if (container) {
         const containerRect = container.getBoundingClientRect();
         const viewportWidth = window.innerWidth;
         const containerRight = containerRect.right;
         const distanceFromRight = viewportWidth - containerRight;
-        // Posicionar el botón justo al lado del contenedor (con un pequeño margen) y 65px más a la derecha (15 + 20 + 30)
-        setRightOffset(Math.max(16, distanceFromRight + 8 - 65));
+        
+        // Si es el contenedor del reporte, posicionar más cerca (más a la izquierda)
+        if (reportContainer && !maxWContainer) {
+          // Para la página de reports: posicionar más cerca del contenedor, solo 8px de margen + 70px más a la derecha
+          setRightOffset(Math.max(16, distanceFromRight + 8 - 70));
+        } else {
+          // Para otras páginas con max-w-7xl: mantener el offset original
+          setRightOffset(Math.max(16, distanceFromRight + 8 - 65));
+        }
       } else {
         // Fallback: si no se encuentra el contenedor, usar un valor fijo más cercano
         setRightOffset(16);
