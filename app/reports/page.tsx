@@ -956,6 +956,272 @@ export default function Reporte() {
         console.log("ℹ️ No hay gráficos para exportar");
       }
 
+      // Agregar tabla histórica por sistema (igual que dashboard-historicos)
+      if (reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
+        currentY = checkSpaceAndAddPage(20, currentY);
+        pdf.setFontSize(14);
+        pdf.text("Historial de Reportes por Sistema", marginLeft, currentY);
+        currentY += 8;
+        
+        // Agregar período
+        pdf.setFontSize(10);
+        const periodText = `Período: ${new Date(pdfChartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - ${new Date(pdfChartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)`;
+        pdf.text(periodText, marginLeft, currentY);
+        currentY += spacingMM;
+        
+        // Obtener token para las peticiones
+        const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
+        const plantName = reportSelection?.plant?.nombre;
+        
+        // Iterar sobre cada sistema
+        for (const systemName of Object.keys(reportSelection.parameters)) {
+          // Obtener todos los parámetros del sistema desde la API (igual que dashboard-historicos)
+          let parameters: Array<{ id: string; nombre: string; unidad: string }> = [];
+          let historicalData: HistoricalDataByDate = {};
+          
+          try {
+            // Obtener el ID del sistema desde su nombre
+            if (token && plantName) {
+              const systemsResponse = await fetch(
+                `${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT_NAME(plantName)}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+              
+              if (systemsResponse.ok) {
+                const systemsData = await systemsResponse.json();
+                const systemsList = systemsData.procesos || systemsData || [];
+                const systemInfo = systemsList.find((sys: any) => sys.nombre === systemName);
+                
+                if (systemInfo?.id) {
+                  // Obtener todos los parámetros del sistema usando el ID (igual que dashboard-historicos)
+                  const varsResponse = await fetch(
+                    `${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(systemInfo.id)}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                  );
+                  
+                  if (varsResponse.ok) {
+                    const varsData = await varsResponse.json();
+                    const variablesList = varsData.variables || varsData || [];
+                    parameters = variablesList.map((v: any) => ({
+                      id: v.id,
+                      nombre: v.nombre,
+                      unidad: v.unidad || ""
+                    }));
+                  }
+                  
+                  // Obtener datos históricos (igual que dashboard-historicos)
+                  const measurementsResponse = await fetch(
+                    `${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_PROCESS(systemInfo.nombre)}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                  );
+                  
+                  if (measurementsResponse.ok) {
+                    const measurementsData = await measurementsResponse.json();
+                    const measurements: HistoricalMeasurement[] = measurementsData.mediciones || [];
+                    
+                    // Filtrar por rango de fechas
+                    const filteredMeasurements = measurements.filter((m: HistoricalMeasurement) => {
+                      const fecha = new Date(m.fecha);
+                      const start = new Date(pdfChartStartDate);
+                      const end = new Date(pdfChartEndDate);
+                      end.setHours(23, 59, 59, 999);
+                      return fecha >= start && fecha <= end;
+                    });
+                    
+                    // Organizar datos por fecha y variable_id (igual que dashboard-historicos)
+                    filteredMeasurements.forEach((measurement: HistoricalMeasurement) => {
+                      const fechaStr = new Date(measurement.fecha).toISOString().split('T')[0];
+                      
+                      if (!historicalData[fechaStr]) {
+                        historicalData[fechaStr] = {};
+                      }
+                      
+                      // Usar variable_id como key (igual que dashboard-historicos)
+                      historicalData[fechaStr][measurement.variable_id] = {
+                        valor: measurement.valor,
+                        unidad: measurement.unidad,
+                        comentarios: measurement.comentarios
+                      };
+                      
+                      if (measurement.comentarios && !historicalData[fechaStr].comentarios_globales) {
+                        historicalData[fechaStr].comentarios_globales = measurement.comentarios;
+                      }
+                    });
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`Error obteniendo datos para sistema ${systemName}:`, error);
+          }
+          
+          if (parameters.length === 0) continue;
+          
+          // Título del sistema
+          currentY = checkSpaceAndAddPage(15, currentY);
+          pdf.setFontSize(12);
+          pdf.text(`Sistema: ${systemName}`, marginLeft, currentY);
+          currentY += 8;
+          
+          // Calcular valores ALTO y BAJO usando param.id (igual que dashboard-historicos)
+          const highLowValues: { [key: string]: { alto: number, bajo: number } } = {};
+          parameters.forEach(param => {
+            const values = Object.values(historicalData)
+              .map(dateData => {
+                // Usar param.id para buscar valores (igual que dashboard-historicos)
+                const paramData = dateData[param.id];
+                return paramData && typeof paramData === 'object' && 'valor' in paramData ? paramData.valor : undefined;
+              })
+              .filter((val): val is number => val !== undefined);
+            
+            if (values.length > 0) {
+              highLowValues[param.id] = {
+                alto: Math.max(...values),
+                bajo: Math.min(...values)
+              };
+            } else {
+              highLowValues[param.id] = { alto: 0, bajo: 0 };
+            }
+          });
+          
+          // Ordenar fechas
+          const sortedDates = Object.keys(historicalData).sort((a, b) => 
+            new Date(a).getTime() - new Date(b).getTime()
+          );
+          
+          // Preparar datos de la tabla (incluyendo columna de COMENTARIOS)
+          const tableHeaders = ["PARAMETROS", ...parameters.map(p => `${p.nombre}\n(${p.unidad})`), "COMENTARIOS"];
+          
+          // Fila ALTO
+          const altoRow = ["ALTO", ...parameters.map(p => 
+            highLowValues[p.id]?.alto.toFixed(2) || "—"
+          ), "—"];
+          
+          // Fila BAJO
+          const bajoRow = ["BAJO", ...parameters.map(p => 
+            highLowValues[p.id]?.bajo.toFixed(2) || "—"
+          ), "—"];
+          
+          // Fila FECHA/RANGOS
+          const rangosRow = ["FECHA/RANGOS", ...parameters.map(p => {
+            const tolerances = reportSelection?.variablesTolerancia?.[systemName] || {};
+            let tolerance = tolerances[p.id] as any;
+            
+            if (!tolerance) {
+              tolerance = Object.values(tolerances).find((tol: any) => tol && typeof tol === 'object') as any;
+            }
+            
+            if (!tolerance) return "—";
+            
+            const min = tolerance.limite_min;
+            const max = tolerance.limite_max;
+            
+            if (min !== undefined && min !== null && max !== undefined && max !== null) {
+              return `${min} - ${max}`;
+            } else if (min !== undefined && min !== null) {
+              return `Min ${min}`;
+            } else if (max !== undefined && max !== null) {
+              return `Max ${max}`;
+            }
+            return "—";
+          }), "—"];
+          
+          // Filas de datos históricos
+          const dataRows: string[][] = [];
+          sortedDates.forEach((fecha) => {
+            const dateData = historicalData[fecha];
+            const fechaFormateada = new Date(fecha).toLocaleDateString('es-ES', {
+              day: '2-digit',
+              month: '2-digit',
+              year: '2-digit'
+            });
+            
+            const row = [
+              fechaFormateada,
+              ...parameters.map((param) => {
+                // Usar param.id para buscar valores (igual que dashboard-historicos)
+                const value = dateData[param.id];
+                const valor = value && typeof value === 'object' && 'valor' in value ? value.valor : undefined;
+                return valor !== undefined ? valor.toFixed(2) : "—";
+              }),
+              dateData.comentarios_globales || "—"
+            ];
+            dataRows.push(row);
+          });
+          
+          // Crear tabla con AutoTable
+          const tableData = [altoRow, bajoRow, rangosRow, ...dataRows];
+          
+          // Reducir el tamaño de la tabla en un 35% (65% del tamaño original)
+          // Si el tamaño original era 95%, ahora será: 95% * 0.65 = 61.75%
+          const tableWidthMM = pageWidthMM * 0.6175; // 65% del tamaño original (95% * 0.65)
+          // Alinear la tabla a la izquierda con un margen pequeño
+          const tableMarginLeft = 10; // Margen izquierdo pequeño para pegar la tabla a la izquierda
+          const tableMarginRight = pageWidthMM - tableWidthMM - tableMarginLeft; // El resto del espacio a la derecha
+          
+          autoTable(pdf, {
+            head: [tableHeaders],
+            body: tableData,
+            startY: currentY,
+            theme: "grid",
+            tableWidth: tableWidthMM, // Especificar el ancho de la tabla explícitamente
+            headStyles: { 
+              fillColor: [31, 78, 121], // Azul oscuro
+              textColor: [255, 255, 255],
+              fontSize: 5.85, // Reducido 35% (9 * 0.65)
+              halign: 'center',
+              cellPadding: 0.975 // Reducido 35% (1.5 * 0.65)
+            },
+            bodyStyles: {
+              fontSize: 4.875, // Reducido 35% (7.5 * 0.65)
+              halign: 'center',
+              cellPadding: 0.975 // Reducido 35% (1.5 * 0.65)
+            },
+            columnStyles: {
+              0: { halign: 'left', cellWidth: 18.2 }, // Reducido 35% (28 * 0.65)
+            },
+            didParseCell: (data: any) => {
+              // Aplicar cellWidth: 9.1 a todas las columnas excepto la primera (reducido 35%)
+              if (data.column.index > 0) {
+                data.cell.styles.cellWidth = 9.1; // Reducido 35% (14 * 0.65)
+              }
+              
+              // Alinear columna de COMENTARIOS a la izquierda
+              if (data.column.index === tableHeaders.length - 1) {
+                data.cell.styles.halign = 'left';
+              }
+              
+              // Colorear filas ALTO y BAJO en verde claro
+              if (data.section === 'body' && data.row.index !== undefined) {
+                if (data.row.index === 0 || data.row.index === 1) {
+                  // Filas ALTO y BAJO
+                  data.cell.styles.fillColor = [220, 255, 220]; // Verde claro
+                } else if (data.row.index === 2) {
+                  // Fila FECHA/RANGOS
+                  data.cell.styles.fillColor = [31, 78, 121]; // Azul oscuro
+                  data.cell.styles.textColor = [255, 255, 255];
+                } else {
+                  // Filas de datos históricos - alternar colores
+                  const dataIndex = data.row.index - 3; // Restar 3 por ALTO, BAJO, RANGOS
+                  if (dataIndex % 2 === 0) {
+                    data.cell.styles.fillColor = [245, 255, 245]; // Verde muy claro
+                  } else {
+                    data.cell.styles.fillColor = [255, 240, 245]; // Rosa claro
+                  }
+                }
+              }
+            },
+            margin: { left: tableMarginLeft, right: tableMarginRight },
+            styles: { 
+              fontSize: 4.875, // Reducido 35% (7.5 * 0.65)
+              cellPadding: 0.975 // Reducido 35% (1.5 * 0.65)
+            },
+          });
+          
+          currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
+        }
+      }
+
       // Comentarios globales
       if (reportSelection.comentarios) {
         currentY = checkSpaceAndAddPage(20, currentY);
