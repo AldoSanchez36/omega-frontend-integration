@@ -845,20 +845,35 @@ export default function ReportManager() {
                           Object.keys(systemData).forEach(variable => allVariables.add(variable));
                         });
                         
-                        return Array.from(allVariables).map(variable => (
-                          <tr key={variable} className="hover:bg-gray-50">
-                            <td className="border px-4 py-2 font-medium">{variable}</td>
-                            {Object.keys(savedReportData.parameters).map(systemName => {
-                              const systemData = savedReportData.parameters[systemName];
-                              const paramData = systemData[variable];
-                              return (
-                                <td key={systemName} className="border px-4 py-2 text-center">
-                                  {paramData ? `${paramData.valor} ${paramData.unidad}` : '—'}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ));
+                        return Array.from(allVariables).map(variable => {
+                          // Obtener la unidad del primer sistema que tenga datos para esta variable
+                          let unidad = '';
+                          for (const systemName of Object.keys(savedReportData.parameters)) {
+                            const systemData = savedReportData.parameters[systemName];
+                            const paramData = systemData[variable];
+                            if (paramData && paramData.unidad) {
+                              unidad = paramData.unidad;
+                              break;
+                            }
+                          }
+                          
+                          return (
+                            <tr key={variable} className="hover:bg-gray-50">
+                              <td className="border px-4 py-2 font-medium">
+                                {variable}{unidad ? ` (${unidad})` : ''}
+                              </td>
+                              {Object.keys(savedReportData.parameters).map(systemName => {
+                                const systemData = savedReportData.parameters[systemName];
+                                const paramData = systemData[variable];
+                                return (
+                                  <td key={systemName} className="border px-4 py-2 text-center">
+                                    {paramData ? paramData.valor : '—'}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        });
                       })()}
                     </tbody>
                   </table>

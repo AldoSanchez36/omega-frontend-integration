@@ -886,11 +886,26 @@ export default function Reporte() {
         const systemNames = Object.keys(reportSelection.parameters);
         const previewTableHeaders = ["Variable", ...systemNames];
         const previewTableData = Array.from(allVariables).map(variable => {
-          const row: string[] = [variable];
+          // Obtener la unidad del primer sistema que tenga datos para esta variable
+          let unidad = '';
+          for (const systemName of systemNames) {
+            const systemData = reportSelection.parameters[systemName];
+            const paramData = systemData[variable];
+            if (paramData && paramData.unidad) {
+              unidad = paramData.unidad;
+              break;
+            }
+          }
+          
+          // Mostrar la unidad junto al nombre del parámetro
+          const variableWithUnit = unidad ? `${variable} (${unidad})` : variable;
+          const row: string[] = [variableWithUnit];
+          
           systemNames.forEach((systemName: string) => {
             const systemData = reportSelection.parameters[systemName];
             const paramData = systemData[variable];
-            const value = paramData ? `${paramData.valor} ${paramData.unidad}` : "—";
+            // Mostrar solo el valor sin la unidad
+            const value = paramData ? String(paramData.valor) : "—";
             row.push(value);
           });
           return row;
@@ -923,10 +938,10 @@ export default function Reporte() {
         } else {
           pdf.setFontSize(10);
           pdf.setTextColor(128, 128, 128); // Gris
-          pdf.setFontStyle('italic');
+          pdf.setFont('helvetica', 'italic');
           pdf.text("No hay comentarios registrados.", marginLeft, currentY);
           pdf.setTextColor(0, 0, 0); // Volver a negro
-          pdf.setFontStyle('normal');
+          pdf.setFont('helvetica', 'normal');
           currentY += 8;
         }
       }
@@ -1944,20 +1959,35 @@ export default function Reporte() {
                             Object.keys(systemData).forEach(variable => allVariables.add(variable));
                           });
                           
-                          return Array.from(allVariables).map(variable => (
-                            <tr key={variable} className="hover:bg-gray-50">
-                              <td className="border px-4 py-2 font-medium">{variable}</td>
-                              {Object.keys(reportSelection.parameters).map(systemName => {
-                                const systemData = reportSelection.parameters[systemName];
-                                const paramData = systemData[variable];
-                                return (
-                                  <td key={systemName} className="border px-4 py-2 text-center">
-                                    {paramData ? `${paramData.valor} ${paramData.unidad}` : '—'}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ));
+                          return Array.from(allVariables).map(variable => {
+                            // Obtener la unidad del primer sistema que tenga datos para esta variable
+                            let unidad = '';
+                            for (const systemName of Object.keys(reportSelection.parameters)) {
+                              const systemData = reportSelection.parameters[systemName];
+                              const paramData = systemData[variable];
+                              if (paramData && paramData.unidad) {
+                                unidad = paramData.unidad;
+                                break;
+                              }
+                            }
+                            
+                            return (
+                              <tr key={variable} className="hover:bg-gray-50">
+                                <td className="border px-4 py-2 font-medium">
+                                  {variable}{unidad ? ` (${unidad})` : ''}
+                                </td>
+                                {Object.keys(reportSelection.parameters).map(systemName => {
+                                  const systemData = reportSelection.parameters[systemName];
+                                  const paramData = systemData[variable];
+                                  return (
+                                    <td key={systemName} className="border px-4 py-2 text-center">
+                                      {paramData ? paramData.valor : '—'}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          });
                         })()}
                       </tbody>
                     </table>

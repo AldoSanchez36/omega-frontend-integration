@@ -164,44 +164,20 @@ export default function HistoricosPage() {
   }, [selectedUser, plants, token, router]);
 
   // Load users - filter to show only users with puesto "client"
+  // Siempre mostrar todos los clientes disponibles para facilitar la navegación
   useEffect(() => {
-    async function loadUsers() {
-      // Función helper para verificar si un usuario es cliente
-      const isClientUser = (user: User): boolean => {
-        const puesto = user.puesto?.toLowerCase().trim();
-        const role = user.role?.toLowerCase().trim();
-        return puesto === 'client' || role === 'client';
-      };
+    // Función helper para verificar si un usuario es cliente
+    const isClientUser = (user: User): boolean => {
+      const puesto = user.puesto?.toLowerCase().trim();
+      const role = user.role?.toLowerCase().trim();
+      return puesto === 'client' || role === 'client';
+    };
 
-      if (selectedPlant) {
-        try {
-          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USERS_BY_PLANT(selectedPlant.nombre)}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          });
-          if (res.ok) {
-            const data = await res.json();
-            const allUsers = data.usuarios || data;
-            // Filtrar solo usuarios con puesto o role "client"
-            const clientUsers = allUsers.filter(isClientUser);
-            setDisplayedUsers(clientUsers);
-          } else if (res.status === 401) {
-            authService.logout();
-            localStorage.removeItem('Organomex_user');
-            router.push('/logout');
-            return;
-          }
-        } catch (err) {
-          console.error('Error al cargar usuarios por planta:', err);
-          setDisplayedUsers([]);
-        }
-      } else {
-        // Filtrar solo usuarios con puesto o role "client"
-        const clientUsers = users.filter(isClientUser);
-        setDisplayedUsers(clientUsers);
-      }
-    }
-    loadUsers();
-  }, [selectedPlant, users, token, router]);
+    // Siempre mostrar todos los usuarios clientes del hook para facilitar la navegación
+    // Esto permite que al regresar a la pestaña "Clientes" se vean todos los clientes disponibles
+    const clientUsers = users.filter(isClientUser);
+    setDisplayedUsers(clientUsers);
+  }, [users]);
 
   // Fetch parameters when system is selected
   const fetchParameters = useCallback(async () => {
@@ -399,6 +375,31 @@ export default function HistoricosPage() {
 
   const highLowValues = getHighLowValues()
 
+  // Calcular valores PROMEDIO para cada parámetro
+  const getAverageValues = () => {
+    const averages: { [key: string]: number } = {}
+    
+    parameters.forEach(param => {
+      const values = Object.values(historicalData)
+        .map(dateData => {
+          const paramData = dateData[param.id]
+          return paramData && typeof paramData === 'object' && 'valor' in paramData ? paramData.valor : undefined
+        })
+        .filter((val): val is number => val !== undefined)
+      
+      if (values.length > 0) {
+        const sum = values.reduce((acc, val) => acc + val, 0)
+        averages[param.id] = sum / values.length
+      } else {
+        averages[param.id] = 0
+      }
+    })
+    
+    return averages
+  }
+
+  const averageValues = getAverageValues()
+
   // Verificar si un valor está fuera de rango
   const isValueOutOfRange = (parameterId: string, value: number): boolean => {
     const { min, max } = getMinMaxForParameter(parameterId)
@@ -555,6 +556,20 @@ export default function HistoricosPage() {
                           {parameters.map((param) => (
                             <td key={param.id} className="border px-1 py-2 text-center text-xs">
                               {highLowValues[param.id]?.bajo.toFixed(2) || "—"}
+                            </td>
+                          ))}
+                          <td className="border px-2 py-2 text-xs">—</td>
+                        </tr>
+                        {/* Fila PROMEDIO */}
+                        <tr className="bg-green-100">
+                          <td className="border px-2 py-2 font-semibold bg-green-100">
+                            PROMEDIO
+                          </td>
+                          {parameters.map((param) => (
+                            <td key={param.id} className="border px-1 py-2 text-center text-xs">
+                              {averageValues[param.id] && averageValues[param.id] > 0 
+                                ? averageValues[param.id].toFixed(2) 
+                                : "—"}
                             </td>
                           ))}
                           <td className="border px-2 py-2 text-xs">—</td>
