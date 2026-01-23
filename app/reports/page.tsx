@@ -133,6 +133,9 @@ export default function Reporte() {
   // Estado para comentarios por parámetro/variable
   const [parameterComments, setParameterComments] = useState<{ [variableName: string]: string }>({})
   
+  // Estado para controlar si la tabla se incluye en el PDF
+  const [includeTableInPDF, setIncludeTableInPDF] = useState<boolean>(true)
+  
   // Estado para gráficos
   const [selectedVariableForChart, setSelectedVariableForChart] = useState<string>("")
   
@@ -855,6 +858,79 @@ export default function Reporte() {
 
       currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
 
+      // Agregar tabla de Previsualización de Datos Guardados
+      if (reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
+        currentY = checkSpaceAndAddPage(30, currentY);
+        pdf.setFontSize(14);
+        pdf.text("Previsualización de Datos Guardados", marginLeft, currentY);
+        currentY += 8;
+        
+        // Fecha de medición
+        pdf.setFontSize(10);
+        const fechaMedicion = reportSelection.fecha 
+          ? new Date(reportSelection.fecha).toLocaleDateString('es-ES', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric'
+            })
+          : currentDate;
+        pdf.text(`Fecha de medición: ${fechaMedicion}`, marginLeft, currentY);
+        currentY += 8;
+        
+        // Preparar datos de la tabla
+        const allVariables = new Set<string>();
+        Object.values(reportSelection.parameters).forEach((systemData: any) => {
+          Object.keys(systemData).forEach(variable => allVariables.add(variable));
+        });
+        
+        const systemNames = Object.keys(reportSelection.parameters);
+        const previewTableHeaders = ["Variable", ...systemNames];
+        const previewTableData = Array.from(allVariables).map(variable => {
+          const row: string[] = [variable];
+          systemNames.forEach((systemName: string) => {
+            const systemData = reportSelection.parameters[systemName];
+            const paramData = systemData[variable];
+            const value = paramData ? `${paramData.valor} ${paramData.unidad}` : "—";
+            row.push(value);
+          });
+          return row;
+        });
+        
+        // Agregar tabla usando AutoTable
+        autoTable(pdf, {
+          head: [previewTableHeaders],
+          body: previewTableData,
+          startY: currentY,
+          theme: "grid",
+          headStyles: { fillColor: [66, 139, 202] },
+          margin: { left: marginLeft, right: marginLeft },
+          styles: { fontSize: 9 },
+        });
+        
+        currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
+        
+        // Agregar sección de comentarios (siempre visible)
+        currentY = checkSpaceAndAddPage(20, currentY);
+        pdf.setFontSize(12);
+        pdf.text("Comentarios:", marginLeft, currentY);
+        currentY += 8;
+        
+        if (reportSelection.comentarios && reportSelection.comentarios.trim()) {
+          pdf.setFontSize(10);
+          const commentLines = pdf.splitTextToSize(reportSelection.comentarios, contentWidthMM);
+          pdf.text(commentLines, marginLeft, currentY);
+          currentY += commentLines.length * 4 + spacingMM;
+        } else {
+          pdf.setFontSize(10);
+          pdf.setTextColor(128, 128, 128); // Gris
+          pdf.setFontStyle('italic');
+          pdf.text("No hay comentarios registrados.", marginLeft, currentY);
+          pdf.setTextColor(0, 0, 0); // Volver a negro
+          pdf.setFontStyle('normal');
+          currentY += 8;
+        }
+      }
+
       // Capturar y agregar gráficos
       console.log("📊 Buscando sección de gráficos...");
       
@@ -966,7 +1042,8 @@ export default function Reporte() {
       }
 
       // Agregar tabla histórica por sistema (igual que dashboard-historicos)
-      if (reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
+      // Solo agregar si el checkbox está seleccionado
+      if (includeTableInPDF && reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
         currentY = checkSpaceAndAddPage(20, currentY);
         pdf.setFontSize(14);
         pdf.text("Historial de Reportes por Sistema", marginLeft, currentY);
@@ -1828,6 +1905,90 @@ export default function Reporte() {
                 </div>
               </div>
 
+              {/* Previsualización de Datos Guardados */}
+              {reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0 && (
+                <div className="mb-4 ml-10 mr-10">
+                  <h5 className="mb-3">
+                    <strong>Previsualización de Datos Guardados</strong>
+                  </h5>
+                  
+                  {/* Fecha de medición */}
+                  <div className="mb-4">
+                    <h6 className="text-base font-semibold text-blue-800">
+                      Fecha de medición: {reportSelection.fecha ? new Date(reportSelection.fecha).toLocaleDateString('es-ES', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric'
+                      }) : currentDate}
+                    </h6>
+                  </div>
+
+                  {/* Tabla de datos */}
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border border-gray-300 bg-white">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="border px-4 py-2 text-left font-semibold">Variable</th>
+                          {Object.keys(reportSelection.parameters).map(systemName => (
+                            <th key={systemName} className="border px-4 py-2 text-center font-semibold">
+                              {systemName}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          // Obtener todas las variables únicas
+                          const allVariables = new Set<string>();
+                          Object.values(reportSelection.parameters).forEach((systemData: any) => {
+                            Object.keys(systemData).forEach(variable => allVariables.add(variable));
+                          });
+                          
+                          return Array.from(allVariables).map(variable => (
+                            <tr key={variable} className="hover:bg-gray-50">
+                              <td className="border px-4 py-2 font-medium">{variable}</td>
+                              {Object.keys(reportSelection.parameters).map(systemName => {
+                                const systemData = reportSelection.parameters[systemName];
+                                const paramData = systemData[variable];
+                                return (
+                                  <td key={systemName} className="border px-4 py-2 text-center">
+                                    {paramData ? `${paramData.valor} ${paramData.unidad}` : '—'}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Sección de comentarios */}
+                  <div className="mt-4 pt-4 border-t">
+                    <label htmlFor="preview-comments" className="block text-sm font-medium text-gray-700 mb-2">
+                      Comentarios para Previsualización de Datos:
+                    </label>
+                    <textarea
+                      id="preview-comments"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      rows={3}
+                      placeholder="Agregar comentarios sobre estos datos..."
+                      value={reportSelection.comentarios || ""}
+                      onChange={(e) => {
+                        if (reportSelection) {
+                          const updatedReportSelection = {
+                            ...reportSelection,
+                            comentarios: e.target.value
+                          }
+                          setReportSelection(updatedReportSelection)
+                          localStorage.setItem("reportSelection", JSON.stringify(updatedReportSelection))
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Gráficos de Series Temporales */}
               {variablesDisponibles.length > 0 && (
                 <div className="mb-4 ml-10 mr-10">
@@ -1848,10 +2009,7 @@ export default function Reporte() {
                       
                       return (
                       <div key={variable.id} className="border rounded-lg p-4 bg-white">
-                        <h3 className="text-lg font-semibold mb-4">{variable.nombre} ({variable.unidad})</h3>
-                        
                         <div>
-                          <h4 className="text-md font-medium mb-2">Gráfico de Series Temporales</h4>
                           {chartStartDate && chartEndDate && (
                             <div className="max-w-4xl [&_svg]:max-h-96">
                               <SensorTimeSeriesChart
@@ -1897,7 +2055,21 @@ export default function Reporte() {
               {/* Tablas Históricas por Sistema */}
               {reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0 && (
                 <div className="mb-4 ml-10 mr-10">
-                  <h5 className="mb-3">Historial de Reportes por Sistema</h5>
+                  <div className="flex items-center justify-between mb-3">
+                    <h5 className="mb-0">Historial de Reportes por Sistema</h5>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="includeTableInPDF"
+                        checked={includeTableInPDF}
+                        onChange={(e) => setIncludeTableInPDF(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <label htmlFor="includeTableInPDF" className="text-sm text-gray-700 cursor-pointer">
+                        Incluir tabla en PDF
+                      </label>
+                    </div>
+                  </div>
                   {chartStartDate && chartEndDate && (
                     <p className="text-sm text-muted mb-3">
                       Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)

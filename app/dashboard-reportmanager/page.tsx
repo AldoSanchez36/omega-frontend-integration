@@ -92,6 +92,23 @@ export default function ReportManager() {
   const [globalFecha, setGlobalFecha] = useState<string>("");
   const [globalComentarios, setGlobalComentarios] = useState<string>("");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  
+  // Estados para fechas de filtro de gráficos (año en curso por defecto)
+  const getCurrentYearDates = () => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const startDate = new Date(currentYear, 0, 1); // 1 de enero del año en curso
+    const endDate = new Date(currentYear, 11, 31); // 31 de diciembre del año en curso
+    
+    return {
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0]
+    };
+  };
+  
+  const { startDate: defaultChartStartDate, endDate: defaultChartEndDate } = getCurrentYearDates();
+  const [chartStartDate, setChartStartDate] = useState<string>(defaultChartStartDate);
+  const [chartEndDate, setChartEndDate] = useState<string>(defaultChartEndDate);
 
   // Use the reusable hook for user access
   const {
@@ -347,6 +364,48 @@ export default function ReportManager() {
   useEffect(() => {
     fetchParameters()
   }, [fetchParameters])
+
+  // Inicializar todos los parámetros como seleccionados por defecto cuando se cargan
+  useEffect(() => {
+    if (!selectedSystem || parameters.length === 0) return;
+    
+    // Obtener los valores actuales del sistema
+    const currentValues = getCurrentSystemValues(selectedSystem);
+    
+    // Verificar si hay parámetros que no estén inicializados o no estén marcados
+    const needsInitialization = parameters.some(param => 
+      !currentValues[param.id] || currentValues[param.id].checked === undefined
+    );
+    
+    // Solo inicializar si es necesario (primera vez que se cargan los parámetros para este sistema)
+    if (needsInitialization) {
+      setParameterValuesBySystem(prev => {
+        const systemValues = prev[selectedSystem] || {};
+        const updatedValues: Record<string, ParameterValue> = {};
+        
+        // Inicializar todos los parámetros como checked: true
+        parameters.forEach(param => {
+          if (systemValues[param.id]) {
+            // Si ya existe, mantenerlo pero asegurar que esté checked si no estaba definido
+            updatedValues[param.id] = {
+              ...systemValues[param.id],
+              checked: systemValues[param.id].checked !== undefined ? systemValues[param.id].checked : true,
+            };
+          } else {
+            // Si no existe, crear nuevo con checked: true
+            updatedValues[param.id] = {
+              checked: true,
+            };
+          }
+        });
+        
+        return {
+          ...prev,
+          [selectedSystem]: updatedValues,
+        };
+      });
+    }
+  }, [selectedSystem, parameters])
 
   const selectedPlantData = plants.find((p) => p.id === selectedPlant?.id)
   const selectedSystemData = systems.find((s) => s.id === selectedSystem)
@@ -670,6 +729,10 @@ export default function ReportManager() {
             onSaveData={handleSaveData}
             onGenerateReport={handleGenerateReport}
             isGenerateDisabled={isGenerateDisabled}
+            chartStartDate={chartStartDate}
+            chartEndDate={chartEndDate}
+            handleChartStartDateChange={setChartStartDate}
+            handleChartEndDateChange={setChartEndDate}
           />
 
           {/* Parámetros */}
@@ -815,8 +878,8 @@ export default function ReportManager() {
                     {/* Gráficos de Series Temporales */}
           <Charts
             selectedParameters={selectedParameters}
-            startDate={startDate}
-            endDate={endDate}
+            startDate={chartStartDate}
+            endDate={chartEndDate}
             clientName={selectedPlantData?.clientName}
             processName={selectedSystemData?.nombre}
             userId={selectedUser?.id}

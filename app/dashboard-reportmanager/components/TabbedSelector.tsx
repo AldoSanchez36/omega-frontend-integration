@@ -46,6 +46,10 @@ interface TabbedSelectorProps {
   onSaveData: () => Promise<void>;
   onGenerateReport: () => Promise<void>;
   isGenerateDisabled: boolean;
+  chartStartDate: string;
+  chartEndDate: string;
+  handleChartStartDateChange: (fecha: string) => void;
+  handleChartEndDateChange: (fecha: string) => void;
 }
 
 const TabbedSelector: React.FC<TabbedSelectorProps> = ({
@@ -68,6 +72,10 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
   onSaveData,
   onGenerateReport,
   isGenerateDisabled,
+  chartStartDate,
+  chartEndDate,
+  handleChartStartDateChange,
+  handleChartEndDateChange,
 }) => {
   const [activeTab, setActiveTab] = useState<string>("cliente");
 
@@ -336,6 +344,32 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                           onChange={e => handleGlobalComentariosChange(e.target.value)}
                           className="mt-0.5 h-8 text-sm"
                           placeholder="Ingresa comentarios globales..."
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-blue-200">
+                      <div className="flex flex-col">
+                        <label htmlFor="chartStartDate" className="text-xs font-medium text-blue-700 mb-0.5">
+                          Fecha inicio gráficos
+                        </label>
+                        <Input
+                          id="chartStartDate"
+                          type="date"
+                          value={chartStartDate}
+                          onChange={e => handleChartStartDateChange(e.target.value)}
+                          className="mt-0.5 h-8 text-sm"
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <label htmlFor="chartEndDate" className="text-xs font-medium text-blue-700 mb-0.5">
+                          Fecha fin gráficos
+                        </label>
+                        <Input
+                          id="chartEndDate"
+                          type="date"
+                          value={chartEndDate}
+                          onChange={e => handleChartEndDateChange(e.target.value)}
+                          className="mt-0.5 h-8 text-sm"
                         />
                       </div>
                     </div>

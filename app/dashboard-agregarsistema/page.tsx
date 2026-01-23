@@ -127,7 +127,6 @@ export default function ParameterManager() {
   const [showImportFromSystem, setShowImportFromSystem] = useState(false);
   const [selectedSourceSystemId, setSelectedSourceSystemId] = useState<string>("");
   const [sourceSystemParameters, setSourceSystemParameters] = useState<Parameter[]>([]);
-  const [sourceSystemTolerances, setSourceSystemTolerances] = useState<Record<string, any>>({});
 
   // Estado para tolerancias por parámetro
   const [tolerancias, setTolerancias] = useState<Record<string, any>>({})
@@ -1305,31 +1304,9 @@ export default function ParameterManager() {
       const parameters = paramsData.variables || [];
       setSourceSystemParameters(parameters);
       console.log(`📋 Parámetros cargados del sistema ${systemId}:`, parameters);
-
-      // Cargar tolerancias del sistema fuente
-      const tolerancesRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (tolerancesRes.ok) {
-        const tolerancesData = await tolerancesRes.json();
-        const tolerancesArray = Array.isArray(tolerancesData) ? tolerancesData : tolerancesData.tolerancias || [];
-        
-        // Filtrar solo las tolerancias del sistema fuente
-        const systemTolerances: Record<string, any> = {};
-        tolerancesArray.forEach((tol: any) => {
-          if (tol.proceso_id === systemId && parameters.some((p: any) => p.id === tol.variable_id)) {
-            systemTolerances[tol.variable_id] = tol;
-          }
-        });
-        
-        setSourceSystemTolerances(systemTolerances);
-        console.log(`📊 Tolerancias cargadas del sistema ${systemId}:`, systemTolerances);
-      }
     } catch (error) {
       console.error("Error cargando datos del sistema fuente:", error);
       setSourceSystemParameters([]);
-      setSourceSystemTolerances({});
     }
   };
 
@@ -1389,40 +1366,14 @@ export default function ParameterManager() {
     }));
 
     setParameters(prev => [...prev, ...newParameters]);
-
-    // Importar las tolerancias correspondientes
-    const newTolerances: Record<string, any> = {};
-    parametersToImport.forEach(param => {
-      const originalParam = sourceSystemParameters.find(p => p.nombre === param.nombre);
-      if (originalParam && sourceSystemTolerances[originalParam.id]) {
-        const originalTolerance = sourceSystemTolerances[originalParam.id];
-        newTolerances[param.id] = {
-          ...originalTolerance,
-          id: undefined, // Remover ID para crear nueva tolerancia
-          variable_id: param.id, // Usar el nuevo ID del parámetro
-          proceso_id: selectedSystemId, // Cambiar al sistema actual
-          planta_id: selectedPlant?.id,
-          cliente_id: selectedUser?.id,
-        };
-      }
-    });
-
-    // Agregar las nuevas tolerancias al estado
-    setTolerancias(prev => ({
-      ...prev,
-      ...newTolerances
-    }));
     
     // Cerrar el modal y limpiar selección
     setShowImportFromSystem(false);
     setSelectedSourceSystemId("");
     setSourceSystemParameters([]);
-    setSourceSystemTolerances({});
     
-    const toleranceCount = Object.keys(newTolerances).length;
-    alert(`✅ Se importaron ${newParameters.length} parámetros y ${toleranceCount} tolerancias del sistema fuente.`);
+    alert(`✅ Se importaron ${newParameters.length} parámetros del sistema fuente.`);
     console.log(`📥 Parámetros importados:`, newParameters);
-    console.log(`📊 Tolerancias importadas:`, newTolerances);
   };
 
   const handleSaveParameters = async (e: React.FormEvent) => {
@@ -1904,37 +1855,23 @@ export default function ParameterManager() {
                               </h4>
                               <div className="space-y-2">
                                 {sourceSystemParameters.map((param, index) => {
-                                  const hasTolerance = sourceSystemTolerances[param.id];
                                   return (
                                     <div key={index} className="text-sm text-gray-600 flex items-center justify-between">
                                       <div className="flex items-center gap-2">
                                         <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
                                         {param.nombre} ({param.unidad})
                                       </div>
-                                      {hasTolerance && (
-                                        <div className="flex items-center gap-1 text-xs text-green-600">
-                                          <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
-                                          Con límites
-                                        </div>
-                                      )}
                                     </div>
                                   );
                                 })}
                               </div>
                               <div className="mt-3 pt-3 border-t">
-                                <div className="text-xs text-gray-500 mb-2">
-                                  {Object.keys(sourceSystemTolerances).length > 0 && (
-                                    <span className="text-green-600">
-                                      ✅ {Object.keys(sourceSystemTolerances).length} parámetros incluyen límites de tolerancia
-                                    </span>
-                                  )}
-                                </div>
                                 <Button
                                   type="button"
                                   onClick={handleImportFromSystem}
                                   className="w-full bg-green-500 hover:bg-green-600 text-white"
                                 >
-                                  📥 Importar Parámetros y Límites
+                                  📥 Importar Parámetros
                                 </Button>
                               </div>
                             </div>
