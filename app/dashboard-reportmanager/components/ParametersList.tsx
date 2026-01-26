@@ -52,7 +52,7 @@ interface ParametersListProps {
   sistemasPorParametro: Record<string, string[]>;
   handleMeasurementDataChange: (parameterId: string, data: { fecha: string; comentarios: string; valores: { [sistema: string]: string } }) => void;
   medicionesPreview: any[];
-  selectedUser?: { id: string } | null;
+  selectedEmpresa?: { id: string } | null;
   selectedPlant?: { id: string } | null;
   selectedSystem?: string;
   onLimitsStateChange?: (limitsState: Record<string, { limite_min: boolean; limite_max: boolean }>) => void;
@@ -74,7 +74,7 @@ const ParametersList: React.FC<ParametersListProps> = ({
   sistemasPorParametro,
   handleMeasurementDataChange,
   medicionesPreview,
-  selectedUser,
+  selectedEmpresa,
   selectedPlant,
   selectedSystem,
   onLimitsStateChange,
@@ -87,7 +87,7 @@ const ParametersList: React.FC<ParametersListProps> = ({
   // useEffect para cargar tolerancias filtradas
   useEffect(() => {
     const loadFilteredTolerances = async () => {
-      if (!selectedUser || !selectedPlant || !selectedSystem || parameters.length === 0) {
+      if (!selectedEmpresa || !selectedPlant || !selectedSystem || parameters.length === 0) {
         return;
       }
 
@@ -107,7 +107,7 @@ const ParametersList: React.FC<ParametersListProps> = ({
             variable_id: parameter.id,
             planta_id: selectedPlant.id,
             proceso_id: selectedSystem,
-            cliente_id: selectedUser.id,
+            empresa_id: selectedEmpresa.id,
           });
 
           const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES_FILTERS}?${queryParams}`, {
@@ -146,7 +146,7 @@ const ParametersList: React.FC<ParametersListProps> = ({
     };
 
     loadFilteredTolerances();
-  }, [selectedUser, selectedPlant, selectedSystem, parameters]);
+  }, [selectedEmpresa, selectedPlant, selectedSystem, parameters]);
 
   // Usar tolerancias filtradas si están disponibles, sino usar las originales
   const tolerancesToUse = Object.keys(filteredTolerances).length > 0 ? filteredTolerances : tolerancias;

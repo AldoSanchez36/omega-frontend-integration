@@ -34,9 +34,11 @@ interface Parameter {
   goodMax?: string;
 }
 // Interfaces
-interface User {
+interface Empresa {
   id: string
-  username: string
+  nombre: string
+  descripcion?: string
+  estatus?: string
 }
 
 interface Plant {
@@ -86,12 +88,12 @@ export default function ParameterManager() {
   const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
 
   // State
-  const [users, setUsers] = useState<User[]>([])
+  const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [plants, setPlants] = useState<Plant[]>([])
   const [systems, setSystems] = useState<System[]>([])
   const [parameters, setParameters] = useState<Parameter[]>([])
 
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [selectedEmpresa, setSelectedEmpresa] = useState<Empresa | null>(null)
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null)
   const [selectedSystemId, setSelectedSystemId] = useState<string | null>(null)
 
@@ -99,6 +101,13 @@ export default function ParameterManager() {
   const [error, setError] = useState<string | null>(null)
 
   // Form states
+  const [showCreateEmpresa, setShowCreateEmpresa] = useState(false)
+  const [newEmpresaName, setNewEmpresaName] = useState("")
+  const [newEmpresaEstatus, setNewEmpresaEstatus] = useState("activa")
+  const [showEditEmpresaDialog, setShowEditEmpresaDialog] = useState(false)
+  const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null)
+  const [editEmpresaName, setEditEmpresaName] = useState("")
+  const [editEmpresaEstatus, setEditEmpresaEstatus] = useState("activa")
   const [showCreatePlant, setShowCreatePlant] = useState(false)
   const [newPlantName, setNewPlantName] = useState("")
   const [newPlantRecipient, setNewPlantRecipient] = useState("")
@@ -310,7 +319,7 @@ export default function ParameterManager() {
           variable_id: variableId,
           proceso_id: selectedSystemId,
           planta_id: selectedPlant?.id,
-          cliente_id: selectedUser?.id,
+          empresa_id: selectedEmpresa?.id,
         },
       };
     });
@@ -352,7 +361,7 @@ export default function ParameterManager() {
           variable_id: variableId,
           proceso_id: selectedSystemId,
           planta_id: selectedPlant?.id,
-          cliente_id: selectedUser?.id,
+          empresa_id: selectedEmpresa?.id,
           bien_min: '',
           bien_max: '',
           limite_min: null,
@@ -388,7 +397,7 @@ export default function ParameterManager() {
       variable_id: variableId,
       proceso_id: selectedSystemId || null,
       planta_id: selectedPlant?.id || null,
-      cliente_id: selectedUser?.id || null,
+          empresa_id: selectedEmpresa?.id || null,
       // Convertir a número solo si hay valor, sino null - todos los límites pueden ser null
       bien_min: tolData?.bien_min !== null && tolData?.bien_min !== undefined && tolData?.bien_min !== '' 
         ? Number(tolData.bien_min) 
@@ -445,7 +454,7 @@ export default function ParameterManager() {
   const [user, setUser] = useState<any>(null)
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
 
-  // Fetch Users
+  // Fetch Empresas
   useEffect(() => {
     if (!token) {
       setError("Token de autenticación no encontrado. Por favor, inicie sesión.")
@@ -460,59 +469,96 @@ export default function ParameterManager() {
       }
     }
 
-    const fetchUsers = async () => {
+    const fetchEmpresas = async () => {
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USERS}`, {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ALL}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
+        
+        // Check if response is JSON
+        const contentType = res.headers.get("content-type")
+        if (!contentType || !contentType.includes("application/json")) {
+          if (res.status === 404) {
+            throw new Error("El endpoint de empresas no está disponible. Por favor, verifica que el backend tenga implementado el endpoint /api/empresas/all")
+          }
+          const text = await res.text()
+          throw new Error(`El servidor devolvió una respuesta no válida (${res.status}). El endpoint /api/empresas/all puede no estar implementado.`)
+        }
+        
         if (!res.ok) {
-          const errorData = await res.json()
-          throw new Error(errorData.message || "Failed to fetch users")
+          const errorData = await res.json().catch(() => ({}))
+          throw new Error(errorData.message || `Error ${res.status}: Failed to fetch empresas`)
         }
         const data = await res.json()
-        setUsers(data.usuarios || [])
-        // NO SE DEBE SELECCIONAR USUARIO AQUÍ
+        setEmpresas(data.empresas || data || [])
       } catch (e: any) {
-        setError(`Error al cargar usuarios: ${e.message}`)
+        setError(`Error al cargar empresas: ${e.message}`)
       } finally {
         setLoading(false)
       }
     }
-    fetchUsers()
+    fetchEmpresas()
   }, [token])
 
   // Handlers for selection changes
-  const handleSelectUser = async (userId: string) => {
-    const user = users.find((u) => u.id === userId)
-    if (!user) return
+  const handleSelectEmpresa = async (empresaId: string) => {
+    const empresa = empresas.find((e) => e.id === empresaId)
+    if (!empresa) return
 
-    setSelectedUser(user)
+    setSelectedEmpresa(empresa)
     setSelectedPlant(null)
     setSelectedSystemId(null)
     setPlants([])
     setSystems([])
     setParameters([])
-    if (!user) return
+    if (!empresa) return
 
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
-        headers: { Authorization: `Bearer ${token}`, "x-usuario-id": user.id },
+      const url = `${API_BASE_URL}${API_ENDPOINTS.PLANTS_BY_EMPRESA(empresa.id)}`
+      console.log('🔍 [dashboard-agregarsistema] Fetching plants for empresa:', empresa.id, 'URL:', url)
+      
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
       })
+      
+      console.log('📡 [dashboard-agregarsistema] Response status:', res.status, 'Content-Type:', res.headers.get("content-type"))
+      
+      // Check if response is JSON
+      const contentType = res.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        if (res.status === 404) {
+          throw new Error("El endpoint de plantas por empresa no está disponible. Por favor, verifica que el backend tenga implementado el endpoint /api/plantas/empresa/:empresaId")
+        }
+        const text = await res.text()
+        console.error('❌ [dashboard-agregarsistema] Non-JSON response:', text.substring(0, 200))
+        throw new Error(`El servidor devolvió una respuesta no válida (${res.status}). El endpoint /api/plantas/empresa/:empresaId puede no estar implementado.`)
+      }
+      
       if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.message || "No se pudieron cargar las plantas para el usuario.")
+        const errorData = await res.json().catch(() => ({}))
+        console.error('❌ [dashboard-agregarsistema] Error response:', errorData)
+        throw new Error(errorData.msg || errorData.message || `Error ${res.status}: No se pudieron cargar las plantas para la empresa.`)
       }
       const data = await res.json()
-      setPlants(data.plantas || [])
-      if (data.plantas.length > 0) {
-        const firstPlant = data.plantas[0]
+      console.log('✅ [dashboard-agregarsistema] Plants data received:', data)
+      console.log('📊 [dashboard-agregarsistema] Plants array:', data.plantas)
+      console.log('📊 [dashboard-agregarsistema] Plants count:', data.plantas?.length || 0)
+      
+      const plantasArray = data.plantas || data || []
+      setPlants(plantasArray)
+      
+      if (plantasArray.length > 0) {
+        const firstPlant = plantasArray[0]
         handleSelectPlant(firstPlant.id)
       } else {
         setSelectedPlant(null)
+        if (plantasArray.length === 0) {
+          console.warn('⚠️ [dashboard-agregarsistema] No se encontraron plantas para la empresa:', empresa.nombre)
+        }
       }
     } catch (e: any) {
       setError(`Error al cargar plantas: ${e.message}`)
@@ -562,9 +608,189 @@ export default function ParameterManager() {
     }
   }
 
+  const handleCreateEmpresa = async () => {
+    if (!newEmpresaName.trim()) {
+      alert("Por favor, ingrese el nombre de la empresa.")
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const empresaData = {
+        nombre: newEmpresaName.trim(),
+        estatus: newEmpresaEstatus || 'activa',
+      }
+      
+      console.log("🏢 Datos de empresa a crear:", empresaData)
+      
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESA_CREATE}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(empresaData),
+      })
+      if (!res.ok) {
+        const errorData = await res.json()
+        console.error("❌ Error del servidor al crear empresa:", errorData)
+        throw new Error(errorData.msg || errorData.message || "No se pudo crear la empresa.")
+      }
+      
+      const responseData = await res.json()
+      console.log("✅ Respuesta del servidor al crear empresa:", responseData)
+      
+      setShowCreateEmpresa(false)
+      setNewEmpresaName("")
+      setNewEmpresaEstatus("activa")
+      
+      // Refetch empresas to update the list
+      const empresasRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ALL}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (empresasRes.ok) {
+        const empresasData = await empresasRes.json()
+        setEmpresas(empresasData.empresas || empresasData || [])
+        
+        // Auto-select the newly created empresa
+        if (responseData.empresa && responseData.empresa.id) {
+          await handleSelectEmpresa(responseData.empresa.id)
+        }
+      }
+      
+      alert(`✅ Empresa "${newEmpresaName}" creada exitosamente.`)
+    } catch (e: any) {
+      setError(`Error al crear empresa: ${e.message}`)
+      alert(`Error al crear empresa: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Function to open edit empresa dialog
+  const handleOpenEditEmpresa = (empresa: Empresa) => {
+    setEditingEmpresa(empresa)
+    setEditEmpresaName(empresa.nombre)
+    setEditEmpresaEstatus(empresa.estatus || "activa")
+    setShowEditEmpresaDialog(true)
+  }
+
+  // Function to update empresa information
+  const handleUpdateEmpresa = async () => {
+    if (!editEmpresaName.trim() || !editingEmpresa) {
+      alert("Por favor, ingrese el nombre de la empresa.")
+      return
+    }
+    
+    setLoading(true)
+    setError(null)
+    try {
+      const updateData = {
+        nombre: editEmpresaName.trim(),
+        estatus: editEmpresaEstatus || 'activa',
+      }
+      
+      console.log("🏢 Datos de empresa a actualizar:", updateData)
+      
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESA_UPDATE(editingEmpresa.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(updateData),
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json()
+        console.error("❌ Error del servidor al actualizar empresa:", errorData)
+        throw new Error(errorData.msg || errorData.message || "No se pudo actualizar la empresa.")
+      }
+      
+      const responseData = await res.json()
+      console.log("✅ Respuesta del servidor al actualizar empresa:", responseData)
+      
+      setShowEditEmpresaDialog(false)
+      setEditingEmpresa(null)
+      setEditEmpresaName("")
+      setEditEmpresaEstatus("activa")
+      
+      // Refetch empresas to update the list
+      const empresasRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ALL}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (empresasRes.ok) {
+        const empresasData = await empresasRes.json()
+        setEmpresas(empresasData.empresas || empresasData || [])
+        
+        // Update selected empresa if it was the one being edited
+        if (selectedEmpresa?.id === editingEmpresa.id && responseData.empresa) {
+          setSelectedEmpresa(responseData.empresa)
+        }
+      }
+      
+      alert(`✅ Empresa "${editEmpresaName}" actualizada exitosamente.`)
+    } catch (e: any) {
+      setError(`Error al actualizar empresa: ${e.message}`)
+      alert(`Error al actualizar empresa: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Function to delete empresa
+  const handleDeleteEmpresa = async (empresa: Empresa) => {
+    // Mostrar confirmación de eliminación
+    const confirmDelete = window.confirm(
+      `¿Está seguro que desea eliminar la empresa "${empresa.nombre}"?\n\n` +
+      `Esta acción eliminará:\n` +
+      `• La empresa y toda su información\n` +
+      `• Todas las plantas asociadas\n` +
+      `• Todos los sistemas asociados\n` +
+      `• Todos los parámetros y mediciones\n\n` +
+      `⚠️ Esta acción NO se puede deshacer.`
+    )
+    
+    if (!confirmDelete) return
+
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESA_DELETE(empresa.id)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.msg || errorData.message || "No se pudo eliminar la empresa.")
+      }
+      
+      // Limpiar selecciones si la empresa eliminada era la seleccionada
+      if (selectedEmpresa?.id === empresa.id) {
+        setSelectedEmpresa(null)
+        setSelectedPlant(null)
+        setSelectedSystemId(null)
+        setPlants([])
+        setSystems([])
+        setParameters([])
+      }
+      
+      // Refetch empresas to update the list
+      const empresasRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ALL}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (empresasRes.ok) {
+        const empresasData = await empresasRes.json()
+        setEmpresas(empresasData.empresas || empresasData || [])
+      }
+      
+      alert(`✅ Empresa "${empresa.nombre}" eliminada exitosamente.`)
+    } catch (e: any) {
+      setError(`Error al eliminar empresa: ${e.message}`)
+      alert(`Error al eliminar empresa: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleCreatePlant = async () => {
-    if (!newPlantName.trim() || !newPlantRecipient.trim() || !selectedUser) {
-      alert("Por favor, complete todos los campos obligatorios: nombre de la planta, destinatario de reportes y seleccione un usuario.")
+    if (!newPlantName.trim() || !newPlantRecipient.trim() || !selectedEmpresa) {
+      alert("Por favor, complete todos los campos obligatorios: nombre de la planta, destinatario de reportes y seleccione una empresa.")
       return
     }
     setLoading(true)
@@ -574,7 +800,7 @@ export default function ParameterManager() {
         nombre: newPlantName,
         dirigido_a: newPlantRecipient,
         mensaje_cliente: newPlantMessage.trim() || null, // Enviar null si está vacío
-        usuario_id: selectedUser.id,
+        empresa_id: selectedEmpresa.id,
       }
       
       console.log("🌱 Datos de planta a crear:", plantData)
@@ -597,7 +823,7 @@ export default function ParameterManager() {
       setNewPlantName("")
       setNewPlantRecipient("")
       setNewPlantMessage("")
-      await handleSelectUser(selectedUser.id) // Refetch plants for the selected user
+      await handleSelectEmpresa(selectedEmpresa.id) // Refetch plants for the selected empresa
     } catch (e: any) {
       setError(`Error al crear planta: ${e.message}`)
     } finally {
@@ -654,8 +880,8 @@ export default function ParameterManager() {
       setEditingPlant(null)
       
       // Refetch plants to update the list
-      if (selectedUser) {
-        await handleSelectUser(selectedUser.id)
+      if (selectedEmpresa) {
+        await handleSelectEmpresa(selectedEmpresa.id)
       }
     } catch (e: any) {
       setError(`Error al actualizar planta: ${e.message}`)
@@ -700,8 +926,8 @@ export default function ParameterManager() {
       }
       
       // Refetch plants to update the list
-      if (selectedUser) {
-        await handleSelectUser(selectedUser.id)
+      if (selectedEmpresa) {
+        await handleSelectEmpresa(selectedEmpresa.id)
       }
       
       alert(`✅ Planta "${plant.nombre}" eliminada exitosamente.`)
@@ -1421,7 +1647,7 @@ export default function ParameterManager() {
           variable_id: variableId,
           proceso_id: selectedSystemId,
           planta_id: selectedPlant?.id,
-          cliente_id: selectedUser?.id,
+          empresa_id: selectedEmpresa?.id,
         };
 
         try {
@@ -1473,35 +1699,120 @@ export default function ParameterManager() {
                   <h2 className="text-lg font-medium leading-6 text-gray-900">Selección Jerárquica</h2>
                   <p className="mt-1 text-sm text-gray-500">Seleccione Cliente, Planta y Sistema para gestionar parámetros.</p>
                   <div className="mt-6 flex flex-col space-y-6">
-                    {/* Cliente (Usuario) */}
+                    {/* Empresa */}
                     <div className="grid grid-cols-[150px_1fr] items-start gap-4">
-                      <Label className="pt-2 text-sm font-medium text-gray-700">Cliente (Usuario)</Label>
-                      <div className="flex flex-col">
-                        <Select value={selectedUser?.id ?? ""} onValueChange={handleSelectUser}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Seleccione un usuario" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-[#f6f6f6] text-gray-900">
-                            {users.map((user) => (
-                              <SelectItem key={user.id} value={user.id}>
-                                {user.username}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="mt-2 text-sm text-gray-500">Seleccione el usuario para ver las plantas asociadas.</p>
+                      <Label className="pt-2 text-sm font-medium text-gray-700">Empresa</Label>
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center gap-2">
+                          <Select value={selectedEmpresa?.id ?? ""} onValueChange={handleSelectEmpresa}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Seleccione una empresa" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                              {empresas.map((empresa) => (
+                                <SelectItem key={empresa.id} value={empresa.id}>
+                                  {empresa.nombre}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button 
+                            type="button" 
+                            onClick={() => setShowCreateEmpresa(true)} 
+                            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                          >
+                            <Plus className="mr-2 h-4 w-4" /> Agregar Empresa
+                          </Button>
+                          {selectedEmpresa && (
+                            <>
+                              <Button 
+                                type="button" 
+                                onClick={() => handleOpenEditEmpresa(selectedEmpresa)} 
+                                className="bg-blue-400 hover:bg-blue-500 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                                disabled={loading}
+                              >
+                                <Edit className="mr-2 h-4 w-4" /> Editar
+                              </Button>
+                              <Button 
+                                type="button" 
+                                onClick={() => handleDeleteEmpresa(selectedEmpresa)} 
+                                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                                disabled={loading}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" /> Borrar Empresa
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-500">Seleccione la empresa para ver las plantas asociadas.</p>
+                        
+                        {/* Formulario para crear empresa */}
+                        {showCreateEmpresa && (
+                          <div className="space-y-3 rounded-xl border-2 border-blue-200 p-4 bg-gradient-to-r from-blue-50 to-indigo-50">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <Input
+                                placeholder="Nombre de la empresa *"
+                                value={newEmpresaName}
+                                onChange={(e) => setNewEmpresaName(e.target.value)}
+                                className="border-blue-200 focus:border-blue-400"
+                              />
+                              <Select value={newEmpresaEstatus} onValueChange={setNewEmpresaEstatus}>
+                                <SelectTrigger className="border-blue-200 focus:border-blue-400">
+                                  <SelectValue placeholder="Estatus" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                                  <SelectItem value="activa">Activa</SelectItem>
+                                  <SelectItem value="inactiva">Inactiva</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <Button 
+                                type="button" 
+                                variant="outline"
+                                onClick={() => {
+                                  setShowCreateEmpresa(false)
+                                  setNewEmpresaName("")
+                                  setNewEmpresaEstatus("activa")
+                                }}
+                                disabled={loading}
+                                className="px-4 py-2"
+                              >
+                                Cancelar
+                              </Button>
+                              <Button 
+                                type="button" 
+                                onClick={handleCreateEmpresa} 
+                                disabled={loading || !newEmpresaName.trim()} 
+                                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                              >
+                                {loading ? "Guardando..." : "Guardar"}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Planta */}
-                    {selectedUser && (
+                    {selectedEmpresa && (
                       <div className="grid grid-cols-[150px_1fr] items-start gap-4">
                         <Label className="pt-2 text-sm font-medium text-gray-700">Planta</Label>
                         <div className="flex flex-col gap-3">
+                          {plants.length === 0 && selectedEmpresa ? (
+                            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                              <p className="text-sm text-yellow-800">
+                                ⚠️ No se encontraron plantas asociadas a la empresa seleccionada ({selectedEmpresa.nombre}).
+                              </p>
+                              <p className="text-xs text-yellow-600 mt-1">
+                                Verifica que las plantas tengan un <code>empresa_id</code> asignado en la base de datos, o crea una nueva planta.
+                              </p>
+                            </div>
+                          ) : null}
                           <div className="flex items-center gap-2">
                             <Select value={selectedPlant?.id} onValueChange={handleSelectPlant} disabled={plants.length === 0}>
                               <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Seleccione una planta" />
+                                <SelectValue placeholder={plants.length === 0 ? "No hay plantas disponibles" : "Seleccione una planta"} />
                               </SelectTrigger>
                               <SelectContent className="bg-[#f6f6f6] text-gray-900">
                                 {plants.map((plant) => (
@@ -1798,6 +2109,59 @@ export default function ParameterManager() {
                             type="button" 
                             onClick={handleUpdatePlant}
                             disabled={loading || !editPlantName.trim() || !editPlantRecipient.trim()}
+                          >
+                            {loading ? "Guardando..." : "Guardar Cambios"}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    
+                    {/* Edit Empresa Dialog */}
+                    <Dialog open={showEditEmpresaDialog} onOpenChange={setShowEditEmpresaDialog}>
+                      <DialogContent className="bg-[#f6f6f6] text-gray-900 max-w-2xl">
+                        <DialogHeader>
+                          <DialogTitle>Editar Información de la Empresa</DialogTitle>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="edit-empresa-name" className="text-right">
+                              Nombre *
+                            </Label>
+                            <Input
+                              id="edit-empresa-name"
+                              value={editEmpresaName}
+                              onChange={(e) => setEditEmpresaName(e.target.value)}
+                              className="col-span-3"
+                            />
+                          </div>
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="edit-empresa-estatus" className="text-right">
+                              Estatus *
+                            </Label>
+                            <Select value={editEmpresaEstatus} onValueChange={setEditEmpresaEstatus}>
+                              <SelectTrigger className="col-span-3">
+                                <SelectValue placeholder="Estatus" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                                <SelectItem value="activa">Activa</SelectItem>
+                                <SelectItem value="inactiva">Inactiva</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            onClick={() => setShowEditEmpresaDialog(false)}
+                            disabled={loading}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button 
+                            type="button" 
+                            onClick={handleUpdateEmpresa}
+                            disabled={loading || !editEmpresaName.trim()}
                           >
                             {loading ? "Guardando..." : "Guardar Cambios"}
                           </Button>

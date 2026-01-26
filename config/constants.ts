@@ -24,6 +24,15 @@ export const API_ENDPOINTS = {
   USER_UPDATE: (userId: string) => `/api/auth/update/${userId}`,
   USER_DELETE: (userId: string) => `/api/auth/delete/${userId}`,
   
+  // Empresas
+  EMPRESAS: '/api/empresas',
+  EMPRESAS_ALL: '/api/empresas/all',
+  EMPRESA_BY_ID: (empresaId: string) => `/api/empresas/${empresaId}`,
+  EMPRESA_CREATE: '/api/empresas',
+  EMPRESA_UPDATE: (empresaId: string) => `/api/empresas/${empresaId}`,
+  EMPRESA_DELETE: (empresaId: string) => `/api/empresas/${empresaId}`,
+  PLANTS_BY_EMPRESA: (empresaId: string) => `/api/plantas/empresa/${empresaId}`,
+  
   // Plants
   PLANTS_CREATE: '/api/plantas/crear',
   PLANTS_UPDATE: (plantId: string) => `/api/plantas/update/${plantId}`,

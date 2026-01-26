@@ -12,7 +12,7 @@ import ProtectedRoute from "@/components/ProtectedRoute"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import { authService } from "@/services/authService"
 import { httpService } from "@/services/httpService"
-import { useUserAccess } from "@/hooks/useUserAccess"
+import { useEmpresasAccess } from "@/hooks/useEmpresasAccess"
 import { useMeasurements } from "@/hooks/useMeasurements";
 import { useTolerances } from "@/hooks/useTolerances"
 
@@ -22,13 +22,10 @@ import Charts from "./components/Charts"
 import ScrollArrow from "./components/ScrollArrow"
 
 // Interfaces
-interface User {
+interface Empresa {
   id: string
-  username: string
-  email?: string
-  puesto?: string
-  role?: string
-  verificado?: boolean
+  nombre: string
+  descripcion?: string
 }
 
 interface Plant {
@@ -110,26 +107,26 @@ export default function ReportManager() {
   const [chartStartDate, setChartStartDate] = useState<string>(defaultChartStartDate);
   const [chartEndDate, setChartEndDate] = useState<string>(defaultChartEndDate);
 
-  // Use the reusable hook for user access
+  // Use the reusable hook for empresas access
   const {
-    users,
+    empresas,
     plants,
     systems,
-    selectedUser,
+    selectedEmpresa,
     selectedPlant,
     selectedSystem,
     userRole,
     loading,
     error,
     setSelectedSystem,
-    handleSelectUser,
+    handleSelectEmpresa,
     handleSelectPlant
-  } = useUserAccess(token)
+  } = useEmpresasAccess(token)
 
 
-  // Local state for conditional plants/users
+  // Local state for conditional plants/empresas
   const [displayedPlants, setDisplayedPlants] = useState<Plant[]>([]);
-  const [displayedUsers, setDisplayedUsers] = useState<User[]>([]);
+  const [displayedEmpresas, setDisplayedEmpresas] = useState<Empresa[]>([]);
 
   // Obtener usuario conectado
   useEffect(() => {
@@ -152,10 +149,10 @@ export default function ReportManager() {
     }
   }, []);
 
-  // Load all plants if no user selected, else use hook plants
+  // Load all plants if no empresa selected, else use hook plants
   useEffect(() => {
     async function loadPlants() {
-      if (!selectedUser) {
+      if (!selectedEmpresa) {
         try {
           // Usar el endpoint que devuelve todos los campos
           const res = await fetch(`${API_BASE_URL}/api/plantas/all`, {
@@ -177,28 +174,17 @@ export default function ReportManager() {
           setDisplayedPlants([]);
         }
       } else {
+        console.log('🔄 [dashboard-reportmanager] Updating displayedPlants from hook:', plants.length, 'plants')
         setDisplayedPlants(plants);
       }
     }
     loadPlants();
-  }, [selectedUser, plants, token, router]);
+  }, [selectedEmpresa, plants, token, router]);
 
-  // Load users - filter to show only users with puesto "client"
-  // Siempre mostrar todos los clientes disponibles para facilitar la navegación
+  // Load empresas - siempre mostrar todas las empresas disponibles
   useEffect(() => {
-    // Función helper para verificar si un usuario es cliente
-    const isClientUser = (user: User): boolean => {
-      const puesto = user.puesto?.toLowerCase().trim();
-      const role = user.role?.toLowerCase().trim();
-      const isClient = puesto === 'client' || role === 'client';
-      return isClient;
-    };
-
-    // Siempre mostrar todos los usuarios clientes del hook para facilitar la navegación
-    // Esto permite que al regresar a la pestaña "Clientes" se vean todos los clientes disponibles
-    const clientUsers = users.filter(isClientUser);
-    setDisplayedUsers(clientUsers);
-  }, [users]);
+    setDisplayedEmpresas(empresas);
+  }, [empresas]);
 
     const [parameters, setParameters] = useState<Parameter[]>([])
 
@@ -267,7 +253,7 @@ export default function ReportManager() {
     tolSuccess,
     handleTolChange,
     handleTolSave 
-  } = useTolerances(parameters, selectedSystem, selectedPlant?.id, selectedUser?.id);
+  } = useTolerances(parameters, selectedSystem, selectedPlant?.id, selectedEmpresa?.id);
 
   // Estado para tolerancias por sistema
   const [tolerancesBySystem, setTolerancesBySystem] = useState<Record<string, Record<string, any>>>({});
@@ -311,12 +297,12 @@ export default function ReportManager() {
   }, [selectedSystem, parameterValues, limitsState, parameterValuesBySystem, limitsStateBySystem, tolerancesBySystem]);
 
   // Custom handlers that extend the hook functionality
-  const handleSelectUserWithReset = useCallback(async (userId: string) => {
+  const handleSelectEmpresaWithReset = useCallback(async (empresaId: string) => {
     setParameters([])
     setParameterValuesBySystem({})
     setLimitsStateBySystem({})
-    await handleSelectUser(userId)
-  }, [handleSelectUser])
+    await handleSelectEmpresa(empresaId)
+  }, [handleSelectEmpresa])
 
   const handleSelectPlantWithReset = useCallback(async (plantId: string) => {
     setParameters([])
@@ -492,8 +478,8 @@ export default function ReportManager() {
     parameters, 
     selectedSystem, 
     selectedPlant?.id, 
-    selectedUser?.id,
-    selectedUser,
+    selectedEmpresa?.id,
+    selectedEmpresa,
     selectedPlant,
     selectedSystemData,
     getCurrentSystemTolerances(selectedSystem || ''), // Usar tolerancias del sistema actual
@@ -646,7 +632,7 @@ export default function ReportManager() {
         username: currentUser.username, 
         email: currentUser.email, 
         puesto: currentUser.puesto,
-        cliente_id: selectedUser?.id || null
+        empresa_id: selectedEmpresa?.id || null
       } : null,
       plant: selectedPlant ? { 
         id: selectedPlant.id, 
@@ -660,7 +646,7 @@ export default function ReportManager() {
       fecha: globalFecha,
       comentarios: globalComentarios,
       generatedDate: new Date().toISOString(),
-      cliente_id: selectedUser?.id || null,
+      empresa_id: selectedEmpresa?.id || null,
     };
     
     localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
@@ -710,14 +696,14 @@ export default function ReportManager() {
           </div>
 
           <TabbedSelector
-            displayedUsers={displayedUsers}
-            displayedPlants={selectedUser ? plants : displayedPlants}
+            displayedEmpresas={displayedEmpresas}
+            displayedPlants={selectedEmpresa ? plants : displayedPlants}
             systems={systems}
-            selectedUser={selectedUser}
+            selectedEmpresa={selectedEmpresa}
             selectedPlant={selectedPlant}
             selectedSystem={selectedSystem}
             selectedSystemData={selectedSystemData}
-            handleSelectUser={handleSelectUserWithReset}
+            handleSelectEmpresa={handleSelectEmpresaWithReset}
             handleSelectPlant={handleSelectPlantWithReset}
             setSelectedSystem={setSelectedSystem}
             plantName={selectedPlantData?.nombre || ""}
@@ -753,7 +739,7 @@ export default function ReportManager() {
               sistemasPorParametro={sistemasPorParametro}
               handleMeasurementDataChange={handleMeasurementDataChange}
               medicionesPreview={medicionesPreview}
-              selectedUser={selectedUser}
+              selectedEmpresa={selectedEmpresa}
               selectedPlant={selectedPlant}
               selectedSystem={selectedSystem}
               onLimitsStateChange={handleLimitsStateChange}
@@ -897,7 +883,7 @@ export default function ReportManager() {
             endDate={chartEndDate}
             clientName={selectedPlantData?.clientName}
             processName={selectedSystemData?.nombre}
-            userId={selectedUser?.id}
+            empresaId={selectedEmpresa?.id}
             parameterComments={parameterComments}
             onParameterCommentChange={handleParameterCommentChange}
           />

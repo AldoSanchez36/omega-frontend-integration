@@ -10,18 +10,15 @@ import ProtectedRoute from "@/components/ProtectedRoute"
 
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import { authService } from "@/services/authService"
-import { useUserAccess } from "@/hooks/useUserAccess"
+import { useEmpresasAccess } from "@/hooks/useEmpresasAccess"
 import TabbedSelectorHistoricos from "./components/TabbedSelectorHistoricos"
 import ScrollArrow from "../dashboard-reportmanager/components/ScrollArrow"
 
 // Interfaces
-interface User {
+interface Empresa {
   id: string
-  username: string
-  email?: string
-  puesto?: string
-  role?: string
-  verificado?: boolean
+  nombre: string
+  descripcion?: string
 }
 
 interface Plant {
@@ -92,25 +89,25 @@ export default function HistoricosPage() {
   const router = useRouter()
   const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
 
-  // Use the reusable hook for user access
+  // Use the reusable hook for empresas access
   const {
-    users,
+    empresas,
     plants,
     systems,
-    selectedUser,
+    selectedEmpresa,
     selectedPlant,
     selectedSystem,
     userRole,
     loading,
     error,
     setSelectedSystem,
-    handleSelectUser,
+    handleSelectEmpresa,
     handleSelectPlant
-  } = useUserAccess(token)
+  } = useEmpresasAccess(token)
 
-  // Local state for conditional plants/users
+  // Local state for conditional plants/empresas
   const [displayedPlants, setDisplayedPlants] = useState<Plant[]>([]);
-  const [displayedUsers, setDisplayedUsers] = useState<User[]>([]);
+  const [displayedEmpresas, setDisplayedEmpresas] = useState<Empresa[]>([]);
 
   // Estados para rango de fechas
   const [startDate, setStartDate] = useState<string>("")
@@ -135,10 +132,10 @@ export default function HistoricosPage() {
     setEndDate(endDateDefault)
   }, [])
 
-  // Load all plants if no user selected
+  // Load all plants if no empresa selected
   useEffect(() => {
     async function loadPlants() {
-      if (!selectedUser) {
+      if (!selectedEmpresa) {
         try {
           const res = await fetch(`${API_BASE_URL}/api/plantas/all`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -157,27 +154,17 @@ export default function HistoricosPage() {
           setDisplayedPlants([]);
         }
       } else {
+        console.log('🔄 [dashboard-historicos] Updating displayedPlants from hook:', plants.length, 'plants')
         setDisplayedPlants(plants);
       }
     }
     loadPlants();
-  }, [selectedUser, plants, token, router]);
+  }, [selectedEmpresa, plants, token, router]);
 
-  // Load users - filter to show only users with puesto "client"
-  // Siempre mostrar todos los clientes disponibles para facilitar la navegación
+  // Load empresas - siempre mostrar todas las empresas disponibles
   useEffect(() => {
-    // Función helper para verificar si un usuario es cliente
-    const isClientUser = (user: User): boolean => {
-      const puesto = user.puesto?.toLowerCase().trim();
-      const role = user.role?.toLowerCase().trim();
-      return puesto === 'client' || role === 'client';
-    };
-
-    // Siempre mostrar todos los usuarios clientes del hook para facilitar la navegación
-    // Esto permite que al regresar a la pestaña "Clientes" se vean todos los clientes disponibles
-    const clientUsers = users.filter(isClientUser);
-    setDisplayedUsers(clientUsers);
-  }, [users]);
+    setDisplayedEmpresas(empresas);
+  }, [empresas]);
 
   // Fetch parameters when system is selected
   const fetchParameters = useCallback(async () => {
@@ -318,11 +305,11 @@ export default function HistoricosPage() {
   }, [fetchHistoricalData])
 
   // Custom handlers
-  const handleSelectUserWithReset = useCallback(async (userId: string) => {
+  const handleSelectEmpresaWithReset = useCallback(async (empresaId: string) => {
     setParameters([])
     setHistoricalData({})
-    await handleSelectUser(userId)
-  }, [handleSelectUser])
+    await handleSelectEmpresa(empresaId)
+  }, [handleSelectEmpresa])
 
   const handleSelectPlantWithReset = useCallback(async (plantId: string) => {
     setParameters([])
@@ -480,14 +467,14 @@ export default function HistoricosPage() {
 
           {/* Selectores con pestañas */}
           <TabbedSelectorHistoricos
-            displayedUsers={displayedUsers}
-            displayedPlants={selectedUser ? plants : displayedPlants}
+            displayedEmpresas={displayedEmpresas}
+            displayedPlants={selectedEmpresa ? plants : displayedPlants}
             systems={systems}
-            selectedUser={selectedUser}
+            selectedEmpresa={selectedEmpresa}
             selectedPlant={selectedPlant}
             selectedSystem={selectedSystem}
             selectedSystemData={selectedSystemData}
-            handleSelectUser={handleSelectUserWithReset}
+            handleSelectEmpresa={handleSelectEmpresaWithReset}
             handleSelectPlant={handleSelectPlantWithReset}
             setSelectedSystem={handleSystemChange}
             plantName={selectedPlantData?.nombre || ""}
