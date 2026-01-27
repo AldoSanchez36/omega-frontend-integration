@@ -779,7 +779,7 @@ export default function UsersManagement() {
     }
   }
 
-  // Handler para guardar permisos de planta
+  // Handler para guardar permisos (empresa o planta)
   const handleGuardarPermisos = async () => {
     if (!selectedUserForPermissions) {
       return;
@@ -819,9 +819,135 @@ export default function UsersManagement() {
         }, 1500);
         return;
       }
-      
+
+      // Función helper para verificar si existe permiso de empresa
+      const checkEmpresaAccess = async (): Promise<boolean> => {
+        try {
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ACCESS_BY_USER(usuarioId)}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const empresas = data.empresas || data || [];
+            return empresas.some((e: any) => 
+              (e.empresa_id || e.id) === empresaSeleccionadaModal
+            );
+          }
+        } catch (error) {
+          console.error("Error verificando acceso de empresa:", error);
+        }
+        return false;
+      };
+
+      // Función helper para verificar si existe permiso de planta
+      const checkPlantaAccess = async (plantaId: string): Promise<boolean> => {
+        try {
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESS_BY_USER(usuarioId)}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const plantas = data.plantas || data || [];
+            return plantas.some((p: any) => 
+              (p.planta_id || p.id) === plantaId
+            );
+          }
+        } catch (error) {
+          console.error("Error verificando acceso de planta:", error);
+        }
+        return false;
+      };
+
+      // Función helper para eliminar permisos de plantas de una empresa
+      const removePlantAccessForEmpresa = async () => {
+        try {
+          // Obtener todas las plantas de la empresa
+          const plantasIds = plantasModal.map((p: any) => p.id ?? p._id);
+          
+          // Obtener permisos actuales del usuario
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESS_BY_USER(usuarioId)}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          if (res.ok) {
+            const data = await res.json();
+            const plantasConPermisos = data.plantas || data || [];
+            
+            // Filtrar plantas que pertenecen a la empresa seleccionada
+            const plantasAEliminar = plantasConPermisos.filter((p: any) => {
+              const plantaId = p.planta_id || p.id;
+              return plantasIds.includes(plantaId);
+            });
+
+            // Eliminar cada permiso de planta
+            const deletePromises = plantasAEliminar.map((p: any) => {
+              const plantaId = p.planta_id || p.id;
+              return fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_REVOKE_ACCESS}`, {
+                method: "POST",
+                headers: { 
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}` 
+                },
+                body: JSON.stringify({
+                  usuario_id: usuarioId,
+                  planta_id: plantaId
+                })
+              });
+            });
+
+            await Promise.all(deletePromises);
+            console.log(`✅ Eliminados ${plantasAEliminar.length} permisos de plantas de la empresa`);
+          }
+        } catch (error) {
+          console.error("Error eliminando permisos de plantas:", error);
+          // No lanzar error, solo registrar
+        }
+      };
+
+      // Función helper para eliminar permiso de empresa
+      const removeEmpresaAccess = async () => {
+        try {
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_REVOKE_ACCESS}`, {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}` 
+            },
+            body: JSON.stringify({
+              usuario_id: usuarioId,
+              empresa_id: empresaSeleccionadaModal
+            })
+          });
+          
+          if (res.ok) {
+            console.log("✅ Permiso de empresa eliminado");
+          } else {
+            console.warn("⚠️ No se pudo eliminar permiso de empresa (puede que no exista)");
+          }
+        } catch (error) {
+          console.error("Error eliminando permiso de empresa:", error);
+          // No lanzar error, solo registrar
+        }
+      };
+
       if (permisoEspecificoPlanta) {
-        // Permiso específico por planta: solo esa planta
+        // CASO 1: Permiso específico por PLANTA
+        console.log("📋 Asignando permiso específico de PLANTA");
+        
+        // 1. Verificar si ya existe permiso de empresa completa para esta empresa
+        const tieneAccesoEmpresa = await checkEmpresaAccess();
+        if (tieneAccesoEmpresa) {
+          console.log("⚠️ Usuario tiene acceso de empresa completa, eliminando...");
+          await removeEmpresaAccess();
+        }
+
+        // 2. Verificar si ya existe permiso para esta planta específica
+        const tieneAccesoPlanta = await checkPlantaAccess(plantaSeleccionadaModal);
+        if (tieneAccesoPlanta) {
+          console.log("⚠️ Usuario ya tiene permiso para esta planta, actualizando...");
+        }
+
+        // 3. Asignar/actualizar permiso de planta
         const payload = {
           usuario_id: usuarioId,
           planta_id: plantaSeleccionadaModal,
@@ -840,39 +966,85 @@ export default function UsersManagement() {
         
         if (!res.ok) {
           const errorData = await res.json();
-          throw new Error(errorData.msg || errorData.message || "Error al guardar permisos");
+          throw new Error(errorData.msg || errorData.message || "Error al guardar permisos de planta");
         }
         
         setPermisosSuccess("Permisos asignados para la planta específica");
       } else {
-        // Permiso para toda la empresa: asignar a todas las plantas de la empresa
-        const plantasIds = plantasModal.map((p: any) => p.id ?? p._id);
+        // CASO 2: Permiso para toda la EMPRESA
+        console.log("📋 Asignando permiso de EMPRESA completa");
         
-        // Asignar permisos a todas las plantas de la empresa
-        const promises = plantasIds.map((plantaId: string) => 
-          fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ASSIGN_ACCESS}`, {
-            method: "POST",
-            headers: { 
-              "Content-Type": "application/json", 
-              Authorization: `Bearer ${token}` 
-            },
-            body: JSON.stringify({
-              usuario_id: usuarioId,
-              planta_id: plantaId,
-              puede_ver: permisoVer,
-              puede_editar: permisoEditar
-            })
-          })
-        );
+        // 1. Verificar si ya existe permiso de empresa
+        const tieneAccesoEmpresa = await checkEmpresaAccess();
+        if (tieneAccesoEmpresa) {
+          console.log("⚠️ Usuario ya tiene permiso de empresa, actualizando...");
+        }
+
+        // 2. Eliminar todos los permisos de plantas de esta empresa (si existen)
+        await removePlantAccessForEmpresa();
+
+        // 3. Asignar/actualizar permiso de empresa completa
+        // Obtener datos del usuario y empresa para enviar al backend
+        const usuarioNombre = selectedUserForPermissions?.username || "";
+        const usuarioRol = selectedUserForPermissions?.puesto || selectedUserForPermissions?.role || "client";
+        const empresaData = empresasModal.find((e: any) => (e.id || e._id) === empresaSeleccionadaModal);
+        const empresaNombre = empresaData?.nombre || "";
         
-        const results = await Promise.all(promises);
-        const errors = results.filter(res => !res.ok);
-        
-        if (errors.length > 0) {
-          throw new Error(`Error al asignar permisos a ${errors.length} planta(s)`);
+        // Validar que tenemos los datos necesarios
+        if (!usuarioNombre) {
+          console.warn("⚠️ [Frontend] No se encontró nombre de usuario en selectedUserForPermissions:", selectedUserForPermissions);
+        }
+        if (!empresaNombre) {
+          console.warn("⚠️ [Frontend] No se encontró nombre de empresa para empresa_id:", empresaSeleccionadaModal, "en empresasModal:", empresasModal);
         }
         
-        setPermisosSuccess(`Permisos asignados para toda la empresa (${plantasIds.length} planta(s))`);
+        console.log("📤 [Frontend] Enviando datos al backend para asignar permiso de empresa:", {
+          usuario_id: usuarioId,
+          usuario_nombre: usuarioNombre,
+          usuario_rol: usuarioRol,
+          empresa_id: empresaSeleccionadaModal,
+          empresa_nombre: empresaNombre,
+          activo: true,
+          selectedUserForPermissions: selectedUserForPermissions,
+          empresaData: empresaData
+        });
+        
+        const payload = {
+          usuario_id: usuarioId,
+          empresa_id: empresaSeleccionadaModal,
+          activo: true,
+          // Incluir datos adicionales para que el backend los guarde correctamente
+          usuario_nombre: usuarioNombre,
+          empresa_nombre: empresaNombre,
+          rol: usuarioRol
+        };
+        
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ASSIGN_ACCESS}`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json", 
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        console.log("📥 [Frontend] Respuesta del backend:", {
+          status: res.status,
+          statusText: res.statusText,
+          ok: res.ok
+        });
+        
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          console.error("❌ [Frontend] Error del backend:", errorData);
+          throw new Error(errorData.msg || errorData.message || `Error al guardar permisos de empresa (${res.status})`);
+        }
+        
+        const responseData = await res.json().catch(() => ({}));
+        console.log("✅ [Frontend] Respuesta exitosa del backend:", responseData);
+        
+        // Usar empresaNombre que ya fue declarado arriba
+        setPermisosSuccess(`Permisos asignados para toda ${empresaNombre || "la empresa"}`);
       }
       
       // Cerrar modal después de 1.5 segundos
@@ -882,6 +1054,7 @@ export default function UsersManagement() {
       
     } catch (err: any) {
       setPermisosError(err.message || "Error inesperado al guardar permisos");
+      console.error("❌ Error en handleGuardarPermisos:", err);
     } finally {
       setPermisosLoading(false);
     }

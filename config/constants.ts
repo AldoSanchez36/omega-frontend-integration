@@ -45,6 +45,10 @@ export const API_ENDPOINTS = {
   PLANTS_ASSIGN_ACCESS: '/api/accesos/plantas/asignar',
   PLANTS_UPDATE_ACCESS: '/api/accesos/plantas/actualizar',
   PLANTS_REVOKE_ACCESS: '/api/accesos/plantas/revocar',
+  // Empresas Access
+  EMPRESAS_ACCESS_BY_USER: (userId: string) => `/api/accesos/empresas/usuario/${userId}`,
+  EMPRESAS_ASSIGN_ACCESS: '/api/accesos/empresas/asignar',
+  EMPRESAS_REVOKE_ACCESS: '/api/accesos/empresas/revocar',
   
   // Systems/Processes
   SYSTEMS_BY_PLANT: (plantId: string) => `/api/procesos/planta/${plantId}`,

@@ -208,19 +208,72 @@ export default function Dashboard() {
     const token = authService.getToken();
 
     const fetchPlants = async (): Promise<Plant[]> => {
-      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      let todasLasPlantas: Plant[] = [];
       
-      if (!res.ok) {
-        console.error("❌ Error obteniendo plantas accesibles:", res.status, res.statusText);
-        return [];
+      // 1. Obtener plantas con permisos específicos (usuarios_plantas)
+      try {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          const plantasEspecificas = data.plantas || [];
+          todasLasPlantas.push(...plantasEspecificas);
+          console.log(`✅ Plantas con permisos específicos: ${plantasEspecificas.length} plantas`);
+        }
+      } catch (error) {
+        console.error("Error obteniendo plantas con permisos específicos:", error);
+      }
+
+      // 2. Obtener plantas de empresas con acceso completo (usuarios_empresas)
+      const userId = user?.id || user?._id;
+      if (userId && (userRole === "client" || userRole === "user" || userRole === "analista")) {
+        try {
+          const empresasRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ACCESS_BY_USER(userId)}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          if (empresasRes.ok) {
+            const empresasData = await empresasRes.json();
+            const empresas = empresasData.empresas || empresasData || [];
+            console.log(`🏢 Empresas con acceso completo encontradas: ${empresas.length}`);
+            
+            // Para cada empresa con acceso, obtener todas sus plantas
+            for (const empresa of empresas) {
+              const empresaId = empresa.empresa_id || empresa.id;
+              if (!empresaId) continue;
+              
+              try {
+                const plantasEmpresaRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_BY_EMPRESA(empresaId)}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                
+                if (plantasEmpresaRes.ok) {
+                  const plantasEmpresaData = await plantasEmpresaRes.json();
+                  const plantasEmpresa = plantasEmpresaData.plantas || plantasEmpresaData || [];
+                  
+                  // Agregar plantas que no estén ya en la lista (evitar duplicados)
+                  plantasEmpresa.forEach((planta: any) => {
+                    if (!todasLasPlantas.some((p: any) => (p.id || p._id) === (planta.id || planta._id))) {
+                      todasLasPlantas.push(planta);
+                    }
+                  });
+                  
+                  console.log(`🏭 Plantas de empresa ${empresa.empresa_nombre || empresaId}: ${plantasEmpresa.length} plantas`);
+                }
+              } catch (error) {
+                console.error(`Error obteniendo plantas de empresa ${empresaId}:`, error);
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error obteniendo empresas con acceso:", error);
+        }
       }
       
-      const data = await res.json();
-      const plantas = data.plantas || [];
-      console.log(`✅ Plantas accesibles cargadas: ${plantas.length} plantas`, plantas.map((p: any) => ({ id: p.id, nombre: p.nombre })));
-      return plantas;
+      console.log(`✅ Total de plantas accesibles cargadas: ${todasLasPlantas.length} plantas`, todasLasPlantas.map((p: any) => ({ id: p.id || p._id, nombre: p.nombre })));
+      return todasLasPlantas;
     };
 
     const fetchProcesos = async (plantaId: string): Promise<any[]> => {
@@ -275,7 +328,7 @@ export default function Dashboard() {
     };
 
     loadAll();
-  }, [user]);
+  }, [user, userRole]);
 
   const handleNewReport = () => {
     /* addDebugLog("Nuevo Reporte clickeado - redirigiendo a report manager") */
@@ -522,14 +575,57 @@ export default function Dashboard() {
         let plantasAccesiblesIds: string[] = []
         if (userRole === "client" || userRole === "user" || userRole === "analista") {
           try {
+            // 1. Obtener plantas con permisos específicos (usuarios_plantas)
             const plantasRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
               headers: { Authorization: `Bearer ${token}` }
             })
             if (plantasRes.ok) {
               const plantasData = await plantasRes.json()
-              plantasAccesiblesIds = (plantasData.plantas || []).map((p: any) => p.id || p._id).filter(Boolean)
-              console.log("🔐 Plantas accesibles para el usuario:", plantasAccesiblesIds)
+              const plantasEspecificas = (plantasData.plantas || []).map((p: any) => p.id || p._id).filter(Boolean)
+              plantasAccesiblesIds.push(...plantasEspecificas)
+              console.log("🔐 Plantas con permisos específicos:", plantasEspecificas)
             }
+
+            // 2. Obtener empresas con acceso completo (usuarios_empresas)
+            const userId = user?.id || user?._id
+            if (userId) {
+              try {
+                const empresasRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ACCESS_BY_USER(userId)}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                })
+                if (empresasRes.ok) {
+                  const empresasData = await empresasRes.json()
+                  const empresas = empresasData.empresas || empresasData || []
+                  console.log("🏢 Empresas con acceso completo:", empresas.map((e: any) => ({ id: e.empresa_id || e.id, nombre: e.empresa_nombre || e.nombre })))
+                  
+                  // 3. Para cada empresa con acceso, obtener todas sus plantas
+                  const empresasIds = empresas.map((e: any) => e.empresa_id || e.id).filter(Boolean)
+                  
+                  for (const empresaId of empresasIds) {
+                    try {
+                      const plantasEmpresaRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_BY_EMPRESA(empresaId)}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                      })
+                      if (plantasEmpresaRes.ok) {
+                        const plantasEmpresaData = await plantasEmpresaRes.json()
+                        const plantasEmpresa = plantasEmpresaData.plantas || plantasEmpresaData || []
+                        const plantasIds = plantasEmpresa.map((p: any) => p.id || p._id).filter(Boolean)
+                        plantasAccesiblesIds.push(...plantasIds)
+                        console.log(`🏭 Plantas de empresa ${empresaId}:`, plantasIds)
+                      }
+                    } catch (error) {
+                      console.error(`Error obteniendo plantas de empresa ${empresaId}:`, error)
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error("Error obteniendo empresas con acceso:", error)
+              }
+            }
+
+            // Eliminar duplicados
+            plantasAccesiblesIds = [...new Set(plantasAccesiblesIds)]
+            console.log("✅ Total de plantas accesibles (específicas + empresas):", plantasAccesiblesIds)
           } catch (error) {
             console.error("Error obteniendo plantas accesibles:", error)
           }
@@ -627,7 +723,7 @@ export default function Dashboard() {
 
     fetchResumen();
     fetchReportes();
-  }, [user]);
+  }, [user, userRole]);
 
   useEffect(() => {
     if (!plants.length) return;
