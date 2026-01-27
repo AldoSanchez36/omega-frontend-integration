@@ -121,7 +121,10 @@ export default function ReportManager() {
     setSelectedSystem,
     handleSelectEmpresa,
     handleSelectPlant
-  } = useEmpresasAccess(token)
+  } = useEmpresasAccess(token, {
+    autoSelectFirstPlant: false,
+    autoSelectFirstSystem: false,
+  })
 
 
   // Local state for conditional plants/empresas

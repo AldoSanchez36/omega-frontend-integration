@@ -78,16 +78,20 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<string>("cliente");
 
-  // Inicializar pestaña activa basada en selecciones existentes
+  // Inicializar pestaña activa basada en selecciones existentes.
+  // Si hay una planta seleccionada, ir a procesos. Si solo hay empresa, ir a planta.
   useEffect(() => {
     if (selectedPlant) {
       setActiveTab("procesos");
-    } else if (selectedEmpresa) {
-      setActiveTab("planta");
-    } else {
-      setActiveTab("cliente");
+      return;
     }
-  }, []); // Solo al montar
+    if (selectedEmpresa) {
+      setActiveTab("planta");
+      return;
+    }
+
+    setActiveTab("cliente");
+  }, [selectedEmpresa, selectedPlant]);
 
   // Manejar selección de empresa
   const handleEmpresaSelect = (option: { value: string; label: string } | null) => {
@@ -106,7 +110,8 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
     handleSelectPlant(option ? option.value : '');
     if (option) {
       // Si se selecciona una planta, avanzar a la pestaña de procesos
-      setTimeout(() => setActiveTab("procesos"), 150);
+      // Usamos un timeout más largo para asegurar que el estado se actualice primero
+      setTimeout(() => setActiveTab("procesos"), 300);
     } else {
       // Si se deselecciona, volver a planta
       setActiveTab("planta");
@@ -134,7 +139,7 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2
                 `}
               >
-                Cliente
+                Empresa
               </TabsTrigger>
               <TabsTrigger 
                 value="planta" 
@@ -221,7 +226,7 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
               {!selectedEmpresa ? (
                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-sm text-yellow-800">
-                    Por favor, selecciona una empresa primero en la pestaña "Cliente".
+                    Por favor, selecciona una empresa primero en la pestaña "Empresa".
                   </p>
                 </div>
               ) : (

@@ -117,12 +117,29 @@ const ParametersList: React.FC<ParametersListProps> = ({
             },
           });
 
+          // Si no hay tolerancias (404 o 204), simplemente no asignamos nada para ese parámetro
           if (!response.ok) {
+            if (response.status === 404 || response.status === 204) {
+              return { parameterId: parameter.id, tolerance: null as Tolerance | null };
+            }
             throw new Error(`Error al cargar tolerancias para parámetro ${parameter.id}: ${response.statusText}`);
           }
 
           const data = await response.json();
-          return { parameterId: parameter.id, tolerance: data };
+
+          // El endpoint de filtros suele devolver { tolerancias: [...] }
+          const toleranceFromArray = Array.isArray((data as any).tolerancias)
+            ? (data as any).tolerancias[0] || null
+            : null;
+
+          const tolerance =
+            toleranceFromArray ||
+            // Fallback por si el backend devuelve { tolerancia: {...} } o el objeto directo
+            (data as any).tolerancia ||
+            (Array.isArray(data) ? data[0] : data) ||
+            null;
+
+          return { parameterId: parameter.id, tolerance: tolerance as Tolerance | null };
         });
 
         // Esperar todas las peticiones
@@ -131,7 +148,7 @@ const ParametersList: React.FC<ParametersListProps> = ({
         // Combinar las respuestas en un objeto
         const tolerancesMap: Record<string, Tolerance> = {};
         results.forEach(({ parameterId, tolerance }) => {
-          if (tolerance && tolerance.id) {
+          if (tolerance) {
             tolerancesMap[parameterId] = tolerance;
           }
         });

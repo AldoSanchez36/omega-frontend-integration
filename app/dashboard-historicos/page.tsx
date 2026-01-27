@@ -103,7 +103,10 @@ export default function HistoricosPage() {
     setSelectedSystem,
     handleSelectEmpresa,
     handleSelectPlant
-  } = useEmpresasAccess(token)
+  } = useEmpresasAccess(token, {
+    autoSelectFirstPlant: false,
+    autoSelectFirstSystem: false,
+  })
 
   // Local state for conditional plants/empresas
   const [displayedPlants, setDisplayedPlants] = useState<Plant[]>([]);

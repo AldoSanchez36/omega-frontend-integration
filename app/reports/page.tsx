@@ -455,6 +455,56 @@ export default function Reporte() {
         return
       }
 
+      // Validar campos críticos antes de enviar
+      if (!reportSelection.plant?.id) {
+        alert("Error: No se encontró el ID de la planta")
+        return
+      }
+      
+      if (!reportSelection.user?.id) {
+        alert("Error: No se encontró el ID del usuario")
+        return
+      }
+
+      // Obtener el proceso_id (system ID) desde el systemName
+      let procesoId: string | null = null
+      if (reportSelection.systemName && reportSelection.plant?.id) {
+        try {
+          const systemsResponse = await fetch(
+            `${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(reportSelection.plant.id)}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            }
+          )
+          
+          if (systemsResponse.ok) {
+            const systemsData = await systemsResponse.json()
+            const systemsList = systemsData.procesos || systemsData || []
+            const matchingSystem = systemsList.find((sys: any) => sys.nombre === reportSelection.systemName)
+            if (matchingSystem) {
+              procesoId = matchingSystem.id
+              console.log("✅ proceso_id encontrado:", procesoId, "para sistema:", reportSelection.systemName)
+            } else {
+              console.warn("⚠️ No se encontró proceso_id para el sistema:", reportSelection.systemName)
+              console.log("Sistemas disponibles:", systemsList.map((s: any) => ({ id: s.id, nombre: s.nombre })))
+            }
+          } else {
+            console.error("Error obteniendo sistemas:", systemsResponse.status, systemsResponse.statusText)
+          }
+        } catch (error) {
+          console.error("Error obteniendo proceso_id:", error)
+        }
+      } else {
+        console.warn("⚠️ No se puede obtener proceso_id: systemName o plant.id faltante")
+      }
+      
+      // Advertencia si no se encontró proceso_id (pero continuar con el guardado)
+      if (!procesoId && reportSelection.systemName) {
+        console.warn("⚠️ Advertencia: No se pudo obtener proceso_id para el sistema:", reportSelection.systemName)
+      }
+
       // Preparar el reportSelection completo para enviar
       const reportDataToSend = {
         ...reportSelection,
@@ -466,7 +516,7 @@ export default function Reporte() {
           mensaje_cliente: reportSelection.plant?.mensaje_cliente,
           dirigido_a: reportSelection.plant?.dirigido_a
         },
-        parameters: reportSelection.parameters || [],
+        parameters: reportSelection.parameters || {},
         comentarios: reportSelection.comentarios || "",
         fecha: reportSelection.fecha || new Date().toISOString().split('T')[0],
         generatedDate: reportSelection.generatedDate || new Date().toISOString(),
@@ -474,10 +524,15 @@ export default function Reporte() {
           id: reportSelection.user?.id,
           username: reportSelection.user?.username,
           email: reportSelection.user?.email,
-          puesto: reportSelection.user?.puesto
+          puesto: reportSelection.user?.puesto,
+          cliente_id: reportSelection.user?.cliente_id || null
         },
-        cliente_id: reportSelection.user?.id,
-        parameterComments: parameterComments // Incluir comentarios por parámetro
+        // Campos requeridos por el backend
+        planta_id: reportSelection.plant?.id,
+        proceso_id: procesoId,
+        usuario_id: reportSelection.user?.id,
+        cliente_id: reportSelection.user?.cliente_id || null,
+        parameterComments: parameterComments || {} // Incluir comentarios por parámetro
       }
 
       console.log("📋 Payload completo que se enviará al servidor:")
@@ -500,7 +555,7 @@ export default function Reporte() {
       })
 
       if (!response.ok) {
-        let errorData = {}
+        let errorData: any = {}
         let errorText = ""
         
         try {
@@ -511,11 +566,24 @@ export default function Reporte() {
           console.error("❌ Error del servidor (texto):", errorText)
         }
         
+        // Mostrar mensaje de error más amigable al usuario
+        const errorMessage = errorData?.msg || errorData?.message || errorText || `Error ${response.status}`
+        alert(`Error al guardar el reporte: ${errorMessage}`)
         throw new Error(`Error del servidor: ${response.status} - ${JSON.stringify(errorData) || errorText}`)
       }
 
       const result = await response.json()
       console.log("✅ Reporte guardado exitosamente:", result)
+      
+      // Validar que el resultado no sea null
+      if (!result || (result.ok === false)) {
+        const errorMsg = result?.msg || result?.message || "El servidor devolvió un resultado nulo"
+        alert(`Error al guardar el reporte: ${errorMsg}`)
+        throw new Error(`Error: ${errorMsg}`)
+      }
+      
+      // Mostrar mensaje de éxito
+      alert("Reporte guardado exitosamente")
       
       // Ahora guardar las mediciones individuales por parámetro
       if (reportSelection.parameters && reportSelection.fecha) {
@@ -682,7 +750,12 @@ export default function Reporte() {
       
     } catch (error) {
       console.error("❌ Error en handleSaveReport:", error)
-      alert(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      
+      // No mostrar alerta si ya se mostró una anteriormente (en el bloque de respuesta del servidor)
+      if (!errorMessage.includes("Error del servidor")) {
+        alert(`Error al guardar el reporte: ${errorMessage}`)
+      }
     } finally {
       setIsSaving(false)
     }

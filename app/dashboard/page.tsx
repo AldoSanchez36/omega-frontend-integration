@@ -716,19 +716,18 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* System Charts - Historical Data */}
-        <div className="row mb-4">
-          <div className="col-12">
-            <h5 className="mb-3">📈 Gráficos Históricos de Sistemas</h5>
+        {/* System Charts - Historical Data - Solo visible para clientes */}
+        {userRole === "client" && (
+          <div className="row mb-4">
+            <ChartsDashboard
+              plants={plants}
+              historicalData={historicalData}
+              getStatusColor={getStatusColor}
+              startDate={startDate}
+              endDate={endDate}
+            />
           </div>
-          <ChartsDashboard
-            plants={plants}
-            historicalData={historicalData}
-            getStatusColor={getStatusColor}
-            startDate={startDate}
-            endDate={endDate}
-          />
-        </div>
+        )}
 
         {/* Debug Info */}
        {/*  <div className="row">
