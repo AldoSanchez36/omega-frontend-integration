@@ -211,8 +211,16 @@ export default function Dashboard() {
       const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      if (!res.ok) {
+        console.error("❌ Error obteniendo plantas accesibles:", res.status, res.statusText);
+        return [];
+      }
+      
       const data = await res.json();
-      return data.plantas || [];
+      const plantas = data.plantas || [];
+      console.log(`✅ Plantas accesibles cargadas: ${plantas.length} plantas`, plantas.map((p: any) => ({ id: p.id, nombre: p.nombre })));
+      return plantas;
     };
 
     const fetchProcesos = async (plantaId: string): Promise<any[]> => {
@@ -510,6 +518,23 @@ export default function Dashboard() {
         const token = authService.getToken()
         if (!token) return
 
+        // Obtener plantas accesibles del usuario para filtrar reportes
+        let plantasAccesiblesIds: string[] = []
+        if (userRole === "client" || userRole === "user" || userRole === "analista") {
+          try {
+            const plantasRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            })
+            if (plantasRes.ok) {
+              const plantasData = await plantasRes.json()
+              plantasAccesiblesIds = (plantasData.plantas || []).map((p: any) => p.id || p._id).filter(Boolean)
+              console.log("🔐 Plantas accesibles para el usuario:", plantasAccesiblesIds)
+            }
+          } catch (error) {
+            console.error("Error obteniendo plantas accesibles:", error)
+          }
+        }
+
         // Usar el endpoint de reportes con filtrado por rol
         const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
           headers: { Authorization: `Bearer ${token}` }
@@ -527,7 +552,7 @@ export default function Dashboard() {
         }
         
         // Convertir formato de reportes para el dashboard (extraer datos del JSONB)
-        const formattedReports = reportesData.map((report: any) => {
+        let formattedReports = reportesData.map((report: any) => {
           // Extraer datos del JSONB
           const datosJsonb = report.datos || {};
           
@@ -538,7 +563,8 @@ export default function Dashboard() {
             plantName_from_jsonb: datosJsonb.plant?.nombre,
             systemName_from_jsonb: datosJsonb.systemName,
             generatedDate_from_jsonb: datosJsonb.generatedDate,
-            user_from_jsonb: datosJsonb.user?.username
+            user_from_jsonb: datosJsonb.user?.username,
+            planta_id: report.planta_id
           });
           
           return {
@@ -549,14 +575,37 @@ export default function Dashboard() {
             status: report.estado || report.status || "completed",
             created_at: datosJsonb.generatedDate || report.fechaGeneracion || report.fecha_creacion || report.created_at || new Date().toISOString(),
             usuario_id: report.usuario_id || user.id,
-            planta_id: report.planta_id || "planta-unknown",
+            planta_id: report.planta_id || datosJsonb.plant?.id || "planta-unknown",
             proceso_id: report.proceso_id || "sistema-unknown",
-            datos: report.reportSelection || report.datos || {},
+            datos: {
+              ...(report.reportSelection || report.datos || {}),
+              // Asegurar que la fecha del reporte esté disponible en datos.fecha
+              fecha: datosJsonb.fecha || report.fecha || (report.reportSelection?.fecha) || (report.datos?.fecha)
+            },
             observaciones: datosJsonb.comentarios || report.comentarios || report.observaciones || "",
             usuario: datosJsonb.user?.username || report.usuario || user.username,
             puesto: datosJsonb.user?.puesto || report.puesto || user.puesto
           };
         })
+        
+        // Filtrar reportes por permisos si el usuario no es admin
+        if ((userRole === "client" || userRole === "user" || userRole === "analista") && plantasAccesiblesIds.length > 0) {
+          formattedReports = formattedReports.filter((report: any) => {
+            const reportPlantaId = report.planta_id
+            const tieneAcceso = plantasAccesiblesIds.includes(reportPlantaId)
+            
+            if (!tieneAcceso) {
+              console.log(`🚫 Reporte ${report.id} filtrado - Planta ${reportPlantaId} no accesible`)
+            }
+            
+            return tieneAcceso
+          })
+          console.log(`✅ Reportes filtrados: ${formattedReports.length} de ${reportesData.length} reportes mostrados`)
+        } else if ((userRole === "client" || userRole === "user" || userRole === "analista") && plantasAccesiblesIds.length === 0) {
+          // Si no tiene plantas accesibles, no mostrar ningún reporte
+          console.log("⚠️ Usuario no tiene plantas accesibles, no se mostrarán reportes")
+          formattedReports = []
+        }
         
         // Ordenar reportes del más reciente al más antiguo por fecha
         const sortedReports = formattedReports.sort((a, b) => {

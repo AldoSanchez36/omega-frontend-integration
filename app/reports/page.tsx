@@ -114,6 +114,8 @@ interface ReportSelection {
   parameterComments?: {
     [variableName: string]: string;
   };
+  chartStartDate?: string; // Fecha inicio para gráficos
+  chartEndDate?: string; // Fecha fin para gráficos
 }
 
 export default function Reporte() {
@@ -1058,7 +1060,7 @@ export default function Reporte() {
         
         // Agregar período
         pdf.setFontSize(10);
-        const periodText = `Período: ${new Date(pdfChartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - ${new Date(pdfChartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)`;
+        const periodText = `Período: ${new Date(pdfChartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - ${new Date(pdfChartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}`;
         pdf.text(periodText, marginLeft, currentY);
         currentY += spacingMM;
       }
@@ -1139,7 +1141,7 @@ export default function Reporte() {
         
         // Agregar período
         pdf.setFontSize(10);
-        const periodText = `Período: ${new Date(pdfChartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - ${new Date(pdfChartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)`;
+        const periodText = `Período: ${new Date(pdfChartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - ${new Date(pdfChartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}`;
         pdf.text(periodText, marginLeft, currentY);
         currentY += spacingMM;
         
@@ -1577,23 +1579,31 @@ export default function Reporte() {
     return "#C6EFCE"; // Verde por defecto si no hay límites o no se excede el máximo
   }
 
-  // Obtener variables disponibles para gráficos desde parameters con sus unidades
+  // Obtener variables disponibles para gráficos desde parameters con sus unidades y sistemas
   const variablesDisponibles = (() => {
-    const variablesMap = new Map<string, string>(); // Map<variableName, unidad>
+    const variablesMap = new Map<string, { unidad: string; sistemas: string[] }>(); // Map<variableName, {unidad, sistemas[]}>
     
-    Object.values(reportSelection?.parameters || {}).forEach((systemData: any) => {
+    Object.entries(reportSelection?.parameters || {}).forEach(([systemName, systemData]: [string, any]) => {
       Object.entries(systemData).forEach(([variableName, paramData]: [string, any]) => {
-        // Si la variable ya existe, mantener la unidad existente o usar la nueva si no tenía
-        if (!variablesMap.has(variableName) && paramData?.unidad) {
-          variablesMap.set(variableName, paramData.unidad);
+        if (paramData?.unidad) {
+          if (!variablesMap.has(variableName)) {
+            variablesMap.set(variableName, { unidad: paramData.unidad, sistemas: [systemName] });
+          } else {
+            // Si la variable ya existe, agregar el sistema si no está ya incluido
+            const existing = variablesMap.get(variableName)!;
+            if (!existing.sistemas.includes(systemName)) {
+              existing.sistemas.push(systemName);
+            }
+          }
         }
       });
     });
     
-    return Array.from(variablesMap.entries()).map(([nombre, unidad]) => ({
+    return Array.from(variablesMap.entries()).map(([nombre, data]) => ({
       id: nombre, // Usar el nombre como ID para los gráficos
       nombre: nombre,
-      unidad: unidad
+      unidad: data.unidad,
+      sistemas: data.sistemas // Lista de sistemas donde aparece esta variable
     }));
   })();
   
@@ -1604,15 +1614,30 @@ export default function Reporte() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
-    const today = new Date()
-    const endDate = today.toISOString().split('T')[0]
-    const startDateObj = new Date(today)
-    startDateObj.setMonth(today.getMonth() - 12)
-    const startDate = startDateObj.toISOString().split('T')[0]
-    
-    setChartStartDate(startDate)
-    setChartEndDate(endDate)
-  }, [])
+    // Intentar cargar fechas desde reportSelection primero
+    if (reportSelection?.chartStartDate && reportSelection?.chartEndDate) {
+      console.log("📅 Cargando fechas de gráficos desde reportSelection:", {
+        chartStartDate: reportSelection.chartStartDate,
+        chartEndDate: reportSelection.chartEndDate
+      });
+      setChartStartDate(reportSelection.chartStartDate);
+      setChartEndDate(reportSelection.chartEndDate);
+    } else {
+      // Si no hay fechas en reportSelection, calcular desde hoy (últimos 12 meses)
+      const today = new Date()
+      const endDate = today.toISOString().split('T')[0]
+      const startDateObj = new Date(today)
+      startDateObj.setMonth(today.getMonth() - 12)
+      const startDate = startDateObj.toISOString().split('T')[0]
+      
+      console.log("📅 Calculando fechas de gráficos desde hoy (fallback):", {
+        chartStartDate: startDate,
+        chartEndDate: endDate
+      });
+      setChartStartDate(startDate)
+      setChartEndDate(endDate)
+    }
+  }, [reportSelection])
   
   // Función para obtener parámetros de un sistema desde la API (igual que dashboard-historicos)
   const getSystemParameters = async (systemName: string): Promise<Array<{ id: string; nombre: string; unidad: string }>> => {
@@ -2098,7 +2123,7 @@ export default function Reporte() {
                   <h5>Gráficos de Series Temporales</h5>
                   {chartStartDate && chartEndDate && (
                     <p className="text-sm text-muted mb-3">
-                      Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)
+                      Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </p>
                   )}
                   
@@ -2109,6 +2134,24 @@ export default function Reporte() {
                       if (!chartRefs.current.has(variable.nombre)) {
                         chartRefs.current.set(variable.nombre, null as any)
                       }
+                      
+                      // Usar el primer sistema donde aparece la variable, o intentar todos si hay múltiples
+                      // El componente SensorTimeSeriesChart buscará datos por cliente primero, luego por proceso
+                      const primarySystemName = variable.sistemas && variable.sistemas.length > 0 
+                        ? variable.sistemas[0] 
+                        : undefined;
+                      
+                      // Log para debugging
+                      console.log(`📊 [Reports] Renderizando gráfico para variable:`, {
+                        variable: variable.nombre,
+                        unidad: variable.unidad,
+                        sistemas: variable.sistemas,
+                        primarySystemName,
+                        clientName: reportSelection?.plant?.nombre,
+                        userId: reportSelection?.user?.id,
+                        chartStartDate,
+                        chartEndDate
+                      });
                       
                       return (
                       <div key={variable.id} className="border rounded-lg p-4 bg-white">
@@ -2127,7 +2170,7 @@ export default function Reporte() {
                                 apiBase={API_BASE_URL}
                                 unidades={variable.unidad}
                                 clientName={reportSelection?.plant?.nombre}
-                                processName={reportSelection?.systemName}
+                                processName={primarySystemName}
                                 userId={reportSelection?.user?.id}
                               />
                             </div>
@@ -2175,8 +2218,7 @@ export default function Reporte() {
                   </div>
                   {chartStartDate && chartEndDate && (
                     <p className="text-sm text-muted mb-3">
-                      Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)
-                    </p>
+                      Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}                    </p>
                   )}
                   
                   {Object.keys(reportSelection.parameters).map((systemName) => {

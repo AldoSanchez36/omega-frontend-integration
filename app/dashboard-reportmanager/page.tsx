@@ -494,6 +494,8 @@ export default function ReportManager() {
     limitsState, // Pasar el estado de límites actual
     parameterValuesBySystem, // Pasar todos los valores por sistema
     parameterComments, // Pasar comentarios por parámetro
+    chartStartDate, // Pasar fecha inicio de gráficos
+    chartEndDate, // Pasar fecha fin de gráficos
     (reportData) => {
       // Callback cuando se guardan exitosamente los datos
       setSavedReportData(reportData);
@@ -616,9 +618,16 @@ export default function ReportManager() {
       //console.log("📊 Usando datos previamente guardados para generar reporte");
       //console.log("💾 Datos guardados:", JSON.parse(savedReportData));
       
-      // Solo actualizar la fecha de generación
+      // Solo actualizar la fecha de generación y las fechas de gráficos
       const reportData = JSON.parse(savedReportData);
       reportData.generatedDate = new Date().toISOString();
+      // Asegurar que las fechas de gráficos estén incluidas
+      if (!reportData.chartStartDate) {
+        reportData.chartStartDate = chartStartDate;
+      }
+      if (!reportData.chartEndDate) {
+        reportData.chartEndDate = chartEndDate;
+      }
       
       localStorage.setItem("reportSelection", JSON.stringify(reportData));
       //console.log("✅ reportSelection actualizado con nueva fecha de generación");
@@ -650,6 +659,8 @@ export default function ReportManager() {
       comentarios: globalComentarios,
       generatedDate: new Date().toISOString(),
       empresa_id: selectedEmpresa?.id || null,
+      chartStartDate: chartStartDate, // Incluir fecha inicio de gráficos
+      chartEndDate: chartEndDate, // Incluir fecha fin de gráficos
     };
     
     localStorage.setItem("reportSelection", JSON.stringify(reportSelection));

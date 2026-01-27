@@ -100,17 +100,30 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
         const startDateNormalized = normalizeDate(startDate)
         const endDateNormalized = normalizeDate(endDate)
         
+        console.log(`📊 [SensorTimeSeriesChart] Buscando datos para:`, {
+          variable,
+          clientName,
+          processName,
+          userId,
+          startDate: startDateNormalized,
+          endDate: endDateNormalized
+        });
+        
         // Lógica de cascada: primero verificar por cliente, luego por proceso
         if (clientName) {
           // 1. Primera llamada: MEASUREMENTS_BY_VARIABLE_AND_CLIENT
+          const clientUrl = `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_CLIENT(variable, clientName)}`;
+          console.log(`🔍 [SensorTimeSeriesChart] Intentando buscar por cliente: ${clientUrl}`);
+          
           const clientRes = await fetch(
-            `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_CLIENT(variable, clientName)}`,
+            clientUrl,
             { headers: token ? { Authorization: `Bearer ${token}` } : {} }
           )
           
           if (clientRes.ok) {
             const clientResult = await clientRes.json();
             const clientData = clientResult.mediciones || [];
+            console.log(`✅ [SensorTimeSeriesChart] Datos encontrados por cliente: ${clientData.length} registros`);
             
             // Filtrar datos del cliente por fecha
             const filteredClientData = clientData.filter((m: any) => {
@@ -118,22 +131,30 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
               return fechaNormalizada >= startDateNormalized && fechaNormalizada <= endDateNormalized
             });
             
+            console.log(`📅 [SensorTimeSeriesChart] Datos filtrados por fecha: ${filteredClientData.length} registros`);
+            
             if (filteredClientData.length > 0) {
               finalData = filteredClientData;
             }
+          } else {
+            console.log(`❌ [SensorTimeSeriesChart] Error al buscar por cliente: ${clientRes.status} ${clientRes.statusText}`);
           }
         }
         
         // 2. Si no hay datos por cliente, verificar por usuario y proceso (más específico)
         if (finalData.length === 0 && userId && processName) {
+          const userProcessUrl = `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_USER_AND_PROCESS(variable, userId, processName)}`;
+          console.log(`🔍 [SensorTimeSeriesChart] Intentando buscar por usuario y proceso: ${userProcessUrl}`);
+          
           const userProcessRes = await fetch(
-            `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_USER_AND_PROCESS(variable, userId, processName)}`,
+            userProcessUrl,
             { headers: token ? { Authorization: `Bearer ${token}` } : {} }
           )
           
           if (userProcessRes.ok) {
             const userProcessResult = await userProcessRes.json();
             const userProcessData = userProcessResult.mediciones || [];
+            console.log(`✅ [SensorTimeSeriesChart] Datos encontrados por usuario y proceso: ${userProcessData.length} registros`);
             
             // Filtrar datos por fecha
             const filteredUserProcessData = userProcessData.filter((m: any) => {
@@ -141,22 +162,30 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
               return fechaNormalizada >= startDateNormalized && fechaNormalizada <= endDateNormalized
             });
             
+            console.log(`📅 [SensorTimeSeriesChart] Datos filtrados por fecha: ${filteredUserProcessData.length} registros`);
+            
             if (filteredUserProcessData.length > 0) {
               finalData = filteredUserProcessData;
             }
+          } else {
+            console.log(`❌ [SensorTimeSeriesChart] Error al buscar por usuario y proceso: ${userProcessRes.status} ${userProcessRes.statusText}`);
           }
         }
         
         // 3. Si no hay datos por usuario y proceso, verificar por proceso
         if (finalData.length === 0 && processName) {
+          const processUrl = `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_PROCESS(variable, processName)}`;
+          console.log(`🔍 [SensorTimeSeriesChart] Intentando buscar por proceso: ${processUrl}`);
+          
           const processRes = await fetch(
-            `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_PROCESS(variable, processName)}`,
+            processUrl,
             { headers: token ? { Authorization: `Bearer ${token}` } : {} }
           )
           
           if (processRes.ok) {
             const processResult = await processRes.json();
             const processData = processResult.mediciones || [];
+            console.log(`✅ [SensorTimeSeriesChart] Datos encontrados por proceso: ${processData.length} registros`);
             
             // Filtrar datos del proceso por fecha
             const filteredProcessData = processData.filter((m: any) => {
@@ -164,22 +193,35 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
               return fechaNormalizada >= startDateNormalized && fechaNormalizada <= endDateNormalized
             });
             
+            console.log(`📅 [SensorTimeSeriesChart] Datos filtrados por fecha: ${filteredProcessData.length} registros`);
+            
             if (filteredProcessData.length > 0) {
               finalData = filteredProcessData;
-              //console.log(`Datos encontrados por proceso: ${filteredProcessData.length} registros`);
             }
+          } else {
+            console.log(`❌ [SensorTimeSeriesChart] Error al buscar por proceso: ${processRes.status} ${processRes.statusText}`);
           }
         }
         
-                 // 3. Si no hay datos por cliente ni por proceso, NO mostrar datos generales
+        // 3. Si no hay datos por cliente ni por proceso, NO mostrar datos generales
         // Solo mostrar datos específicos para el usuario/proceso seleccionado
         if (finalData.length === 0) {
-          //console.log(`No se encontraron datos específicos para ${variable} en el proceso/cliente seleccionado`);
+          console.log(`⚠️ [SensorTimeSeriesChart] No se encontraron datos específicos para ${variable} en el proceso/cliente seleccionado`);
+          console.log(`📋 [SensorTimeSeriesChart] Parámetros de búsqueda:`, {
+            variable,
+            clientName,
+            processName,
+            userId,
+            startDate: startDateNormalized,
+            endDate: endDateNormalized
+          });
           setData([]);
           setSensors([]);
           setLoading(false);
           return;
         }
+        
+        console.log(`✅ [SensorTimeSeriesChart] Total de datos encontrados: ${finalData.length} registros`);
          
          // Filtrar registros por fecha (ya normalizado arriba)
          const filtered = finalData.filter(m => {

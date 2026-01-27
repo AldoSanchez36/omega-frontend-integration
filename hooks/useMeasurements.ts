@@ -59,6 +59,8 @@ interface ReportData {
   parameterComments?: {
     [parameterId: string]: string;
   };
+  chartStartDate?: string; // Fecha inicio para gráficos
+  chartEndDate?: string; // Fecha fin para gráficos
 }
 
 interface Parameter {
@@ -93,6 +95,8 @@ export function useMeasurements(
   limitsState?: Record<string, { limite_min: boolean; limite_max: boolean }>,
   parameterValuesBySystem?: Record<string, Record<string, any>>, // Nuevo parámetro
   parameterComments?: Record<string, string>, // Comentarios por parámetro
+  chartStartDate?: string, // Fecha inicio para gráficos
+  chartEndDate?: string, // Fecha fin para gráficos
   onSaveSuccess?: (reportData: ReportData) => void
 ) {
   const [medicionesPreview, setMedicionesPreview] = useState<Measurement[]>([]);
@@ -133,6 +137,8 @@ export function useMeasurements(
         comentarios: globalComentarios || "",
         generatedDate: new Date().toISOString(),
         parameterComments: parameterComments || {},
+        chartStartDate: chartStartDate || "", // Incluir fecha inicio de gráficos
+        chartEndDate: chartEndDate || "", // Incluir fecha fin de gráficos
       };
 
       // Agregar parámetros de TODOS los sistemas de la planta
@@ -246,7 +252,7 @@ export function useMeasurements(
     } finally {
       setIsSaving(false);
     }
-  }, [token, selectedUser, selectedPlant, selectedSystemData, parameters, medicionesPreview, tolerancias, globalFecha, globalComentarios, limitsState, allSystems, allParameters, parameterValuesBySystem, onSaveSuccess]);
+  }, [token, selectedUser, selectedPlant, selectedSystemData, parameters, medicionesPreview, tolerancias, globalFecha, globalComentarios, limitsState, allSystems, allParameters, parameterValuesBySystem, chartStartDate, chartEndDate, onSaveSuccess]);
 
   return {
     medicionesPreview,

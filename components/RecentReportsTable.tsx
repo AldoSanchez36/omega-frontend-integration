@@ -94,7 +94,80 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                             )}
                           </div>
                         </td>
-                        <td>{new Date(report.created_at || "").toLocaleDateString()}</td>
+                        <td>
+                          {(() => {
+                            // Función helper para parsear fecha sin problemas de zona horaria
+                            const parseDateWithoutTimezone = (dateString: string): Date | null => {
+                              if (!dateString) return null;
+                              
+                              // Si la fecha está en formato YYYY-MM-DD, parsearla manualmente
+                              const dateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                              if (dateMatch) {
+                                const [, year, month, day] = dateMatch;
+                                // Crear fecha en zona horaria local para evitar problemas de UTC
+                                return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                              }
+                              
+                              // Si tiene formato ISO con hora, usar new Date normalmente
+                              return new Date(dateString);
+                            };
+                            
+                            // Función helper para formatear fecha
+                            const formatDate = (date: Date | null): string => {
+                              if (!date || isNaN(date.getTime())) return "";
+                              
+                              return date.toLocaleDateString('es-ES', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric'
+                              });
+                            };
+                            
+                            // Priorizar la fecha registrada en el reporte (fecha de los datos)
+                            const fechaReporte = report.datos?.fecha || 
+                                                 (report.datos && typeof report.datos === 'object' && 'fecha' in report.datos ? report.datos.fecha : null);
+                            
+                            if (fechaReporte) {
+                              try {
+                                // Log para debugging (solo en desarrollo)
+                                if (process.env.NODE_ENV === 'development') {
+                                  console.log(`📅 [RecentReportsTable] Fecha del reporte ${report.id}:`, {
+                                    fechaOriginal: fechaReporte,
+                                    tipo: typeof fechaReporte,
+                                    datosCompletos: report.datos
+                                  });
+                                }
+                                
+                                const parsedDate = parseDateWithoutTimezone(fechaReporte);
+                                if (parsedDate) {
+                                  const formatted = formatDate(parsedDate);
+                                  
+                                  if (process.env.NODE_ENV === 'development') {
+                                    console.log(`✅ [RecentReportsTable] Fecha formateada:`, {
+                                      fechaOriginal: fechaReporte,
+                                      fechaParseada: parsedDate.toISOString(),
+                                      fechaFormateada: formatted
+                                    });
+                                  }
+                                  
+                                  return formatted;
+                                }
+                              } catch (e) {
+                                console.error("❌ Error formateando fecha del reporte:", e, fechaReporte);
+                              }
+                            }
+                            
+                            // Fallback a created_at si no hay fecha del reporte
+                            if (report.created_at) {
+                              const parsedDate = parseDateWithoutTimezone(report.created_at);
+                              if (parsedDate) {
+                                return formatDate(parsedDate);
+                              }
+                            }
+                            
+                            return "";
+                          })()}
+                        </td>
                         <td>
                           <div className="btn-group btn-group-sm">
                             <button
