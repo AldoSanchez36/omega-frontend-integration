@@ -526,23 +526,6 @@ export default function Dashboard() {
           console.error("Error en la respuesta de reportes:", response.status, response.statusText)
         }
         
-        // Agregar reporte dummy si no hay reportes reales
-        if (reportesData.length === 0) {
-          reportesData.push({
-            id: "9999",
-            titulo: "Reporte de prueba",
-            planta: "Planta Norte",
-            sistema: "Sistema de Temperatura",
-            estado: "Completado",
-            fecha: new Date().toISOString().split('T')[0],
-            fechaGeneracion: new Date().toISOString(),
-            comentarios: "Reporte de prueba generado automáticamente",
-            usuario: user.username,
-            puesto: user.puesto,
-            reportSelection: {}
-          })
-        }
-        
         // Convertir formato de reportes para el dashboard (extraer datos del JSONB)
         const formattedReports = reportesData.map((report: any) => {
           // Extraer datos del JSONB
@@ -588,20 +571,8 @@ export default function Dashboard() {
         
       } catch (error) {
         console.error("Error cargando reportes:", error)
-        // En caso de error, agregar reporte dummy
-        setReports([{
-          id: "9999",
-          title: "Reporte de prueba",
-          plantName: "Planta Norte",
-          systemName: "Sistema de Temperatura",
-          status: "completed",
-          created_at: new Date().toISOString(),
-          usuario_id: user.id,
-          planta_id: "planta-norte",
-          proceso_id: "sistema-temperatura",
-          datos: {},
-          observaciones: "Reporte de prueba generado automáticamente"
-        }])
+        // En caso de error, no mostrar reportes
+        setReports([])
       }
     }
 

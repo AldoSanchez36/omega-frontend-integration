@@ -1,6 +1,6 @@
 "use client"
 
-import type React from "react"
+import React from "react"
 import { useEffect, useState, Fragment, useCallback, useMemo } from "react"
 import axios from "axios"
 import { authService } from "@/services/authService"
@@ -81,10 +81,11 @@ export default function UsersManagement() {
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("user")
 
   // --- MODAL DE GESTIONAR PERMISOS: LÓGICA DE CASCADA Y PERMISOS ---
+  const [empresasModal, setEmpresasModal] = useState<any[]>([]);
+  const [empresaSeleccionadaModal, setEmpresaSeleccionadaModal] = useState<string>("");
   const [plantasModal, setPlantasModal] = useState<any[]>([]);
   const [plantaSeleccionadaModal, setPlantaSeleccionadaModal] = useState<string>("");
-  const [sistemasModal, setSistemasModal] = useState<any[]>([]);
-  const [sistemaSeleccionadoModal, setSistemaSeleccionadoModal] = useState<string>("");
+  const [permisoEspecificoPlanta, setPermisoEspecificoPlanta] = useState(false);
   const [permisoVer, setPermisoVer] = useState(false);
   const [permisoEditar, setPermisoEditar] = useState(false);
   const [permisosLoading, setPermisosLoading] = useState(false);
@@ -109,6 +110,10 @@ export default function UsersManagement() {
 
   // Determinar si el usuario actual es admin
   const isAdmin = currentUserRole === 'admin'
+  
+  // Determinar si el usuario gestionado es admin (para mostrar/ocultar secciones en el modal)
+  const isUserBeingManagedAdmin = selectedUserForPermissions?.puesto?.toLowerCase() === 'admin' || 
+                                   selectedUserForPermissions?.puesto?.toLowerCase() === 'administrador'
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -171,84 +176,94 @@ export default function UsersManagement() {
     fetchUsers()
   }, [])
 
-  // Fetch plantas accesibles al abrir modal
+  // Fetch empresas al abrir modal
   useEffect(() => {
     if (!showPermissionModal || !selectedUserForPermissions) return;
     const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
-    const usuarioId = getUserId(selectedUserForPermissions)
-    if (!usuarioId) return; // No hacer fetch si no hay id
+    if (!token) return;
     
-    // Si el usuario actual es admin, obtener todas las plantas del sistema
-    // Si no es admin, obtener solo las plantas accesibles para el usuario seleccionado
-    const endpoint = isAdmin 
-      ? `${API_BASE_URL}${API_ENDPOINTS.PLANTS_ALL_ID}`
-      : `${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`;
-    
-    const headers: any = { Authorization: `Bearer ${token}` };
-    
-    // Solo agregar x-usuario-id si no es admin (para el endpoint de accesibles)
-    if (!isAdmin) {
-      headers["x-usuario-id"] = usuarioId;
-    }
-    
-    
-    fetch(endpoint, { headers })
-      .then(res => res.json())
-      .then(data => {
-        setPlantasModal(data.plantas || []);
-        if (data.plantas && data.plantas.length > 0) {
-          const primeraPlanta = data.plantas[0];
-          const plantaId = primeraPlanta.id ?? primeraPlanta._id;
-          setPlantaSeleccionadaModal(plantaId);
-        }
-      })
-      .catch(error => {
-        console.error("⚠️ Error fetching plantas:", error);
-        // Si el endpoint de todas las plantas no existe, fallback al endpoint de accesibles
-        if (isAdmin) {
-          fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
-            headers: { Authorization: `Bearer ${token}`, "x-usuario-id": usuarioId }
-          })
-            .then(res => res.json())
-            .then(data => {
-              setPlantasModal(data.plantas || []);
-              if (data.plantas && data.plantas.length > 0) {
-                setPlantaSeleccionadaModal(data.plantas[0].id ?? data.plantas[0]._id);
-              }
-            })
-            .catch(fallbackError => {
-              console.error("⚠️ Error en fallback:", fallbackError);
-            });
-        }
-      });
-  }, [showPermissionModal, selectedUserForPermissions, isAdmin]);
-
-  // Fetch sistemas al seleccionar planta
-  useEffect(() => {
-    if (!plantaSeleccionadaModal) return;
-    const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
-    
-    fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(String(plantaSeleccionadaModal ?? '') || '')}`, {
+    // Obtener todas las empresas para permitir selección
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ALL}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => {
-        setSistemasModal(data.procesos || []);
-        if (data.procesos && data.procesos.length > 0) {
-          setSistemaSeleccionadoModal(data.procesos[0].id);
+        const empresas = data.empresas || data || [];
+        setEmpresasModal(empresas);
+        
+        // Si hay empresas, seleccionar la primera por defecto
+        // O si el usuario tiene una empresa asignada, intentar seleccionarla
+        if (empresas.length > 0) {
+          const userEmpresa = selectedUserForPermissions.empresa;
+          if (userEmpresa) {
+            // Buscar la empresa del usuario por nombre
+            const empresaDelUsuario = empresas.find((e: any) => 
+              e.nombre.toLowerCase() === userEmpresa.toLowerCase()
+            );
+            if (empresaDelUsuario) {
+              setEmpresaSeleccionadaModal(empresaDelUsuario.id);
+            } else {
+              // Si no se encuentra, usar la primera empresa
+              setEmpresaSeleccionadaModal(empresas[0].id);
+            }
+          } else {
+            // Si el usuario no tiene empresa, usar la primera disponible
+            setEmpresaSeleccionadaModal(empresas[0].id);
+          }
         }
       })
       .catch(error => {
-        console.error("⚠️ Error fetching sistemas:", error);
+        console.error("⚠️ Error fetching empresas:", error);
+        setEmpresasModal([]);
       });
-  }, [plantaSeleccionadaModal]);
+  }, [showPermissionModal, selectedUserForPermissions, isAdmin]);
 
+  // Fetch plantas cuando se selecciona una empresa
   useEffect(() => {
-    if (!selectedUserForPermissions || !plantaSeleccionadaModal) {
-      setPermisoVer(false);
-      setPermisoEditar(false);
+    if (!empresaSeleccionadaModal) {
+      setPlantasModal([]);
+      setPlantaSeleccionadaModal("");
       return;
     }
+    
+    const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
+    if (!token) return;
+    
+    // Obtener plantas de la empresa seleccionada
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_BY_EMPRESA(empresaSeleccionadaModal)}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        const plantas = data.plantas || data || [];
+        setPlantasModal(plantas);
+        if (plantas.length > 0) {
+          const primeraPlanta = plantas[0];
+          const plantaId = primeraPlanta.id ?? primeraPlanta._id;
+          setPlantaSeleccionadaModal(plantaId);
+        } else {
+          setPlantaSeleccionadaModal("");
+        }
+      })
+      .catch(error => {
+        console.error("⚠️ Error fetching plantas por empresa:", error);
+        setPlantasModal([]);
+        setPlantaSeleccionadaModal("");
+      });
+  }, [empresaSeleccionadaModal]);
+
+
+  // Cargar permisos existentes cuando se selecciona una planta (solo para permiso específico)
+  useEffect(() => {
+    if (!selectedUserForPermissions || !permisoEspecificoPlanta || !plantaSeleccionadaModal) {
+      // Si no es permiso específico, no cargar permisos individuales
+      if (!permisoEspecificoPlanta) {
+        setPermisoVer(false);
+        setPermisoEditar(false);
+      }
+      return;
+    }
+    
     const usuarioId = getUserId(selectedUserForPermissions);
     const plantaId = plantaSeleccionadaModal;
     const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
@@ -269,7 +284,7 @@ export default function UsersManagement() {
         setPermisoVer(false);
         setPermisoEditar(false);
       });
-  }, [selectedUserForPermissions, plantaSeleccionadaModal]);
+  }, [selectedUserForPermissions, plantaSeleccionadaModal, permisoEspecificoPlanta]);
 
   const getRoleBadge = (role: string) => {
     const roleMap: { [key: string]: { color: string; text: string } } = {
@@ -455,6 +470,12 @@ export default function UsersManagement() {
   const openPermissionModal = (user: User) => {
     setSelectedUserForPermissions(user)
     setShowPermissionModal(true)
+    // Reset estados del modal
+    setEmpresaSeleccionadaModal("")
+    setPlantaSeleccionadaModal("")
+    setPermisoEspecificoPlanta(false)
+    setPermisoVer(false)
+    setPermisoEditar(false)
   }
   const closePermissionModal = () => {
     setShowPermissionModal(false)
@@ -462,6 +483,12 @@ export default function UsersManagement() {
     setPermisosError(null)
     setPermisosSuccess(null)
     setPermisosLoading(false)
+    // Reset estados del modal
+    setEmpresaSeleccionadaModal("")
+    setPlantaSeleccionadaModal("")
+    setPermisoEspecificoPlanta(false)
+    setEmpresasModal([])
+    setPlantasModal([])
   }
 
   // Modal handler edición
@@ -752,10 +779,24 @@ export default function UsersManagement() {
     }
   }
 
-  // Handler para guardar permisos de planta (versión corregida según backend)
+  // Handler para guardar permisos de planta
   const handleGuardarPermisos = async () => {
-    if (!selectedUserForPermissions || !plantaSeleccionadaModal) {
+    if (!selectedUserForPermissions) {
       return;
+    }
+    
+    // Para admin, no se requiere selección de empresa/planta
+    if (!isAdmin) {
+      if (!empresaSeleccionadaModal) {
+        setPermisosError("Por favor, seleccione una empresa");
+        return;
+      }
+      
+      // Si es permiso específico por planta, se requiere planta seleccionada
+      if (permisoEspecificoPlanta && !plantaSeleccionadaModal) {
+        setPermisosError("Por favor, seleccione una planta");
+        return;
+      }
     }
     
     setPermisosLoading(true);
@@ -763,35 +804,76 @@ export default function UsersManagement() {
     setPermisosSuccess(null);
     
     const usuarioId = getUserId(selectedUserForPermissions);
-    const plantaId = plantaSeleccionadaModal;
     const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
     
     try {
-      // POST para asignar permisos de planta
-      const payload = {
-        usuario_id: usuarioId,
-        planta_id: plantaId,
-        puede_ver: permisoVer,
-        puede_editar: permisoEditar
-      };
+      // Si el usuario gestionado es admin, no se pueden modificar sus permisos
+      const isUserBeingManagedAdmin = selectedUserForPermissions?.puesto?.toLowerCase() === 'admin' || 
+                                       selectedUserForPermissions?.puesto?.toLowerCase() === 'administrador'
       
-      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ASSIGN_ACCESS}`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json", 
-          Authorization: `Bearer ${token}` 
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.msg || errorData.message || "Error al guardar permisos");
+      if (isUserBeingManagedAdmin) {
+        // Para admin: no se pueden modificar permisos (tienen acceso completo)
+        setPermisosSuccess("Los administradores tienen acceso completo al sistema. No se requieren permisos adicionales.");
+        setTimeout(() => {
+          closePermissionModal();
+        }, 1500);
+        return;
       }
       
-      const data = await res.json();
-      
-      setPermisosSuccess("Permisos de planta asignados correctamente");
+      if (permisoEspecificoPlanta) {
+        // Permiso específico por planta: solo esa planta
+        const payload = {
+          usuario_id: usuarioId,
+          planta_id: plantaSeleccionadaModal,
+          puede_ver: permisoVer,
+          puede_editar: permisoEditar
+        };
+        
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ASSIGN_ACCESS}`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json", 
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.msg || errorData.message || "Error al guardar permisos");
+        }
+        
+        setPermisosSuccess("Permisos asignados para la planta específica");
+      } else {
+        // Permiso para toda la empresa: asignar a todas las plantas de la empresa
+        const plantasIds = plantasModal.map((p: any) => p.id ?? p._id);
+        
+        // Asignar permisos a todas las plantas de la empresa
+        const promises = plantasIds.map((plantaId: string) => 
+          fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ASSIGN_ACCESS}`, {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json", 
+              Authorization: `Bearer ${token}` 
+            },
+            body: JSON.stringify({
+              usuario_id: usuarioId,
+              planta_id: plantaId,
+              puede_ver: permisoVer,
+              puede_editar: permisoEditar
+            })
+          })
+        );
+        
+        const results = await Promise.all(promises);
+        const errors = results.filter(res => !res.ok);
+        
+        if (errors.length > 0) {
+          throw new Error(`Error al asignar permisos a ${errors.length} planta(s)`);
+        }
+        
+        setPermisosSuccess(`Permisos asignados para toda la empresa (${plantasIds.length} planta(s))`);
+      }
       
       // Cerrar modal después de 1.5 segundos
       setTimeout(() => {
@@ -819,7 +901,7 @@ export default function UsersManagement() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
-       <Navbar role={userRole} />
+        <Navbar role={userRole} />
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-lg shadow mb-4">
           <div className="container mx-auto flex flex-col md:flex-row items-center justify-between">
@@ -1479,123 +1561,155 @@ export default function UsersManagement() {
                   </div>
                 </div>
 
-                {/* Mensaje informativo para admin */}
-                {isAdmin && (
-                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                {/* Sección de configuración de permisos - Solo para analista/cliente */}
+                {!isUserBeingManagedAdmin && (
+                  <>
+                    {/* Mensaje informativo para analista/cliente sin empresa */}
+                    {!selectedUserForPermissions?.empresa && (
+                      <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex items-start gap-3">
+                          <span className="material-icons text-yellow-600 text-lg mt-0.5">warning</span>
+                          <div>
+                            <h4 className="font-medium text-yellow-900 mb-1">Empresa no asignada</h4>
+                            <p className="text-sm text-yellow-800">
+                              Este usuario no tiene una empresa asignada. Por favor, asigna una empresa al usuario antes de gestionar permisos.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-6">
+                      {/* Dropdown de Empresa */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Empresa
+                        </label>
+                        {empresasModal.length > 0 ? (
+                          <select
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                            value={empresaSeleccionadaModal}
+                            onChange={e => setEmpresaSeleccionadaModal(e.target.value)}
+                          >
+                            {empresasModal.map((empresa: any) => (
+                              <option key={empresa.id} value={empresa.id}>
+                                {empresa.nombre}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 text-sm">
+                            No hay empresas disponibles
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Checkbox para permiso específico por planta */}
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={permisoEspecificoPlanta} 
+                            onChange={e => setPermisoEspecificoPlanta(e.target.checked)}
+                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <div>
+                            <span className="text-sm font-medium text-gray-900">Permiso específico por planta</span>
+                            <p className="text-xs text-gray-600 mt-1">
+                              {permisoEspecificoPlanta 
+                                ? "El usuario tendrá acceso solo a la planta seleccionada (y todos sus sistemas)" 
+                                : "El usuario tendrá acceso a toda la empresa (todas las plantas y sus sistemas)"}
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+
+                      {/* Dropdown de plantas - Solo visible si está habilitado permiso específico */}
+                      {permisoEspecificoPlanta && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Planta
+                          </label>
+                          {empresaSeleccionadaModal && plantasModal.length > 0 ? (
+                            <select
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                              value={plantaSeleccionadaModal}
+                              onChange={e => setPlantaSeleccionadaModal(e.target.value)}
+                            >
+                              {plantasModal.map((planta: any) => (
+                                <option key={planta.id ?? planta._id} value={planta.id ?? planta._id}>
+                                  {planta.nombre}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 text-sm">
+                              {!empresaSeleccionadaModal 
+                                ? "Seleccione una empresa primero" 
+                                : plantasModal.length === 0 
+                                  ? "No hay plantas disponibles para esta empresa" 
+                                  : "Cargando plantas..."}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Información sobre permisos */}
+                      <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <h5 className="font-medium text-gray-900 border-b border-gray-200 pb-2 mb-4">
+                          Permisos {permisoEspecificoPlanta ? "para la planta seleccionada" : "para toda la empresa"}
+                        </h5>
+                        
+                        <div className="space-y-3">
+                          <label className="flex items-center gap-3 p-3 bg-white rounded-md border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={permisoVer} 
+                              onChange={e => setPermisoVer(e.target.checked)}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <div>
+                              <span className="text-sm font-medium text-gray-700">Permiso para Ver</span>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Permite visualizar datos y reportes {permisoEspecificoPlanta ? "de esta planta" : "de todas las plantas de la empresa"}
+                              </p>
+                            </div>
+                          </label>
+                          
+                          <label className="flex items-center gap-3 p-3 bg-white rounded-md border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={permisoEditar} 
+                              onChange={e => setPermisoEditar(e.target.checked)}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <div>
+                              <span className="text-sm font-medium text-gray-700">Permiso para Editar</span>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Permite modificar configuraciones y datos {permisoEspecificoPlanta ? "de esta planta" : "de todas las plantas de la empresa"}
+                              </p>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Sección de permisos para Admin - Solo banner informativo */}
+                {isUserBeingManagedAdmin && (
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex items-start gap-3">
                       <span className="material-icons text-blue-600 text-lg mt-0.5">info</span>
                       <div>
                         <h4 className="font-medium text-blue-900 mb-1">Permisos de Administrador</h4>
                         <p className="text-sm text-blue-800">
-                          Como administrador, puedes asignar permisos a cualquier planta del sistema para este usuario.
+                          Los administradores tienen acceso completo a todas las empresas, plantas y sistemas del sistema.
                         </p>
                       </div>
                     </div>
                   </div>
                 )}
-
-                {/* Sección de configuración de permisos */}
-                <div className="space-y-6">
-                  {/* Dropdown de plantas */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Planta
-                    </label>
-                    {plantasModal.length > 0 ? (
-                      <select
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                        value={plantaSeleccionadaModal}
-                        onChange={e => setPlantaSeleccionadaModal(e.target.value)}
-                      >
-                        {plantasModal.map((planta: any) => (
-                          <option key={planta.id ?? planta._id} value={planta.id ?? planta._id}>
-                            {planta.nombre}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 text-sm">
-                        {isAdmin ? "No hay plantas disponibles en el sistema" : "Este usuario no tiene acceso a ninguna planta"}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Dropdown de sistemas */}
-                  {plantasModal.length > 0 && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Sistema
-                      </label>
-                      {sistemasModal.length > 0 ? (
-                        <select
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                          value={sistemaSeleccionadoModal}
-                          onChange={e => setSistemaSeleccionadoModal(e.target.value)}
-                        >
-                          {sistemasModal.map((sistema: any) => (
-                            <option key={sistema.id} value={sistema.id}>
-                              {sistema.nombre}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 text-sm">
-                          No hay sistemas disponibles en esta planta
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Información del sistema seleccionado y permisos */}
-                  {plantasModal.length > 0 && sistemasModal.length > 0 && (
-                    sistemasModal.map((sistema: any) => (
-                      sistema.id === sistemaSeleccionadoModal && (
-                        <div key={sistema.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                          <div className="mb-4">
-                            <h4 className="text-lg font-semibold text-gray-900 mb-1">{sistema.nombre}</h4>
-                            {sistema.descripcion && (
-                              <p className="text-sm text-gray-600">{sistema.descripcion}</p>
-                            )}
-                          </div>
-                          
-                          {/* Permisos */}
-                          <div className="space-y-4">
-                            <h5 className="font-medium text-gray-900 border-b border-gray-200 pb-2">
-                              Permisos para esta planta
-                            </h5>
-                            
-                            <div className="space-y-3">
-                              <label className="flex items-center gap-3 p-3 bg-white rounded-md border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
-                                <input 
-                                  type="checkbox" 
-                                  checked={permisoVer} 
-                                  onChange={e => setPermisoVer(e.target.checked)}
-                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                />
-                                <div>
-                                  <span className="text-sm font-medium text-gray-700">Permiso para Ver</span>
-                                  <p className="text-xs text-gray-500 mt-1">Permite visualizar datos y reportes de esta planta</p>
-                                </div>
-                              </label>
-                              
-                              <label className="flex items-center gap-3 p-3 bg-white rounded-md border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
-                                <input 
-                                  type="checkbox" 
-                                  checked={permisoEditar} 
-                                  onChange={e => setPermisoEditar(e.target.checked)}
-                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                />
-                                <div>
-                                  <span className="text-sm font-medium text-gray-700">Permiso para Editar</span>
-                                  <p className="text-xs text-gray-500 mt-1">Permite modificar configuraciones y datos de esta planta</p>
-                                </div>
-                              </label>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    ))
-                  )}
 
                   {/* Mensajes de error y éxito */}
                   {permisosError && (
@@ -1621,40 +1735,58 @@ export default function UsersManagement() {
                       </div>
                     </div>
                   )}
-                </div>
               </div>
 
-              {/* Footer del modal con botones */}
-              <div className="flex flex-col sm:flex-row justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
-                <button 
-                  type="button" 
-                  className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors" 
-                  onClick={closePermissionModal}
-                >
-                  Cancelar
-                </button>
-                <button 
-                  className={`w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                    plantasModal.length > 0 && !permisosLoading
-                      ? 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500' 
-                      : 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                  }`} 
-                  onClick={handleGuardarPermisos}
-                  disabled={plantasModal.length === 0 || permisosLoading}
-                >
-                  {permisosLoading ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      Guardando...
-                    </div>
-                  ) : (
-                    "Guardar Permisos"
-                  )}
-                </button>
-              </div>
+              {/* Footer del modal con botones - Solo visible para no-admin */}
+              {!isUserBeingManagedAdmin && (
+                <div className="flex flex-col sm:flex-row justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+                  <button 
+                    type="button" 
+                    className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors" 
+                    onClick={closePermissionModal}
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    className={`w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                      empresaSeleccionadaModal && !permisosLoading && (!permisoEspecificoPlanta || (permisoEspecificoPlanta && plantaSeleccionadaModal && plantasModal.length > 0))
+                        ? 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500' 
+                        : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                    }`} 
+                    onClick={handleGuardarPermisos}
+                    disabled={
+                      permisosLoading || 
+                      !empresaSeleccionadaModal || 
+                      (permisoEspecificoPlanta && (!plantaSeleccionadaModal || plantasModal.length === 0))
+                    }
+                  >
+                    {permisosLoading ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        Guardando...
+                      </div>
+                    ) : (
+                      "Guardar Permisos"
+                    )}
+                  </button>
+                </div>
+              )}
+              
+              {/* Botón de cerrar para Admin */}
+              {isUserBeingManagedAdmin && (
+                <div className="flex justify-end p-4 border-t border-gray-200 bg-gray-50">
+                  <button 
+                    type="button" 
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors" 
+                    onClick={closePermissionModal}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-        )} 
+        )}
       </div>
     </ProtectedRoute>
   )
