@@ -57,6 +57,7 @@ interface User {
   email: string;
   puesto: string;
   planta_id: string;
+  empresa_id?: string | null;
 }
 
 // Interfaz para la planta
@@ -88,6 +89,7 @@ interface ReportSelection {
   plant: Plant;
   systemName: string;
   generatedDate: string;
+  empresa_id?: string | null;
   parameters: {
     [systemName: string]: {
       [parameterName: string]: {
@@ -593,6 +595,16 @@ export default function Reporte() {
         return
       }
 
+      const empresaId =
+        reportSelection.empresa_id ??
+        reportSelection.user?.empresa_id ??
+        null
+
+      if (!empresaId) {
+        alert("Error: No se encontró el ID de la empresa (empresa_id)")
+        return
+      }
+
       // Nota: `proceso_id` ya NO es obligatorio para guardar el reporte.
 
       // Preparar el reportSelection completo para enviar
@@ -610,15 +622,18 @@ export default function Reporte() {
         comentarios: reportSelection.comentarios || "",
         fecha: reportSelection.fecha || new Date().toISOString().split('T')[0],
         generatedDate: reportSelection.generatedDate || new Date().toISOString(),
+        empresa_id: empresaId,
         user: {
           id: reportSelection.user?.id,
           username: reportSelection.user?.username,
           email: reportSelection.user?.email,
-          puesto: reportSelection.user?.puesto
+          puesto: reportSelection.user?.puesto,
+          empresa_id: empresaId
         },
         // Campos requeridos por el backend
         planta_id: reportSelection.plant?.id,
         usuario_id: reportSelection.user?.id,
+        empresa_id: empresaId,
         parameterComments: parameterComments || {} // Incluir comentarios por parámetro
       }
 

@@ -58,6 +58,7 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
   getStatusColor,
   startDate,
   endDate,
+  loading = false,
 }) => {
   const [activePlant, setActivePlant] = useState<string | null>(null);
   const [activeSystem, setActiveSystem] = useState<string | null>(null);
@@ -110,6 +111,7 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                 type="button"
                 className={`btn btn-sm ${viewMode === 'charts' ? 'btn-primary' : 'btn-outline-primary'}`}
                 onClick={() => setViewMode('charts')}
+                disabled={loading}
               >
                 <i className="material-icons me-1">show_chart</i>
                 Gráficos
@@ -118,6 +120,7 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                 type="button"
                 className={`btn btn-sm ${viewMode === 'table' ? 'btn-primary' : 'btn-outline-primary'}`}
                 onClick={() => setViewMode('table')}
+                disabled={loading}
               >
                 <i className="material-icons me-1">table_view</i>
                 Tabla
@@ -125,29 +128,40 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
             </div>
           </div>
           <div className="card-body p-0">
-            {/* Plant Tabs */}
-            <div className="border-bottom">
-              <div className="nav nav-tabs nav-fill" role="tablist">
-                {plants.slice(0, 4).map((plant) => (
-                  <button
-                    key={plant.id}
-                    className={`nav-link ${activePlant === plant.id ? 'active' : ''}`}
-                    onClick={() => {
-                      setActivePlant(plant.id);
-                      setActiveSystem(null);
-                    }}
-                  >
-                    <i className="material-icons me-1">factory</i>
-                    {plant.nombre}
-                    <span className={`badge ms-2 ${getStatusColor(plant.status || "active")}`}>
-                      {plant.systems?.length || 0}
-                    </span>
-                  </button>
-                ))}
+            {/* Loading State - Show when loading and no plants */}
+            {loading && plants.length === 0 ? (
+              <div className="text-center py-5">
+                <div className="spinner-border text-primary" role="status" style={{ width: '3rem', height: '3rem' }}>
+                  <span className="visually-hidden">Cargando...</span>
+                </div>
+                <p className="mt-3 text-muted">Cargando plantas y sistemas...</p>
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Plant Tabs */}
+                <div className="border-bottom">
+                  <div className="nav nav-tabs nav-fill" role="tablist">
+                    {plants.slice(0, 4).map((plant) => (
+                      <button
+                        key={plant.id}
+                        className={`nav-link ${activePlant === plant.id ? 'active' : ''}`}
+                        onClick={() => {
+                          setActivePlant(plant.id);
+                          setActiveSystem(null);
+                        }}
+                        disabled={loading}
+                      >
+                        <i className="material-icons me-1">factory</i>
+                        {plant.nombre}
+                        <span className={`badge ms-2 ${getStatusColor(plant.status || "active")}`}>
+                          {plant.systems?.length || 0}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {selectedPlant && (
+                {selectedPlant && (
               <div className="p-3">
                 {/* Debug Info */}
                 <div className="alert alert-info mb-3">
@@ -157,6 +171,16 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                     Datos históricos: {Object.keys(historicalData).length} parámetros
                   </small>
                 </div>
+                
+                {/* Loading Indicator */}
+                {loading && (
+                  <div className="text-center py-5 mb-4">
+                    <div className="spinner-border text-primary" role="status" style={{ width: '3rem', height: '3rem' }}>
+                      <span className="visually-hidden">Cargando datos...</span>
+                    </div>
+                    <p className="mt-3 text-muted">Cargando datos históricos...</p>
+                  </div>
+                )}
                 
                 {/* System Selection */}
                 {selectedPlant.systems && selectedPlant.systems.length > 0 ? (
@@ -173,6 +197,7 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                               activeSystem === system.id ? 'active' : ''
                             }`}
                             onClick={() => setActiveSystem(system.id)}
+                            disabled={loading}
                           >
                             <div className="d-flex justify-content-between align-items-center">
                               <div>
@@ -248,6 +273,36 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                               const maxValue = Math.max(...data.map((d) => d.value));
                               const minValue = Math.min(...data.map((d) => d.value));
                               const avgValue = data.reduce((sum, d) => sum + d.value, 0) / data.length;
+                              
+                              // Asegurar un rango mínimo para visualización cuando todos los valores son iguales
+                              const valueRange = maxValue - minValue || Math.abs(maxValue) * 0.1 || 1;
+                              const adjustedMin = minValue - valueRange * 0.1;
+                              const adjustedMax = maxValue + valueRange * 0.1;
+                              const adjustedRange = adjustedMax - adjustedMin;
+                              
+                              // Dimensiones mejoradas con mejor proporción
+                              const padding = { top: 12, right: 12, bottom: 12, left: 12 };
+                              const chartHeight = 160; // Reducido para mejor proporción
+                              const chartWidth = 100; // Ancho del viewBox
+                              const plotWidth = chartWidth - padding.left - padding.right;
+                              const plotHeight = chartHeight - padding.top - padding.bottom;
+
+                              // Calcular puntos del gráfico usando coordenadas del viewBox
+                              const chartPoints = data.map((d, i) => {
+                                const x = padding.left + ((i / Math.max(data.length - 1, 1)) * plotWidth);
+                                const y = padding.top + ((adjustedMax - d.value) / adjustedRange) * plotHeight;
+                                return { x, y, value: d.value, timestamp: d.timestamp };
+                              });
+
+                              // Crear path para el área bajo la curva
+                              const areaPath = chartPoints.length > 0
+                                ? `M ${chartPoints[0].x} ${chartHeight - padding.bottom} L ${chartPoints.map(p => `${p.x},${p.y}`).join(' L ')} L ${chartPoints[chartPoints.length - 1].x} ${chartHeight - padding.bottom} Z`
+                                : '';
+
+                              // Crear path para la línea
+                              const linePath = chartPoints.length > 0
+                                ? `M ${chartPoints.map(p => `${p.x},${p.y}`).join(' L ')}`
+                                : '';
 
                               return (
                                 <div key={param.id} className="col-md-6 col-lg-4">
@@ -260,79 +315,95 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                     </div>
                                     <div className="card-body py-2">
                                       {/* Enhanced Interactive Chart */}
-                                      <div className="mb-3 position-relative" style={{ height: "100px" }}>
-                                        <svg width="100%" height="100%" className="border rounded bg-light">
-                                          {/* Gradient background */}
+                                      <div className="mb-2 position-relative" style={{ height: `${chartHeight}px`, minHeight: `${chartHeight}px`, width: '100%' }}>
+                                        <svg 
+                                          width="100%" 
+                                          height="100%" 
+                                          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                                          preserveAspectRatio="xMidYMid meet"
+                                          className="border rounded bg-light"
+                                          style={{ display: 'block', width: '100%', height: '100%' }}
+                                        >
                                           <defs>
                                             <linearGradient id={`gradient-${param.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                                              <stop offset="0%" stopColor="#007bff" stopOpacity="0.1"/>
-                                              <stop offset="100%" stopColor="#007bff" stopOpacity="0.3"/>
+                                              <stop offset="0%" stopColor="#007bff" stopOpacity="0.25"/>
+                                              <stop offset="50%" stopColor="#007bff" stopOpacity="0.1"/>
+                                              <stop offset="100%" stopColor="#007bff" stopOpacity="0.05"/>
                                             </linearGradient>
                                           </defs>
                                           
-                                          {/* Area under curve */}
-                                          <polygon
-                                            fill={`url(#gradient-${param.id})`}
-                                            points={`0,100 ${data.map((d, i) => {
-                                              const x = (i / (data.length - 1)) * 100;
-                                              const y = 100 - ((d.value - minValue) / (maxValue - minValue || 1)) * 80;
-                                              return `${x},${y}`;
-                                            }).join(" ")} 100,100`}
-                                          />
-                                          
-                                          {/* Main line */}
-                                          <polyline
-                                            fill="none"
-                                            stroke="#007bff"
-                                            strokeWidth="3"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            points={data.map((d, i) => {
-                                              const x = (i / (data.length - 1)) * 100;
-                                              const y = 100 - ((d.value - minValue) / (maxValue - minValue || 1)) * 80;
-                                              return `${x},${y}`;
-                                            }).join(" ")}
-                                          />
-                                          
-                                          {/* Data points with hover effect */}
-                                          {data.map((d, i) => {
-                                            const x = (i / (data.length - 1)) * 100;
-                                            const y = 100 - ((d.value - minValue) / (maxValue - minValue || 1)) * 80;
+                                          {/* Grid lines horizontales más sutiles */}
+                                          {[0, 25, 50, 75, 100].map((percent) => {
+                                            const y = padding.top + (percent / 100) * plotHeight;
                                             return (
-                                              <circle
-                                                key={i}
-                                                cx={`${x}%`}
-                                                cy={y}
-                                                r="4"
-                                                fill="#007bff"
-                                                stroke="white"
-                                                strokeWidth="2"
-                                                className="data-point"
-                                                style={{ cursor: 'pointer' }}
+                                              <line
+                                                key={`grid-h-${percent}`}
+                                                x1={padding.left}
+                                                y1={y}
+                                                x2={chartWidth - padding.right}
+                                                y2={y}
+                                                stroke="#f0f0f0"
+                                                strokeWidth="0.5"
+                                                strokeDasharray="3,3"
                                               />
                                             );
                                           })}
+                                          
+                                          {/* Area under curve */}
+                                          {areaPath && (
+                                            <path
+                                              d={areaPath}
+                                              fill={`url(#gradient-${param.id})`}
+                                            />
+                                          )}
+                                          
+                                          {/* Main line más suave */}
+                                          {linePath && (
+                                            <path
+                                              d={linePath}
+                                              fill="none"
+                                              stroke="#007bff"
+                                              strokeWidth="2"
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                            />
+                                          )}
+                                          
+                                          {/* Data points más visibles */}
+                                          {chartPoints.map((point, i) => (
+                                            <circle
+                                              key={i}
+                                              cx={point.x}
+                                              cy={point.y}
+                                              r="3"
+                                              fill="#007bff"
+                                              stroke="white"
+                                              strokeWidth="1.5"
+                                              className="data-point"
+                                              style={{ cursor: 'pointer' }}
+                                            />
+                                          ))}
                                         </svg>
                                       </div>
                                       
-                                      {/* Enhanced Stats with Better Contrast */}
-                                      <div className="row g-2 text-center">
+                                      {/* Enhanced Stats with Better Contrast - Reduced Size */}
+                                      <div className="row g-1 text-center mt-2">
                                         <div className="col-4">
-                                          <div className="p-2 rounded shadow-sm" style={{ backgroundColor: '#d4edda', border: '1px solid #c3e6cb' }}>
-                                            <div className="fw-bold text-dark" style={{ fontSize: '0.9rem' }}>{maxValue.toFixed(1)}</div>
-                                            <div className="text-muted" style={{ fontSize: '0.75rem' }}>Alto</div>
+                                          <div className="p-1 rounded shadow-sm" style={{ backgroundColor: '#d4edda', border: '1px solid #c3e6cb' }}>
+                                            <div className="fw-bold text-dark" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>{maxValue.toFixed(1)}</div>
+                                            <div className="text-muted" style={{ fontSize: '0.55rem', lineHeight: '1' }}>Alto</div>
                                           </div>
                                         </div>
                                         <div className="col-4">
-                                          <div className="p-2 rounded shadow-sm" style={{ backgroundColor: '#cce5ff', border: '1px solid #b3d9ff' }}>
-                                            <div className="fw-bold text-dark" style={{ fontSize: '0.9rem' }}>{avgValue.toFixed(1)}</div>
-                                            <div className="text-muted" style={{ fontSize: '0.75rem' }}>Prom</div>
+                                          <div className="p-1 rounded shadow-sm" style={{ backgroundColor: '#cce5ff', border: '1px solid #b3d9ff' }}>
+                                            <div className="fw-bold text-dark" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>{avgValue.toFixed(1)}</div>
+                                            <div className="text-muted" style={{ fontSize: '0.55rem', lineHeight: '1' }}>Prom</div>
                                           </div>
                                         </div>
                                         <div className="col-4">
-                                          <div className="p-2 rounded shadow-sm" style={{ backgroundColor: '#f8d7da', border: '1px solid #f5c6cb' }}>
-                                            <div className="fw-bold text-dark" style={{ fontSize: '0.9rem' }}>{minValue.toFixed(1)}</div>
-                                            <div className="text-muted" style={{ fontSize: '0.75rem' }}>Bajo</div>
+                                          <div className="p-1 rounded shadow-sm" style={{ backgroundColor: '#f8d7da', border: '1px solid #f5c6cb' }}>
+                                            <div className="fw-bold text-dark" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>{minValue.toFixed(1)}</div>
+                                            <div className="text-muted" style={{ fontSize: '0.55rem', lineHeight: '1' }}>Bajo</div>
                                           </div>
                                         </div>
                                       </div>
@@ -445,6 +516,8 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                   </div>
                 )}
               </div>
+            )}
+              </>
             )}
           </div>
         </div>

@@ -24,6 +24,7 @@ interface RecentReportsTableProps {
   onTableClick: () => void;
   onDebugLog: (msg: string) => void;
   onViewReport: (report: Report) => void;
+  userRole?: "admin" | "user" | "client" | "guest";
 }
 
 const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
@@ -33,6 +34,7 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
   onTableClick,
   onDebugLog,
   onViewReport,
+  userRole,
 }) => {
   return (
     <div className="row mb-4">
@@ -50,10 +52,11 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
           </div>
           <div className="card-body">
             {dataLoading ? (
-              <div className="text-center py-4">
-                <div className="spinner-border text-primary" role="status">
+              <div className="text-center py-5">
+                <div className="spinner-border text-primary" role="status" style={{ width: '3rem', height: '3rem' }}>
                   <span className="visually-hidden">Cargando reportes...</span>
                 </div>
+                <p className="mt-3 text-muted">Cargando reportes recientes...</p>
               </div>
             ) : reports.length > 0 ? (
               <div className="table-responsive">
@@ -178,20 +181,22 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                                 visibility
                               </i>
                             </button>
-                            <button
-                              className={report.estatus ? "btn btn-outline-secondary" : "btn btn-warning"}
-                              disabled
-                              title={
-                                report.estatus
-                                  ? "Visible para clientes"
-                                  : "Oculto para clientes"
-                              }
-                              style={{ cursor: "not-allowed" }}
-                            >
-                              <i className="material-icons" style={{ fontSize: "1rem" }}>
-                                lock
-                              </i>
-                            </button>
+                            {userRole !== "client" && (
+                              <button
+                                className={report.estatus ? "btn btn-outline-secondary" : "btn btn-warning"}
+                                disabled
+                                title={
+                                  report.estatus
+                                    ? "Visible para clientes"
+                                    : "Oculto para clientes"
+                                }
+                                style={{ cursor: "not-allowed" }}
+                              >
+                                <i className="material-icons" style={{ fontSize: "1rem" }}>
+                                  lock
+                                </i>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

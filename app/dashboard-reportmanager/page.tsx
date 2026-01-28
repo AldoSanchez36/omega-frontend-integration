@@ -610,6 +610,12 @@ export default function ReportManager() {
         return;
       }
       
+      const empresaId =
+        report?.empresa_id ??
+        report?.datos?.empresa_id ??
+        report?.datos?.user?.empresa_id ??
+        null
+
       // Reconstruir reportSelection desde los datos JSONB completos
       const reportSelection = {
         user: {
@@ -617,7 +623,8 @@ export default function ReportManager() {
           username: report.datos?.user?.username || report.usuario,
           email: report.datos?.user?.email || "",
           puesto: report.datos?.user?.puesto || "client",
-          cliente_id: report.datos?.user?.cliente_id || null
+          cliente_id: report.datos?.user?.cliente_id || null,
+          empresa_id: empresaId
         },
         plant: {
           id: report.datos?.plant?.id || report.planta_id,
@@ -633,7 +640,8 @@ export default function ReportManager() {
         fecha: report.datos?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
         comentarios: report.datos?.comentarios || report.observaciones || "",
         generatedDate: report.datos?.generatedDate || report.created_at || new Date().toISOString(),
-        cliente_id: report.datos?.user?.cliente_id || null
+        cliente_id: report.datos?.user?.cliente_id || null,
+        empresa_id: empresaId
       };
 
       console.log("📄 reportSelection reconstruido desde reportes pendientes:", reportSelection);
@@ -663,6 +671,13 @@ export default function ReportManager() {
       // Solo actualizar la fecha de generación y las fechas de gráficos
       const reportData = JSON.parse(savedReportData);
       reportData.generatedDate = new Date().toISOString();
+      // Asegurar empresa_id (mismo origen que planta_id: selección actual)
+      if (!reportData.empresa_id) {
+        reportData.empresa_id = selectedEmpresa?.id || reportData.user?.empresa_id || null;
+      }
+      if (reportData.user && !reportData.user.empresa_id) {
+        reportData.user.empresa_id = reportData.empresa_id || null;
+      }
       // Asegurar que las fechas de gráficos estén incluidas
       if (!reportData.chartStartDate) {
         reportData.chartStartDate = chartStartDate;
