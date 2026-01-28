@@ -343,18 +343,6 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                           className="mt-0.5 h-8 text-sm"
                         />
                       </div>
-                      <div className="flex-1 flex flex-col min-w-[300px]">
-                        <label htmlFor="globalComentarios" className="text-xs font-medium text-blue-700 mb-0.5">
-                          Comentarios globales
-                        </label>
-                        <Input
-                          id="globalComentarios"
-                          value={globalComentarios}
-                          onChange={e => handleGlobalComentariosChange(e.target.value)}
-                          className="mt-0.5 h-8 text-sm"
-                          placeholder="Ingresa comentarios globales..."
-                        />
-                      </div>
                     </div>
                     <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-blue-200">
                       <div className="flex flex-col">

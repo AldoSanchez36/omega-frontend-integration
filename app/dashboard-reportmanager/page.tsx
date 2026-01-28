@@ -237,17 +237,6 @@ export default function ReportManager() {
   
   // Determinar el parámetro seleccionado para el gráfico
   const selectedParameters = parameters.filter(param => parameterValues[param.id]?.checked);
-  
-  // Estado para comentarios por parámetro en gráficos
-  const [parameterComments, setParameterComments] = useState<{ [parameterId: string]: string }>({})
-  
-  // Función para manejar cambios en comentarios de parámetros
-  const handleParameterCommentChange = (parameterId: string, comment: string) => {
-    setParameterComments(prev => ({
-      ...prev,
-      [parameterId]: comment
-    }))
-  }
 
   const { 
     tolerancias,
@@ -493,7 +482,7 @@ export default function ReportManager() {
     allParameters, // allParameters - ahora con todos los sistemas
     limitsState, // Pasar el estado de límites actual
     parameterValuesBySystem, // Pasar todos los valores por sistema
-    parameterComments, // Pasar comentarios por parámetro
+    {}, // parameterComments - comentarios eliminados
     chartStartDate, // Pasar fecha inicio de gráficos
     chartEndDate, // Pasar fecha fin de gráficos
     (reportData) => {
@@ -890,18 +879,17 @@ export default function ReportManager() {
             </Card>
           )}
 
-                    {/* Gráficos de Series Temporales */}
-          <Charts
-            selectedParameters={selectedParameters}
-            startDate={chartStartDate}
-            endDate={chartEndDate}
-            clientName={selectedPlantData?.clientName}
-            processName={selectedSystemData?.nombre}
-            empresaId={selectedEmpresa?.id}
-            parameterComments={parameterComments}
-            onParameterCommentChange={handleParameterCommentChange}
-          />
-          
+          {/* Gráficos de Series Temporales - Solo visible cuando se selecciona un proceso */}
+          {selectedSystem && (
+            <Charts
+              selectedParameters={selectedParameters}
+              startDate={chartStartDate}
+              endDate={chartEndDate}
+              clientName={selectedPlantData?.clientName}
+              processName={selectedSystemData?.nombre}
+              userId={currentUser?.id}
+            />
+          )}
 
         </div>
         <ScrollArrow />
