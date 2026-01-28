@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants";
 
 interface Empresa {
   id: string;
@@ -23,6 +24,22 @@ interface System {
   id: string;
   nombre: string;
   descripcion: string;
+}
+
+interface Report {
+  id: string;
+  usuario_id: string;
+  planta_id: string;
+  proceso_id: string;
+  datos: any;
+  observaciones?: string;
+  created_at?: string;
+  title?: string;
+  plantName?: string;
+  systemName?: string;
+  status?: string;
+  usuario?: string;
+  puesto?: string;
 }
 
 interface TabbedSelectorProps {
@@ -75,8 +92,12 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
   chartEndDate,
   handleChartStartDateChange,
   handleChartEndDateChange,
+  token,
+  onViewReport,
 }) => {
   const [activeTab, setActiveTab] = useState<string>("cliente");
+  const [pendingReports, setPendingReports] = useState<Report[]>([]);
+  const [reportsLoading, setReportsLoading] = useState<boolean>(false);
 
   // Inicializar pestaña activa basada en selecciones existentes.
   // Si hay una planta seleccionada, ir a procesos. Si solo hay empresa, ir a planta.
@@ -117,6 +138,122 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
       setActiveTab("planta");
     }
   };
+
+  // Función para obtener el color del estado
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "active":
+      case "online":
+      case "completed":
+        return "bg-success";
+      case "maintenance":
+      case "pending":
+        return "bg-warning";
+      case "inactive":
+      case "offline":
+      case "error":
+        return "bg-danger";
+      default:
+        return "bg-secondary";
+    }
+  };
+
+  // Función para formatear fecha
+  const formatDate = (dateString: string | undefined): string => {
+    if (!dateString) return "";
+    
+    const parseDateWithoutTimezone = (dateString: string): Date | null => {
+      if (!dateString) return null;
+      
+      const dateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (dateMatch) {
+        const [, year, month, day] = dateMatch;
+        return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      }
+      
+      return new Date(dateString);
+    };
+    
+    const parsedDate = parseDateWithoutTimezone(dateString);
+    if (!parsedDate || isNaN(parsedDate.getTime())) return "";
+    
+    return parsedDate.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  // Cargar reportes filtrados por planta
+  useEffect(() => {
+    const fetchPendingReports = async () => {
+      if (!selectedPlant || !token || activeTab !== "reportes-pendientes") {
+        setPendingReports([]);
+        return;
+      }
+
+      setReportsLoading(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+          console.error("Error al cargar reportes:", response.status, response.statusText);
+          setPendingReports([]);
+          return;
+        }
+
+        const data = await response.json();
+        const reportesData = Array.isArray(data.reportes) ? data.reportes : [];
+        
+        // Formatear reportes similar al dashboard
+        let formattedReports = reportesData.map((report: any) => {
+          const datosJsonb = report.datos || {};
+          
+          return {
+            id: report.id?.toString() || report.id,
+            title: report.titulo || report.nombre || `Reporte ${report.id}`,
+            plantName: datosJsonb.plant?.nombre || report.planta || report.plantName || "Planta no especificada",
+            systemName: datosJsonb.systemName || report.sistema || report.systemName || "Sistema no especificado",
+            status: report.estado || report.status || "completed",
+            created_at: datosJsonb.generatedDate || report.fechaGeneracion || report.fecha_creacion || report.created_at || new Date().toISOString(),
+            usuario_id: report.usuario_id || "",
+            planta_id: report.planta_id || datosJsonb.plant?.id || "planta-unknown",
+            proceso_id: report.proceso_id || "sistema-unknown",
+            datos: {
+              ...(report.reportSelection || report.datos || {}),
+              fecha: datosJsonb.fecha || report.fecha || (report.reportSelection?.fecha) || (report.datos?.fecha)
+            },
+            observaciones: datosJsonb.comentarios || report.comentarios || report.observaciones || "",
+            usuario: datosJsonb.user?.username || report.usuario || "",
+            puesto: datosJsonb.user?.puesto || report.puesto || ""
+          };
+        });
+
+        // Filtrar por la planta seleccionada
+        formattedReports = formattedReports.filter((report: Report) => {
+          return report.planta_id === selectedPlant.id;
+        });
+
+        // Ordenar por fecha (más reciente primero)
+        formattedReports.sort((a, b) => {
+          const dateA = new Date(a.created_at || 0).getTime();
+          const dateB = new Date(b.created_at || 0).getTime();
+          return dateB - dateA;
+        });
+
+        setPendingReports(formattedReports);
+      } catch (error) {
+        console.error("Error cargando reportes pendientes:", error);
+        setPendingReports([]);
+      } finally {
+        setReportsLoading(false);
+      }
+    };
+
+    fetchPendingReports();
+  }, [selectedPlant, token, activeTab]);
 
   return (
     <Card className="mb-6 border-0 shadow-lg">
@@ -174,6 +311,21 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                 `}
               >
                 Procesos
+              </TabsTrigger>
+              <TabsTrigger 
+                value="reportes-pendientes" 
+                className={`
+                  relative px-5 py-2.5 text-sm font-medium rounded-t-md
+                  transition-all duration-150 ease-in-out
+                  border border-b-0 border-transparent
+                  data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:border-gray-300 data-[state=active]:border-b-white
+                  data-[state=active]:shadow-[0_-2px_4px_rgba(0,0,0,0.05)]
+                  data-[state=inactive]:bg-transparent data-[state=inactive]:text-gray-600 data-[state=inactive]:hover:bg-gray-200 data-[state=inactive]:hover:text-gray-900
+                  -mb-px z-10
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2
+                `}
+              >
+                Reportes Pendientes
               </TabsTrigger>
             </TabsList>
           </div>
@@ -416,6 +568,120 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                   </div>
                 </>
               )}
+            </div>
+          </TabsContent>
+
+          {/* Pestaña 4: Reportes Pendientes */}
+          <TabsContent value="reportes-pendientes" className="mt-0 p-6 bg-white border-t border-gray-200">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-4 text-gray-800">
+                  Reportes Pendientes
+                </h3>
+                {!selectedPlant ? (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      Por favor, selecciona una planta primero para ver los reportes pendientes.
+                    </p>
+                  </div>
+                ) : reportsLoading ? (
+                  <div className="text-center py-8">
+                    <div className="spinner-border text-primary" role="status">
+                      <span className="visually-hidden">Cargando reportes...</span>
+                    </div>
+                    <p className="text-gray-600 mt-2">Cargando reportes de {selectedPlant.nombre}...</p>
+                  </div>
+                ) : pendingReports.length > 0 ? (
+                  <div className="table-responsive">
+                    <table className="table table-hover">
+                      <thead>
+                        <tr>
+                          <th>Título</th>
+                          <th>Planta</th>
+                          <th>Estado</th>
+                          <th>Usuario</th>
+                          <th>Fecha</th>
+                          <th>Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingReports.map((report) => (
+                          <tr key={report.id}>
+                            <td>
+                              <strong>{report.title || `Reporte ${report.id}`}</strong>
+                            </td>
+                            <td>
+                              <span className="badge bg-primary">{report.plantName || report.planta_id}</span>
+                            </td>
+                            <td>
+                              <span className={`badge ${getStatusColor(report.status || "completed")}`}>
+                                {report.status === "completed" ? "✅ Completado" : report.status || "Completado"}
+                              </span>
+                            </td>
+                            <td>
+                              <div>
+                                <strong>{report.usuario || "Usuario"}</strong>
+                                {report.puesto && (
+                                  <>
+                                    <br />
+                                    <small className="text-muted">{report.puesto}</small>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                            <td>
+                              {(() => {
+                                const fechaReporte = report.datos?.fecha || 
+                                  (report.datos && typeof report.datos === 'object' && 'fecha' in report.datos ? report.datos.fecha : null);
+                                
+                                if (fechaReporte) {
+                                  return formatDate(fechaReporte);
+                                }
+                                
+                                if (report.created_at) {
+                                  return formatDate(report.created_at);
+                                }
+                                
+                                return "";
+                              })()}
+                            </td>
+                            <td>
+                              <div className="btn-group btn-group-sm">
+                                <button
+                                  className="btn btn-outline-primary"
+                                  onClick={() => onViewReport(report)}
+                                  title="Ver reporte"
+                                >
+                                  <i className="material-icons" style={{ fontSize: "1rem" }}>
+                                    visibility
+                                  </i>
+                                </button>
+                                <button
+                                  className="btn btn-outline-secondary"
+                                  disabled
+                                  title="Bloqueado"
+                                  style={{ cursor: "not-allowed", opacity: 0.6 }}
+                                >
+                                  <i className="material-icons" style={{ fontSize: "1rem" }}>
+                                    lock
+                                  </i>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <i className="material-icons text-muted" style={{ fontSize: "4rem" }}>
+                      description
+                    </i>
+                    <p className="text-gray-600 mt-2">No hay reportes disponibles para {selectedPlant.nombre}</p>
+                  </div>
+                )}
+              </div>
             </div>
           </TabsContent>
         </Tabs>

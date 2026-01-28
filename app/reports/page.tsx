@@ -593,44 +593,7 @@ export default function Reporte() {
         return
       }
 
-      // Obtener el proceso_id (system ID) desde el systemName
-      let procesoId: string | null = null
-      if (reportSelection.systemName && reportSelection.plant?.id) {
-        try {
-          const systemsResponse = await fetch(
-            `${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(reportSelection.plant.id)}`,
-            {
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
-            }
-          )
-          
-          if (systemsResponse.ok) {
-            const systemsData = await systemsResponse.json()
-            const systemsList = systemsData.procesos || systemsData || []
-            const matchingSystem = systemsList.find((sys: any) => sys.nombre === reportSelection.systemName)
-            if (matchingSystem) {
-              procesoId = matchingSystem.id
-              console.log("✅ proceso_id encontrado:", procesoId, "para sistema:", reportSelection.systemName)
-            } else {
-              console.warn("⚠️ No se encontró proceso_id para el sistema:", reportSelection.systemName)
-              console.log("Sistemas disponibles:", systemsList.map((s: any) => ({ id: s.id, nombre: s.nombre })))
-            }
-          } else {
-            console.error("Error obteniendo sistemas:", systemsResponse.status, systemsResponse.statusText)
-          }
-        } catch (error) {
-          console.error("Error obteniendo proceso_id:", error)
-        }
-      } else {
-        console.warn("⚠️ No se puede obtener proceso_id: systemName o plant.id faltante")
-      }
-      
-      // Advertencia si no se encontró proceso_id (pero continuar con el guardado)
-      if (!procesoId && reportSelection.systemName) {
-        console.warn("⚠️ Advertencia: No se pudo obtener proceso_id para el sistema:", reportSelection.systemName)
-      }
+      // Nota: `proceso_id` ya NO es obligatorio para guardar el reporte.
 
       // Preparar el reportSelection completo para enviar
       const reportDataToSend = {
@@ -651,14 +614,11 @@ export default function Reporte() {
           id: reportSelection.user?.id,
           username: reportSelection.user?.username,
           email: reportSelection.user?.email,
-          puesto: reportSelection.user?.puesto,
-          cliente_id: reportSelection.user?.cliente_id || null
+          puesto: reportSelection.user?.puesto
         },
         // Campos requeridos por el backend
         planta_id: reportSelection.plant?.id,
-        proceso_id: procesoId,
         usuario_id: reportSelection.user?.id,
-        cliente_id: reportSelection.user?.cliente_id || null,
         parameterComments: parameterComments || {} // Incluir comentarios por parámetro
       }
 

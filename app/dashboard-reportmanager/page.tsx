@@ -597,6 +597,58 @@ export default function ReportManager() {
 
   
 
+  // Función para manejar la vista del reporte desde reportes pendientes
+  const handleViewReport = (report: any) => {
+    try {
+      console.log("👁️ Visualizando reporte desde reportes pendientes:", report);
+      
+      // Validar que tenemos los datos mínimos necesarios
+      if (!report.planta_id) {
+        console.error("❌ Error: No se encontró planta_id en los datos del reporte");
+        alert("Error: No se pueden visualizar reportes sin datos de planta completos");
+        return;
+      }
+      
+      // Reconstruir reportSelection desde los datos JSONB completos
+      const reportSelection = {
+        user: {
+          id: report.datos?.user?.id || report.usuario_id,
+          username: report.datos?.user?.username || report.usuario,
+          email: report.datos?.user?.email || "",
+          puesto: report.datos?.user?.puesto || "client",
+          cliente_id: report.datos?.user?.cliente_id || null
+        },
+        plant: {
+          id: report.datos?.plant?.id || report.planta_id,
+          nombre: report.datos?.plant?.nombre || report.plantName,
+          dirigido_a: report.datos?.plant?.dirigido_a,
+          mensaje_cliente: report.datos?.plant?.mensaje_cliente,
+          systemName: report.datos?.plant?.systemName || report.datos?.systemName || report.systemName
+        },
+        systemName: report.datos?.systemName || report.systemName,
+        parameters: report.datos?.parameters || {},
+        variablesTolerancia: report.datos?.variablesTolerancia || {},
+        mediciones: [],
+        fecha: report.datos?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+        comentarios: report.datos?.comentarios || report.observaciones || "",
+        generatedDate: report.datos?.generatedDate || report.created_at || new Date().toISOString(),
+        cliente_id: report.datos?.user?.cliente_id || null
+      };
+
+      console.log("📄 reportSelection reconstruido desde reportes pendientes:", reportSelection);
+      
+      // Guardar en localStorage
+      localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
+      
+      // Redirigir a la página de reports
+      router.push("/reports");
+      
+    } catch (error) {
+      console.error("❌ Error al preparar vista del reporte:", error);
+      alert("Error al preparar la vista del reporte");
+    }
+  };
+
   const handleGenerateReport = async () => {
     addDebugLog("info", "Generando reporte")
 
@@ -722,6 +774,8 @@ export default function ReportManager() {
             chartEndDate={chartEndDate}
             handleChartStartDateChange={setChartStartDate}
             handleChartEndDateChange={setChartEndDate}
+            token={token}
+            onViewReport={handleViewReport}
           />
 
           {/* Parámetros */}
