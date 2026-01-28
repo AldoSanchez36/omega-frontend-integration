@@ -612,6 +612,7 @@ export default function Dashboard() {
             usuario_id: report.usuario_id || user.id,
             planta_id: report.planta_id || datosJsonb.plant?.id || "planta-unknown",
             proceso_id: report.proceso_id || "sistema-unknown",
+            estatus: typeof report.estatus === "boolean" ? report.estatus : false,
             datos: {
               ...(report.reportSelection || report.datos || {}),
               // Asegurar que la fecha del reporte esté disponible en datos.fecha

@@ -88,6 +88,7 @@ export default function ReportManager() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
   const [globalFecha, setGlobalFecha] = useState<string>("");
   const [globalComentarios, setGlobalComentarios] = useState<string>("");
+  const [activeTopTab, setActiveTopTab] = useState<string>("cliente");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   
   // Estados para fechas de filtro de gráficos (año en curso por defecto)
@@ -776,10 +777,12 @@ export default function ReportManager() {
             handleChartEndDateChange={setChartEndDate}
             token={token}
             onViewReport={handleViewReport}
+            activeTab={activeTopTab}
+            onActiveTabChange={setActiveTopTab}
           />
 
           {/* Parámetros */}
-          {selectedSystemData && parameters.length > 0 && (
+          {activeTopTab !== "reportes-pendientes" && selectedSystemData && parameters.length > 0 && (
             <ParametersList
               parameters={parameters}
               parameterValues={parameterValues}
@@ -804,7 +807,7 @@ export default function ReportManager() {
           )}
 
           {/* Action Buttons */}
-          {selectedSystemData && parameters.length > 0 && (
+          {activeTopTab !== "reportes-pendientes" && selectedSystemData && parameters.length > 0 && (
             <Card className="mb-6">
               
               <CardContent className="pt-6">
@@ -933,8 +936,8 @@ export default function ReportManager() {
             </Card>
           )}
 
-          {/* Gráficos de Series Temporales - Solo visible cuando se selecciona un proceso */}
-          {selectedSystem && (
+          {/* Gráficos de Series Temporales - Oculto en "Reportes Pendientes" */}
+          {activeTopTab !== "reportes-pendientes" && selectedSystem && (
             <Charts
               selectedParameters={selectedParameters}
               startDate={chartStartDate}

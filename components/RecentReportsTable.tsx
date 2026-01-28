@@ -14,6 +14,7 @@ interface Report {
   status?: string;
   usuario?: string;
   puesto?: string;
+  estatus?: boolean;
 }
 
 interface RecentReportsTableProps {
@@ -178,10 +179,14 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                               </i>
                             </button>
                             <button
-                              className="btn btn-outline-secondary"
+                              className={report.estatus ? "btn btn-outline-secondary" : "btn btn-warning"}
                               disabled
-                              title="Bloqueado"
-                              style={{ cursor: "not-allowed", opacity: 0.6 }}
+                              title={
+                                report.estatus
+                                  ? "Visible para clientes"
+                                  : "Oculto para clientes"
+                              }
+                              style={{ cursor: "not-allowed" }}
                             >
                               <i className="material-icons" style={{ fontSize: "1rem" }}>
                                 lock

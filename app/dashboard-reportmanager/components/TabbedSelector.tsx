@@ -40,6 +40,7 @@ interface Report {
   status?: string;
   usuario?: string;
   puesto?: string;
+  estatus?: boolean;
 }
 
 interface TabbedSelectorProps {
@@ -66,6 +67,10 @@ interface TabbedSelectorProps {
   chartEndDate: string;
   handleChartStartDateChange: (fecha: string) => void;
   handleChartEndDateChange: (fecha: string) => void;
+  token: string | null;
+  onViewReport: (report: Report) => void;
+  activeTab?: string;
+  onActiveTabChange?: (tab: string) => void;
 }
 
 const TabbedSelector: React.FC<TabbedSelectorProps> = ({
@@ -94,8 +99,18 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
   handleChartEndDateChange,
   token,
   onViewReport,
+  activeTab: controlledActiveTab,
+  onActiveTabChange,
 }) => {
-  const [activeTab, setActiveTab] = useState<string>("cliente");
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<string>("cliente");
+  const activeTab = controlledActiveTab ?? uncontrolledActiveTab;
+  const setActiveTab = (nextTab: string) => {
+    if (onActiveTabChange) {
+      onActiveTabChange(nextTab);
+      return;
+    }
+    setUncontrolledActiveTab(nextTab);
+  };
   const [pendingReports, setPendingReports] = useState<Report[]>([]);
   const [reportsLoading, setReportsLoading] = useState<boolean>(false);
 
@@ -221,6 +236,7 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
             usuario_id: report.usuario_id || "",
             planta_id: report.planta_id || datosJsonb.plant?.id || "planta-unknown",
             proceso_id: report.proceso_id || "sistema-unknown",
+            estatus: typeof report.estatus === "boolean" ? report.estatus : false,
             datos: {
               ...(report.reportSelection || report.datos || {}),
               fecha: datosJsonb.fecha || report.fecha || (report.reportSelection?.fecha) || (report.datos?.fecha)
@@ -254,6 +270,50 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
 
     fetchPendingReports();
   }, [selectedPlant, token, activeTab]);
+
+  const handleToggleReportStatus = async (report: Report) => {
+    if (!token) {
+      alert("No hay token de autenticación");
+      return;
+    }
+
+    const newStatus = !report.estatus;
+
+    // Optimistic update
+    setPendingReports(prev =>
+      prev.map(r => (r.id === report.id ? { ...r, estatus: newStatus } : r))
+    );
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}${API_ENDPOINTS.REPORT_STATUS(report.id)}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ estatus: newStatus }),
+        }
+      );
+
+      if (!response.ok) {
+        console.error("Error actualizando estatus del reporte:", response.status, response.statusText);
+        alert("Error al actualizar el estatus del reporte");
+        // revertir cambio
+        setPendingReports(prev =>
+          prev.map(r => (r.id === report.id ? { ...r, estatus: report.estatus } : r))
+        );
+      }
+    } catch (error) {
+      console.error("Error actualizando estatus del reporte:", error);
+      alert("Error al actualizar el estatus del reporte");
+      // revertir cambio
+      setPendingReports(prev =>
+        prev.map(r => (r.id === report.id ? { ...r, estatus: report.estatus } : r))
+      );
+    }
+  };
 
   return (
     <Card className="mb-6 border-0 shadow-lg">
@@ -657,10 +717,15 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                                   </i>
                                 </button>
                                 <button
-                                  className="btn btn-outline-secondary"
-                                  disabled
-                                  title="Bloqueado"
-                                  style={{ cursor: "not-allowed", opacity: 0.6 }}
+                                  className={`btn btn-outline-secondary ${
+                                    report.estatus ? "" : "btn-warning"
+                                  }`}
+                                  onClick={() => handleToggleReportStatus(report)}
+                                  title={
+                                    report.estatus
+                                      ? "Visible para clientes (click para ocultar)"
+                                      : "Oculto para clientes (click para publicar)"
+                                  }
                                 >
                                   <i className="material-icons" style={{ fontSize: "1rem" }}>
                                     lock

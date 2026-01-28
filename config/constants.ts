@@ -109,6 +109,7 @@ export const API_ENDPOINTS = {
   // Reports
   REPORTS: '/api/reportes',
   REPORT_BY_ID: (id: string) => `/api/reportes/${id}`,
+  REPORT_STATUS: (id: string) => `/api/reportes/${id}/estatus`,
   REPORTS_BY_USER: (userId: string) => `/api/reportes/usuario/${userId}`,
   REPORTS_CONSULTAR: '/api/reportes/consultar',
   REPORTS_DASHBOARD: '/api/reportes/dashboard',
