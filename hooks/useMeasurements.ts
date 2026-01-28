@@ -208,8 +208,73 @@ export function useMeasurements(
         });
       }
 
-      // Agregar tolerancias SOLO de los parámetros del sistema actual
-      if (parameters && tolerancias) {
+      // Agregar tolerancias de TODOS los sistemas si hay datos de múltiples sistemas
+      if (allSystems && allParameters && token && selectedPlantId) {
+        // Obtener todas las tolerancias de la planta
+        try {
+          const tolerancesRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          if (tolerancesRes.ok) {
+            const tolerancesData = await tolerancesRes.json();
+            const allTolerances = Array.isArray(tolerancesData) 
+              ? tolerancesData 
+              : (tolerancesData.tolerancias || tolerancesData.tolerancia || []);
+            
+            console.log(`📊 Obtenidas ${allTolerances.length} tolerancias de la base de datos`);
+            
+            // Para cada sistema, obtener sus parámetros y sus tolerancias
+            allSystems.forEach(system => {
+              const systemParameters = allParameters[system.id];
+              if (!systemParameters || systemParameters.length === 0) return;
+              
+              systemParameters.forEach(param => {
+                // Buscar tolerancia para este parámetro y sistema
+                const tolerance = allTolerances.find((tol: any) => 
+                  tol.variable_id === param.id && tol.proceso_id === system.id
+                );
+                
+                if (tolerance) {
+                  // Usar el estado actual de los límites si está disponible (solo para el sistema actual)
+                  const isCurrentSystem = selectedSystem === system.id;
+                  const currentLimitsState = isCurrentSystem ? limitsState?.[param.id] : undefined;
+                  const usarLimiteMin = currentLimitsState?.limite_min ?? !!tolerance.usar_limite_min;
+                  const usarLimiteMax = currentLimitsState?.limite_max ?? !!tolerance.usar_limite_max;
+                  
+                  // Guardar tolerancia usando el nombre del parámetro como key para facilitar búsqueda
+                  const toleranceData = {
+                    nombre: param.nombre,
+                    limite_min: usarLimiteMin ? (tolerance.limite_min ?? null) : null,
+                    limite_max: usarLimiteMax ? (tolerance.limite_max ?? null) : null,
+                    bien_min: tolerance.bien_min ?? null,
+                    bien_max: tolerance.bien_max ?? null,
+                    usar_limite_min: usarLimiteMin,
+                    usar_limite_max: usarLimiteMax,
+                  };
+                  
+                  // Guardar tanto por ID como por nombre para facilitar búsqueda en reports
+                  reportData.variablesTolerancia[param.id] = toleranceData;
+                  reportData.variablesTolerancia[param.nombre] = toleranceData;
+                  
+                  console.log(`💾 [useMeasurements] Tolerancia guardada para ${param.nombre}:`, {
+                    id: param.id,
+                    nombre: param.nombre,
+                    toleranceData
+                  });
+                }
+              });
+            });
+            
+            console.log(`✅ Tolerancias guardadas para ${Object.keys(reportData.variablesTolerancia).length} parámetros`);
+          }
+        } catch (error) {
+          console.error("Error obteniendo tolerancias de todos los sistemas:", error);
+        }
+      }
+      
+      // Fallback: Agregar tolerancias del sistema actual si no se obtuvieron de todos los sistemas
+      if (parameters && tolerancias && Object.keys(reportData.variablesTolerancia).length === 0) {
         parameters.forEach(param => {
           if (tolerancias[param.id]) {
             // Usar el estado actual de los límites si está disponible, sino usar los valores de la base de datos
@@ -217,7 +282,7 @@ export function useMeasurements(
             const usarLimiteMin = currentLimitsState?.limite_min ?? !!tolerancias[param.id].usar_limite_min;
             const usarLimiteMax = currentLimitsState?.limite_max ?? !!tolerancias[param.id].usar_limite_max;
             
-            reportData.variablesTolerancia[param.id] = {
+            const toleranceData = {
               nombre: param.nombre,
               // Si el límite está desactivado, establecer como null, sino usar el valor de la base de datos
               limite_min: usarLimiteMin ? (tolerancias[param.id].limite_min ?? null) : null,
@@ -227,6 +292,16 @@ export function useMeasurements(
               usar_limite_min: usarLimiteMin,
               usar_limite_max: usarLimiteMax,
             };
+            
+            // Guardar tanto por ID como por nombre para facilitar búsqueda
+            reportData.variablesTolerancia[param.id] = toleranceData;
+            reportData.variablesTolerancia[param.nombre] = toleranceData;
+            
+            console.log(`💾 [useMeasurements] Tolerancia guardada (fallback) para ${param.nombre}:`, {
+              id: param.id,
+              nombre: param.nombre,
+              toleranceData
+            });
           }
         });
       }

@@ -419,67 +419,6 @@ export default function Dashboard() {
     }
   };
 
-  // Función para manejar la descarga del PDF desde el dashboard
-  const handleDownloadPDF = async (report: any) => {
-    try {
-      console.log("📥 Descargando PDF del reporte desde dashboard:", report);
-      
-      // Validar que tenemos los datos mínimos necesarios
-      if (!report.planta_id) {
-        console.error("❌ Error: No se encontró planta_id en los datos del reporte");
-        alert("Error: No se pueden descargar reportes sin datos de planta completos");
-        return;
-      }
-      
-      // Reconstruir reportSelection desde los datos JSONB completos (igual que dashboard-reportmanager)
-      const reportSelection = {
-        user: {
-          id: report.datos?.user?.id || report.usuario_id,
-          username: report.datos?.user?.username || report.usuario,
-          email: report.datos?.user?.email || "",
-          puesto: report.datos?.user?.puesto || "client",
-          cliente_id: report.datos?.user?.cliente_id || null
-        },
-        plant: {
-          id: report.datos?.plant?.id || report.planta_id,
-          nombre: report.datos?.plant?.nombre || report.plantName,
-          dirigido_a: report.datos?.plant?.dirigido_a,
-          mensaje_cliente: report.datos?.plant?.mensaje_cliente,
-          systemName: report.datos?.plant?.systemName || report.datos?.systemName || report.systemName
-        },
-        systemName: report.datos?.systemName || report.systemName,
-        parameters: report.datos?.parameters || {},
-        variablesTolerancia: report.datos?.variablesTolerancia || {},
-        mediciones: [],
-        fecha: report.datos?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
-        comentarios: report.datos?.comentarios || report.observaciones || "",
-        generatedDate: report.datos?.generatedDate || report.created_at || new Date().toISOString(),
-        cliente_id: report.datos?.user?.cliente_id || null
-      };
-
-      console.log("📄 reportSelection reconstruido para descarga desde dashboard:", reportSelection);
-      console.log("🔍 Validación plant.id:", reportSelection.plant.id);
-      console.log("🏭 Datos de planta para descarga:", {
-        planta_id: report.planta_id,
-        planta_nombre: report.plantName,
-        systemName: report.systemName
-      });
-
-      // Guardar temporalmente en localStorage
-      console.log("💾 Guardando reportSelection en localStorage...");
-      localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
-      console.log("✅ reportSelection guardado exitosamente");
-      
-      // Redirigir a reports para generar el PDF
-      console.log("🚀 Redirigiendo a /reports?download=true");
-      router.push("/reports?download=true");
-      console.log("✅ Redirección completada");
-      
-    } catch (error) {
-      console.error("❌ Error al preparar descarga del PDF desde dashboard:", error);
-      alert("Error al preparar la descarga del PDF");
-    }
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -857,7 +796,6 @@ export default function Dashboard() {
             onTableClick={getClientReports}
             onDebugLog={addDebugLog}
             onViewReport={handleViewReport}
-            onDownloadPDF={handleDownloadPDF}
           />
         </div>
 

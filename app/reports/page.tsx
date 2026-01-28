@@ -100,15 +100,14 @@ interface ReportSelection {
     };
   };
   variablesTolerancia: {
-    [systemName: string]: {
-      [parameterId: string]: {
-        limite_min: number | null;
-        limite_max: number | null;
-        bien_min: number | null;
-        bien_max: number | null;
-        usar_limite_min: boolean;
-        usar_limite_max: boolean;
-      };
+    [parameterId: string]: {
+      nombre: string;
+      limite_min: number | null;
+      limite_max: number | null;
+      bien_min: number | null;
+      bien_max: number | null;
+      usar_limite_min: boolean;
+      usar_limite_max: boolean;
     };
   };
   parameterComments?: {
@@ -136,7 +135,7 @@ export default function Reporte() {
   const [parameterComments, setParameterComments] = useState<{ [variableName: string]: string }>({})
   
   // Estado para controlar si la tabla se incluye en el PDF
-  const [includeTableInPDF, setIncludeTableInPDF] = useState<boolean>(true)
+  const [includeTableInPDF, setIncludeTableInPDF] = useState<boolean>(false)
   
   // Estado para gráficos
   const [selectedVariableForChart, setSelectedVariableForChart] = useState<string>("")
@@ -252,12 +251,138 @@ export default function Reporte() {
     console.log("📄 Reports - Datos recibidos del localStorage:", parsedReportSelection);
     console.log("📊 Reports - Parámetros recibidos:", parsedReportSelection?.parameters);
     console.log("📊 Reports - Tolerancias recibidas:", parsedReportSelection?.variablesTolerancia);
+    console.log("📊 Reports - Claves de tolerancias:", parsedReportSelection?.variablesTolerancia ? Object.keys(parsedReportSelection.variablesTolerancia) : []);
+    if (parsedReportSelection?.variablesTolerancia) {
+      Object.entries(parsedReportSelection.variablesTolerancia).forEach(([key, value]: [string, any]) => {
+        console.log(`📊 Reports - Tolerancia [${key}]:`, value);
+      });
+    }
     setReportSelection(parsedReportSelection);
     
     // Cargar comentarios guardados si existen
     if (parsedReportSelection?.parameterComments) {
       setParameterComments(parsedReportSelection.parameterComments);
-      }
+    }
+    
+    // FALLBACK: Si no hay tolerancias en localStorage, obtenerlas del backend usando variable_proceso_id
+    if (parsedReportSelection && (!parsedReportSelection.variablesTolerancia || Object.keys(parsedReportSelection.variablesTolerancia).length === 0)) {
+      console.warn("⚠️ [Reports] No se encontraron tolerancias en localStorage, obteniendo desde el backend...");
+      
+      // Función async para obtener tolerancias
+      const fetchTolerancesFromBackend = async () => {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
+        const plantName = parsedReportSelection?.plant?.nombre;
+        
+        if (!token || !plantName || !parsedReportSelection.parameters) {
+          console.warn("⚠️ [Reports] No se pueden obtener tolerancias: faltan token, plantName o parameters");
+          return;
+        }
+        
+        try {
+          // Obtener sistemas de la planta
+          const systemsResponse = await fetch(
+            `${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT_NAME(plantName)}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          
+          if (!systemsResponse.ok) {
+            console.error("❌ [Reports] Error obteniendo sistemas de la planta");
+            return;
+          }
+          
+          const systemsData = await systemsResponse.json();
+          const systemsList = systemsData.procesos || systemsData || [];
+          
+          const fetchedTolerances: any = {};
+          
+          // Para cada sistema en los parámetros
+          for (const systemName of Object.keys(parsedReportSelection.parameters)) {
+            const systemInfo = systemsList.find((sys: any) => sys.nombre === systemName);
+            if (!systemInfo) continue;
+            
+            // Obtener variables del sistema (incluye variable_proceso_id)
+            const varsResponse = await fetch(
+              `${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(systemInfo.id)}`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            
+            if (!varsResponse.ok) {
+              console.warn(`⚠️ [Reports] Error obteniendo variables para sistema ${systemName}`);
+              continue;
+            }
+            
+            const varsData = await varsResponse.json();
+            const variablesList = varsData.variables || varsData || [];
+            
+            // Para cada variable en los parámetros, obtener su tolerancia usando TOLERANCES_FILTERS
+            for (const variableName of Object.keys(parsedReportSelection.parameters[systemName])) {
+              const variable = variablesList.find((v: any) => v.nombre === variableName);
+              if (!variable || !variable.id) continue;
+              
+              // Usar TOLERANCES_FILTERS con variable_id y proceso_id
+              const queryParams = new URLSearchParams({
+                variable_id: variable.id,
+                proceso_id: systemInfo.id,
+              });
+              
+              try {
+                const toleranceResponse = await fetch(
+                  `${API_BASE_URL}${API_ENDPOINTS.TOLERANCES_FILTERS}?${queryParams}`,
+                  { headers: { Authorization: `Bearer ${token}` } }
+                );
+                
+                if (toleranceResponse.ok) {
+                  const toleranceData = await toleranceResponse.json();
+                  // El endpoint puede devolver { tolerancias: [...] } o el objeto directo
+                  const tolerance = Array.isArray(toleranceData.tolerancias) 
+                    ? toleranceData.tolerancias[0] 
+                    : (toleranceData.tolerancia || toleranceData);
+                  
+                  if (tolerance) {
+                    const toleranceDataFormatted = {
+                      nombre: variableName,
+                      limite_min: tolerance.limite_min ?? null,
+                      limite_max: tolerance.limite_max ?? null,
+                      bien_min: tolerance.bien_min ?? null,
+                      bien_max: tolerance.bien_max ?? null,
+                      usar_limite_min: !!tolerance.usar_limite_min,
+                      usar_limite_max: !!tolerance.usar_limite_max,
+                    };
+                    
+                    fetchedTolerances[variable.id] = toleranceDataFormatted;
+                    fetchedTolerances[variableName] = toleranceDataFormatted;
+                    
+                    console.log(`✅ [Reports] Tolerancia obtenida para ${variableName}:`, toleranceDataFormatted);
+                  }
+                } else if (toleranceResponse.status === 404 || toleranceResponse.status === 204) {
+                  // No hay tolerancia para esta variable, continuar
+                  console.log(`ℹ️ [Reports] No hay tolerancia definida para ${variableName} en ${systemName}`);
+                }
+              } catch (error) {
+                console.error(`❌ [Reports] Error obteniendo tolerancia para ${variableName}:`, error);
+              }
+            }
+          }
+          
+          if (Object.keys(fetchedTolerances).length > 0) {
+            console.log(`✅ [Reports] Tolerancias obtenidas del backend: ${Object.keys(fetchedTolerances).length} parámetros`, fetchedTolerances);
+            const updatedReportSelection = {
+              ...parsedReportSelection,
+              variablesTolerancia: fetchedTolerances
+            };
+            setReportSelection(updatedReportSelection);
+            localStorage.setItem("reportSelection", JSON.stringify(updatedReportSelection));
+          } else {
+            console.warn("⚠️ [Reports] No se obtuvieron tolerancias del backend");
+          }
+        } catch (error) {
+          console.error("❌ [Reports] Error obteniendo tolerancias del backend:", error);
+        }
+      };
+      
+      // Ejecutar la función async
+      fetchTolerancesFromBackend();
+    }
     } catch (error) {
       console.error("Error parsing report selection:", error)
     }
@@ -1813,14 +1938,17 @@ export default function Reporte() {
   }
   
   const getAcceptableRange = (systemName: string, parameterId: string): string => {
-    const tolerances = reportSelection?.variablesTolerancia?.[systemName] || {}
+    // La estructura es plana: { [parameterId]: {...}, [parameterName]: {...} }
+    const tolerances = reportSelection?.variablesTolerancia || {}
     // Buscar la tolerancia - el key puede ser el ID o el nombre
     // Intentar primero por ID, luego por nombre
     let tolerance = tolerances[parameterId] as any
     
     if (!tolerance) {
-      // Si no se encuentra por ID, buscar en todos los valores
-      tolerance = Object.values(tolerances).find((tol: any) => tol && typeof tol === 'object') as any
+      // Si no se encuentra por ID, buscar en todos los valores por nombre
+      tolerance = Object.values(tolerances).find((tol: any) => 
+        tol && typeof tol === 'object' && tol.nombre === parameterId
+      ) as any
     }
     
     if (!tolerance) return "—"
@@ -2077,8 +2205,92 @@ export default function Reporte() {
                                 {Object.keys(reportSelection.parameters).map(systemName => {
                                   const systemData = reportSelection.parameters[systemName];
                                   const paramData = systemData[variable];
+                                  
+                                  // Buscar tolerancia para esta variable
+                                  // La estructura guardada es: { [parameterId]: { nombre, ... }, [parameterName]: { nombre, ... } }
+                                  const tolerances = reportSelection?.variablesTolerancia || {};
+                                  let tolerance: any = null;
+                                  
+                                  // Estrategia de búsqueda múltiple:
+                                  // 1. Buscar por nombre de variable (key directo) - más común
+                                  if (tolerances[variable]) {
+                                    tolerance = tolerances[variable];
+                                  } 
+                                  // 2. Buscar en todos los valores por nombre
+                                  else {
+                                    tolerance = Object.values(tolerances).find((tol: any) => 
+                                      tol && typeof tol === 'object' && tol.nombre === variable
+                                    ) as any;
+                                  }
+                                  
+                                  // 3. Si aún no se encuentra, intentar búsqueda parcial (por si hay espacios o diferencias)
+                                  if (!tolerance) {
+                                    tolerance = Object.values(tolerances).find((tol: any) => 
+                                      tol && typeof tol === 'object' && 
+                                      tol.nombre && 
+                                      tol.nombre.trim().toLowerCase() === variable.trim().toLowerCase()
+                                    ) as any;
+                                  }
+                                  
+                                  // Log detallado para debugging
+                                  if (paramData && paramData.valor !== undefined && paramData.valor !== null) {
+                                    console.log(`🔍 [Reports] Búsqueda de tolerancia para "${variable}":`, {
+                                      encontrada: !!tolerance,
+                                      tolerancia: tolerance,
+                                      todasLasClaves: Object.keys(tolerances),
+                                      muestraTolerancias: Object.keys(tolerances).slice(0, 10).map(key => ({
+                                        key,
+                                        nombre: tolerances[key]?.nombre,
+                                        tieneNombre: !!tolerances[key]?.nombre
+                                      }))
+                                    });
+                                  }
+                                  
+                                  // Aplicar color según los límites
+                                  let cellColor = "";
+                                  if (paramData && paramData.valor !== undefined && paramData.valor !== null && tolerance) {
+                                    const valorStr = String(paramData.valor);
+                                    const toleranceParam = {
+                                      bien_min: tolerance.bien_min ?? null,
+                                      bien_max: tolerance.bien_max ?? null,
+                                      limite_min: tolerance.limite_min ?? null,
+                                      limite_max: tolerance.limite_max ?? null,
+                                      usar_limite_min: tolerance.usar_limite_min ?? false,
+                                      usar_limite_max: tolerance.usar_limite_max ?? false
+                                    };
+                                    cellColor = getCellColor(valorStr, toleranceParam);
+                                    
+                                    // Log para debugging (siempre mostrar)
+                                    console.log(`🎨 [Reports] Color aplicado para ${variable} (${systemName}):`, {
+                                      valor: paramData.valor,
+                                      cellColor,
+                                      toleranceParam,
+                                      tolerance
+                                    });
+                                  } else if (paramData && paramData.valor !== undefined && paramData.valor !== null && !tolerance) {
+                                    // Log si no se encontró tolerancia (siempre mostrar)
+                                    console.warn(`⚠️ [Reports] No se encontró tolerancia para ${variable} (${systemName}):`, {
+                                      valor: paramData.valor,
+                                      tolerancesKeys: Object.keys(tolerances),
+                                      tolerancesSample: Object.keys(tolerances).slice(0, 5).map(key => ({ key, nombre: tolerances[key]?.nombre }))
+                                    });
+                                  }
+                                  
+                                  // Crear objeto de estilo con backgroundColor
+                                  // Asegurar que el estilo se aplique incluso si hay conflictos con Tailwind
+                                  const cellStyle: React.CSSProperties = cellColor ? {
+                                    backgroundColor: cellColor,
+                                    color: cellColor === "#FFC6CE" || cellColor === "#FFEB9C" ? "#000000" : undefined,
+                                    // Forzar que el estilo tenga prioridad
+                                    borderColor: cellColor
+                                  } : {};
+                                  
                                   return (
-                                    <td key={systemName} className="border px-4 py-2 text-center">
+                                    <td 
+                                      key={systemName} 
+                                      className="border px-4 py-2 text-center"
+                                      style={cellStyle}
+                                    >
                                       {paramData ? paramData.valor : '—'}
                                     </td>
                                   );

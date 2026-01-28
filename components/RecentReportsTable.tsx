@@ -23,7 +23,6 @@ interface RecentReportsTableProps {
   onTableClick: () => void;
   onDebugLog: (msg: string) => void;
   onViewReport: (report: Report) => void;
-  onDownloadPDF: (report: Report) => void;
 }
 
 const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
@@ -33,7 +32,6 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
   onTableClick,
   onDebugLog,
   onViewReport,
-  onDownloadPDF,
 }) => {
   return (
     <div className="row mb-4">
@@ -181,11 +179,12 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                             </button>
                             <button
                               className="btn btn-outline-secondary"
-                              onClick={() => onDownloadPDF(report)}
-                              title="Descargar PDF"
+                              disabled
+                              title="Bloqueado"
+                              style={{ cursor: "not-allowed", opacity: 0.6 }}
                             >
                               <i className="material-icons" style={{ fontSize: "1rem" }}>
-                                download
+                                lock
                               </i>
                             </button>
                           </div>

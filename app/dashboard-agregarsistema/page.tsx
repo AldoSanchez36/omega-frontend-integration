@@ -970,61 +970,6 @@ export default function ParameterManager() {
     }
   }
 
-  // Function to delete empresa
-  const handleDeleteEmpresa = async (empresa: Empresa) => {
-    // Mostrar confirmación de eliminación
-    const confirmDelete = window.confirm(
-      `¿Está seguro que desea eliminar la empresa "${empresa.nombre}"?\n\n` +
-      `Esta acción eliminará:\n` +
-      `• La empresa y toda su información\n` +
-      `• Todas las plantas asociadas\n` +
-      `• Todos los sistemas asociados\n` +
-      `• Todos los parámetros y mediciones\n\n` +
-      `⚠️ Esta acción NO se puede deshacer.`
-    )
-    
-    if (!confirmDelete) return
-
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESA_DELETE(empresa.id)}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      
-      if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.msg || errorData.message || "No se pudo eliminar la empresa.")
-      }
-      
-      // Limpiar selecciones si la empresa eliminada era la seleccionada
-      if (selectedEmpresa?.id === empresa.id) {
-        setSelectedEmpresa(null)
-        setSelectedPlant(null)
-        setSelectedSystemId(null)
-        setPlants([])
-        setSystems([])
-        setParameters([])
-      }
-      
-      // Refetch empresas to update the list
-      const empresasRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ALL}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (empresasRes.ok) {
-        const empresasData = await empresasRes.json()
-        setEmpresas(empresasData.empresas || empresasData || [])
-      }
-      
-      alert(`✅ Empresa "${empresa.nombre}" eliminada exitosamente.`)
-    } catch (e: any) {
-      setError(`Error al eliminar empresa: ${e.message}`)
-      alert(`Error al eliminar empresa: ${e.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleCreatePlant = async () => {
     if (!newPlantName.trim() || !newPlantRecipient.trim() || !selectedEmpresa) {
@@ -2188,24 +2133,14 @@ export default function ParameterManager() {
                             <Plus className="mr-2 h-4 w-4" /> Agregar Empresa
                           </Button>
                           {selectedEmpresa && (
-                            <>
-                              <Button 
-                                type="button" 
-                                onClick={() => handleOpenEditEmpresa(selectedEmpresa)} 
-                                className="bg-blue-400 hover:bg-blue-500 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
-                                disabled={loading}
-                              >
-                                <Edit className="mr-2 h-4 w-4" /> Editar
-                              </Button>
-                              <Button 
-                                type="button" 
-                                onClick={() => handleDeleteEmpresa(selectedEmpresa)} 
-                                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
-                                disabled={loading}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" /> Borrar Empresa
-                              </Button>
-                            </>
+                            <Button 
+                              type="button" 
+                              onClick={() => handleOpenEditEmpresa(selectedEmpresa)} 
+                              className="bg-blue-400 hover:bg-blue-500 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                              disabled={loading}
+                            >
+                              <Edit className="mr-2 h-4 w-4" /> Editar
+                            </Button>
                           )}
                         </div>
                         <p className="text-sm text-gray-500">Seleccione la empresa para ver las plantas asociadas.</p>
