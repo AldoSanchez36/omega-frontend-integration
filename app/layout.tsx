@@ -17,27 +17,13 @@ export const metadata: Metadata = {
     generator: 'v0.dev'
 }
 
-function getUserRoleFromToken(): "admin" | "user" | "client" | "guest" {
-  if (typeof window === "undefined") return "guest"
-  const token = localStorage.getItem("token")
-  if (!token) return "guest"
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    return (
-      payload.userType || payload.role || payload.puesto || "user"
-    ) as "admin" | "user" | "client"
-  } catch {
-    return "guest"
-  }
-}
-
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <head>
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
         <link
@@ -45,7 +31,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
         />
       </head>
-      <body className={inter.className}>
+      <body className={inter.className} suppressHydrationWarning>
         <LanguageProvider>
           <UserProvider>
             {children}

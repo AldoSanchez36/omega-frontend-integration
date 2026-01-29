@@ -57,6 +57,7 @@ interface User {
   email: string;
   puesto: string;
   planta_id: string;
+  empresa_id?: string | null;
 }
 
 // Interfaz para la planta
@@ -88,6 +89,8 @@ interface ReportSelection {
   plant: Plant;
   systemName: string;
   generatedDate: string;
+  empresa_id?: string | null;
+  report_id?: string | null; // ID único del reporte (si viene de reportes pendientes)
   parameters: {
     [systemName: string]: {
       [parameterName: string]: {
@@ -100,20 +103,21 @@ interface ReportSelection {
     };
   };
   variablesTolerancia: {
-    [systemName: string]: {
-      [parameterId: string]: {
-        limite_min: number | null;
-        limite_max: number | null;
-        bien_min: number | null;
-        bien_max: number | null;
-        usar_limite_min: boolean;
-        usar_limite_max: boolean;
-      };
+    [parameterId: string]: {
+      nombre: string;
+      limite_min: number | null;
+      limite_max: number | null;
+      bien_min: number | null;
+      bien_max: number | null;
+      usar_limite_min: boolean;
+      usar_limite_max: boolean;
     };
   };
   parameterComments?: {
     [variableName: string]: string;
   };
+  chartStartDate?: string; // Fecha inicio para gráficos
+  chartEndDate?: string; // Fecha fin para gráficos
 }
 
 export default function Reporte() {
@@ -132,6 +136,9 @@ export default function Reporte() {
   
   // Estado para comentarios por parámetro/variable
   const [parameterComments, setParameterComments] = useState<{ [variableName: string]: string }>({})
+  
+  // Estado para controlar si la tabla se incluye en el PDF
+  const [includeTableInPDF, setIncludeTableInPDF] = useState<boolean>(false)
   
   // Estado para gráficos
   const [selectedVariableForChart, setSelectedVariableForChart] = useState<string>("")
@@ -175,6 +182,9 @@ export default function Reporte() {
   
   // Función para manejar cambios en comentarios de parámetros
   const handleParameterCommentChange = (variableName: string, comment: string) => {
+    // Los clientes no pueden editar comentarios
+    if (userRole === "client") return
+    
     const newComments = {
       ...parameterComments,
       [variableName]: comment
@@ -234,7 +244,12 @@ export default function Reporte() {
       try {
         const userData = JSON.parse(storedUser)
         setUser(userData)
-        setUserRole(userData.puesto || "user")
+        const role = userData.puesto || "user"
+        setUserRole(role)
+        // Si es cliente, deshabilitar edición desde el inicio
+        if (role === "client") {
+          setIsEditing(false)
+        }
       } catch (error) {
         console.error("Error parsing user data:", error)
       }
@@ -245,14 +260,180 @@ export default function Reporte() {
     const reportSelectionRaw = localStorage.getItem("reportSelection");
     const parsedReportSelection = reportSelectionRaw ? JSON.parse(reportSelectionRaw) : null;
     console.log("📄 Reports - Datos recibidos del localStorage:", parsedReportSelection);
+    console.log("🆔 Reports - ID del reporte (report_id):", parsedReportSelection?.report_id || "No disponible");
     console.log("📊 Reports - Parámetros recibidos:", parsedReportSelection?.parameters);
     console.log("📊 Reports - Tolerancias recibidas:", parsedReportSelection?.variablesTolerancia);
+    console.log("📊 Reports - Claves de tolerancias:", parsedReportSelection?.variablesTolerancia ? Object.keys(parsedReportSelection.variablesTolerancia) : []);
+    if (parsedReportSelection?.variablesTolerancia) {
+      Object.entries(parsedReportSelection.variablesTolerancia).forEach(([key, value]: [string, any]) => {
+        console.log(`📊 Reports - Tolerancia [${key}]:`, value);
+      });
+    }
     setReportSelection(parsedReportSelection);
     
     // Cargar comentarios guardados si existen
+    // Primero intentar cargar desde parameterComments (formato antiguo)
     if (parsedReportSelection?.parameterComments) {
       setParameterComments(parsedReportSelection.parameterComments);
+    }
+    
+    // Si hay comentarios en formato JSON nuevo, parsearlos y extraer comentarios globales y por parámetro
+    if (parsedReportSelection?.comentarios) {
+      try {
+        // Intentar parsear como JSON
+        const comentariosParsed = JSON.parse(parsedReportSelection.comentarios);
+        if (typeof comentariosParsed === 'object' && comentariosParsed !== null) {
+          // Es un objeto JSON con el nuevo formato
+          const comentariosPorParametro: { [key: string]: string } = {};
+          
+          // Extraer comentario global si existe
+          if (comentariosParsed["global"]) {
+            // Actualizar reportSelection con el comentario global
+            const updatedReportSelection = {
+              ...parsedReportSelection,
+              comentarios: comentariosParsed["global"]
+            };
+            setReportSelection(updatedReportSelection);
+          }
+          
+          // Extraer comentarios por parámetro (todas las claves excepto "global")
+          Object.entries(comentariosParsed).forEach(([key, value]) => {
+            if (key !== "global" && typeof value === "string" && value.trim() !== "") {
+              comentariosPorParametro[key] = value;
+            }
+          });
+          
+          // Actualizar parameterComments con los comentarios por parámetro
+          if (Object.keys(comentariosPorParametro).length > 0) {
+            setParameterComments(comentariosPorParametro);
+          }
+        }
+      } catch (e) {
+        // Si no es JSON válido, es un string simple (formato antiguo)
+        // No hacer nada, ya está cargado en reportSelection.comentarios
+        console.log("ℹ️ Comentarios en formato string simple (legacy)");
       }
+    }
+    
+    // FALLBACK: Si no hay tolerancias en localStorage, obtenerlas del backend usando variable_proceso_id
+    if (parsedReportSelection && (!parsedReportSelection.variablesTolerancia || Object.keys(parsedReportSelection.variablesTolerancia).length === 0)) {
+      console.warn("⚠️ [Reports] No se encontraron tolerancias en localStorage, obteniendo desde el backend...");
+      
+      // Función async para obtener tolerancias
+      const fetchTolerancesFromBackend = async () => {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
+        const plantName = parsedReportSelection?.plant?.nombre;
+        
+        if (!token || !plantName || !parsedReportSelection.parameters) {
+          console.warn("⚠️ [Reports] No se pueden obtener tolerancias: faltan token, plantName o parameters");
+          return;
+        }
+        
+        try {
+          // Obtener sistemas de la planta
+          const systemsResponse = await fetch(
+            `${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT_NAME(plantName)}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          
+          if (!systemsResponse.ok) {
+            console.error("❌ [Reports] Error obteniendo sistemas de la planta");
+            return;
+          }
+          
+          const systemsData = await systemsResponse.json();
+          const systemsList = systemsData.procesos || systemsData || [];
+          
+          const fetchedTolerances: any = {};
+          
+          // Para cada sistema en los parámetros
+          for (const systemName of Object.keys(parsedReportSelection.parameters)) {
+            const systemInfo = systemsList.find((sys: any) => sys.nombre === systemName);
+            if (!systemInfo) continue;
+            
+            // Obtener variables del sistema (incluye variable_proceso_id)
+            const varsResponse = await fetch(
+              `${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(systemInfo.id)}`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            
+            if (!varsResponse.ok) {
+              console.warn(`⚠️ [Reports] Error obteniendo variables para sistema ${systemName}`);
+              continue;
+            }
+            
+            const varsData = await varsResponse.json();
+            const variablesList = varsData.variables || varsData || [];
+            
+            // Para cada variable en los parámetros, obtener su tolerancia usando TOLERANCES_FILTERS
+            for (const variableName of Object.keys(parsedReportSelection.parameters[systemName])) {
+              const variable = variablesList.find((v: any) => v.nombre === variableName);
+              if (!variable || !variable.id) continue;
+              
+              // Usar TOLERANCES_FILTERS con variable_id y proceso_id
+              const queryParams = new URLSearchParams({
+                variable_id: variable.id,
+                proceso_id: systemInfo.id,
+              });
+              
+              try {
+                const toleranceResponse = await fetch(
+                  `${API_BASE_URL}${API_ENDPOINTS.TOLERANCES_FILTERS}?${queryParams}`,
+                  { headers: { Authorization: `Bearer ${token}` } }
+                );
+                
+                if (toleranceResponse.ok) {
+                  const toleranceData = await toleranceResponse.json();
+                  // El endpoint puede devolver { tolerancias: [...] } o el objeto directo
+                  const tolerance = Array.isArray(toleranceData.tolerancias) 
+                    ? toleranceData.tolerancias[0] 
+                    : (toleranceData.tolerancia || toleranceData);
+                  
+                  if (tolerance) {
+                    const toleranceDataFormatted = {
+                      nombre: variableName,
+                      limite_min: tolerance.limite_min ?? null,
+                      limite_max: tolerance.limite_max ?? null,
+                      bien_min: tolerance.bien_min ?? null,
+                      bien_max: tolerance.bien_max ?? null,
+                      usar_limite_min: !!tolerance.usar_limite_min,
+                      usar_limite_max: !!tolerance.usar_limite_max,
+                    };
+                    
+                    fetchedTolerances[variable.id] = toleranceDataFormatted;
+                    fetchedTolerances[variableName] = toleranceDataFormatted;
+                    
+                    console.log(`✅ [Reports] Tolerancia obtenida para ${variableName}:`, toleranceDataFormatted);
+                  }
+                } else if (toleranceResponse.status === 404 || toleranceResponse.status === 204) {
+                  // No hay tolerancia para esta variable, continuar
+                  console.log(`ℹ️ [Reports] No hay tolerancia definida para ${variableName} en ${systemName}`);
+                }
+              } catch (error) {
+                console.error(`❌ [Reports] Error obteniendo tolerancia para ${variableName}:`, error);
+              }
+            }
+          }
+          
+          if (Object.keys(fetchedTolerances).length > 0) {
+            console.log(`✅ [Reports] Tolerancias obtenidas del backend: ${Object.keys(fetchedTolerances).length} parámetros`, fetchedTolerances);
+            const updatedReportSelection = {
+              ...parsedReportSelection,
+              variablesTolerancia: fetchedTolerances
+            };
+            setReportSelection(updatedReportSelection);
+            localStorage.setItem("reportSelection", JSON.stringify(updatedReportSelection));
+          } else {
+            console.warn("⚠️ [Reports] No se obtuvieron tolerancias del backend");
+          }
+        } catch (error) {
+          console.error("❌ [Reports] Error obteniendo tolerancias del backend:", error);
+        }
+      };
+      
+      // Ejecutar la función async
+      fetchTolerancesFromBackend();
+    }
     } catch (error) {
       console.error("Error parsing report selection:", error)
     }
@@ -268,6 +449,8 @@ export default function Reporte() {
   }, []);
 
   const handleNoteChange = (key: string, value: string) => {
+    // Los clientes no pueden editar notas
+    if (userRole === "client") return
     setReportNotes((prev) => ({
       ...prev,
       [key]: value,
@@ -275,6 +458,8 @@ export default function Reporte() {
   }
 
   const enableEditing = () => {
+    // Los clientes no pueden editar
+    if (userRole === "client") return
     setIsEditing(true)
   }
 
@@ -452,6 +637,51 @@ export default function Reporte() {
         return
       }
 
+      // Validar campos críticos antes de enviar
+      if (!reportSelection.plant?.id) {
+        alert("Error: No se encontró el ID de la planta")
+        return
+      }
+      
+      if (!reportSelection.user?.id) {
+        alert("Error: No se encontró el ID del usuario")
+        return
+      }
+
+      const empresaId =
+        reportSelection.empresa_id ??
+        reportSelection.user?.empresa_id ??
+        null
+
+      if (!empresaId) {
+        alert("Error: No se encontró el ID de la empresa (empresa_id)")
+        return
+      }
+
+      // Nota: `proceso_id` ya NO es obligatorio para guardar el reporte.
+
+      // Combinar comentarios globales y por parámetro en un solo objeto JSON
+      // Formato: { "global": "...", "pH": "...", "Conductividad": "...", ... }
+      // Solo incluir parámetros que tengan comentarios no vacíos
+      const comentariosCombinados: Record<string, string> = {};
+      
+      // Agregar comentario global si existe y no está vacío
+      const comentarioGlobal = reportSelection.comentarios?.trim() || "";
+      if (comentarioGlobal) {
+        comentariosCombinados["global"] = comentarioGlobal;
+      }
+      
+      // Agregar comentarios por parámetro si existen y no están vacíos
+      if (parameterComments && Object.keys(parameterComments).length > 0) {
+        Object.entries(parameterComments).forEach(([paramName, comment]) => {
+          if (comment && comment.trim() !== "") {
+            comentariosCombinados[paramName] = comment.trim();
+          }
+        });
+      }
+      
+      console.log("📝 Comentarios combinados:", comentariosCombinados);
+
       // Preparar el reportSelection completo para enviar
       const reportDataToSend = {
         ...reportSelection,
@@ -463,26 +693,47 @@ export default function Reporte() {
           mensaje_cliente: reportSelection.plant?.mensaje_cliente,
           dirigido_a: reportSelection.plant?.dirigido_a
         },
-        parameters: reportSelection.parameters || [],
-        comentarios: reportSelection.comentarios || "",
+        parameters: reportSelection.parameters || {},
+        // Comentarios combinados en formato JSON (reemplaza comentarios y parameterComments)
+        comentarios: JSON.stringify(comentariosCombinados),
         fecha: reportSelection.fecha || new Date().toISOString().split('T')[0],
         generatedDate: reportSelection.generatedDate || new Date().toISOString(),
+        empresa_id: empresaId,
         user: {
           id: reportSelection.user?.id,
           username: reportSelection.user?.username,
           email: reportSelection.user?.email,
-          puesto: reportSelection.user?.puesto
+          puesto: reportSelection.user?.puesto,
+          empresa_id: empresaId
         },
-        cliente_id: reportSelection.user?.id,
-        parameterComments: parameterComments // Incluir comentarios por parámetro
+        // Campos requeridos por el backend
+        planta_id: reportSelection.plant?.id,
+        usuario_id: reportSelection.user?.id,
+        empresa_id: empresaId,
+        // Mantener parameterComments para compatibilidad (pero el backend usará comentarios)
+        parameterComments: parameterComments || {}
       }
 
       console.log("📋 Payload completo que se enviará al servidor:")
       console.log(JSON.stringify(reportDataToSend, null, 2))
 
+      // Determinar si es actualización o creación
+      const reportId = reportSelection.report_id;
+      const isUpdate = !!reportId;
+      
+      // Determinar endpoint y método HTTP
+      const endpoint = isUpdate 
+        ? `${API_BASE_URL}${API_ENDPOINTS.REPORT_BY_ID(reportId)}`
+        : `${API_BASE_URL}${API_ENDPOINTS.REPORTS}`;
+      const method = isUpdate ? "PUT" : "POST";
+      
+      console.log(`🔄 ${isUpdate ? "Actualizando" : "Creando"} reporte${isUpdate ? ` (ID: ${reportId})` : ""}...`);
+      console.log(`📍 Endpoint: ${endpoint}`);
+      console.log(`🔧 Método: ${method}`);
+
       // Enviar el reportSelection completo al endpoint
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
-        method: "POST",
+      const response = await fetch(endpoint, {
+        method: method,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
@@ -497,22 +748,62 @@ export default function Reporte() {
       })
 
       if (!response.ok) {
-        let errorData = {}
-        let errorText = ""
+        // Leer el body solo una vez usando clone() para evitar el error "body stream already read"
+        const responseClone = response.clone();
+        let errorMessage = `Error ${response.status}: ${response.statusText}`;
         
         try {
-          errorData = await response.json()
-          console.error("❌ Error del servidor (JSON):", errorData)
-        } catch {
-          errorText = await response.text()
-          console.error("❌ Error del servidor (texto):", errorText)
+          const errorData = await responseClone.json();
+          console.error("❌ Error del servidor (JSON):", errorData);
+          errorMessage = errorData?.msg || errorData?.message || errorMessage;
+        } catch (jsonError) {
+          try {
+            const errorText = await response.text();
+            console.error("❌ Error del servidor (texto):", errorText);
+            errorMessage = errorText || errorMessage;
+          } catch (textError) {
+            console.error("❌ No se pudo leer el cuerpo de la respuesta de error");
+          }
         }
         
-        throw new Error(`Error del servidor: ${response.status} - ${JSON.stringify(errorData) || errorText}`)
+        // Mensaje específico para 404
+        if (response.status === 404) {
+          if (isUpdate) {
+            errorMessage = `No se encontró el reporte con ID ${reportId}. El endpoint PUT puede no estar implementado en el backend.`;
+          } else {
+            errorMessage = `No se pudo crear el reporte. Error ${response.status}`;
+          }
+        }
+        
+        // Mostrar mensaje de error más amigable al usuario
+        alert(`Error al ${isUpdate ? "actualizar" : "guardar"} el reporte: ${errorMessage}`);
+        setIsSaving(false);
+        return;
       }
 
       const result = await response.json()
-      console.log("✅ Reporte guardado exitosamente:", result)
+      console.log(`✅ Reporte ${isUpdate ? "actualizado" : "creado"} exitosamente:`, result)
+      
+      // Validar que el resultado no sea null
+      if (!result || (result.ok === false)) {
+        const errorMsg = result?.msg || result?.message || "El servidor devolvió un resultado nulo"
+        alert(`Error al ${isUpdate ? "actualizar" : "guardar"} el reporte: ${errorMsg}`)
+        throw new Error(`Error: ${errorMsg}`)
+      }
+      
+      // Si se creó un nuevo reporte, actualizar el report_id en reportSelection
+      if (!isUpdate && result?.id) {
+        console.log("🆔 Nuevo reporte creado con ID:", result.id);
+        const updatedReportSelection = {
+          ...reportSelection,
+          report_id: result.id
+        };
+        setReportSelection(updatedReportSelection);
+        localStorage.setItem("reportSelection", JSON.stringify(updatedReportSelection));
+      }
+      
+      // Mostrar mensaje de éxito
+      alert(`Reporte ${isUpdate ? "actualizado" : "guardado"} exitosamente${isUpdate ? ` (ID: ${reportId})` : result?.id ? ` (ID: ${result.id})` : ""}`)
       
       // Ahora guardar las mediciones individuales por parámetro
       if (reportSelection.parameters && reportSelection.fecha) {
@@ -679,7 +970,12 @@ export default function Reporte() {
       
     } catch (error) {
       console.error("❌ Error en handleSaveReport:", error)
-      alert(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      
+      // No mostrar alerta si ya se mostró una anteriormente (en el bloque de respuesta del servidor)
+      if (!errorMessage.includes("Error del servidor")) {
+        alert(`Error al guardar el reporte: ${errorMessage}`)
+      }
     } finally {
       setIsSaving(false)
     }
@@ -855,6 +1151,160 @@ export default function Reporte() {
 
       currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
 
+      // Agregar tabla de Previsualización de Datos Guardados
+      if (reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
+        currentY = checkSpaceAndAddPage(30, currentY);
+        pdf.setFontSize(14);
+        pdf.text("Previsualización de Datos Guardados", marginLeft, currentY);
+        currentY += 8;
+        
+        // Fecha de medición
+        pdf.setFontSize(10);
+        const fechaMedicion = reportSelection.fecha 
+          ? new Date(reportSelection.fecha).toLocaleDateString('es-ES', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric'
+            })
+          : currentDate;
+        pdf.text(`Fecha de medición: ${fechaMedicion}`, marginLeft, currentY);
+        currentY += 8;
+        
+        // Función auxiliar para convertir color hexadecimal a RGB
+        const hexToRgb = (hex: string): [number, number, number] | null => {
+          if (!hex || hex === "") return null;
+          const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+          return result ? [
+            parseInt(result[1], 16),
+            parseInt(result[2], 16),
+            parseInt(result[3], 16)
+          ] : null;
+        };
+        
+        // Preparar datos de la tabla
+        const allVariables = new Set<string>();
+        Object.values(reportSelection.parameters).forEach((systemData: any) => {
+          Object.keys(systemData).forEach(variable => allVariables.add(variable));
+        });
+        
+        const systemNames = Object.keys(reportSelection.parameters);
+        const previewTableHeaders = ["Variable", ...systemNames];
+        const previewTableData = Array.from(allVariables).map(variable => {
+          // Obtener la unidad del primer sistema que tenga datos para esta variable
+          let unidad = '';
+          for (const systemName of systemNames) {
+            const systemData = reportSelection.parameters[systemName];
+            const paramData = systemData[variable];
+            if (paramData && paramData.unidad) {
+              unidad = paramData.unidad;
+              break;
+            }
+          }
+          
+          // Mostrar la unidad junto al nombre del parámetro
+          const variableWithUnit = unidad ? `${variable} (${unidad})` : variable;
+          const row: string[] = [variableWithUnit];
+          
+          systemNames.forEach((systemName: string) => {
+            const systemData = reportSelection.parameters[systemName];
+            const paramData = systemData[variable];
+            // Mostrar solo el valor sin la unidad
+            const value = paramData ? String(paramData.valor) : "—";
+            row.push(value);
+          });
+          return row;
+        });
+        
+        // Agregar tabla usando AutoTable con colores
+        autoTable(pdf, {
+          head: [previewTableHeaders],
+          body: previewTableData,
+          startY: currentY,
+          theme: "grid",
+          headStyles: { fillColor: [66, 139, 202] },
+          margin: { left: marginLeft, right: marginLeft },
+          styles: { fontSize: 9 },
+          didParseCell: (data: any) => {
+            // Solo aplicar colores a las celdas del cuerpo (no al encabezado)
+            if (data.section === 'body' && data.column.index > 0) {
+              // Obtener el nombre de la variable (primera columna)
+              const variableName = previewTableData[data.row.index]?.[0];
+              // Extraer el nombre sin la unidad (si tiene formato "Variable (unidad)")
+              const variableNameClean = variableName ? variableName.split(' (')[0] : '';
+              
+              // Obtener el nombre del sistema (columna actual)
+              const systemName = systemNames[data.column.index - 1];
+              
+              // Obtener los datos del parámetro
+              const systemData = reportSelection.parameters[systemName];
+              const paramData = systemData?.[variableNameClean];
+              
+              // Obtener los límites de tolerancia
+              const tolerances = reportSelection?.variablesTolerancia?.[systemName] || {};
+              // Buscar la tolerancia por nombre de variable
+              let tolerance = Object.values(tolerances).find((tol: any) => 
+                tol && typeof tol === 'object' && tol.nombre === variableNameClean
+              ) as any;
+              
+              // Si no se encuentra por nombre, intentar buscar por ID o cualquier coincidencia
+              if (!tolerance && Object.keys(tolerances).length > 0) {
+                tolerance = Object.values(tolerances).find((tol: any) => 
+                  tol && typeof tol === 'object'
+                ) as any;
+              }
+              
+              // Calcular el color si tenemos datos y tolerancia
+              if (paramData && paramData.valor !== undefined && paramData.valor !== null && tolerance) {
+                const valorStr = String(paramData.valor);
+                const toleranceParam = {
+                  bien_min: tolerance.bien_min ?? null,
+                  bien_max: tolerance.bien_max ?? null,
+                  limite_min: tolerance.limite_min ?? null,
+                  limite_max: tolerance.limite_max ?? null,
+                  usar_limite_min: tolerance.usar_limite_min ?? false,
+                  usar_limite_max: tolerance.usar_limite_max ?? false
+                };
+                
+                const cellColorHex = getCellColor(valorStr, toleranceParam);
+                if (cellColorHex) {
+                  const rgbColor = hexToRgb(cellColorHex);
+                  if (rgbColor) {
+                    data.cell.styles.fillColor = rgbColor;
+                    // Ajustar color del texto para mejor contraste en celdas rojas/amarillas
+                    if (cellColorHex === "#FFC6CE" || cellColorHex === "#FFEB9C") {
+                      data.cell.styles.textColor = [0, 0, 0]; // Negro para mejor legibilidad
+                    }
+                  }
+                }
+              }
+            }
+          },
+        });
+        
+        currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
+        
+        // Agregar sección de comentarios (siempre visible)
+        currentY = checkSpaceAndAddPage(20, currentY);
+        pdf.setFontSize(12);
+        pdf.text("Comentarios:", marginLeft, currentY);
+        currentY += 8;
+        
+        if (reportSelection.comentarios && reportSelection.comentarios.trim()) {
+          pdf.setFontSize(10);
+          const commentLines = pdf.splitTextToSize(reportSelection.comentarios, contentWidthMM);
+          pdf.text(commentLines, marginLeft, currentY);
+          currentY += commentLines.length * 4 + spacingMM;
+        } else {
+          pdf.setFontSize(10);
+          pdf.setTextColor(128, 128, 128); // Gris
+          pdf.setFont('helvetica', 'italic');
+          pdf.text("No hay comentarios registrados.", marginLeft, currentY);
+          pdf.setTextColor(0, 0, 0); // Volver a negro
+          pdf.setFont('helvetica', 'normal');
+          currentY += 8;
+        }
+      }
+
       // Capturar y agregar gráficos
       console.log("📊 Buscando sección de gráficos...");
       
@@ -894,7 +1344,7 @@ export default function Reporte() {
         
         // Agregar período
         pdf.setFontSize(10);
-        const periodText = `Período: ${new Date(pdfChartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - ${new Date(pdfChartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)`;
+        const periodText = `Período: ${new Date(pdfChartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - ${new Date(pdfChartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}`;
         pdf.text(periodText, marginLeft, currentY);
         currentY += spacingMM;
       }
@@ -966,7 +1416,8 @@ export default function Reporte() {
       }
 
       // Agregar tabla histórica por sistema (igual que dashboard-historicos)
-      if (reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
+      // Solo agregar si el checkbox está seleccionado
+      if (includeTableInPDF && reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
         currentY = checkSpaceAndAddPage(20, currentY);
         pdf.setFontSize(14);
         pdf.text("Historial de Reportes por Sistema", marginLeft, currentY);
@@ -974,7 +1425,7 @@ export default function Reporte() {
         
         // Agregar período
         pdf.setFontSize(10);
-        const periodText = `Período: ${new Date(pdfChartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - ${new Date(pdfChartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)`;
+        const periodText = `Período: ${new Date(pdfChartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - ${new Date(pdfChartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}`;
         pdf.text(periodText, marginLeft, currentY);
         currentY += spacingMM;
         
@@ -1412,23 +1863,31 @@ export default function Reporte() {
     return "#C6EFCE"; // Verde por defecto si no hay límites o no se excede el máximo
   }
 
-  // Obtener variables disponibles para gráficos desde parameters con sus unidades
+  // Obtener variables disponibles para gráficos desde parameters con sus unidades y sistemas
   const variablesDisponibles = (() => {
-    const variablesMap = new Map<string, string>(); // Map<variableName, unidad>
+    const variablesMap = new Map<string, { unidad: string; sistemas: string[] }>(); // Map<variableName, {unidad, sistemas[]}>
     
-    Object.values(reportSelection?.parameters || {}).forEach((systemData: any) => {
+    Object.entries(reportSelection?.parameters || {}).forEach(([systemName, systemData]: [string, any]) => {
       Object.entries(systemData).forEach(([variableName, paramData]: [string, any]) => {
-        // Si la variable ya existe, mantener la unidad existente o usar la nueva si no tenía
-        if (!variablesMap.has(variableName) && paramData?.unidad) {
-          variablesMap.set(variableName, paramData.unidad);
+        if (paramData?.unidad) {
+          if (!variablesMap.has(variableName)) {
+            variablesMap.set(variableName, { unidad: paramData.unidad, sistemas: [systemName] });
+          } else {
+            // Si la variable ya existe, agregar el sistema si no está ya incluido
+            const existing = variablesMap.get(variableName)!;
+            if (!existing.sistemas.includes(systemName)) {
+              existing.sistemas.push(systemName);
+            }
+          }
         }
       });
     });
     
-    return Array.from(variablesMap.entries()).map(([nombre, unidad]) => ({
+    return Array.from(variablesMap.entries()).map(([nombre, data]) => ({
       id: nombre, // Usar el nombre como ID para los gráficos
       nombre: nombre,
-      unidad: unidad
+      unidad: data.unidad,
+      sistemas: data.sistemas // Lista de sistemas donde aparece esta variable
     }));
   })();
   
@@ -1439,15 +1898,30 @@ export default function Reporte() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
-    const today = new Date()
-    const endDate = today.toISOString().split('T')[0]
-    const startDateObj = new Date(today)
-    startDateObj.setMonth(today.getMonth() - 12)
-    const startDate = startDateObj.toISOString().split('T')[0]
-    
-    setChartStartDate(startDate)
-    setChartEndDate(endDate)
-  }, [])
+    // Intentar cargar fechas desde reportSelection primero
+    if (reportSelection?.chartStartDate && reportSelection?.chartEndDate) {
+      console.log("📅 Cargando fechas de gráficos desde reportSelection:", {
+        chartStartDate: reportSelection.chartStartDate,
+        chartEndDate: reportSelection.chartEndDate
+      });
+      setChartStartDate(reportSelection.chartStartDate);
+      setChartEndDate(reportSelection.chartEndDate);
+    } else {
+      // Si no hay fechas en reportSelection, calcular desde hoy (últimos 12 meses)
+      const today = new Date()
+      const endDate = today.toISOString().split('T')[0]
+      const startDateObj = new Date(today)
+      startDateObj.setMonth(today.getMonth() - 12)
+      const startDate = startDateObj.toISOString().split('T')[0]
+      
+      console.log("📅 Calculando fechas de gráficos desde hoy (fallback):", {
+        chartStartDate: startDate,
+        chartEndDate: endDate
+      });
+      setChartStartDate(startDate)
+      setChartEndDate(endDate)
+    }
+  }, [reportSelection])
   
   // Función para obtener parámetros de un sistema desde la API (igual que dashboard-historicos)
   const getSystemParameters = async (systemName: string): Promise<Array<{ id: string; nombre: string; unidad: string }>> => {
@@ -1623,14 +2097,17 @@ export default function Reporte() {
   }
   
   const getAcceptableRange = (systemName: string, parameterId: string): string => {
-    const tolerances = reportSelection?.variablesTolerancia?.[systemName] || {}
+    // La estructura es plana: { [parameterId]: {...}, [parameterName]: {...} }
+    const tolerances = reportSelection?.variablesTolerancia || {}
     // Buscar la tolerancia - el key puede ser el ID o el nombre
     // Intentar primero por ID, luego por nombre
     let tolerance = tolerances[parameterId] as any
     
     if (!tolerance) {
-      // Si no se encuentra por ID, buscar en todos los valores
-      tolerance = Object.values(tolerances).find((tol: any) => tol && typeof tol === 'object') as any
+      // Si no se encuentra por ID, buscar en todos los valores por nombre
+      tolerance = Object.values(tolerances).find((tol: any) => 
+        tol && typeof tol === 'object' && tol.nombre === parameterId
+      ) as any
     }
     
     if (!tolerance) return "—"
@@ -1736,11 +2213,11 @@ export default function Reporte() {
                     <p>
                       <strong>Dirigido a: </strong>
                       <span
-                        contentEditable={isEditing}
+                        contentEditable={isEditing && userRole !== "client"}
                         suppressContentEditableWarning={true}
-                        onBlur={(e) => handleNoteChange("dirigido", e.currentTarget.innerText)}
+                        onBlur={(e) => userRole !== "client" && handleNoteChange("dirigido", e.currentTarget.innerText)}
                         className="border-bottom"
-                        style={{ minWidth: "300px", display: "inline-block" }}
+                        style={{ minWidth: "300px", display: "inline-block", cursor: userRole === "client" ? "default" : "text" }}
                       >
                         {reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING."}
                       </span>
@@ -1749,11 +2226,11 @@ export default function Reporte() {
                     <p>
                       <strong>Asunto: </strong>
                       <span
-                        contentEditable={isEditing}
+                        contentEditable={isEditing && userRole !== "client"}
                         suppressContentEditableWarning={true}
-                        onBlur={(e) => handleNoteChange("asunto", e.currentTarget.innerText)}
+                        onBlur={(e) => userRole !== "client" && handleNoteChange("asunto", e.currentTarget.innerText)}
                         className="border-bottom"
-                        style={{ minWidth: "400px", display: "inline-block" }}
+                        style={{ minWidth: "400px", display: "inline-block", cursor: userRole === "client" ? "default" : "text" }}
                       >
                         {reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente ||
                           `REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE ${(reportSelection?.plant?.nombre) || "NOMBRE DE LA PLANTA"}`}
@@ -1763,11 +2240,11 @@ export default function Reporte() {
                     <p>
                       <strong>Sistema Evaluado: </strong>
                       <span
-                        contentEditable={isEditing}
+                        contentEditable={isEditing && userRole !== "client"}
                         suppressContentEditableWarning={true}
-                        onBlur={(e) => handleNoteChange("sistema", e.currentTarget.innerText)}
+                        onBlur={(e) => userRole !== "client" && handleNoteChange("sistema", e.currentTarget.innerText)}
                         className="border-bottom"
-                        style={{ minWidth: "300px", display: "inline-block" }}
+                        style={{ minWidth: "300px", display: "inline-block", cursor: userRole === "client" ? "default" : "text" }}
                       >
                         {reportNotes["sistema"] || (reportSelection?.systemName ?? "Todos los sistemas")}
                       </span>
@@ -1776,11 +2253,11 @@ export default function Reporte() {
                     <p>
                       <strong>Fecha de muestra: </strong>
                       <span
-                        contentEditable={isEditing}
+                        contentEditable={isEditing && userRole !== "client"}
                         suppressContentEditableWarning={true}
-                        onBlur={(e) => handleNoteChange("fecha_muestra", e.currentTarget.innerText)}
+                        onBlur={(e) => userRole !== "client" && handleNoteChange("fecha_muestra", e.currentTarget.innerText)}
                         className="border-bottom"
-                        style={{ minWidth: "200px", display: "inline-block" }}
+                        style={{ minWidth: "200px", display: "inline-block", cursor: userRole === "client" ? "default" : "text" }}
                       >
                         {reportSelection?.fecha || currentDate}
                       </span>
@@ -1828,13 +2305,200 @@ export default function Reporte() {
                 </div>
               </div>
 
+              {/* Previsualización de Datos Guardados */}
+              {reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0 && (
+                <div className="mb-4 ml-10 mr-10">
+                  <h5 className="mb-3">
+                    <strong>Previsualización de Datos Guardados</strong>
+                  </h5>
+                  
+                  {/* Fecha de medición */}
+                  <div className="mb-4">
+                    <h6 className="text-base font-semibold text-blue-800">
+                      Fecha de medición: {reportSelection.fecha ? new Date(reportSelection.fecha).toLocaleDateString('es-ES', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric'
+                      }) : currentDate}
+                    </h6>
+                  </div>
+
+                  {/* Tabla de datos */}
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border border-gray-300 bg-white">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="border px-4 py-2 text-left font-semibold">Variable</th>
+                          {Object.keys(reportSelection.parameters).map(systemName => (
+                            <th key={systemName} className="border px-4 py-2 text-center font-semibold">
+                              {systemName}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          // Obtener todas las variables únicas
+                          const allVariables = new Set<string>();
+                          Object.values(reportSelection.parameters).forEach((systemData: any) => {
+                            Object.keys(systemData).forEach(variable => allVariables.add(variable));
+                          });
+                          
+                          return Array.from(allVariables).map(variable => {
+                            // Obtener la unidad del primer sistema que tenga datos para esta variable
+                            let unidad = '';
+                            for (const systemName of Object.keys(reportSelection.parameters)) {
+                              const systemData = reportSelection.parameters[systemName];
+                              const paramData = systemData[variable];
+                              if (paramData && paramData.unidad) {
+                                unidad = paramData.unidad;
+                                break;
+                              }
+                            }
+                            
+                            return (
+                              <tr key={variable} className="hover:bg-gray-50">
+                                <td className="border px-4 py-2 font-medium">
+                                  {variable}{unidad ? ` (${unidad})` : ''}
+                                </td>
+                                {Object.keys(reportSelection.parameters).map(systemName => {
+                                  const systemData = reportSelection.parameters[systemName];
+                                  const paramData = systemData[variable];
+                                  
+                                  // Buscar tolerancia para esta variable
+                                  // La estructura guardada es: { [parameterId]: { nombre, ... }, [parameterName]: { nombre, ... } }
+                                  const tolerances = reportSelection?.variablesTolerancia || {};
+                                  let tolerance: any = null;
+                                  
+                                  // Estrategia de búsqueda múltiple:
+                                  // 1. Buscar por nombre de variable (key directo) - más común
+                                  if (tolerances[variable]) {
+                                    tolerance = tolerances[variable];
+                                  } 
+                                  // 2. Buscar en todos los valores por nombre
+                                  else {
+                                    tolerance = Object.values(tolerances).find((tol: any) => 
+                                      tol && typeof tol === 'object' && tol.nombre === variable
+                                    ) as any;
+                                  }
+                                  
+                                  // 3. Si aún no se encuentra, intentar búsqueda parcial (por si hay espacios o diferencias)
+                                  if (!tolerance) {
+                                    tolerance = Object.values(tolerances).find((tol: any) => 
+                                      tol && typeof tol === 'object' && 
+                                      tol.nombre && 
+                                      tol.nombre.trim().toLowerCase() === variable.trim().toLowerCase()
+                                    ) as any;
+                                  }
+                                  
+                                  // Log detallado para debugging
+                                  if (paramData && paramData.valor !== undefined && paramData.valor !== null) {
+                                    console.log(`🔍 [Reports] Búsqueda de tolerancia para "${variable}":`, {
+                                      encontrada: !!tolerance,
+                                      tolerancia: tolerance,
+                                      todasLasClaves: Object.keys(tolerances),
+                                      muestraTolerancias: Object.keys(tolerances).slice(0, 10).map(key => ({
+                                        key,
+                                        nombre: tolerances[key]?.nombre,
+                                        tieneNombre: !!tolerances[key]?.nombre
+                                      }))
+                                    });
+                                  }
+                                  
+                                  // Aplicar color según los límites
+                                  let cellColor = "";
+                                  if (paramData && paramData.valor !== undefined && paramData.valor !== null && tolerance) {
+                                    const valorStr = String(paramData.valor);
+                                    const toleranceParam = {
+                                      bien_min: tolerance.bien_min ?? null,
+                                      bien_max: tolerance.bien_max ?? null,
+                                      limite_min: tolerance.limite_min ?? null,
+                                      limite_max: tolerance.limite_max ?? null,
+                                      usar_limite_min: tolerance.usar_limite_min ?? false,
+                                      usar_limite_max: tolerance.usar_limite_max ?? false
+                                    };
+                                    cellColor = getCellColor(valorStr, toleranceParam);
+                                    
+                                    // Log para debugging (siempre mostrar)
+                                    console.log(`🎨 [Reports] Color aplicado para ${variable} (${systemName}):`, {
+                                      valor: paramData.valor,
+                                      cellColor,
+                                      toleranceParam,
+                                      tolerance
+                                    });
+                                  } else if (paramData && paramData.valor !== undefined && paramData.valor !== null && !tolerance) {
+                                    // Log si no se encontró tolerancia (siempre mostrar)
+                                    console.warn(`⚠️ [Reports] No se encontró tolerancia para ${variable} (${systemName}):`, {
+                                      valor: paramData.valor,
+                                      tolerancesKeys: Object.keys(tolerances),
+                                      tolerancesSample: Object.keys(tolerances).slice(0, 5).map(key => ({ key, nombre: tolerances[key]?.nombre }))
+                                    });
+                                  }
+                                  
+                                  // Crear objeto de estilo con backgroundColor
+                                  // Asegurar que el estilo se aplique incluso si hay conflictos con Tailwind
+                                  const cellStyle: React.CSSProperties = cellColor ? {
+                                    backgroundColor: cellColor,
+                                    color: cellColor === "#FFC6CE" || cellColor === "#FFEB9C" ? "#000000" : undefined,
+                                    // Forzar que el estilo tenga prioridad
+                                    borderColor: cellColor
+                                  } : {};
+                                  
+                                  return (
+                                    <td 
+                                      key={systemName} 
+                                      className="border px-4 py-2 text-center"
+                                      style={cellStyle}
+                                    >
+                                      {paramData ? paramData.valor : '—'}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Sección de comentarios - Solo mostrar si hay contenido o si no es cliente */}
+                  {(userRole !== "client" || (reportSelection?.comentarios && reportSelection.comentarios.trim() !== "")) && (
+                    <div className="mt-4 pt-4 border-t">
+                      <label htmlFor="preview-comments" className="block text-sm font-medium text-gray-700 mb-2">
+                        Comentarios para Previsualización de Datos:
+                      </label>
+                      <textarea
+                        id="preview-comments"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        rows={3}
+                        placeholder="Agregar comentarios sobre estos datos..."
+                        value={reportSelection.comentarios || ""}
+                        onChange={(e) => {
+                          if (reportSelection && userRole !== "client") {
+                            const updatedReportSelection = {
+                              ...reportSelection,
+                              comentarios: e.target.value
+                            }
+                            setReportSelection(updatedReportSelection)
+                            localStorage.setItem("reportSelection", JSON.stringify(updatedReportSelection))
+                          }
+                        }}
+                        disabled={userRole === "client"}
+                        readOnly={userRole === "client"}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Gráficos de Series Temporales */}
               {variablesDisponibles.length > 0 && (
                 <div className="mb-4 ml-10 mr-10">
                   <h5>Gráficos de Series Temporales</h5>
                   {chartStartDate && chartEndDate && (
                     <p className="text-sm text-muted mb-3">
-                      Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)
+                      Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </p>
                   )}
                   
@@ -1846,12 +2510,27 @@ export default function Reporte() {
                         chartRefs.current.set(variable.nombre, null as any)
                       }
                       
+                      // Usar el primer sistema donde aparece la variable, o intentar todos si hay múltiples
+                      // El componente SensorTimeSeriesChart buscará datos por cliente primero, luego por proceso
+                      const primarySystemName = variable.sistemas && variable.sistemas.length > 0 
+                        ? variable.sistemas[0] 
+                        : undefined;
+                      
+                      // Log para debugging
+                      console.log(`📊 [Reports] Renderizando gráfico para variable:`, {
+                        variable: variable.nombre,
+                        unidad: variable.unidad,
+                        sistemas: variable.sistemas,
+                        primarySystemName,
+                        clientName: reportSelection?.plant?.nombre,
+                        userId: reportSelection?.user?.id,
+                        chartStartDate,
+                        chartEndDate
+                      });
+                      
                       return (
                       <div key={variable.id} className="border rounded-lg p-4 bg-white">
-                        <h3 className="text-lg font-semibold mb-4">{variable.nombre} ({variable.unidad})</h3>
-                        
                         <div>
-                          <h4 className="text-md font-medium mb-2">Gráfico de Series Temporales</h4>
                           {chartStartDate && chartEndDate && (
                             <div className="max-w-4xl [&_svg]:max-h-96">
                               <SensorTimeSeriesChart
@@ -1866,27 +2545,31 @@ export default function Reporte() {
                                 apiBase={API_BASE_URL}
                                 unidades={variable.unidad}
                                 clientName={reportSelection?.plant?.nombre}
-                                processName={reportSelection?.systemName}
+                                processName={primarySystemName}
                                 userId={reportSelection?.user?.id}
                               />
                             </div>
                           )}
                         </div>
                         
-                        {/* Sección de comentarios por parámetro */}
-                        <div className="mt-4 pt-4 border-t">
-                          <label htmlFor={`comment-${variable.id}`} className="block text-sm font-medium text-gray-700 mb-2">
-                            Comentarios para {variable.nombre}:
-                          </label>
-                          <textarea
-                            id={`comment-${variable.id}`}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            rows={3}
-                            placeholder="Agregar comentarios sobre este parámetro..."
-                            value={parameterComments[variable.nombre] || ""}
-                            onChange={(e) => handleParameterCommentChange(variable.nombre, e.target.value)}
-                          />
-                        </div>
+                        {/* Sección de comentarios por parámetro - Solo mostrar si hay contenido o si no es cliente */}
+                        {(userRole !== "client" || (parameterComments[variable.nombre] && parameterComments[variable.nombre].trim() !== "")) && (
+                          <div className="mt-4 pt-4 border-t">
+                            <label htmlFor={`comment-${variable.id}`} className="block text-sm font-medium text-gray-700 mb-2">
+                              Comentarios para {variable.nombre}:
+                            </label>
+                            <textarea
+                              id={`comment-${variable.id}`}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              rows={3}
+                              placeholder="Agregar comentarios sobre este parámetro..."
+                              value={parameterComments[variable.nombre] || ""}
+                              onChange={(e) => userRole !== "client" && handleParameterCommentChange(variable.nombre, e.target.value)}
+                              disabled={userRole === "client"}
+                              readOnly={userRole === "client"}
+                            />
+                          </div>
+                        )}
                       </div>
                       )
                     })}
@@ -1897,11 +2580,25 @@ export default function Reporte() {
               {/* Tablas Históricas por Sistema */}
               {reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0 && (
                 <div className="mb-4 ml-10 mr-10">
-                  <h5 className="mb-3">Historial de Reportes por Sistema</h5>
+                  <div className="flex items-center justify-between mb-3">
+                    <h5 className="mb-0">Historial de Reportes por Sistema</h5>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="includeTableInPDF"
+                        checked={includeTableInPDF}
+                        onChange={(e) => userRole !== "client" && setIncludeTableInPDF(e.target.checked)}
+                        disabled={userRole === "client"}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <label htmlFor="includeTableInPDF" className="text-sm text-gray-700 cursor-pointer">
+                        Incluir tabla en PDF
+                      </label>
+                    </div>
+                  </div>
                   {chartStartDate && chartEndDate && (
                     <p className="text-sm text-muted mb-3">
-                      Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} (Últimos 12 meses)
-                    </p>
+                      Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}                    </p>
                   )}
                   
                   {Object.keys(reportSelection.parameters).map((systemName) => {
@@ -2048,33 +2745,6 @@ export default function Reporte() {
                   })}
                 </div>
               )}
-
-              {reportSelection?.comentarios && (
-                <div className="mb-2 ml-10 mr-10">
-                  <strong>Comentarios globales:</strong> {reportSelection.comentarios}
-                </div>
-              )}
-
-              {/* Detailed Measurements Section */}
-              {reportSelection?.user && (
-                <div className="mb-4 ml-10 mr-10">
-                  <h5>Detalles de Mediciones</h5>
-                  <div className="card">
-                    <div className="card-body">
-                      <div className="row">
-                        <div className="col-md-6">
-                          <p><strong>Planta:</strong> {reportSelection.user.username}</p>
-                          <p><strong>Sistema:</strong> {reportSelection.systemName}</p>
-                        </div>
-                        <div className="col-md-6">
-                          <p><strong>Generado por:</strong> {reportSelection.user.username}</p>
-                          <p><strong>Fecha de generación:</strong> {reportSelection?.generatedDate ? new Date(reportSelection.generatedDate).toLocaleString('es-ES') : currentDate}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
               </div>
                {/* Footer Image */}
                 <div id="footer-img" className="text-center">
@@ -2155,44 +2825,44 @@ export default function Reporte() {
                 <i className="material-icons me-2">bug_report</i>
                 Prueba PDF
               </button> */}
+              {/* Botón Guardar - Solo para no clientes */}
               {userRole !== "client" && (
-                <>
-                  <button 
-                    className="btn btn-success"
-                    onClick={handleSaveReport}
-                    disabled={isSaving || isDownloading}
-                  >
-                    {isSaving ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Guardando...
-                      </>
-                    ) : (
-                      <>
-                        <i className="material-icons me-2">save</i>
-                        Guardar
-                      </>
-                    )}
-                  </button>
-                  <button 
-                    className="btn btn-danger"
-                    onClick={handleDownloadPDF}
-                    disabled={isSaving || isDownloading}
-                  >
-                    {isDownloading ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Generando PDF...
-                      </>
-                    ) : (
-                      <>
-                        <i className="material-icons me-2">download</i>
-                        Descargar PDF
-                      </>
-                    )}
-                  </button>
-                </>
+                <button 
+                  className="btn btn-success"
+                  onClick={handleSaveReport}
+                  disabled={isSaving || isDownloading}
+                >
+                  {isSaving ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <i className="material-icons me-2">save</i>
+                      Guardar
+                    </>
+                  )}
+                </button>
               )}
+              {/* Botón Descargar PDF - Disponible para todos, incluyendo clientes */}
+              <button 
+                className="btn btn-danger"
+                onClick={handleDownloadPDF}
+                disabled={isSaving || isDownloading}
+              >
+                {isDownloading ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Generando PDF...
+                  </>
+                ) : (
+                  <>
+                    <i className="material-icons me-2">download</i>
+                    Descargar PDF
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

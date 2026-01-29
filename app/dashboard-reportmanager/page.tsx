@@ -12,7 +12,7 @@ import ProtectedRoute from "@/components/ProtectedRoute"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import { authService } from "@/services/authService"
 import { httpService } from "@/services/httpService"
-import { useUserAccess } from "@/hooks/useUserAccess"
+import { useEmpresasAccess } from "@/hooks/useEmpresasAccess"
 import { useMeasurements } from "@/hooks/useMeasurements";
 import { useTolerances } from "@/hooks/useTolerances"
 
@@ -22,13 +22,10 @@ import Charts from "./components/Charts"
 import ScrollArrow from "./components/ScrollArrow"
 
 // Interfaces
-interface User {
+interface Empresa {
   id: string
-  username: string
-  email?: string
-  puesto?: string
-  role?: string
-  verificado?: boolean
+  nombre: string
+  descripcion?: string
 }
 
 interface Plant {
@@ -91,28 +88,49 @@ export default function ReportManager() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
   const [globalFecha, setGlobalFecha] = useState<string>("");
   const [globalComentarios, setGlobalComentarios] = useState<string>("");
+  const [activeTopTab, setActiveTopTab] = useState<string>("cliente");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  
+  // Estados para fechas de filtro de gráficos (año en curso por defecto)
+  const getCurrentYearDates = () => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const startDate = new Date(currentYear, 0, 1); // 1 de enero del año en curso
+    const endDate = new Date(currentYear, 11, 31); // 31 de diciembre del año en curso
+    
+    return {
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0]
+    };
+  };
+  
+  const { startDate: defaultChartStartDate, endDate: defaultChartEndDate } = getCurrentYearDates();
+  const [chartStartDate, setChartStartDate] = useState<string>(defaultChartStartDate);
+  const [chartEndDate, setChartEndDate] = useState<string>(defaultChartEndDate);
 
-  // Use the reusable hook for user access
+  // Use the reusable hook for empresas access
   const {
-    users,
+    empresas,
     plants,
     systems,
-    selectedUser,
+    selectedEmpresa,
     selectedPlant,
     selectedSystem,
     userRole,
     loading,
     error,
     setSelectedSystem,
-    handleSelectUser,
+    handleSelectEmpresa,
     handleSelectPlant
-  } = useUserAccess(token)
+  } = useEmpresasAccess(token, {
+    autoSelectFirstPlant: false,
+    autoSelectFirstSystem: false,
+  })
 
 
-  // Local state for conditional plants/users
+  // Local state for conditional plants/empresas
   const [displayedPlants, setDisplayedPlants] = useState<Plant[]>([]);
-  const [displayedUsers, setDisplayedUsers] = useState<User[]>([]);
+  const [displayedEmpresas, setDisplayedEmpresas] = useState<Empresa[]>([]);
 
   // Obtener usuario conectado
   useEffect(() => {
@@ -135,10 +153,10 @@ export default function ReportManager() {
     }
   }, []);
 
-  // Load all plants if no user selected, else use hook plants
+  // Load all plants if no empresa selected, else use hook plants
   useEffect(() => {
     async function loadPlants() {
-      if (!selectedUser) {
+      if (!selectedEmpresa) {
         try {
           // Usar el endpoint que devuelve todos los campos
           const res = await fetch(`${API_BASE_URL}/api/plantas/all`, {
@@ -160,28 +178,17 @@ export default function ReportManager() {
           setDisplayedPlants([]);
         }
       } else {
+        console.log('🔄 [dashboard-reportmanager] Updating displayedPlants from hook:', plants.length, 'plants')
         setDisplayedPlants(plants);
       }
     }
     loadPlants();
-  }, [selectedUser, plants, token, router]);
+  }, [selectedEmpresa, plants, token, router]);
 
-  // Load users - filter to show only users with puesto "client"
-  // Siempre mostrar todos los clientes disponibles para facilitar la navegación
+  // Load empresas - siempre mostrar todas las empresas disponibles
   useEffect(() => {
-    // Función helper para verificar si un usuario es cliente
-    const isClientUser = (user: User): boolean => {
-      const puesto = user.puesto?.toLowerCase().trim();
-      const role = user.role?.toLowerCase().trim();
-      const isClient = puesto === 'client' || role === 'client';
-      return isClient;
-    };
-
-    // Siempre mostrar todos los usuarios clientes del hook para facilitar la navegación
-    // Esto permite que al regresar a la pestaña "Clientes" se vean todos los clientes disponibles
-    const clientUsers = users.filter(isClientUser);
-    setDisplayedUsers(clientUsers);
-  }, [users]);
+    setDisplayedEmpresas(empresas);
+  }, [empresas]);
 
     const [parameters, setParameters] = useState<Parameter[]>([])
 
@@ -231,17 +238,6 @@ export default function ReportManager() {
   
   // Determinar el parámetro seleccionado para el gráfico
   const selectedParameters = parameters.filter(param => parameterValues[param.id]?.checked);
-  
-  // Estado para comentarios por parámetro en gráficos
-  const [parameterComments, setParameterComments] = useState<{ [parameterId: string]: string }>({})
-  
-  // Función para manejar cambios en comentarios de parámetros
-  const handleParameterCommentChange = (parameterId: string, comment: string) => {
-    setParameterComments(prev => ({
-      ...prev,
-      [parameterId]: comment
-    }))
-  }
 
   const { 
     tolerancias,
@@ -250,7 +246,7 @@ export default function ReportManager() {
     tolSuccess,
     handleTolChange,
     handleTolSave 
-  } = useTolerances(parameters, selectedSystem, selectedPlant?.id, selectedUser?.id);
+  } = useTolerances(parameters, selectedSystem, selectedPlant?.id, selectedEmpresa?.id);
 
   // Estado para tolerancias por sistema
   const [tolerancesBySystem, setTolerancesBySystem] = useState<Record<string, Record<string, any>>>({});
@@ -294,12 +290,12 @@ export default function ReportManager() {
   }, [selectedSystem, parameterValues, limitsState, parameterValuesBySystem, limitsStateBySystem, tolerancesBySystem]);
 
   // Custom handlers that extend the hook functionality
-  const handleSelectUserWithReset = useCallback(async (userId: string) => {
+  const handleSelectEmpresaWithReset = useCallback(async (empresaId: string) => {
     setParameters([])
     setParameterValuesBySystem({})
     setLimitsStateBySystem({})
-    await handleSelectUser(userId)
-  }, [handleSelectUser])
+    await handleSelectEmpresa(empresaId)
+  }, [handleSelectEmpresa])
 
   const handleSelectPlantWithReset = useCallback(async (plantId: string) => {
     setParameters([])
@@ -347,6 +343,48 @@ export default function ReportManager() {
   useEffect(() => {
     fetchParameters()
   }, [fetchParameters])
+
+  // Inicializar todos los parámetros como seleccionados por defecto cuando se cargan
+  useEffect(() => {
+    if (!selectedSystem || parameters.length === 0) return;
+    
+    // Obtener los valores actuales del sistema
+    const currentValues = getCurrentSystemValues(selectedSystem);
+    
+    // Verificar si hay parámetros que no estén inicializados o no estén marcados
+    const needsInitialization = parameters.some(param => 
+      !currentValues[param.id] || currentValues[param.id].checked === undefined
+    );
+    
+    // Solo inicializar si es necesario (primera vez que se cargan los parámetros para este sistema)
+    if (needsInitialization) {
+      setParameterValuesBySystem(prev => {
+        const systemValues = prev[selectedSystem] || {};
+        const updatedValues: Record<string, ParameterValue> = {};
+        
+        // Inicializar todos los parámetros como checked: true
+        parameters.forEach(param => {
+          if (systemValues[param.id]) {
+            // Si ya existe, mantenerlo pero asegurar que esté checked si no estaba definido
+            updatedValues[param.id] = {
+              ...systemValues[param.id],
+              checked: systemValues[param.id].checked !== undefined ? systemValues[param.id].checked : true,
+            };
+          } else {
+            // Si no existe, crear nuevo con checked: true
+            updatedValues[param.id] = {
+              checked: true,
+            };
+          }
+        });
+        
+        return {
+          ...prev,
+          [selectedSystem]: updatedValues,
+        };
+      });
+    }
+  }, [selectedSystem, parameters])
 
   const selectedPlantData = plants.find((p) => p.id === selectedPlant?.id)
   const selectedSystemData = systems.find((s) => s.id === selectedSystem)
@@ -433,8 +471,8 @@ export default function ReportManager() {
     parameters, 
     selectedSystem, 
     selectedPlant?.id, 
-    selectedUser?.id,
-    selectedUser,
+    selectedEmpresa?.id,
+    selectedEmpresa,
     selectedPlant,
     selectedSystemData,
     getCurrentSystemTolerances(selectedSystem || ''), // Usar tolerancias del sistema actual
@@ -445,7 +483,9 @@ export default function ReportManager() {
     allParameters, // allParameters - ahora con todos los sistemas
     limitsState, // Pasar el estado de límites actual
     parameterValuesBySystem, // Pasar todos los valores por sistema
-    parameterComments, // Pasar comentarios por parámetro
+    {}, // parameterComments - comentarios eliminados
+    chartStartDate, // Pasar fecha inicio de gráficos
+    chartEndDate, // Pasar fecha fin de gráficos
     (reportData) => {
       // Callback cuando se guardan exitosamente los datos
       setSavedReportData(reportData);
@@ -558,6 +598,83 @@ export default function ReportManager() {
 
   
 
+  // Función para manejar la vista del reporte desde reportes pendientes
+  const handleViewReport = (report: any) => {
+    try {
+      console.log("👁️ Visualizando reporte desde reportes pendientes:", report);
+      console.log("📋 Contexto actual - selectedEmpresa:", selectedEmpresa);
+      console.log("📋 Contexto actual - selectedPlant:", selectedPlant);
+      
+      // Obtener planta_id: del reporte primero, luego del contexto actual como fallback
+      const plantaId = 
+        report.datos?.plant?.id || 
+        report.planta_id || 
+        selectedPlant?.id || 
+        null;
+      
+      if (!plantaId) {
+        console.error("❌ Error: No se encontró planta_id en los datos del reporte ni en el contexto");
+        alert("Error: No se pueden visualizar reportes sin datos de planta completos");
+        return;
+      }
+      
+      // Obtener empresa_id: del reporte primero, luego del contexto actual como fallback
+      const empresaId =
+        report?.empresa_id ??
+        report?.datos?.empresa_id ??
+        report?.datos?.user?.empresa_id ??
+        selectedEmpresa?.id ??  // Usar empresa preseleccionada como fallback
+        null;
+
+      console.log("✅ IDs obtenidos - planta_id:", plantaId, "empresa_id:", empresaId);
+
+      // Reconstruir reportSelection desde los datos JSONB completos
+      const reportSelection = {
+        user: {
+          id: report.datos?.user?.id || report.usuario_id,
+          username: report.datos?.user?.username || report.usuario,
+          email: report.datos?.user?.email || "",
+          puesto: report.datos?.user?.puesto || "client",
+          cliente_id: report.datos?.user?.cliente_id || null,
+          empresa_id: empresaId
+        },
+        plant: {
+          id: plantaId,  // Asegurar que siempre tengamos el ID correcto
+          nombre: report.datos?.plant?.nombre || report.plantName || selectedPlant?.nombre || "",
+          dirigido_a: report.datos?.plant?.dirigido_a,
+          mensaje_cliente: report.datos?.plant?.mensaje_cliente,
+          systemName: report.datos?.plant?.systemName || report.datos?.systemName || report.systemName
+        },
+        systemName: report.datos?.systemName || report.systemName,
+        parameters: report.datos?.parameters || {},
+        variablesTolerancia: report.datos?.variablesTolerancia || {},
+        mediciones: [],
+        fecha: report.datos?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+        comentarios: report.datos?.comentarios || report.observaciones || "",
+        generatedDate: report.datos?.generatedDate || report.created_at || new Date().toISOString(),
+        cliente_id: report.datos?.user?.cliente_id || null,
+        empresa_id: empresaId,  // Asegurar que siempre esté presente
+        report_id: report.id || null,  // ID único del reporte para poder actualizarlo después
+        // Asegurar que planta_id esté explícitamente en el objeto para compatibilidad
+        planta_id: plantaId
+      };
+
+      console.log("📄 reportSelection reconstruido desde reportes pendientes:", reportSelection);
+      console.log("🔍 Validación - plant.id:", reportSelection.plant.id);
+      console.log("🔍 Validación - empresa_id:", reportSelection.empresa_id);
+      
+      // Guardar en localStorage
+      localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
+      
+      // Redirigir a la página de reports
+      router.push("/reports");
+      
+    } catch (error) {
+      console.error("❌ Error al preparar vista del reporte:", error);
+      alert("Error al preparar la vista del reporte");
+    }
+  };
+
   const handleGenerateReport = async () => {
     addDebugLog("info", "Generando reporte")
 
@@ -568,9 +685,23 @@ export default function ReportManager() {
       //console.log("📊 Usando datos previamente guardados para generar reporte");
       //console.log("💾 Datos guardados:", JSON.parse(savedReportData));
       
-      // Solo actualizar la fecha de generación
+      // Solo actualizar la fecha de generación y las fechas de gráficos
       const reportData = JSON.parse(savedReportData);
       reportData.generatedDate = new Date().toISOString();
+      // Asegurar empresa_id (mismo origen que planta_id: selección actual)
+      if (!reportData.empresa_id) {
+        reportData.empresa_id = selectedEmpresa?.id || reportData.user?.empresa_id || null;
+      }
+      if (reportData.user && !reportData.user.empresa_id) {
+        reportData.user.empresa_id = reportData.empresa_id || null;
+      }
+      // Asegurar que las fechas de gráficos estén incluidas
+      if (!reportData.chartStartDate) {
+        reportData.chartStartDate = chartStartDate;
+      }
+      if (!reportData.chartEndDate) {
+        reportData.chartEndDate = chartEndDate;
+      }
       
       localStorage.setItem("reportSelection", JSON.stringify(reportData));
       //console.log("✅ reportSelection actualizado con nueva fecha de generación");
@@ -587,7 +718,7 @@ export default function ReportManager() {
         username: currentUser.username, 
         email: currentUser.email, 
         puesto: currentUser.puesto,
-        cliente_id: selectedUser?.id || null
+        empresa_id: selectedEmpresa?.id || null
       } : null,
       plant: selectedPlant ? { 
         id: selectedPlant.id, 
@@ -601,7 +732,9 @@ export default function ReportManager() {
       fecha: globalFecha,
       comentarios: globalComentarios,
       generatedDate: new Date().toISOString(),
-      cliente_id: selectedUser?.id || null,
+      empresa_id: selectedEmpresa?.id || null,
+      chartStartDate: chartStartDate, // Incluir fecha inicio de gráficos
+      chartEndDate: chartEndDate, // Incluir fecha fin de gráficos
     };
     
     localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
@@ -651,14 +784,14 @@ export default function ReportManager() {
           </div>
 
           <TabbedSelector
-            displayedUsers={displayedUsers}
-            displayedPlants={selectedUser ? plants : displayedPlants}
+            displayedEmpresas={displayedEmpresas}
+            displayedPlants={selectedEmpresa ? plants : displayedPlants}
             systems={systems}
-            selectedUser={selectedUser}
+            selectedEmpresa={selectedEmpresa}
             selectedPlant={selectedPlant}
             selectedSystem={selectedSystem}
             selectedSystemData={selectedSystemData}
-            handleSelectUser={handleSelectUserWithReset}
+            handleSelectEmpresa={handleSelectEmpresaWithReset}
             handleSelectPlant={handleSelectPlantWithReset}
             setSelectedSystem={setSelectedSystem}
             plantName={selectedPlantData?.nombre || ""}
@@ -670,10 +803,18 @@ export default function ReportManager() {
             onSaveData={handleSaveData}
             onGenerateReport={handleGenerateReport}
             isGenerateDisabled={isGenerateDisabled}
+            chartStartDate={chartStartDate}
+            chartEndDate={chartEndDate}
+            handleChartStartDateChange={setChartStartDate}
+            handleChartEndDateChange={setChartEndDate}
+            token={token}
+            onViewReport={handleViewReport}
+            activeTab={activeTopTab}
+            onActiveTabChange={setActiveTopTab}
           />
 
           {/* Parámetros */}
-          {selectedSystemData && parameters.length > 0 && (
+          {activeTopTab !== "reportes-pendientes" && selectedSystemData && parameters.length > 0 && (
             <ParametersList
               parameters={parameters}
               parameterValues={parameterValues}
@@ -690,7 +831,7 @@ export default function ReportManager() {
               sistemasPorParametro={sistemasPorParametro}
               handleMeasurementDataChange={handleMeasurementDataChange}
               medicionesPreview={medicionesPreview}
-              selectedUser={selectedUser}
+              selectedEmpresa={selectedEmpresa}
               selectedPlant={selectedPlant}
               selectedSystem={selectedSystem}
               onLimitsStateChange={handleLimitsStateChange}
@@ -698,7 +839,7 @@ export default function ReportManager() {
           )}
 
           {/* Action Buttons */}
-          {selectedSystemData && parameters.length > 0 && (
+          {activeTopTab !== "reportes-pendientes" && selectedSystemData && parameters.length > 0 && (
             <Card className="mb-6">
               
               <CardContent className="pt-6">
@@ -782,20 +923,35 @@ export default function ReportManager() {
                           Object.keys(systemData).forEach(variable => allVariables.add(variable));
                         });
                         
-                        return Array.from(allVariables).map(variable => (
-                          <tr key={variable} className="hover:bg-gray-50">
-                            <td className="border px-4 py-2 font-medium">{variable}</td>
-                            {Object.keys(savedReportData.parameters).map(systemName => {
-                              const systemData = savedReportData.parameters[systemName];
-                              const paramData = systemData[variable];
-                              return (
-                                <td key={systemName} className="border px-4 py-2 text-center">
-                                  {paramData ? `${paramData.valor} ${paramData.unidad}` : '—'}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ));
+                        return Array.from(allVariables).map(variable => {
+                          // Obtener la unidad del primer sistema que tenga datos para esta variable
+                          let unidad = '';
+                          for (const systemName of Object.keys(savedReportData.parameters)) {
+                            const systemData = savedReportData.parameters[systemName];
+                            const paramData = systemData[variable];
+                            if (paramData && paramData.unidad) {
+                              unidad = paramData.unidad;
+                              break;
+                            }
+                          }
+                          
+                          return (
+                            <tr key={variable} className="hover:bg-gray-50">
+                              <td className="border px-4 py-2 font-medium">
+                                {variable}{unidad ? ` (${unidad})` : ''}
+                              </td>
+                              {Object.keys(savedReportData.parameters).map(systemName => {
+                                const systemData = savedReportData.parameters[systemName];
+                                const paramData = systemData[variable];
+                                return (
+                                  <td key={systemName} className="border px-4 py-2 text-center">
+                                    {paramData ? paramData.valor : '—'}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        });
                       })()}
                     </tbody>
                   </table>
@@ -812,18 +968,17 @@ export default function ReportManager() {
             </Card>
           )}
 
-                    {/* Gráficos de Series Temporales */}
-          <Charts
-            selectedParameters={selectedParameters}
-            startDate={startDate}
-            endDate={endDate}
-            clientName={selectedPlantData?.clientName}
-            processName={selectedSystemData?.nombre}
-            userId={selectedUser?.id}
-            parameterComments={parameterComments}
-            onParameterCommentChange={handleParameterCommentChange}
-          />
-          
+          {/* Gráficos de Series Temporales - Oculto en "Reportes Pendientes" */}
+          {activeTopTab !== "reportes-pendientes" && selectedSystem && (
+            <Charts
+              selectedParameters={selectedParameters}
+              startDate={chartStartDate}
+              endDate={chartEndDate}
+              clientName={selectedPlantData?.clientName}
+              processName={selectedSystemData?.nombre}
+              userId={currentUser?.id}
+            />
+          )}
 
         </div>
         <ScrollArrow />

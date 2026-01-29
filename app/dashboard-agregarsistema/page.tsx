@@ -34,9 +34,11 @@ interface Parameter {
   goodMax?: string;
 }
 // Interfaces
-interface User {
+interface Empresa {
   id: string
-  username: string
+  nombre: string
+  descripcion?: string
+  estatus?: string
 }
 
 interface Plant {
@@ -59,6 +61,7 @@ interface Parameter {
   nombre: string
   unidad: string
   proceso_id: string
+  variable_proceso_id?: string // ID de la relación en variables_procesos
   orden?: number
   isNew?: boolean
   /** Valor mínimo dentro del rango recomendado (limite inferior) */
@@ -86,12 +89,12 @@ export default function ParameterManager() {
   const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
 
   // State
-  const [users, setUsers] = useState<User[]>([])
+  const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [plants, setPlants] = useState<Plant[]>([])
   const [systems, setSystems] = useState<System[]>([])
   const [parameters, setParameters] = useState<Parameter[]>([])
 
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [selectedEmpresa, setSelectedEmpresa] = useState<Empresa | null>(null)
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null)
   const [selectedSystemId, setSelectedSystemId] = useState<string | null>(null)
 
@@ -99,6 +102,13 @@ export default function ParameterManager() {
   const [error, setError] = useState<string | null>(null)
 
   // Form states
+  const [showCreateEmpresa, setShowCreateEmpresa] = useState(false)
+  const [newEmpresaName, setNewEmpresaName] = useState("")
+  const [newEmpresaEstatus, setNewEmpresaEstatus] = useState("activa")
+  const [showEditEmpresaDialog, setShowEditEmpresaDialog] = useState(false)
+  const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null)
+  const [editEmpresaName, setEditEmpresaName] = useState("")
+  const [editEmpresaEstatus, setEditEmpresaEstatus] = useState("activa")
   const [showCreatePlant, setShowCreatePlant] = useState(false)
   const [newPlantName, setNewPlantName] = useState("")
   const [newPlantRecipient, setNewPlantRecipient] = useState("")
@@ -127,7 +137,6 @@ export default function ParameterManager() {
   const [showImportFromSystem, setShowImportFromSystem] = useState(false);
   const [selectedSourceSystemId, setSelectedSourceSystemId] = useState<string>("");
   const [sourceSystemParameters, setSourceSystemParameters] = useState<Parameter[]>([]);
-  const [sourceSystemTolerances, setSourceSystemTolerances] = useState<Record<string, any>>({});
 
   // Estado para tolerancias por parámetro
   const [tolerancias, setTolerancias] = useState<Record<string, any>>({})
@@ -303,15 +312,16 @@ export default function ParameterManager() {
         processedValue = value === '' ? '' : Number(value);
       }
       
+      // Obtener el variable_proceso_id del parámetro
+      const param = parameters.find(p => p.id === variableId)
+      const variableProcesoId = param?.variable_proceso_id
+      
       return {
         ...prev,
         [variableId]: {
           ...prev[variableId],
           [field]: processedValue,
-          variable_id: variableId,
-          proceso_id: selectedSystemId,
-          planta_id: selectedPlant?.id,
-          cliente_id: selectedUser?.id,
+          variable_proceso_id: variableProcesoId || prev[variableId]?.variable_proceso_id, // Mantener el ID si ya existe
         },
       };
     });
@@ -346,14 +356,19 @@ export default function ParameterManager() {
         }
       }
       
+      // Obtener el ID de variables_procesos del parámetro
+      const param = parameters.find(p => p.id === variableId)
+      const variableProcesoId = param?.variable_proceso_id
+      
+      if (!variableProcesoId) {
+        throw new Error("No se encontró la relación variable-proceso.")
+      }
+      
       // Resetear el estado local a valores por defecto
       setTolerancias((prev) => ({
         ...prev,
         [variableId]: {
-          variable_id: variableId,
-          proceso_id: selectedSystemId,
-          planta_id: selectedPlant?.id,
-          cliente_id: selectedUser?.id,
+          variable_proceso_id: variableProcesoId,
           bien_min: '',
           bien_max: '',
           limite_min: null,
@@ -383,13 +398,149 @@ export default function ParameterManager() {
     
     const tolData = tolerancias[variableId]
     
+    // Obtener el ID de variables_procesos del parámetro
+    const param = parameters.find(p => p.id === variableId)
+    
+    if (!param) {
+      setTolError((prev) => ({ ...prev, [variableId]: "No se encontró el parámetro seleccionado" }))
+      setTolLoading((prev) => ({ ...prev, [variableId]: false }))
+      return
+    }
+    
+    let variableProcesoId = param.variable_proceso_id
+    
+    // Log para debugging
+    console.log(`🔍 Guardando tolerancia para ${param.nombre}:`, {
+      variableId,
+      variable_proceso_id: variableProcesoId,
+      selectedSystemId,
+      param: {
+        id: param.id,
+        nombre: param.nombre,
+        proceso_id: param.proceso_id,
+        variable_proceso_id: param.variable_proceso_id
+      }
+    })
+    
+    // Si no está en el parámetro, intentar obtenerlo del backend
+    if (!variableProcesoId && selectedSystemId) {
+      try {
+        console.log(`⚠️ variable_proceso_id no encontrado en parámetro ${param.nombre}, buscando en backend...`)
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(selectedSystemId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          console.log(`📥 Respuesta del backend:`, data)
+          const paramFromBackend = (data.variables || []).find((p: any) => p.id === variableId)
+          if (paramFromBackend) {
+            variableProcesoId = paramFromBackend.variable_proceso_id || paramFromBackend.variables_procesos_id || paramFromBackend.id_variables_procesos
+            console.log(`✅ variable_proceso_id encontrado:`, variableProcesoId)
+            // Actualizar el parámetro en el estado local
+            if (variableProcesoId) {
+              setParameters(prev => prev.map(p => 
+                p.id === variableId ? { ...p, variable_proceso_id: variableProcesoId } : p
+              ))
+            }
+          } else {
+            console.error(`❌ Parámetro ${param.nombre} no encontrado en la respuesta del backend`)
+          }
+        } else {
+          console.error(`❌ Error al obtener variables del backend:`, res.status, res.statusText)
+        }
+      } catch (error) {
+        console.error("❌ Error al buscar variable_proceso_id:", error)
+      }
+    }
+    
+    // Si aún no tenemos el variable_proceso_id, intentar obtenerlo consultando directamente
+    if (!variableProcesoId && selectedSystemId && variableId) {
+      try {
+        console.log(`🔄 Intentando obtener variable_proceso_id directamente para ${param.nombre}...`)
+        
+        // Método 1: Consultar el endpoint de filtros de tolerancias
+        const filterRes = await fetch(
+          `${API_BASE_URL}${API_ENDPOINTS.TOLERANCES_FILTERS}?variable_id=${variableId}&proceso_id=${selectedSystemId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        if (filterRes.ok) {
+          const filterData = await filterRes.json()
+          if (filterData.tolerancias && filterData.tolerancias.length > 0) {
+            variableProcesoId = filterData.tolerancias[0].variable_proceso_id
+            console.log(`✅ variable_proceso_id obtenido desde filtros:`, variableProcesoId)
+          }
+        }
+        
+        // Método 2: Si aún no lo tenemos, intentar obtenerlo desde el endpoint de actualización de orden
+        // que devuelve la relación completa
+        if (!variableProcesoId) {
+          console.log(`🔄 Intentando obtener variable_proceso_id desde endpoint de orden...`)
+          // Hacer una petición GET al endpoint de orden (aunque sea PATCH, podemos ver la respuesta de error)
+          // O mejor, recargar todas las variables del proceso
+          const reloadRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(selectedSystemId)}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (reloadRes.ok) {
+            const reloadData = await reloadRes.json()
+            const reloadParam = (reloadData.variables || []).find((p: any) => p.id === variableId)
+            if (reloadParam) {
+              variableProcesoId = reloadParam.variable_proceso_id || 
+                                 reloadParam.variables_procesos_id || 
+                                 reloadParam.id_variables_procesos
+              if (variableProcesoId) {
+                console.log(`✅ variable_proceso_id obtenido desde recarga:`, variableProcesoId)
+                // Actualizar el parámetro en el estado local
+                setParameters(prev => prev.map(p => 
+                  p.id === variableId ? { ...p, variable_proceso_id: variableProcesoId } : p
+                ))
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("❌ Error al obtener variable_proceso_id:", error)
+      }
+    }
+    
+    if (!variableProcesoId) {
+      const errorMsg = `No se encontró la relación variable-proceso para "${param.nombre}". Por favor, recarga la página o contacta al administrador.`
+      setTolError((prev) => ({ ...prev, [variableId]: errorMsg }))
+      setTolLoading((prev) => ({ ...prev, [variableId]: false }))
+      console.error("❌ Error crítico - variable_proceso_id no encontrado:", { 
+        variableId, 
+        paramNombre: param.nombre,
+        paramId: param.id,
+        paramProcesoId: param.proceso_id,
+        selectedSystemId,
+        allParams: parameters.map(p => ({ 
+          id: p.id, 
+          nombre: p.nombre, 
+          variable_proceso_id: p.variable_proceso_id,
+          proceso_id: p.proceso_id
+        }))
+      })
+      return
+    }
+    
+    // Validar que tenemos el variable_proceso_id antes de continuar
+    if (!variableProcesoId) {
+      const errorMsg = `No se pudo obtener la relación variable-proceso para "${param.nombre}". Por favor, recarga la página.`
+      setTolError((prev) => ({ ...prev, [variableId]: errorMsg }))
+      setTolLoading((prev) => ({ ...prev, [variableId]: false }))
+      console.error("❌ Error: variable_proceso_id es null o undefined", {
+        variableId,
+        paramNombre: param.nombre,
+        paramId: param.id,
+        selectedSystemId,
+        variableProcesoId
+      })
+      return
+    }
+    
     // Preparar datos para enviar - sin validaciones, cualquier límite puede ser null
+    // IMPORTANTE: El backend espera variables_proceso_id (PLURAL), no variable_proceso_id (singular)
     const tol = {
-      ...tolData,
-      variable_id: variableId,
-      proceso_id: selectedSystemId || null,
-      planta_id: selectedPlant?.id || null,
-      cliente_id: selectedUser?.id || null,
+      variables_proceso_id: variableProcesoId, // Backend espera PLURAL: variables_proceso_id
       // Convertir a número solo si hay valor, sino null - todos los límites pueden ser null
       bien_min: tolData?.bien_min !== null && tolData?.bien_min !== undefined && tolData?.bien_min !== '' 
         ? Number(tolData.bien_min) 
@@ -405,31 +556,126 @@ export default function ParameterManager() {
         : null,
       usar_limite_min: tolData?.usar_limite_min || false,
       usar_limite_max: tolData?.usar_limite_max || false,
+      usar_limite_bajo: tolData?.usar_limite_bajo || false, // Campo requerido por el backend
+      usar_limite_alto: tolData?.usar_limite_alto || false, // Campo requerido por el backend
     }
     
+    // Log final antes de enviar
+    console.log(`📤 Enviando tolerancia para ${param.nombre}:`, {
+      variables_proceso_id: tol.variables_proceso_id,
+      bien_min: tol.bien_min,
+      bien_max: tol.bien_max,
+      limite_min: tol.limite_min,
+      limite_max: tol.limite_max,
+      tolData: tol
+    })
+    
     try {
-      if (tol && tol.id) {
-        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCE_UPDATE(tol.id)}`, {
+      // Primero verificar si ya existe una tolerancia para este variable_proceso_id
+      // Usar el formato correcto: { variables_proceso_id: variableProcesoId }
+      let toleranciaExistente = null
+      try {
+        // Buscar usando el formato correcto con variables_proceso_id
+        const checkRes = await fetch(
+          `${API_BASE_URL}${API_ENDPOINTS.TOLERANCES_FILTERS}?variables_proceso_id=${variableProcesoId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        
+        console.log(`🔍 Buscando tolerancia existente con:`, {
+          variables_proceso_id: variableProcesoId,
+          url: `${API_BASE_URL}${API_ENDPOINTS.TOLERANCES_FILTERS}?variables_proceso_id=${variableProcesoId}`
+        })
+        
+        if (checkRes.ok) {
+          const checkData = await checkRes.json()
+          if (checkData.tolerancias && checkData.tolerancias.length > 0) {
+            toleranciaExistente = checkData.tolerancias[0]
+            console.log(`ℹ️ Tolerancia existente encontrada:`, {
+              id: toleranciaExistente.id,
+              variables_proceso_id: toleranciaExistente.variables_proceso_id || toleranciaExistente.variable_proceso_id,
+              tolerancia: toleranciaExistente
+            })
+          } else {
+            console.log(`ℹ️ No se encontraron tolerancias para variables_proceso_id: ${variableProcesoId}`)
+          }
+        } else if (checkRes.status === 404) {
+          // 404 significa que no existe, es normal
+          console.log(`ℹ️ No existe tolerancia previa para variables_proceso_id: ${variableProcesoId}`)
+        } else {
+          const errorData = await checkRes.json().catch(() => ({}))
+          console.warn(`⚠️ Error al verificar tolerancia existente:`, {
+            status: checkRes.status,
+            statusText: checkRes.statusText,
+            error: errorData
+          })
+        }
+      } catch (error) {
+        console.warn("No se pudo verificar tolerancia existente, continuando...", error)
+      }
+      
+      // Si existe una tolerancia, actualizarla; si no, crearla
+      if (toleranciaExistente) {
+        console.log(`🔄 Actualizando tolerancia existente para ${param.nombre}...`)
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCE_UPDATE(toleranciaExistente.id)}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify(tol),
         })
+        
         const responseData = await res.json()
+        
+        // Log detallado de la respuesta del backend
+        console.log(`📥 Respuesta del backend al actualizar tolerancia:`, {
+          status: res.status,
+          ok: res.ok,
+          responseData,
+          sentData: tol
+        })
+        
         if (!res.ok) {
-          throw new Error(responseData.msg || responseData.message || "Error al actualizar tolerancia")
+          // Mostrar el mensaje exacto del backend
+          const errorMsg = responseData.msg || responseData.message || `Error ${res.status}: ${res.statusText}`
+          console.error(`❌ Error del backend al actualizar:`, {
+            status: res.status,
+            statusText: res.statusText,
+            msg: errorMsg,
+            responseData,
+            sentData: tol
+          })
+          throw new Error(errorMsg)
         }
         // Actualizar el estado con la respuesta del servidor
         setTolerancias((prev) => ({ ...prev, [variableId]: responseData.tolerancia || tol }))
         showSuccessMessage(variableId)
       } else {
+        console.log(`➕ Creando nueva tolerancia para ${param.nombre}...`)
         const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify(tol),
         })
+        
         const responseData = await res.json()
+        
+        // Log detallado de la respuesta del backend
+        console.log(`📥 Respuesta del backend al crear tolerancia:`, {
+          status: res.status,
+          ok: res.ok,
+          responseData,
+          sentData: tol
+        })
+        
         if (!res.ok) {
-          throw new Error(responseData.msg || responseData.message || "Error al crear tolerancia")
+          // Mostrar el mensaje exacto del backend
+          const errorMsg = responseData.msg || responseData.message || `Error ${res.status}: ${res.statusText}`
+          console.error(`❌ Error del backend al crear:`, {
+            status: res.status,
+            statusText: res.statusText,
+            msg: errorMsg,
+            responseData,
+            sentData: tol
+          })
+          throw new Error(errorMsg)
         }
         // Actualizar el estado con la respuesta del servidor (incluye el ID generado)
         setTolerancias((prev) => ({ ...prev, [variableId]: responseData.tolerancia || tol }))
@@ -446,7 +692,7 @@ export default function ParameterManager() {
   const [user, setUser] = useState<any>(null)
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
 
-  // Fetch Users
+  // Fetch Empresas
   useEffect(() => {
     if (!token) {
       setError("Token de autenticación no encontrado. Por favor, inicie sesión.")
@@ -461,59 +707,96 @@ export default function ParameterManager() {
       }
     }
 
-    const fetchUsers = async () => {
+    const fetchEmpresas = async () => {
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USERS}`, {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ALL}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
+        
+        // Check if response is JSON
+        const contentType = res.headers.get("content-type")
+        if (!contentType || !contentType.includes("application/json")) {
+          if (res.status === 404) {
+            throw new Error("El endpoint de empresas no está disponible. Por favor, verifica que el backend tenga implementado el endpoint /api/empresas/all")
+          }
+          const text = await res.text()
+          throw new Error(`El servidor devolvió una respuesta no válida (${res.status}). El endpoint /api/empresas/all puede no estar implementado.`)
+        }
+        
         if (!res.ok) {
-          const errorData = await res.json()
-          throw new Error(errorData.message || "Failed to fetch users")
+          const errorData = await res.json().catch(() => ({}))
+          throw new Error(errorData.message || `Error ${res.status}: Failed to fetch empresas`)
         }
         const data = await res.json()
-        setUsers(data.usuarios || [])
-        // NO SE DEBE SELECCIONAR USUARIO AQUÍ
+        setEmpresas(data.empresas || data || [])
       } catch (e: any) {
-        setError(`Error al cargar usuarios: ${e.message}`)
+        setError(`Error al cargar empresas: ${e.message}`)
       } finally {
         setLoading(false)
       }
     }
-    fetchUsers()
+    fetchEmpresas()
   }, [token])
 
   // Handlers for selection changes
-  const handleSelectUser = async (userId: string) => {
-    const user = users.find((u) => u.id === userId)
-    if (!user) return
+  const handleSelectEmpresa = async (empresaId: string) => {
+    const empresa = empresas.find((e) => e.id === empresaId)
+    if (!empresa) return
 
-    setSelectedUser(user)
+    setSelectedEmpresa(empresa)
     setSelectedPlant(null)
     setSelectedSystemId(null)
     setPlants([])
     setSystems([])
     setParameters([])
-    if (!user) return
+    if (!empresa) return
 
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
-        headers: { Authorization: `Bearer ${token}`, "x-usuario-id": user.id },
+      const url = `${API_BASE_URL}${API_ENDPOINTS.PLANTS_BY_EMPRESA(empresa.id)}`
+      console.log('🔍 [dashboard-agregarsistema] Fetching plants for empresa:', empresa.id, 'URL:', url)
+      
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
       })
+      
+      console.log('📡 [dashboard-agregarsistema] Response status:', res.status, 'Content-Type:', res.headers.get("content-type"))
+      
+      // Check if response is JSON
+      const contentType = res.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        if (res.status === 404) {
+          throw new Error("El endpoint de plantas por empresa no está disponible. Por favor, verifica que el backend tenga implementado el endpoint /api/plantas/empresa/:empresaId")
+        }
+        const text = await res.text()
+        console.error('❌ [dashboard-agregarsistema] Non-JSON response:', text.substring(0, 200))
+        throw new Error(`El servidor devolvió una respuesta no válida (${res.status}). El endpoint /api/plantas/empresa/:empresaId puede no estar implementado.`)
+      }
+      
       if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.message || "No se pudieron cargar las plantas para el usuario.")
+        const errorData = await res.json().catch(() => ({}))
+        console.error('❌ [dashboard-agregarsistema] Error response:', errorData)
+        throw new Error(errorData.msg || errorData.message || `Error ${res.status}: No se pudieron cargar las plantas para la empresa.`)
       }
       const data = await res.json()
-      setPlants(data.plantas || [])
-      if (data.plantas.length > 0) {
-        const firstPlant = data.plantas[0]
+      console.log('✅ [dashboard-agregarsistema] Plants data received:', data)
+      console.log('📊 [dashboard-agregarsistema] Plants array:', data.plantas)
+      console.log('📊 [dashboard-agregarsistema] Plants count:', data.plantas?.length || 0)
+      
+      const plantasArray = data.plantas || data || []
+      setPlants(plantasArray)
+      
+      if (plantasArray.length > 0) {
+        const firstPlant = plantasArray[0]
         handleSelectPlant(firstPlant.id)
       } else {
         setSelectedPlant(null)
+        if (plantasArray.length === 0) {
+          console.warn('⚠️ [dashboard-agregarsistema] No se encontraron plantas para la empresa:', empresa.nombre)
+        }
       }
     } catch (e: any) {
       setError(`Error al cargar plantas: ${e.message}`)
@@ -563,9 +846,134 @@ export default function ParameterManager() {
     }
   }
 
+  const handleCreateEmpresa = async () => {
+    if (!newEmpresaName.trim()) {
+      alert("Por favor, ingrese el nombre de la empresa.")
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const empresaData = {
+        nombre: newEmpresaName.trim(),
+        estatus: newEmpresaEstatus || 'activa',
+      }
+      
+      console.log("🏢 Datos de empresa a crear:", empresaData)
+      
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESA_CREATE}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(empresaData),
+      })
+      if (!res.ok) {
+        const errorData = await res.json()
+        console.error("❌ Error del servidor al crear empresa:", errorData)
+        throw new Error(errorData.msg || errorData.message || "No se pudo crear la empresa.")
+      }
+      
+      const responseData = await res.json()
+      console.log("✅ Respuesta del servidor al crear empresa:", responseData)
+      
+      setShowCreateEmpresa(false)
+      setNewEmpresaName("")
+      setNewEmpresaEstatus("activa")
+      
+      // Refetch empresas to update the list
+      const empresasRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ALL}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (empresasRes.ok) {
+        const empresasData = await empresasRes.json()
+        setEmpresas(empresasData.empresas || empresasData || [])
+        
+        // Auto-select the newly created empresa
+        if (responseData.empresa && responseData.empresa.id) {
+          await handleSelectEmpresa(responseData.empresa.id)
+        }
+      }
+      
+      alert(`✅ Empresa "${newEmpresaName}" creada exitosamente.`)
+    } catch (e: any) {
+      setError(`Error al crear empresa: ${e.message}`)
+      alert(`Error al crear empresa: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Function to open edit empresa dialog
+  const handleOpenEditEmpresa = (empresa: Empresa) => {
+    setEditingEmpresa(empresa)
+    setEditEmpresaName(empresa.nombre)
+    setEditEmpresaEstatus(empresa.estatus || "activa")
+    setShowEditEmpresaDialog(true)
+  }
+
+  // Function to update empresa information
+  const handleUpdateEmpresa = async () => {
+    if (!editEmpresaName.trim() || !editingEmpresa) {
+      alert("Por favor, ingrese el nombre de la empresa.")
+      return
+    }
+    
+    setLoading(true)
+    setError(null)
+    try {
+      const updateData = {
+        nombre: editEmpresaName.trim(),
+        estatus: editEmpresaEstatus || 'activa',
+      }
+      
+      console.log("🏢 Datos de empresa a actualizar:", updateData)
+      
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESA_UPDATE(editingEmpresa.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(updateData),
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json()
+        console.error("❌ Error del servidor al actualizar empresa:", errorData)
+        throw new Error(errorData.msg || errorData.message || "No se pudo actualizar la empresa.")
+      }
+      
+      const responseData = await res.json()
+      console.log("✅ Respuesta del servidor al actualizar empresa:", responseData)
+      
+      setShowEditEmpresaDialog(false)
+      setEditingEmpresa(null)
+      setEditEmpresaName("")
+      setEditEmpresaEstatus("activa")
+      
+      // Refetch empresas to update the list
+      const empresasRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ALL}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (empresasRes.ok) {
+        const empresasData = await empresasRes.json()
+        setEmpresas(empresasData.empresas || empresasData || [])
+        
+        // Update selected empresa if it was the one being edited
+        if (selectedEmpresa?.id === editingEmpresa.id && responseData.empresa) {
+          setSelectedEmpresa(responseData.empresa)
+        }
+      }
+      
+      alert(`✅ Empresa "${editEmpresaName}" actualizada exitosamente.`)
+    } catch (e: any) {
+      setError(`Error al actualizar empresa: ${e.message}`)
+      alert(`Error al actualizar empresa: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+
   const handleCreatePlant = async () => {
-    if (!newPlantName.trim() || !newPlantRecipient.trim() || !selectedUser) {
-      alert("Por favor, complete todos los campos obligatorios: nombre de la planta, destinatario de reportes y seleccione un usuario.")
+    if (!newPlantName.trim() || !newPlantRecipient.trim() || !selectedEmpresa) {
+      alert("Por favor, complete todos los campos obligatorios: nombre de la planta, destinatario de reportes y seleccione una empresa.")
       return
     }
     setLoading(true)
@@ -575,7 +983,7 @@ export default function ParameterManager() {
         nombre: newPlantName,
         dirigido_a: newPlantRecipient,
         mensaje_cliente: newPlantMessage.trim() || null, // Enviar null si está vacío
-        usuario_id: selectedUser.id,
+        empresa_id: selectedEmpresa.id,
       }
       
       console.log("🌱 Datos de planta a crear:", plantData)
@@ -598,7 +1006,7 @@ export default function ParameterManager() {
       setNewPlantName("")
       setNewPlantRecipient("")
       setNewPlantMessage("")
-      await handleSelectUser(selectedUser.id) // Refetch plants for the selected user
+      await handleSelectEmpresa(selectedEmpresa.id) // Refetch plants for the selected empresa
     } catch (e: any) {
       setError(`Error al crear planta: ${e.message}`)
     } finally {
@@ -655,8 +1063,8 @@ export default function ParameterManager() {
       setEditingPlant(null)
       
       // Refetch plants to update the list
-      if (selectedUser) {
-        await handleSelectUser(selectedUser.id)
+      if (selectedEmpresa) {
+        await handleSelectEmpresa(selectedEmpresa.id)
       }
     } catch (e: any) {
       setError(`Error al actualizar planta: ${e.message}`)
@@ -701,8 +1109,8 @@ export default function ParameterManager() {
       }
       
       // Refetch plants to update the list
-      if (selectedUser) {
-        await handleSelectUser(selectedUser.id)
+      if (selectedEmpresa) {
+        await handleSelectEmpresa(selectedEmpresa.id)
       }
       
       alert(`✅ Planta "${plant.nombre}" eliminada exitosamente.`)
@@ -730,26 +1138,184 @@ export default function ParameterManager() {
         throw new Error(errorData.message || "No se pudieron cargar los parámetros para el sistema.")
       }
       const data = await res.json()
-      // Mapea cada variable para añadir campos de límites con valores predeterminados.
-      const mappedParams =
-        (data.variables || []).map((p: any) => ({
-          ...p,
-          // Si el backend ya devuelve estos campos, se conservarán; de lo contrario se inicializan.
-          orden: p.orden ?? null,
-          limMin: p.limMin ?? "",
-          limMinActive: p.limMinActive ?? false,
-          limMax: p.limMax ?? "",
-          limMaxActive: p.limMaxActive ?? false,
-          goodMin: p.goodMin ?? "",
-          goodMax: p.goodMax ?? "",
-        })) || []
-      // Ordenar por orden
-      const sortedParams = mappedParams.sort((a: Parameter, b: Parameter) => {
-        const ordenA = a.orden ?? 999999
-        const ordenB = b.orden ?? 999999
-        return ordenA - ordenB
+      
+      // Log completo de la respuesta del backend para debugging
+      console.log(`📥 Respuesta completa del backend para proceso ${selectedSystemId}:`, {
+        data,
+        variables: data.variables,
+        firstVariable: data.variables?.[0],
+        firstVariableKeys: data.variables?.[0] ? Object.keys(data.variables[0]) : [],
+        allVariablesWithIds: data.variables?.map((v: any) => ({
+          nombre: v.nombre,
+          id: v.id,
+          variable_proceso_id: v.variable_proceso_id,
+          variables_procesos_id: v.variables_procesos_id,
+          id_variables_procesos: v.id_variables_procesos
+        }))
       })
-      setParameters(sortedParams)
+      
+      // Mapea cada variable para añadir campos de límites con valores predeterminados.
+      let mappedParams =
+        (data.variables || []).map((p: any) => {
+          // Intentar múltiples nombres posibles del campo
+          const variableProcesoId = p.variable_proceso_id ?? 
+                                    p.variables_procesos_id ?? 
+                                    p.id_variables_procesos ??
+                                    p.variable_proceso?.id ??
+                                    p.variables_proceso_id ??
+                                    null
+          
+          // Log para debugging si no se encuentra el variable_proceso_id
+          if (!variableProcesoId) {
+            console.error(`❌ variable_proceso_id NO encontrado para variable ${p.nombre} (id: ${p.id})`, {
+              variable: p,
+              availableFields: Object.keys(p),
+              allFieldValues: {
+                variable_proceso_id: p.variable_proceso_id,
+                variables_procesos_id: p.variables_procesos_id,
+                id_variables_procesos: p.id_variables_procesos,
+                variable_proceso: p.variable_proceso
+              }
+            })
+          } else {
+            console.log(`✅ variable_proceso_id encontrado para ${p.nombre}:`, variableProcesoId)
+          }
+          
+          return {
+            ...p,
+            // Si el backend ya devuelve estos campos, se conservarán; de lo contrario se inicializan.
+            orden: p.orden ?? null,
+            variable_proceso_id: variableProcesoId, // ID de variables_procesos
+            limMin: p.limMin ?? "",
+            limMinActive: p.limMinActive ?? false,
+            limMax: p.limMax ?? "",
+            limMaxActive: p.limMaxActive ?? false,
+            goodMin: p.goodMin ?? "",
+            goodMax: p.goodMax ?? "",
+          }
+        }) || []
+      
+      // Verificar y corregir órdenes duplicados
+      const ordenCounts = new Map<number, number>()
+      const paramsWithDuplicates: Parameter[] = []
+      
+      // Contar cuántos parámetros tienen cada orden
+      mappedParams.forEach((param: Parameter) => {
+        if (param.orden !== null && param.orden !== undefined) {
+          const count = ordenCounts.get(param.orden) || 0
+          ordenCounts.set(param.orden, count + 1)
+          if (count > 0) {
+            // Ya había otro parámetro con este orden, es un duplicado
+            paramsWithDuplicates.push(param)
+          }
+        }
+      })
+      
+      // Si hay duplicados, reasignar órdenes únicos
+      if (paramsWithDuplicates.length > 0) {
+        console.log(`⚠️ Detectados ${paramsWithDuplicates.length} parámetros con órdenes duplicados. Corrigiendo automáticamente...`)
+        
+        // Ordenar primero por orden actual (o por índice si no tiene orden)
+        const sortedParams = mappedParams.sort((a: Parameter, b: Parameter) => {
+          const ordenA = a.orden ?? 999999
+          const ordenB = b.orden ?? 999999
+          if (ordenA !== ordenB) return ordenA - ordenB
+          // Si tienen el mismo orden, mantener el orden original
+          return 0
+        })
+        
+        // Reasignar órdenes únicos secuencialmente (1, 2, 3, ...)
+        const updatedParams = sortedParams.map((param: Parameter, index: number) => {
+          const newOrden = index + 1
+          if (param.orden !== newOrden) {
+            return { ...param, orden: newOrden }
+          }
+          return param
+        })
+        
+        // Actualizar los parámetros en el backend
+        const updatePromises = updatedParams
+          .filter((param: Parameter, index: number) => {
+            const originalParam = sortedParams[index]
+            return param.orden !== originalParam.orden
+          })
+          .map(async (param: Parameter) => {
+            try {
+              const updateRes = await fetch(
+                `${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE_ORDER(param.id, selectedSystemId)}`,
+                {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                  },
+                  body: JSON.stringify({ orden: param.orden }),
+                }
+              )
+              
+              if (!updateRes.ok) {
+                console.error(`Error actualizando orden del parámetro ${param.id}:`, updateRes.status)
+                return false
+              }
+              return true
+            } catch (error) {
+              console.error(`Error actualizando orden del parámetro ${param.id}:`, error)
+              return false
+            }
+          })
+        
+        await Promise.all(updatePromises)
+        console.log('✅ Órdenes duplicados corregidos automáticamente')
+        
+        // Usar los parámetros actualizados
+        mappedParams = updatedParams
+      }
+      
+        // Verificar si hay parámetros sin variable_proceso_id y recargar si es necesario
+        const paramsSinId = mappedParams.filter(p => !p.variable_proceso_id)
+        if (paramsSinId.length > 0) {
+          console.warn(`⚠️ ${paramsSinId.length} parámetros sin variable_proceso_id. Intentando recargar...`)
+          // Intentar recargar una vez más después de un breve delay
+          setTimeout(async () => {
+            try {
+              const retryRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(selectedSystemId)}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              })
+              if (retryRes.ok) {
+                const retryData = await retryRes.json()
+                const retryMapped = (retryData.variables || []).map((p: any) => ({
+                  ...p,
+                  orden: p.orden ?? null,
+                  variable_proceso_id: p.variable_proceso_id ?? p.variables_procesos_id ?? p.id_variables_procesos ?? null,
+                  limMin: p.limMin ?? "",
+                  limMinActive: p.limMinActive ?? false,
+                  limMax: p.limMax ?? "",
+                  limMaxActive: p.limMaxActive ?? false,
+                  goodMin: p.goodMin ?? "",
+                  goodMax: p.goodMax ?? "",
+                }))
+                const retrySorted = retryMapped.sort((a: Parameter, b: Parameter) => {
+                  const ordenA = a.orden ?? 999999
+                  const ordenB = b.orden ?? 999999
+                  return ordenA - ordenB
+                })
+                setParameters(retrySorted)
+                console.log(`✅ Parámetros recargados con variable_proceso_id`)
+              }
+            } catch (error) {
+              console.error("❌ Error al recargar parámetros:", error)
+            }
+          }, 500)
+        }
+        
+        // Ordenar por orden final
+        const sortedParams = mappedParams.sort((a: Parameter, b: Parameter) => {
+          const ordenA = a.orden ?? 999999
+          const ordenB = b.orden ?? 999999
+          return ordenA - ordenB
+        })
+        
+        setParameters(sortedParams)
     } catch (e: any) {
       setError(`Error al cargar parámetros: ${e.message}`)
     } finally {
@@ -789,20 +1355,33 @@ export default function ParameterManager() {
         const data = await res.json()
         
         // Filtrar solo las tolerancias del sistema y parámetros actuales
+        // Ahora las tolerancias se relacionan por variables_proceso_id
+        // Usar el formato correcto: tolerancia = { variables_proceso_id: variable.variables_proceso_id }
         const map: Record<string, any> = {}
-        if (Array.isArray(data)) {
-          data.forEach((tol) => {
-            if (parameters.some(p => p.id === tol.variable_id) && tol.proceso_id === selectedSystemId) {
-              map[tol.variable_id] = tol
-            }
+        const toleranceArray = Array.isArray(data) ? data : (Array.isArray(data.tolerancias) ? data.tolerancias : [])
+        
+        toleranceArray.forEach((tol: any) => {
+          // Buscar el parámetro que tiene este variables_proceso_id
+          // El formato correcto es: { variables_proceso_id: tol.variables_proceso_id }
+          const tolVariablesProcesoId = tol.variables_proceso_id || tol.variable_proceso_id
+          
+          const param = parameters.find(p => {
+            const paramVariablesProcesoId = p.variable_proceso_id || p.variables_proceso_id
+            // Comparar usando el formato: { variables_proceso_id: variable.variables_proceso_id }
+            return paramVariablesProcesoId === tolVariablesProcesoId && paramVariablesProcesoId !== null && paramVariablesProcesoId !== undefined
           })
-        } else if (Array.isArray(data.tolerancias)) {
-          data.tolerancias.forEach((tol: any) => {
-            if (parameters.some(p => p.id === tol.variable_id) && tol.proceso_id === selectedSystemId) {
-              map[tol.variable_id] = tol
-            }
-          })
-        }
+          
+          if (param && tolVariablesProcesoId) {
+            console.log(`✅ Tolerancia encontrada para ${param.nombre}:`, {
+              param_id: param.id,
+              param_nombre: param.nombre,
+              variables_proceso_id: tolVariablesProcesoId,
+              tolerancia: tol
+            })
+            map[param.id] = tol
+          }
+        })
+        
         setTolerancias(map)
       } catch (e: any) {
         setTolError((prev) => ({ ...prev, global: e.message }))
@@ -1023,7 +1602,32 @@ export default function ParameterManager() {
       if (!res1.ok || !res2.ok) {
         const errorData1 = await res1.json().catch(() => ({}))
         const errorData2 = await res2.json().catch(() => ({}))
-        throw new Error(errorData1.msg || errorData2.msg || 'Error al actualizar el orden')
+        
+        // Log detallado del error para debugging
+        console.error('Error al actualizar orden de parámetros:', {
+          res1: {
+            status: res1.status,
+            statusText: res1.statusText,
+            url: res1.url,
+            error: errorData1
+          },
+          res2: {
+            status: res2.status,
+            statusText: res2.statusText,
+            url: res2.url,
+            error: errorData2
+          },
+          paramId: param.id,
+          prevParamId: prevParam.id,
+          currentOrden,
+          prevOrden,
+          selectedSystemId
+        })
+        
+        const errorMsg = errorData1.msg || errorData2.msg || 
+                        errorData1.message || errorData2.message ||
+                        `Error HTTP: ${res1.status} / ${res2.status}`
+        throw new Error(errorMsg)
       }
 
       // Recargar los parámetros para reflejar el nuevo orden
@@ -1073,7 +1677,32 @@ export default function ParameterManager() {
       if (!res1.ok || !res2.ok) {
         const errorData1 = await res1.json().catch(() => ({}))
         const errorData2 = await res2.json().catch(() => ({}))
-        throw new Error(errorData1.msg || errorData2.msg || 'Error al actualizar el orden')
+        
+        // Log detallado del error para debugging
+        console.error('Error al actualizar orden de parámetros:', {
+          res1: {
+            status: res1.status,
+            statusText: res1.statusText,
+            url: res1.url,
+            error: errorData1
+          },
+          res2: {
+            status: res2.status,
+            statusText: res2.statusText,
+            url: res2.url,
+            error: errorData2
+          },
+          paramId: param.id,
+          nextParamId: nextParam.id,
+          currentOrden,
+          nextOrden,
+          selectedSystemId
+        })
+        
+        const errorMsg = errorData1.msg || errorData2.msg || 
+                        errorData1.message || errorData2.message ||
+                        `Error HTTP: ${res1.status} / ${res2.status}`
+        throw new Error(errorMsg)
       }
 
       // Recargar los parámetros para reflejar el nuevo orden
@@ -1305,31 +1934,9 @@ export default function ParameterManager() {
       const parameters = paramsData.variables || [];
       setSourceSystemParameters(parameters);
       console.log(`📋 Parámetros cargados del sistema ${systemId}:`, parameters);
-
-      // Cargar tolerancias del sistema fuente
-      const tolerancesRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (tolerancesRes.ok) {
-        const tolerancesData = await tolerancesRes.json();
-        const tolerancesArray = Array.isArray(tolerancesData) ? tolerancesData : tolerancesData.tolerancias || [];
-        
-        // Filtrar solo las tolerancias del sistema fuente
-        const systemTolerances: Record<string, any> = {};
-        tolerancesArray.forEach((tol: any) => {
-          if (tol.proceso_id === systemId && parameters.some((p: any) => p.id === tol.variable_id)) {
-            systemTolerances[tol.variable_id] = tol;
-          }
-        });
-        
-        setSourceSystemTolerances(systemTolerances);
-        console.log(`📊 Tolerancias cargadas del sistema ${systemId}:`, systemTolerances);
-      }
     } catch (error) {
       console.error("Error cargando datos del sistema fuente:", error);
       setSourceSystemParameters([]);
-      setSourceSystemTolerances({});
     }
   };
 
@@ -1389,40 +1996,14 @@ export default function ParameterManager() {
     }));
 
     setParameters(prev => [...prev, ...newParameters]);
-
-    // Importar las tolerancias correspondientes
-    const newTolerances: Record<string, any> = {};
-    parametersToImport.forEach(param => {
-      const originalParam = sourceSystemParameters.find(p => p.nombre === param.nombre);
-      if (originalParam && sourceSystemTolerances[originalParam.id]) {
-        const originalTolerance = sourceSystemTolerances[originalParam.id];
-        newTolerances[param.id] = {
-          ...originalTolerance,
-          id: undefined, // Remover ID para crear nueva tolerancia
-          variable_id: param.id, // Usar el nuevo ID del parámetro
-          proceso_id: selectedSystemId, // Cambiar al sistema actual
-          planta_id: selectedPlant?.id,
-          cliente_id: selectedUser?.id,
-        };
-      }
-    });
-
-    // Agregar las nuevas tolerancias al estado
-    setTolerancias(prev => ({
-      ...prev,
-      ...newTolerances
-    }));
     
     // Cerrar el modal y limpiar selección
     setShowImportFromSystem(false);
     setSelectedSourceSystemId("");
     setSourceSystemParameters([]);
-    setSourceSystemTolerances({});
     
-    const toleranceCount = Object.keys(newTolerances).length;
-    alert(`✅ Se importaron ${newParameters.length} parámetros y ${toleranceCount} tolerancias del sistema fuente.`);
+    alert(`✅ Se importaron ${newParameters.length} parámetros del sistema fuente.`);
     console.log(`📥 Parámetros importados:`, newParameters);
-    console.log(`📊 Tolerancias importadas:`, newTolerances);
   };
 
   const handleSaveParameters = async (e: React.FormEvent) => {
@@ -1455,22 +2036,27 @@ export default function ParameterManager() {
       }
       console.log("✅ Parámetros guardados exitosamente");
 
-      // 2. Refetch parámetros para obtener los IDs del servidor
+      // 2. Refetch parámetros para obtener los IDs del servidor (incluyendo variable_proceso_id)
       await fetchParameters();
 
       // 3. Guardar tolerancias automáticamente
       console.log("💾 Guardando tolerancias...");
       const tolerancePromises = Object.entries(tolerancias).map(async ([variableId, tolerance]) => {
         // Solo guardar tolerancias de parámetros nuevos
-        const isNewParameter = newParamsToSave.some(p => p.id === variableId);
-        if (!isNewParameter) return;
+        // Buscar por nombre ya que el ID puede haber cambiado después del refetch
+        const paramOriginal = newParamsToSave.find(p => p.id === variableId);
+        if (!paramOriginal) return;
+
+        // Buscar el parámetro actualizado por nombre para obtener su variable_proceso_id
+        const param = parameters.find(p => p.nombre === paramOriginal.nombre && p.proceso_id === selectedSystemId);
+        if (!param?.variable_proceso_id) {
+          console.warn(`⚠️ No se encontró variable_proceso_id para el parámetro ${paramOriginal.nombre}`);
+          return;
+        }
 
         const toleranceData = {
           ...tolerance,
-          variable_id: variableId,
-          proceso_id: selectedSystemId,
-          planta_id: selectedPlant?.id,
-          cliente_id: selectedUser?.id,
+          variables_proceso_id: param.variable_proceso_id, // Backend espera PLURAL: variables_proceso_id
         };
 
         try {
@@ -1522,35 +2108,110 @@ export default function ParameterManager() {
                   <h2 className="text-lg font-medium leading-6 text-gray-900">Selección Jerárquica</h2>
                   <p className="mt-1 text-sm text-gray-500">Seleccione Cliente, Planta y Sistema para gestionar parámetros.</p>
                   <div className="mt-6 flex flex-col space-y-6">
-                    {/* Cliente (Usuario) */}
+                    {/* Empresa */}
                     <div className="grid grid-cols-[150px_1fr] items-start gap-4">
-                      <Label className="pt-2 text-sm font-medium text-gray-700">Cliente (Usuario)</Label>
-                      <div className="flex flex-col">
-                        <Select value={selectedUser?.id ?? ""} onValueChange={handleSelectUser}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Seleccione un usuario" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-[#f6f6f6] text-gray-900">
-                            {users.map((user) => (
-                              <SelectItem key={user.id} value={user.id}>
-                                {user.username}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="mt-2 text-sm text-gray-500">Seleccione el usuario para ver las plantas asociadas.</p>
+                      <Label className="pt-2 text-sm font-medium text-gray-700">Empresa</Label>
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center gap-2">
+                          <Select value={selectedEmpresa?.id ?? ""} onValueChange={handleSelectEmpresa}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Seleccione una empresa" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                              {empresas.map((empresa) => (
+                                <SelectItem key={empresa.id} value={empresa.id}>
+                                  {empresa.nombre}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button 
+                            type="button" 
+                            onClick={() => setShowCreateEmpresa(true)} 
+                            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                          >
+                            <Plus className="mr-2 h-4 w-4" /> Agregar Empresa
+                          </Button>
+                          {selectedEmpresa && (
+                            <Button 
+                              type="button" 
+                              onClick={() => handleOpenEditEmpresa(selectedEmpresa)} 
+                              className="bg-blue-400 hover:bg-blue-500 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                              disabled={loading}
+                            >
+                              <Edit className="mr-2 h-4 w-4" /> Editar
+                            </Button>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-500">Seleccione la empresa para ver las plantas asociadas.</p>
+                        
+                        {/* Formulario para crear empresa */}
+                        {showCreateEmpresa && (
+                          <div className="space-y-3 rounded-xl border-2 border-blue-200 p-4 bg-gradient-to-r from-blue-50 to-indigo-50">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <Input
+                                placeholder="Nombre de la empresa *"
+                                value={newEmpresaName}
+                                onChange={(e) => setNewEmpresaName(e.target.value)}
+                                className="border-blue-200 focus:border-blue-400"
+                              />
+                              <Select value={newEmpresaEstatus} onValueChange={setNewEmpresaEstatus}>
+                                <SelectTrigger className="border-blue-200 focus:border-blue-400">
+                                  <SelectValue placeholder="Estatus" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                                  <SelectItem value="activa">Activa</SelectItem>
+                                  <SelectItem value="inactiva">Inactiva</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <Button 
+                                type="button" 
+                                variant="outline"
+                                onClick={() => {
+                                  setShowCreateEmpresa(false)
+                                  setNewEmpresaName("")
+                                  setNewEmpresaEstatus("activa")
+                                }}
+                                disabled={loading}
+                                className="px-4 py-2"
+                              >
+                                Cancelar
+                              </Button>
+                              <Button 
+                                type="button" 
+                                onClick={handleCreateEmpresa} 
+                                disabled={loading || !newEmpresaName.trim()} 
+                                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                              >
+                                {loading ? "Guardando..." : "Guardar"}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Planta */}
-                    {selectedUser && (
+                    {selectedEmpresa && (
                       <div className="grid grid-cols-[150px_1fr] items-start gap-4">
                         <Label className="pt-2 text-sm font-medium text-gray-700">Planta</Label>
                         <div className="flex flex-col gap-3">
+                          {plants.length === 0 && selectedEmpresa ? (
+                            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                              <p className="text-sm text-yellow-800">
+                                ⚠️ No se encontraron plantas asociadas a la empresa seleccionada ({selectedEmpresa.nombre}).
+                              </p>
+                              <p className="text-xs text-yellow-600 mt-1">
+                                Verifica que las plantas tengan un <code>empresa_id</code> asignado en la base de datos, o crea una nueva planta.
+                              </p>
+                            </div>
+                          ) : null}
                           <div className="flex items-center gap-2">
                             <Select value={selectedPlant?.id} onValueChange={handleSelectPlant} disabled={plants.length === 0}>
                               <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Seleccione una planta" />
+                                <SelectValue placeholder={plants.length === 0 ? "No hay plantas disponibles" : "Seleccione una planta"} />
                               </SelectTrigger>
                               <SelectContent className="bg-[#f6f6f6] text-gray-900">
                                 {plants.map((plant) => (
@@ -1853,6 +2514,59 @@ export default function ParameterManager() {
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>
+                    
+                    {/* Edit Empresa Dialog */}
+                    <Dialog open={showEditEmpresaDialog} onOpenChange={setShowEditEmpresaDialog}>
+                      <DialogContent className="bg-[#f6f6f6] text-gray-900 max-w-2xl">
+                        <DialogHeader>
+                          <DialogTitle>Editar Información de la Empresa</DialogTitle>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="edit-empresa-name" className="text-right">
+                              Nombre *
+                            </Label>
+                            <Input
+                              id="edit-empresa-name"
+                              value={editEmpresaName}
+                              onChange={(e) => setEditEmpresaName(e.target.value)}
+                              className="col-span-3"
+                            />
+                          </div>
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="edit-empresa-estatus" className="text-right">
+                              Estatus *
+                            </Label>
+                            <Select value={editEmpresaEstatus} onValueChange={setEditEmpresaEstatus}>
+                              <SelectTrigger className="col-span-3">
+                                <SelectValue placeholder="Estatus" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-[#f6f6f6] text-gray-900">
+                                <SelectItem value="activa">Activa</SelectItem>
+                                <SelectItem value="inactiva">Inactiva</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            onClick={() => setShowEditEmpresaDialog(false)}
+                            disabled={loading}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button 
+                            type="button" 
+                            onClick={handleUpdateEmpresa}
+                            disabled={loading || !editEmpresaName.trim()}
+                          >
+                            {loading ? "Guardando..." : "Guardar Cambios"}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
 
@@ -1904,37 +2618,23 @@ export default function ParameterManager() {
                               </h4>
                               <div className="space-y-2">
                                 {sourceSystemParameters.map((param, index) => {
-                                  const hasTolerance = sourceSystemTolerances[param.id];
                                   return (
                                     <div key={index} className="text-sm text-gray-600 flex items-center justify-between">
                                       <div className="flex items-center gap-2">
                                         <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
                                         {param.nombre} ({param.unidad})
                                       </div>
-                                      {hasTolerance && (
-                                        <div className="flex items-center gap-1 text-xs text-green-600">
-                                          <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
-                                          Con límites
-                                        </div>
-                                      )}
                                     </div>
                                   );
                                 })}
                               </div>
                               <div className="mt-3 pt-3 border-t">
-                                <div className="text-xs text-gray-500 mb-2">
-                                  {Object.keys(sourceSystemTolerances).length > 0 && (
-                                    <span className="text-green-600">
-                                      ✅ {Object.keys(sourceSystemTolerances).length} parámetros incluyen límites de tolerancia
-                                    </span>
-                                  )}
-                                </div>
                                 <Button
                                   type="button"
                                   onClick={handleImportFromSystem}
                                   className="w-full bg-green-500 hover:bg-green-600 text-white"
                                 >
-                                  📥 Importar Parámetros y Límites
+                                  📥 Importar Parámetros
                                 </Button>
                               </div>
                             </div>

@@ -7,12 +7,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants";
 
-interface User {
+interface Empresa {
   id: string;
-  username: string;
-  puesto?: string;
-  role?: string;
+  nombre: string;
+  descripcion?: string;
 }
 
 interface Plant {
@@ -26,15 +26,32 @@ interface System {
   descripcion: string;
 }
 
+interface Report {
+  id: string;
+  usuario_id: string;
+  planta_id: string;
+  proceso_id: string;
+  datos: any;
+  observaciones?: string;
+  created_at?: string;
+  title?: string;
+  plantName?: string;
+  systemName?: string;
+  status?: string;
+  usuario?: string;
+  puesto?: string;
+  estatus?: boolean;
+}
+
 interface TabbedSelectorProps {
-  displayedUsers: User[];
+  displayedEmpresas: Empresa[];
   displayedPlants: Plant[];
   systems: System[];
-  selectedUser: User | null;
+  selectedEmpresa: Empresa | null;
   selectedPlant: Plant | null;
   selectedSystem: string | undefined;
   selectedSystemData: System | undefined;
-  handleSelectUser: (userId: string | '') => void;
+  handleSelectEmpresa: (empresaId: string | '') => void;
   handleSelectPlant: (plantId: string | '') => void;
   setSelectedSystem: (systemId: string) => void;
   plantName: string;
@@ -46,17 +63,25 @@ interface TabbedSelectorProps {
   onSaveData: () => Promise<void>;
   onGenerateReport: () => Promise<void>;
   isGenerateDisabled: boolean;
+  chartStartDate: string;
+  chartEndDate: string;
+  handleChartStartDateChange: (fecha: string) => void;
+  handleChartEndDateChange: (fecha: string) => void;
+  token: string | null;
+  onViewReport: (report: Report) => void;
+  activeTab?: string;
+  onActiveTabChange?: (tab: string) => void;
 }
 
 const TabbedSelector: React.FC<TabbedSelectorProps> = ({
-  displayedUsers,
+  displayedEmpresas,
   displayedPlants,
   systems,
-  selectedUser,
+  selectedEmpresa,
   selectedPlant,
   selectedSystem,
   selectedSystemData,
-  handleSelectUser,
+  handleSelectEmpresa,
   handleSelectPlant,
   setSelectedSystem,
   plantName,
@@ -68,25 +93,47 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
   onSaveData,
   onGenerateReport,
   isGenerateDisabled,
+  chartStartDate,
+  chartEndDate,
+  handleChartStartDateChange,
+  handleChartEndDateChange,
+  token,
+  onViewReport,
+  activeTab: controlledActiveTab,
+  onActiveTabChange,
 }) => {
-  const [activeTab, setActiveTab] = useState<string>("cliente");
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<string>("cliente");
+  const activeTab = controlledActiveTab ?? uncontrolledActiveTab;
+  const setActiveTab = (nextTab: string) => {
+    if (onActiveTabChange) {
+      onActiveTabChange(nextTab);
+      return;
+    }
+    setUncontrolledActiveTab(nextTab);
+  };
+  const [pendingReports, setPendingReports] = useState<Report[]>([]);
+  const [reportsLoading, setReportsLoading] = useState<boolean>(false);
 
-  // Inicializar pestaña activa basada en selecciones existentes
+  // Inicializar pestaña activa basada en selecciones existentes.
+  // Si hay una planta seleccionada, ir a procesos. Si solo hay empresa, ir a planta.
   useEffect(() => {
     if (selectedPlant) {
       setActiveTab("procesos");
-    } else if (selectedUser) {
-      setActiveTab("planta");
-    } else {
-      setActiveTab("cliente");
+      return;
     }
-  }, []); // Solo al montar
+    if (selectedEmpresa) {
+      setActiveTab("planta");
+      return;
+    }
 
-  // Manejar selección de usuario
-  const handleUserSelect = (option: { value: string; label: string } | null) => {
-    handleSelectUser(option ? option.value : '');
+    setActiveTab("cliente");
+  }, [selectedEmpresa, selectedPlant]);
+
+  // Manejar selección de empresa
+  const handleEmpresaSelect = (option: { value: string; label: string } | null) => {
+    handleSelectEmpresa(option ? option.value : '');
     if (option) {
-      // Si se selecciona un usuario, avanzar a la pestaña de planta
+      // Si se selecciona una empresa, avanzar a la pestaña de planta
       setTimeout(() => setActiveTab("planta"), 150);
     } else {
       // Si se deselecciona, volver a cliente
@@ -99,10 +146,172 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
     handleSelectPlant(option ? option.value : '');
     if (option) {
       // Si se selecciona una planta, avanzar a la pestaña de procesos
-      setTimeout(() => setActiveTab("procesos"), 150);
+      // Usamos un timeout más largo para asegurar que el estado se actualice primero
+      setTimeout(() => setActiveTab("procesos"), 300);
     } else {
       // Si se deselecciona, volver a planta
       setActiveTab("planta");
+    }
+  };
+
+  // Función para obtener el color del estado
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "active":
+      case "online":
+      case "completed":
+        return "bg-success";
+      case "maintenance":
+      case "pending":
+        return "bg-warning";
+      case "inactive":
+      case "offline":
+      case "error":
+        return "bg-danger";
+      default:
+        return "bg-secondary";
+    }
+  };
+
+  // Función para formatear fecha
+  const formatDate = (dateString: string | undefined): string => {
+    if (!dateString) return "";
+    
+    const parseDateWithoutTimezone = (dateString: string): Date | null => {
+      if (!dateString) return null;
+      
+      const dateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (dateMatch) {
+        const [, year, month, day] = dateMatch;
+        return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      }
+      
+      return new Date(dateString);
+    };
+    
+    const parsedDate = parseDateWithoutTimezone(dateString);
+    if (!parsedDate || isNaN(parsedDate.getTime())) return "";
+    
+    return parsedDate.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  // Cargar reportes filtrados por planta
+  useEffect(() => {
+    const fetchPendingReports = async () => {
+      if (!selectedPlant || !token || activeTab !== "reportes-pendientes") {
+        setPendingReports([]);
+        return;
+      }
+
+      setReportsLoading(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+          console.error("Error al cargar reportes:", response.status, response.statusText);
+          setPendingReports([]);
+          return;
+        }
+
+        const data = await response.json();
+        const reportesData = Array.isArray(data.reportes) ? data.reportes : [];
+        
+        // Formatear reportes similar al dashboard
+        let formattedReports = reportesData.map((report: any) => {
+          const datosJsonb = report.datos || {};
+          
+          return {
+            id: report.id?.toString() || report.id,
+            title: report.titulo || report.nombre || `Reporte ${report.id}`,
+            plantName: datosJsonb.plant?.nombre || report.planta || report.plantName || "Planta no especificada",
+            systemName: datosJsonb.systemName || report.sistema || report.systemName || "Sistema no especificado",
+            status: report.estado || report.status || "completed",
+            created_at: datosJsonb.generatedDate || report.fechaGeneracion || report.fecha_creacion || report.created_at || new Date().toISOString(),
+            usuario_id: report.usuario_id || "",
+            planta_id: report.planta_id || datosJsonb.plant?.id || "planta-unknown",
+            proceso_id: report.proceso_id || "sistema-unknown",
+            estatus: typeof report.estatus === "boolean" ? report.estatus : false,
+            datos: {
+              ...(report.reportSelection || report.datos || {}),
+              fecha: datosJsonb.fecha || report.fecha || (report.reportSelection?.fecha) || (report.datos?.fecha)
+            },
+            observaciones: datosJsonb.comentarios || report.comentarios || report.observaciones || "",
+            usuario: datosJsonb.user?.username || report.usuario || "",
+            puesto: datosJsonb.user?.puesto || report.puesto || ""
+          };
+        });
+
+        // Filtrar por la planta seleccionada
+        formattedReports = formattedReports.filter((report: Report) => {
+          return report.planta_id === selectedPlant.id;
+        });
+
+        // Ordenar por fecha (más reciente primero)
+        formattedReports.sort((a, b) => {
+          const dateA = new Date(a.created_at || 0).getTime();
+          const dateB = new Date(b.created_at || 0).getTime();
+          return dateB - dateA;
+        });
+
+        setPendingReports(formattedReports);
+      } catch (error) {
+        console.error("Error cargando reportes pendientes:", error);
+        setPendingReports([]);
+      } finally {
+        setReportsLoading(false);
+      }
+    };
+
+    fetchPendingReports();
+  }, [selectedPlant, token, activeTab]);
+
+  const handleToggleReportStatus = async (report: Report) => {
+    if (!token) {
+      alert("No hay token de autenticación");
+      return;
+    }
+
+    const newStatus = !report.estatus;
+
+    // Optimistic update
+    setPendingReports(prev =>
+      prev.map(r => (r.id === report.id ? { ...r, estatus: newStatus } : r))
+    );
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}${API_ENDPOINTS.REPORT_STATUS(report.id)}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ estatus: newStatus }),
+        }
+      );
+
+      if (!response.ok) {
+        console.error("Error actualizando estatus del reporte:", response.status, response.statusText);
+        alert("Error al actualizar el estatus del reporte");
+        // revertir cambio
+        setPendingReports(prev =>
+          prev.map(r => (r.id === report.id ? { ...r, estatus: report.estatus } : r))
+        );
+      }
+    } catch (error) {
+      console.error("Error actualizando estatus del reporte:", error);
+      alert("Error al actualizar el estatus del reporte");
+      // revertir cambio
+      setPendingReports(prev =>
+        prev.map(r => (r.id === report.id ? { ...r, estatus: report.estatus } : r))
+      );
     }
   };
 
@@ -127,11 +336,11 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2
                 `}
               >
-                Cliente
+                Empresa
               </TabsTrigger>
               <TabsTrigger 
                 value="planta" 
-                disabled={!selectedUser}
+                disabled={!selectedEmpresa}
                 className={`
                   relative px-5 py-2.5 text-sm font-medium rounded-t-md
                   transition-all duration-150 ease-in-out
@@ -163,35 +372,43 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
               >
                 Procesos
               </TabsTrigger>
+              <TabsTrigger 
+                value="reportes-pendientes" 
+                className={`
+                  relative px-5 py-2.5 text-sm font-medium rounded-t-md
+                  transition-all duration-150 ease-in-out
+                  border border-b-0 border-transparent
+                  data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:border-gray-300 data-[state=active]:border-b-white
+                  data-[state=active]:shadow-[0_-2px_4px_rgba(0,0,0,0.05)]
+                  data-[state=inactive]:bg-transparent data-[state=inactive]:text-gray-600 data-[state=inactive]:hover:bg-gray-200 data-[state=inactive]:hover:text-gray-900
+                  -mb-px z-10
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2
+                `}
+              >
+                Reportes Pendientes
+              </TabsTrigger>
             </TabsList>
           </div>
 
-          {/* Pestaña 1: Selección de Cliente */}
+          {/* Pestaña 1: Selección de Cliente (Empresa) */}
           <TabsContent value="cliente" className="mt-0 p-6 bg-white border-t border-gray-200">
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700">
-                  Seleccionar Cliente (Usuario)
+                  Seleccionar Empresa
                 </label>
                 <ReactSelect
-                  options={displayedUsers
-                    .filter((user) => {
-                      // Filtro adicional: solo mostrar usuarios con puesto o role "client"
-                      const puesto = user.puesto?.toLowerCase().trim();
-                      const role = user.role?.toLowerCase().trim();
-                      return puesto === 'client' || role === 'client';
-                    })
-                    .map((user) => ({ 
-                      value: user.id, 
-                      label: user.username 
-                    }))}
+                  options={displayedEmpresas.map((empresa) => ({ 
+                    value: empresa.id, 
+                    label: empresa.nombre 
+                  }))}
                   value={
-                    selectedUser
-                      ? { value: selectedUser.id, label: selectedUser.username }
+                    selectedEmpresa
+                      ? { value: selectedEmpresa.id, label: selectedEmpresa.nombre }
                       : null
                   }
-                  onChange={handleUserSelect}
-                  placeholder="Selecciona un cliente..."
+                  onChange={handleEmpresaSelect}
+                  placeholder="Selecciona una empresa..."
                   isClearable
                   className="w-full"
                   styles={{
@@ -202,10 +419,10 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                   }}
                 />
               </div>
-              {selectedUser && (
+              {selectedEmpresa && (
                 <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-sm text-blue-800">
-                    <strong>Cliente seleccionado:</strong> {selectedUser.username}
+                    <strong>Empresa seleccionada:</strong> {selectedEmpresa.nombre}
                   </p>
                   <p className="text-xs text-blue-600 mt-1">
                     Continúa a la pestaña "Planta" para seleccionar una planta.
@@ -218,10 +435,10 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
           {/* Pestaña 2: Selección de Planta */}
           <TabsContent value="planta" className="mt-0 p-6 bg-white border-t border-gray-200">
             <div className="space-y-4">
-              {!selectedUser ? (
+              {!selectedEmpresa ? (
                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-sm text-yellow-800">
-                    Por favor, selecciona un cliente primero en la pestaña "Cliente".
+                    Por favor, selecciona una empresa primero en la pestaña "Empresa".
                   </p>
                 </div>
               ) : (
@@ -230,27 +447,39 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                     <label className="block text-sm font-medium mb-2 text-gray-700">
                       Seleccionar Planta
                     </label>
-                    <ReactSelect
-                      options={displayedPlants.map((plant) => ({ 
-                        value: plant.id, 
-                        label: plant.nombre 
-                      }))}
-                      value={
-                        selectedPlant
-                          ? { value: selectedPlant.id, label: selectedPlant.nombre }
-                          : null
-                      }
-                      onChange={handlePlantSelect}
-                      placeholder="Selecciona una planta..."
-                      isClearable
-                      className="w-full"
-                      styles={{
-                        control: (base) => ({
-                          ...base,
-                          minHeight: '42px',
-                        }),
-                      }}
-                    />
+                    {displayedPlants.length === 0 ? (
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-sm text-yellow-800">
+                          ⚠️ No se encontraron plantas asociadas a la empresa seleccionada. 
+                          {selectedEmpresa && ` (${selectedEmpresa.nombre})`}
+                        </p>
+                        <p className="text-xs text-yellow-600 mt-1">
+                          Verifica que las plantas tengan un <code>empresa_id</code> asignado en la base de datos.
+                        </p>
+                      </div>
+                    ) : (
+                      <ReactSelect
+                        options={displayedPlants.map((plant) => ({ 
+                          value: plant.id, 
+                          label: plant.nombre 
+                        }))}
+                        value={
+                          selectedPlant
+                            ? { value: selectedPlant.id, label: selectedPlant.nombre }
+                            : null
+                        }
+                        onChange={handlePlantSelect}
+                        placeholder="Selecciona una planta..."
+                        isClearable
+                        className="w-full"
+                        styles={{
+                          control: (base) => ({
+                            ...base,
+                            minHeight: '42px',
+                          }),
+                        }}
+                      />
+                    )}
                   </div>
                   {selectedPlant && (
                     <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
@@ -326,16 +555,30 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                           className="mt-0.5 h-8 text-sm"
                         />
                       </div>
-                      <div className="flex-1 flex flex-col min-w-[300px]">
-                        <label htmlFor="globalComentarios" className="text-xs font-medium text-blue-700 mb-0.5">
-                          Comentarios globales
+                    </div>
+                    <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-blue-200">
+                      <div className="flex flex-col">
+                        <label htmlFor="chartStartDate" className="text-xs font-medium text-blue-700 mb-0.5">
+                          Fecha inicio gráficos
                         </label>
                         <Input
-                          id="globalComentarios"
-                          value={globalComentarios}
-                          onChange={e => handleGlobalComentariosChange(e.target.value)}
+                          id="chartStartDate"
+                          type="date"
+                          value={chartStartDate}
+                          onChange={e => handleChartStartDateChange(e.target.value)}
                           className="mt-0.5 h-8 text-sm"
-                          placeholder="Ingresa comentarios globales..."
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <label htmlFor="chartEndDate" className="text-xs font-medium text-blue-700 mb-0.5">
+                          Fecha fin gráficos
+                        </label>
+                        <Input
+                          id="chartEndDate"
+                          type="date"
+                          value={chartEndDate}
+                          onChange={e => handleChartEndDateChange(e.target.value)}
+                          className="mt-0.5 h-8 text-sm"
                         />
                       </div>
                     </div>
@@ -385,6 +628,125 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                   </div>
                 </>
               )}
+            </div>
+          </TabsContent>
+
+          {/* Pestaña 4: Reportes Pendientes */}
+          <TabsContent value="reportes-pendientes" className="mt-0 p-6 bg-white border-t border-gray-200">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-4 text-gray-800">
+                  Reportes Pendientes
+                </h3>
+                {!selectedPlant ? (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      Por favor, selecciona una planta primero para ver los reportes pendientes.
+                    </p>
+                  </div>
+                ) : reportsLoading ? (
+                  <div className="text-center py-8">
+                    <div className="spinner-border text-primary" role="status">
+                      <span className="visually-hidden">Cargando reportes...</span>
+                    </div>
+                    <p className="text-gray-600 mt-2">Cargando reportes de {selectedPlant.nombre}...</p>
+                  </div>
+                ) : pendingReports.length > 0 ? (
+                  <div className="table-responsive">
+                    <table className="table table-hover">
+                      <thead>
+                        <tr>
+                          <th>Título</th>
+                          <th>Planta</th>
+                          <th>Estado</th>
+                          <th>Usuario</th>
+                          <th>Fecha</th>
+                          <th>Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingReports.map((report) => (
+                          <tr key={report.id}>
+                            <td>
+                              <strong>{report.title || `Reporte ${report.id}`}</strong>
+                            </td>
+                            <td>
+                              <span className="badge bg-primary">{report.plantName || report.planta_id}</span>
+                            </td>
+                            <td>
+                              <span className={`badge ${getStatusColor(report.status || "completed")}`}>
+                                {report.status === "completed" ? "✅ Completado" : report.status || "Completado"}
+                              </span>
+                            </td>
+                            <td>
+                              <div>
+                                <strong>{report.usuario || "Usuario"}</strong>
+                                {report.puesto && (
+                                  <>
+                                    <br />
+                                    <small className="text-muted">{report.puesto}</small>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                            <td>
+                              {(() => {
+                                const fechaReporte = report.datos?.fecha || 
+                                  (report.datos && typeof report.datos === 'object' && 'fecha' in report.datos ? report.datos.fecha : null);
+                                
+                                if (fechaReporte) {
+                                  return formatDate(fechaReporte);
+                                }
+                                
+                                if (report.created_at) {
+                                  return formatDate(report.created_at);
+                                }
+                                
+                                return "";
+                              })()}
+                            </td>
+                            <td>
+                              <div className="btn-group btn-group-sm">
+                                <button
+                                  className="btn btn-outline-primary"
+                                  onClick={() => onViewReport(report)}
+                                  title="Ver reporte"
+                                >
+                                  <i className="material-icons" style={{ fontSize: "1rem" }}>
+                                    visibility
+                                  </i>
+                                </button>
+                                <button
+                                  className={`btn btn-outline-secondary ${
+                                    report.estatus ? "" : "btn-warning"
+                                  }`}
+                                  onClick={() => handleToggleReportStatus(report)}
+                                  title={
+                                    report.estatus
+                                      ? "Visible para clientes (click para ocultar)"
+                                      : "Oculto para clientes (click para publicar)"
+                                  }
+                                >
+                                  <i className="material-icons" style={{ fontSize: "1rem" }}>
+                                    lock
+                                  </i>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <i className="material-icons text-muted" style={{ fontSize: "4rem" }}>
+                      description
+                    </i>
+                    <p className="text-gray-600 mt-2">No hay reportes disponibles para {selectedPlant.nombre}</p>
+                  </div>
+                )}
+              </div>
             </div>
           </TabsContent>
         </Tabs>

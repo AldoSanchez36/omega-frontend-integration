@@ -7,7 +7,7 @@ interface StatsCardsProps {
     variables: number;
     reportes: number;
   } | null;
-  userRole?: "admin" | "user" | "client" | "guest";
+  userRole?: "admin" | "user" | "client" | "guest" | "analista";
   totalHistoricos?: number;
 }
 

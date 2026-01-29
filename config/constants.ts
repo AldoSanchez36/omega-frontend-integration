@@ -24,6 +24,15 @@ export const API_ENDPOINTS = {
   USER_UPDATE: (userId: string) => `/api/auth/update/${userId}`,
   USER_DELETE: (userId: string) => `/api/auth/delete/${userId}`,
   
+  // Empresas
+  EMPRESAS: '/api/empresas',
+  EMPRESAS_ALL: '/api/empresas/all',
+  EMPRESA_BY_ID: (empresaId: string) => `/api/empresas/${empresaId}`,
+  EMPRESA_CREATE: '/api/empresas',
+  EMPRESA_UPDATE: (empresaId: string) => `/api/empresas/${empresaId}`,
+  EMPRESA_DELETE: (empresaId: string) => `/api/empresas/${empresaId}`,
+  PLANTS_BY_EMPRESA: (empresaId: string) => `/api/plantas/empresa/${empresaId}`,
+  
   // Plants
   PLANTS_CREATE: '/api/plantas/crear',
   PLANTS_UPDATE: (plantId: string) => `/api/plantas/update/${plantId}`,
@@ -36,6 +45,10 @@ export const API_ENDPOINTS = {
   PLANTS_ASSIGN_ACCESS: '/api/accesos/plantas/asignar',
   PLANTS_UPDATE_ACCESS: '/api/accesos/plantas/actualizar',
   PLANTS_REVOKE_ACCESS: '/api/accesos/plantas/revocar',
+  // Empresas Access
+  EMPRESAS_ACCESS_BY_USER: (userId: string) => `/api/accesos/empresas/usuario/${userId}`,
+  EMPRESAS_ASSIGN_ACCESS: '/api/accesos/empresas/asignar',
+  EMPRESAS_REVOKE_ACCESS: '/api/accesos/empresas/revocar',
   
   // Systems/Processes
   SYSTEMS_BY_PLANT: (plantId: string) => `/api/procesos/planta/${plantId}`,
@@ -96,6 +109,7 @@ export const API_ENDPOINTS = {
   // Reports
   REPORTS: '/api/reportes',
   REPORT_BY_ID: (id: string) => `/api/reportes/${id}`,
+  REPORT_STATUS: (id: string) => `/api/reportes/${id}/estatus`,
   REPORTS_BY_USER: (userId: string) => `/api/reportes/usuario/${userId}`,
   REPORTS_CONSULTAR: '/api/reportes/consultar',
   REPORTS_DASHBOARD: '/api/reportes/dashboard',

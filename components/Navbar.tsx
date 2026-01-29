@@ -8,7 +8,7 @@ import { useLanguage } from "@/context/LanguageContext"
 import SelectLanguage from "@/components/SelectLanguage";
 
 interface NavbarProps {
-  role: "admin" | "user" | "client" | "guest"
+  role: "admin" | "user" | "client" | "guest" | "analista"
 }
 
 const NAV_LINKS = [

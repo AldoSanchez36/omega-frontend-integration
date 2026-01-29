@@ -79,13 +79,25 @@ export default function Dashboard() {
   const [dataLoading, setDataLoading] = useState(false)
   const [debugInfo, setDebugInfo] = useState<string[]>([])
   const [user, setUser] = useState<any>(null)
-  const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
+  const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest" | "analista">("guest")
   const [dashboardResumen, setDashboardResumen] = useState<{ plantas: number; procesos: number; variables: number; reportes: number } | null>(null)
-  const [historicalData, setHistoricalData] = useState<Record<string, any[]>>({});
+  // historicalData[systemId][paramId] = [{ timestamp, value }, ...]
+  const [historicalData, setHistoricalData] = useState<Record<string, Record<string, any[]>>>({});
   const [totalHistoricos, setTotalHistoricos] = useState<number>(0);
-  const today = new Date();
-  const defaultStartDate = `${today.getFullYear()}-01-01`;
-  const defaultEndDate = today.toISOString().slice(0, 10);
+  const [historicalDataLoading, setHistoricalDataLoading] = useState<boolean>(false);
+  
+  // Asegurar que las fechas por defecto sean del año actual
+  const getCurrentYearDates = () => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const startDate = `${currentYear}-01-01`;
+    // Para históricos en dashboard, tomar TODO el año en curso (evita excluir reportes "futuros" por fecha)
+    // y asegura que se consideren todos los puntos del año actual.
+    const endDate = `${currentYear}-12-31`;
+    return { startDate, endDate };
+  };
+  
+  const { startDate: defaultStartDate, endDate: defaultEndDate } = getCurrentYearDates();
   const [startDate, setStartDate] = useState<string>(defaultStartDate);
   const [endDate, setEndDate] = useState<string>(defaultEndDate);
 
@@ -208,11 +220,72 @@ export default function Dashboard() {
     const token = authService.getToken();
 
     const fetchPlants = async (): Promise<Plant[]> => {
-      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      return data.plantas || [];
+      let todasLasPlantas: Plant[] = [];
+      
+      // 1. Obtener plantas con permisos específicos (usuarios_plantas)
+      try {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          const plantasEspecificas = data.plantas || [];
+          todasLasPlantas.push(...plantasEspecificas);
+          console.log(`✅ Plantas con permisos específicos: ${plantasEspecificas.length} plantas`);
+        }
+      } catch (error) {
+        console.error("Error obteniendo plantas con permisos específicos:", error);
+      }
+
+      // 2. Obtener plantas de empresas con acceso completo (usuarios_empresas)
+      const userId = user?.id || user?._id;
+      if (userId && (userRole === "client" || userRole === "user" || userRole === "analista" || userRole === "guest")) {
+        try {
+          const empresasRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ACCESS_BY_USER(userId)}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          if (empresasRes.ok) {
+            const empresasData = await empresasRes.json();
+            const empresas = empresasData.empresas || empresasData || [];
+            console.log(`🏢 Empresas con acceso completo encontradas: ${empresas.length}`);
+            
+            // Para cada empresa con acceso, obtener todas sus plantas
+            for (const empresa of empresas) {
+              const empresaId = empresa.empresa_id || empresa.id;
+              if (!empresaId) continue;
+              
+              try {
+                const plantasEmpresaRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_BY_EMPRESA(empresaId)}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                
+                if (plantasEmpresaRes.ok) {
+                  const plantasEmpresaData = await plantasEmpresaRes.json();
+                  const plantasEmpresa = plantasEmpresaData.plantas || plantasEmpresaData || [];
+                  
+                  // Agregar plantas que no estén ya en la lista (evitar duplicados)
+                  plantasEmpresa.forEach((planta: any) => {
+                    if (!todasLasPlantas.some((p: any) => (p.id || p._id) === (planta.id || planta._id))) {
+                      todasLasPlantas.push(planta);
+                    }
+                  });
+                  
+                  console.log(`🏭 Plantas de empresa ${empresa.empresa_nombre || empresaId}: ${plantasEmpresa.length} plantas`);
+                }
+              } catch (error) {
+                console.error(`Error obteniendo plantas de empresa ${empresaId}:`, error);
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error obteniendo empresas con acceso:", error);
+        }
+      }
+      
+      console.log(`✅ Total de plantas accesibles cargadas: ${todasLasPlantas.length} plantas`, todasLasPlantas.map((p: any) => ({ id: p.id || p._id, nombre: p.nombre })));
+      return todasLasPlantas;
     };
 
     const fetchProcesos = async (plantaId: string): Promise<any[]> => {
@@ -267,7 +340,7 @@ export default function Dashboard() {
     };
 
     loadAll();
-  }, [user]);
+  }, [user, userRole]);
 
   const handleNewReport = () => {
     /* addDebugLog("Nuevo Reporte clickeado - redirigiendo a report manager") */
@@ -313,13 +386,20 @@ export default function Dashboard() {
       }
       
       // Reconstruir reportSelection desde los datos JSONB completos (igual que dashboard-reportmanager)
+      const empresaId =
+        report?.empresa_id ??
+        report?.datos?.empresa_id ??
+        report?.datos?.user?.empresa_id ??
+        null
+
       const reportSelection = {
         user: {
           id: report.datos?.user?.id || report.usuario_id,
           username: report.datos?.user?.username || report.usuario,
           email: report.datos?.user?.email || "",
           puesto: report.datos?.user?.puesto || "client",
-          cliente_id: report.datos?.user?.cliente_id || null
+          cliente_id: report.datos?.user?.cliente_id || null,
+          empresa_id: empresaId
         },
         plant: {
           id: report.datos?.plant?.id || report.planta_id,
@@ -335,7 +415,9 @@ export default function Dashboard() {
         fecha: report.datos?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
         comentarios: report.datos?.comentarios || report.observaciones || "",
         generatedDate: report.datos?.generatedDate || report.created_at || new Date().toISOString(),
-        cliente_id: report.datos?.user?.cliente_id || null
+        cliente_id: report.datos?.user?.cliente_id || null,
+        empresa_id: empresaId,
+        report_id: report.id || null  // ID único del reporte para poder actualizarlo después
       };
 
       console.log("📄 reportSelection reconstruido desde dashboard:", reportSelection);
@@ -358,67 +440,6 @@ export default function Dashboard() {
     }
   };
 
-  // Función para manejar la descarga del PDF desde el dashboard
-  const handleDownloadPDF = async (report: any) => {
-    try {
-      console.log("📥 Descargando PDF del reporte desde dashboard:", report);
-      
-      // Validar que tenemos los datos mínimos necesarios
-      if (!report.planta_id) {
-        console.error("❌ Error: No se encontró planta_id en los datos del reporte");
-        alert("Error: No se pueden descargar reportes sin datos de planta completos");
-        return;
-      }
-      
-      // Reconstruir reportSelection desde los datos JSONB completos (igual que dashboard-reportmanager)
-      const reportSelection = {
-        user: {
-          id: report.datos?.user?.id || report.usuario_id,
-          username: report.datos?.user?.username || report.usuario,
-          email: report.datos?.user?.email || "",
-          puesto: report.datos?.user?.puesto || "client",
-          cliente_id: report.datos?.user?.cliente_id || null
-        },
-        plant: {
-          id: report.datos?.plant?.id || report.planta_id,
-          nombre: report.datos?.plant?.nombre || report.plantName,
-          dirigido_a: report.datos?.plant?.dirigido_a,
-          mensaje_cliente: report.datos?.plant?.mensaje_cliente,
-          systemName: report.datos?.plant?.systemName || report.datos?.systemName || report.systemName
-        },
-        systemName: report.datos?.systemName || report.systemName,
-        parameters: report.datos?.parameters || {},
-        variablesTolerancia: report.datos?.variablesTolerancia || {},
-        mediciones: [],
-        fecha: report.datos?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
-        comentarios: report.datos?.comentarios || report.observaciones || "",
-        generatedDate: report.datos?.generatedDate || report.created_at || new Date().toISOString(),
-        cliente_id: report.datos?.user?.cliente_id || null
-      };
-
-      console.log("📄 reportSelection reconstruido para descarga desde dashboard:", reportSelection);
-      console.log("🔍 Validación plant.id:", reportSelection.plant.id);
-      console.log("🏭 Datos de planta para descarga:", {
-        planta_id: report.planta_id,
-        planta_nombre: report.plantName,
-        systemName: report.systemName
-      });
-
-      // Guardar temporalmente en localStorage
-      console.log("💾 Guardando reportSelection en localStorage...");
-      localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
-      console.log("✅ reportSelection guardado exitosamente");
-      
-      // Redirigir a reports para generar el PDF
-      console.log("🚀 Redirigiendo a /reports?download=true");
-      router.push("/reports?download=true");
-      console.log("✅ Redirección completada");
-      
-    } catch (error) {
-      console.error("❌ Error al preparar descarga del PDF desde dashboard:", error);
-      alert("Error al preparar la descarga del PDF");
-    }
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -510,6 +531,66 @@ export default function Dashboard() {
         const token = authService.getToken()
         if (!token) return
 
+        // Obtener plantas accesibles del usuario para filtrar reportes
+        let plantasAccesiblesIds: string[] = []
+        if (userRole === "client" || userRole === "user" || userRole === "analista" || userRole === "guest") {
+          try {
+            // 1. Obtener plantas con permisos específicos (usuarios_plantas)
+            const plantasRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            })
+            if (plantasRes.ok) {
+              const plantasData = await plantasRes.json()
+              const plantasEspecificas = (plantasData.plantas || []).map((p: any) => p.id || p._id).filter(Boolean)
+              plantasAccesiblesIds.push(...plantasEspecificas)
+              console.log("🔐 Plantas con permisos específicos:", plantasEspecificas)
+            }
+
+            // 2. Obtener empresas con acceso completo (usuarios_empresas)
+            const userId = user?.id || user?._id
+            if (userId) {
+              try {
+                const empresasRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ACCESS_BY_USER(userId)}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                })
+                if (empresasRes.ok) {
+                  const empresasData = await empresasRes.json()
+                  const empresas = empresasData.empresas || empresasData || []
+                  console.log("🏢 Empresas con acceso completo:", empresas.map((e: any) => ({ id: e.empresa_id || e.id, nombre: e.empresa_nombre || e.nombre })))
+                  
+                  // 3. Para cada empresa con acceso, obtener todas sus plantas
+                  const empresasIds = empresas.map((e: any) => e.empresa_id || e.id).filter(Boolean)
+                  
+                  for (const empresaId of empresasIds) {
+                    try {
+                      const plantasEmpresaRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_BY_EMPRESA(empresaId)}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                      })
+                      if (plantasEmpresaRes.ok) {
+                        const plantasEmpresaData = await plantasEmpresaRes.json()
+                        const plantasEmpresa = plantasEmpresaData.plantas || plantasEmpresaData || []
+                        const plantasIds = plantasEmpresa.map((p: any) => p.id || p._id).filter(Boolean)
+                        plantasAccesiblesIds.push(...plantasIds)
+                        console.log(`🏭 Plantas de empresa ${empresaId}:`, plantasIds)
+                      }
+                    } catch (error) {
+                      console.error(`Error obteniendo plantas de empresa ${empresaId}:`, error)
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error("Error obteniendo empresas con acceso:", error)
+              }
+            }
+
+            // Eliminar duplicados
+            plantasAccesiblesIds = [...new Set(plantasAccesiblesIds)]
+            console.log("✅ Total de plantas accesibles (específicas + empresas):", plantasAccesiblesIds)
+          } catch (error) {
+            console.error("Error obteniendo plantas accesibles:", error)
+          }
+        }
+
         // Usar el endpoint de reportes con filtrado por rol
         const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
           headers: { Authorization: `Bearer ${token}` }
@@ -526,25 +607,8 @@ export default function Dashboard() {
           console.error("Error en la respuesta de reportes:", response.status, response.statusText)
         }
         
-        // Agregar reporte dummy si no hay reportes reales
-        if (reportesData.length === 0) {
-          reportesData.push({
-            id: "9999",
-            titulo: "Reporte de prueba",
-            planta: "Planta Norte",
-            sistema: "Sistema de Temperatura",
-            estado: "Completado",
-            fecha: new Date().toISOString().split('T')[0],
-            fechaGeneracion: new Date().toISOString(),
-            comentarios: "Reporte de prueba generado automáticamente",
-            usuario: user.username,
-            puesto: user.puesto,
-            reportSelection: {}
-          })
-        }
-        
         // Convertir formato de reportes para el dashboard (extraer datos del JSONB)
-        const formattedReports = reportesData.map((report: any) => {
+        let formattedReports = reportesData.map((report: any) => {
           // Extraer datos del JSONB
           const datosJsonb = report.datos || {};
           
@@ -555,7 +619,8 @@ export default function Dashboard() {
             plantName_from_jsonb: datosJsonb.plant?.nombre,
             systemName_from_jsonb: datosJsonb.systemName,
             generatedDate_from_jsonb: datosJsonb.generatedDate,
-            user_from_jsonb: datosJsonb.user?.username
+            user_from_jsonb: datosJsonb.user?.username,
+            planta_id: report.planta_id
           });
           
           return {
@@ -566,14 +631,38 @@ export default function Dashboard() {
             status: report.estado || report.status || "completed",
             created_at: datosJsonb.generatedDate || report.fechaGeneracion || report.fecha_creacion || report.created_at || new Date().toISOString(),
             usuario_id: report.usuario_id || user.id,
-            planta_id: report.planta_id || "planta-unknown",
+            planta_id: report.planta_id || datosJsonb.plant?.id || "planta-unknown",
             proceso_id: report.proceso_id || "sistema-unknown",
-            datos: report.reportSelection || report.datos || {},
+            estatus: typeof report.estatus === "boolean" ? report.estatus : false,
+            datos: {
+              ...(report.reportSelection || report.datos || {}),
+              // Asegurar que la fecha del reporte esté disponible en datos.fecha
+              fecha: datosJsonb.fecha || report.fecha || (report.reportSelection?.fecha) || (report.datos?.fecha)
+            },
             observaciones: datosJsonb.comentarios || report.comentarios || report.observaciones || "",
             usuario: datosJsonb.user?.username || report.usuario || user.username,
             puesto: datosJsonb.user?.puesto || report.puesto || user.puesto
           };
         })
+        
+        // Filtrar reportes por permisos si el usuario no es admin
+        if ((userRole === "client" || userRole === "user" || userRole === "analista") && plantasAccesiblesIds.length > 0) {
+          formattedReports = formattedReports.filter((report: any) => {
+            const reportPlantaId = report.planta_id
+            const tieneAcceso = plantasAccesiblesIds.includes(reportPlantaId)
+            
+            if (!tieneAcceso) {
+              console.log(`🚫 Reporte ${report.id} filtrado - Planta ${reportPlantaId} no accesible`)
+            }
+            
+            return tieneAcceso
+          })
+          console.log(`✅ Reportes filtrados: ${formattedReports.length} de ${reportesData.length} reportes mostrados`)
+        } else if ((userRole === "client" || userRole === "user" || userRole === "analista" || userRole === "guest") && plantasAccesiblesIds.length === 0) {
+          // Si no tiene plantas accesibles, no mostrar ningún reporte
+          console.log("⚠️ Usuario no tiene plantas accesibles, no se mostrarán reportes")
+          formattedReports = []
+        }
         
         // Ordenar reportes del más reciente al más antiguo por fecha
         const sortedReports = formattedReports.sort((a, b) => {
@@ -588,90 +677,153 @@ export default function Dashboard() {
         
       } catch (error) {
         console.error("Error cargando reportes:", error)
-        // En caso de error, agregar reporte dummy
-        setReports([{
-          id: "9999",
-          title: "Reporte de prueba",
-          plantName: "Planta Norte",
-          systemName: "Sistema de Temperatura",
-          status: "completed",
-          created_at: new Date().toISOString(),
-          usuario_id: user.id,
-          planta_id: "planta-norte",
-          proceso_id: "sistema-temperatura",
-          datos: {},
-          observaciones: "Reporte de prueba generado automáticamente"
-        }])
+        // En caso de error, no mostrar reportes
+        setReports([])
       }
     }
 
     fetchResumen();
     fetchReportes();
-  }, [user]);
+  }, [user, userRole]);
+
+  // Asegurar que las fechas siempre sean del año actual
+  useEffect(() => {
+    const { startDate: currentYearStart, endDate: currentYearEnd } = getCurrentYearDates();
+    const currentYear = new Date().getFullYear();
+    
+    // Verificar si las fechas actuales son del año actual
+    const startYear = new Date(startDate).getFullYear();
+    const endYear = new Date(endDate).getFullYear();
+    
+    // Si las fechas no son del año actual, actualizarlas
+    if (startYear !== currentYear || endYear !== currentYear) {
+      setStartDate(currentYearStart);
+      setEndDate(currentYearEnd);
+      console.log(`📅 Fechas actualizadas al año actual: ${currentYearStart} - ${currentYearEnd}`);
+    }
+  }, []); // Solo ejecutar una vez al montar
 
   useEffect(() => {
     if (!plants.length) return;
     const token = authService.getToken();
 
     const fetchAllHistoricalData = async () => {
-      const allData: Record<string, any[]> = {};
-      for (const plant of plants) {
-        if (!plant.systems) continue;
-        for (const system of plant.systems) {
-          // Primero verificar si hay datos en el proceso
-          try {
-            const processRes = await fetch(
-              `${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_PROCESS(system.name)}`,
-              { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-            );
-            
-            if (!processRes.ok) {
-              console.error(`Error verificando datos del proceso ${system.name}:`, processRes.status);
-              continue;
-            }
-            
-            const processResult = await processRes.json();
-            const processData = processResult.mediciones || [];
-            
-            // Filtrar datos del proceso por fecha
-            const filteredProcessData = processData.filter((m: any) => {
-              const d = new Date(m.fecha);
-              return d >= new Date(startDate) && d <= new Date(endDate);
-            });
-            
-            // Si no hay datos en el proceso, saltar a la siguiente variable
-            if (filteredProcessData.length === 0) {
-              console.log(`No hay datos en el proceso ${system.name} para el rango de fechas`);
-              continue;
-            }
-            
-            // Ahora obtener datos por variable
+      setHistoricalDataLoading(true);
+      const allData: Record<string, Record<string, any[]>> = {};
+      let totalFetched = 0;
+      let totalErrors = 0;
+      
+      try {
+        const extractValue = (measurement: any, variableName: string): number | null => {
+          if (!measurement) return null
+          // casos comunes
+          const direct = measurement.valor ?? measurement.value
+          if (direct !== undefined && direct !== null && !Number.isNaN(Number(direct))) return Number(direct)
+
+          // a veces viene con la variable como llave (p.ej. { fecha, "pH": 7.1 })
+          const byName = measurement[variableName]
+          if (byName !== undefined && byName !== null && !Number.isNaN(Number(byName))) return Number(byName)
+
+          // fallback: primer valor numérico distinto de fecha
+          const numeric = Object.entries(measurement)
+            .filter(([k]) => k !== "fecha")
+            .map(([, v]) => Number(v))
+            .find((v) => !Number.isNaN(v))
+          return numeric ?? null
+        }
+
+        for (const plant of plants) {
+          if (!plant.systems) continue;
+          for (const system of plant.systems) {
+            if (!allData[system.id]) allData[system.id] = {}
+            // Obtener datos por variable y proceso (más específico y correcto)
             for (const param of system.parameters) {
-              const res = await fetch(
-                `${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_NAME(param.name)}`,
-                { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-              );
-              const result = await res.json();
-              const json: any[] = result.mediciones || [];
-              const filtered = json.filter(m => {
-                const d = new Date(m.fecha);
-                return d >= new Date(startDate) && d <= new Date(endDate);
-              });
-              allData[param.id] = filtered.map(m => ({
-                timestamp: m.fecha,
-                value: Number(m.valor)
-              }));
+              try {
+                // Usar el endpoint que filtra por variable Y proceso
+                const res = await fetch(
+                  `${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_PROCESS(param.name, system.name)}`,
+                  { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+                );
+                
+                if (!res.ok) {
+                  console.warn(`⚠️ Error obteniendo datos para ${param.name} en ${system.name}: ${res.status}`);
+                  totalErrors++;
+                  continue;
+                }
+                
+                const result = await res.json();
+                const json: any[] = result.mediciones || [];
+                
+                // Filtrar datos por fecha del año actual
+                const filtered = json.filter(m => {
+                  if (!m.fecha) return false;
+                  
+                  // Normalizar fecha de medición (manejar diferentes formatos)
+                  const fechaMedicion = new Date(m.fecha);
+                  if (isNaN(fechaMedicion.getTime())) return false;
+                  
+                  // Obtener año de la medición
+                  const añoMedicion = fechaMedicion.getFullYear();
+                  const añoActual = new Date().getFullYear();
+                  
+                  // Solo incluir datos del año actual
+                  if (añoMedicion !== añoActual) return false;
+                  
+                  // Filtrar por rango de fechas (del 1 de enero hasta hoy)
+                  const start = new Date(startDate + 'T00:00:00');
+                  const end = new Date(endDate + 'T23:59:59');
+                  
+                  // Comparar solo fechas (sin hora) para evitar problemas de zona horaria
+                  const fechaMedicionDate = new Date(fechaMedicion.getFullYear(), fechaMedicion.getMonth(), fechaMedicion.getDate());
+                  const startDateOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+                  const endDateOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+                  
+                  return fechaMedicionDate >= startDateOnly && fechaMedicionDate <= endDateOnly;
+                });
+                
+                // Mapear datos al formato esperado
+                const mappedData = filtered
+                  .map(m => ({
+                    timestamp: m.fecha,
+                    value: extractValue(m, param.name)
+                  }))
+                  .filter(d => d.value !== null && d.value !== undefined && !Number.isNaN(Number(d.value)))
+                  .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+                
+                if (mappedData.length > 0) {
+                  allData[system.id][param.id] = mappedData;
+                  totalFetched += mappedData.length;
+                  const añoActual = new Date().getFullYear();
+                  console.log(`✅ ${param.name} (${system.name}): ${mappedData.length} puntos de datos del año ${añoActual}`);
+                } else {
+                  const añoActual = new Date().getFullYear();
+                  console.log(`ℹ️ ${param.name} (${system.name}): Sin datos del año ${añoActual} en el rango ${startDate} - ${endDate}`);
+                }
+              } catch (error) {
+                console.error(`❌ Error procesando ${param.name} en ${system.name}:`, error);
+                totalErrors++;
+              }
             }
-          } catch (error) {
-            console.error(`Error procesando sistema ${system.name}:`, error);
           }
         }
+        
+        const añoActual = new Date().getFullYear();
+        console.log(`📊 Resumen año ${añoActual}: ${totalFetched} puntos de datos obtenidos, ${totalErrors} errores`);
+        setHistoricalData(allData);
+        
+        // Calcular total de puntos de datos históricos
+        const total = Object.values(allData).reduce((sum, systemMap) => {
+          const systemTotal = Object.values(systemMap || {}).reduce((s, arr: any[]) => s + (arr?.length || 0), 0)
+          return sum + systemTotal
+        }, 0);
+        setTotalHistoricos(total);
+      } catch (error) {
+        console.error('❌ Error general cargando datos históricos:', error);
+      } finally {
+        // Siempre establecer loading en false al finalizar, incluso si hay errores o no hay datos
+        setHistoricalDataLoading(false);
+        console.log('✅ Carga de datos históricos finalizada');
       }
-      setHistoricalData(allData);
-      
-      // Calcular total de puntos de datos históricos
-      const total = Object.values(allData).reduce((sum, dataArray) => sum + dataArray.length, 0);
-      setTotalHistoricos(total);
     };
 
     fetchAllHistoricalData();
@@ -694,7 +846,7 @@ export default function Dashboard() {
   return (
     <div className="min-vh-100 bg-light">
       {/* Use the Navbar component */}
-      <Navbar role={userRole} />
+      <Navbar role={userRole as "admin" | "user" | "client" | "guest" | "analista"} />
 
       {/* Main Content */}
       <div className="container py-4">
@@ -707,7 +859,7 @@ export default function Dashboard() {
 
 
         {/* Stats Cards */}
-        <StatsCards dashboardResumen={dashboardResumen} userRole={userRole} totalHistoricos={totalHistoricos} />
+        <StatsCards dashboardResumen={dashboardResumen} userRole={userRole as "admin" | "user" | "client" | "guest" | "analista"} totalHistoricos={totalHistoricos} />
 
         {/* Quick Actions */}
         {userRole === "admin" && (
@@ -741,23 +893,23 @@ export default function Dashboard() {
             onTableClick={getClientReports}
             onDebugLog={addDebugLog}
             onViewReport={handleViewReport}
-            onDownloadPDF={handleDownloadPDF}
+            userRole={userRole as "admin" | "user" | "client" | "guest" | "analista"}
           />
         </div>
 
-        {/* System Charts - Historical Data */}
-        <div className="row mb-4">
-          <div className="col-12">
-            <h5 className="mb-3">📈 Gráficos Históricos de Sistemas</h5>
+        {/* System Charts - Historical Data - Solo visible para clientes */}
+        {userRole === "client" && (
+          <div className="row mb-4">
+            <ChartsDashboard
+              plants={plants}
+              historicalData={historicalData}
+              getStatusColor={getStatusColor}
+              startDate={startDate}
+              endDate={endDate}
+              loading={historicalDataLoading}
+            />
           </div>
-          <ChartsDashboard
-            plants={plants}
-            historicalData={historicalData}
-            getStatusColor={getStatusColor}
-            startDate={startDate}
-            endDate={endDate}
-          />
-        </div>
+        )}
 
         {/* Debug Info */}
        {/*  <div className="row">

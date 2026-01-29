@@ -28,7 +28,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport, handleNewS
                   <div className="action-icon bg-primary">
                     <i className="material-icons">assessment</i>
                   </div>
-                  <h6 className="action-title">Nuevo Reporte</h6>
+                  <h6 className="action-title">Reportes</h6>
                   <p className="action-description">Crear reportes personalizados</p>
                 </div>
               </div>

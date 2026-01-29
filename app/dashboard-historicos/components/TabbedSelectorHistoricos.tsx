@@ -6,11 +6,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 
-interface User {
+interface Empresa {
   id: string;
-  username: string;
-  puesto?: string;
-  role?: string;
+  nombre: string;
+  descripcion?: string;
 }
 
 interface Plant {
@@ -25,14 +24,14 @@ interface System {
 }
 
 interface TabbedSelectorHistoricosProps {
-  displayedUsers: User[];
+  displayedEmpresas: Empresa[];
   displayedPlants: Plant[];
   systems: System[];
-  selectedUser: User | null;
+  selectedEmpresa: Empresa | null;
   selectedPlant: Plant | null;
   selectedSystem: string | undefined;
   selectedSystemData: System | undefined;
-  handleSelectUser: (userId: string | '') => void;
+  handleSelectEmpresa: (empresaId: string | '') => void;
   handleSelectPlant: (plantId: string | '') => void;
   setSelectedSystem: (systemId: string) => void;
   plantName: string;
@@ -43,14 +42,14 @@ interface TabbedSelectorHistoricosProps {
 }
 
 const TabbedSelectorHistoricos: React.FC<TabbedSelectorHistoricosProps> = ({
-  displayedUsers,
+  displayedEmpresas,
   displayedPlants,
   systems,
-  selectedUser,
+  selectedEmpresa,
   selectedPlant,
   selectedSystem,
   selectedSystemData,
-  handleSelectUser,
+  handleSelectEmpresa,
   handleSelectPlant,
   setSelectedSystem,
   plantName,
@@ -61,22 +60,26 @@ const TabbedSelectorHistoricos: React.FC<TabbedSelectorHistoricosProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<string>("cliente");
 
-  // Inicializar pestaña activa basada en selecciones existentes
+  // Inicializar pestaña activa basada en selecciones existentes.
+  // Si hay una planta seleccionada, ir a procesos. Si solo hay empresa, ir a planta.
   useEffect(() => {
     if (selectedPlant) {
       setActiveTab("procesos");
-    } else if (selectedUser) {
-      setActiveTab("planta");
-    } else {
-      setActiveTab("cliente");
+      return;
     }
-  }, []); // Solo al montar
+    if (selectedEmpresa) {
+      setActiveTab("planta");
+      return;
+    }
 
-  // Manejar selección de usuario
-  const handleUserSelect = (option: { value: string; label: string } | null) => {
-    handleSelectUser(option ? option.value : '');
+    setActiveTab("cliente");
+  }, [selectedEmpresa, selectedPlant]);
+
+  // Manejar selección de empresa
+  const handleEmpresaSelect = (option: { value: string; label: string } | null) => {
+    handleSelectEmpresa(option ? option.value : '');
     if (option) {
-      // Si se selecciona un usuario, avanzar a la pestaña de planta
+      // Si se selecciona una empresa, avanzar a la pestaña de planta
       setTimeout(() => setActiveTab("planta"), 150);
     } else {
       // Si se deselecciona, volver a cliente
@@ -89,7 +92,8 @@ const TabbedSelectorHistoricos: React.FC<TabbedSelectorHistoricosProps> = ({
     handleSelectPlant(option ? option.value : '');
     if (option) {
       // Si se selecciona una planta, avanzar a la pestaña de procesos
-      setTimeout(() => setActiveTab("procesos"), 150);
+      // Usamos un timeout más largo para asegurar que el estado se actualice primero
+      setTimeout(() => setActiveTab("procesos"), 300);
     } else {
       // Si se deselecciona, volver a planta
       setActiveTab("planta");
@@ -117,11 +121,11 @@ const TabbedSelectorHistoricos: React.FC<TabbedSelectorHistoricosProps> = ({
                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2
                 `}
               >
-                Cliente
+                Empresa
               </TabsTrigger>
               <TabsTrigger 
                 value="planta" 
-                disabled={!selectedUser}
+                disabled={!selectedEmpresa}
                 className={`
                   relative px-5 py-2.5 text-sm font-medium rounded-t-md
                   transition-all duration-150 ease-in-out
@@ -156,32 +160,25 @@ const TabbedSelectorHistoricos: React.FC<TabbedSelectorHistoricosProps> = ({
             </TabsList>
           </div>
 
-          {/* Pestaña 1: Selección de Cliente */}
+          {/* Pestaña 1: Selección de Cliente (Empresa) */}
           <TabsContent value="cliente" className="mt-0 p-6 bg-white border-t border-gray-200">
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700">
-                  Seleccionar Cliente (Usuario)
+                  Seleccionar Empresa
                 </label>
                 <ReactSelect
-                  options={displayedUsers
-                    .filter((user) => {
-                      // Filtro adicional: solo mostrar usuarios con puesto o role "client"
-                      const puesto = user.puesto?.toLowerCase().trim();
-                      const role = user.role?.toLowerCase().trim();
-                      return puesto === 'client' || role === 'client';
-                    })
-                    .map((user) => ({ 
-                      value: user.id, 
-                      label: user.username 
-                    }))}
+                  options={displayedEmpresas.map((empresa) => ({ 
+                    value: empresa.id, 
+                    label: empresa.nombre 
+                  }))}
                   value={
-                    selectedUser
-                      ? { value: selectedUser.id, label: selectedUser.username }
+                    selectedEmpresa
+                      ? { value: selectedEmpresa.id, label: selectedEmpresa.nombre }
                       : null
                   }
-                  onChange={handleUserSelect}
-                  placeholder="Selecciona un cliente..."
+                  onChange={handleEmpresaSelect}
+                  placeholder="Selecciona una empresa..."
                   isClearable
                   className="w-full"
                   styles={{
@@ -192,10 +189,10 @@ const TabbedSelectorHistoricos: React.FC<TabbedSelectorHistoricosProps> = ({
                   }}
                 />
               </div>
-              {selectedUser && (
+              {selectedEmpresa && (
                 <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-sm text-blue-800">
-                    <strong>Cliente seleccionado:</strong> {selectedUser.username}
+                    <strong>Empresa seleccionada:</strong> {selectedEmpresa.nombre}
                   </p>
                   <p className="text-xs text-blue-600 mt-1">
                     Continúa a la pestaña "Planta" para seleccionar una planta.
@@ -208,10 +205,10 @@ const TabbedSelectorHistoricos: React.FC<TabbedSelectorHistoricosProps> = ({
           {/* Pestaña 2: Selección de Planta */}
           <TabsContent value="planta" className="mt-0 p-6 bg-white border-t border-gray-200">
             <div className="space-y-4">
-              {!selectedUser ? (
+              {!selectedEmpresa ? (
                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-sm text-yellow-800">
-                    Por favor, selecciona un cliente primero en la pestaña "Cliente".
+                    Por favor, selecciona una empresa primero en la pestaña "Empresa".
                   </p>
                 </div>
               ) : (
@@ -220,27 +217,39 @@ const TabbedSelectorHistoricos: React.FC<TabbedSelectorHistoricosProps> = ({
                     <label className="block text-sm font-medium mb-2 text-gray-700">
                       Seleccionar Planta
                     </label>
-                    <ReactSelect
-                      options={displayedPlants.map((plant) => ({ 
-                        value: plant.id, 
-                        label: plant.nombre 
-                      }))}
-                      value={
-                        selectedPlant
-                          ? { value: selectedPlant.id, label: selectedPlant.nombre }
-                          : null
-                      }
-                      onChange={handlePlantSelect}
-                      placeholder="Selecciona una planta..."
-                      isClearable
-                      className="w-full"
-                      styles={{
-                        control: (base) => ({
-                          ...base,
-                          minHeight: '42px',
-                        }),
-                      }}
-                    />
+                    {displayedPlants.length === 0 ? (
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-sm text-yellow-800">
+                          ⚠️ No se encontraron plantas asociadas a la empresa seleccionada. 
+                          {selectedEmpresa && ` (${selectedEmpresa.nombre})`}
+                        </p>
+                        <p className="text-xs text-yellow-600 mt-1">
+                          Verifica que las plantas tengan un <code>empresa_id</code> asignado en la base de datos.
+                        </p>
+                      </div>
+                    ) : (
+                      <ReactSelect
+                        options={displayedPlants.map((plant) => ({ 
+                          value: plant.id, 
+                          label: plant.nombre 
+                        }))}
+                        value={
+                          selectedPlant
+                            ? { value: selectedPlant.id, label: selectedPlant.nombre }
+                            : null
+                        }
+                        onChange={handlePlantSelect}
+                        placeholder="Selecciona una planta..."
+                        isClearable
+                        className="w-full"
+                        styles={{
+                          control: (base) => ({
+                            ...base,
+                            minHeight: '42px',
+                          }),
+                        }}
+                      />
+                    )}
                   </div>
                   {selectedPlant && (
                     <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
