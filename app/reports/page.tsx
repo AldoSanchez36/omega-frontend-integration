@@ -90,6 +90,7 @@ interface ReportSelection {
   systemName: string;
   generatedDate: string;
   empresa_id?: string | null;
+  report_id?: string | null; // ID único del reporte (si viene de reportes pendientes)
   parameters: {
     [systemName: string]: {
       [parameterName: string]: {
@@ -181,6 +182,9 @@ export default function Reporte() {
   
   // Función para manejar cambios en comentarios de parámetros
   const handleParameterCommentChange = (variableName: string, comment: string) => {
+    // Los clientes no pueden editar comentarios
+    if (userRole === "client") return
+    
     const newComments = {
       ...parameterComments,
       [variableName]: comment
@@ -240,7 +244,12 @@ export default function Reporte() {
       try {
         const userData = JSON.parse(storedUser)
         setUser(userData)
-        setUserRole(userData.puesto || "user")
+        const role = userData.puesto || "user"
+        setUserRole(role)
+        // Si es cliente, deshabilitar edición desde el inicio
+        if (role === "client") {
+          setIsEditing(false)
+        }
       } catch (error) {
         console.error("Error parsing user data:", error)
       }
@@ -251,6 +260,7 @@ export default function Reporte() {
     const reportSelectionRaw = localStorage.getItem("reportSelection");
     const parsedReportSelection = reportSelectionRaw ? JSON.parse(reportSelectionRaw) : null;
     console.log("📄 Reports - Datos recibidos del localStorage:", parsedReportSelection);
+    console.log("🆔 Reports - ID del reporte (report_id):", parsedReportSelection?.report_id || "No disponible");
     console.log("📊 Reports - Parámetros recibidos:", parsedReportSelection?.parameters);
     console.log("📊 Reports - Tolerancias recibidas:", parsedReportSelection?.variablesTolerancia);
     console.log("📊 Reports - Claves de tolerancias:", parsedReportSelection?.variablesTolerancia ? Object.keys(parsedReportSelection.variablesTolerancia) : []);
@@ -262,8 +272,47 @@ export default function Reporte() {
     setReportSelection(parsedReportSelection);
     
     // Cargar comentarios guardados si existen
+    // Primero intentar cargar desde parameterComments (formato antiguo)
     if (parsedReportSelection?.parameterComments) {
       setParameterComments(parsedReportSelection.parameterComments);
+    }
+    
+    // Si hay comentarios en formato JSON nuevo, parsearlos y extraer comentarios globales y por parámetro
+    if (parsedReportSelection?.comentarios) {
+      try {
+        // Intentar parsear como JSON
+        const comentariosParsed = JSON.parse(parsedReportSelection.comentarios);
+        if (typeof comentariosParsed === 'object' && comentariosParsed !== null) {
+          // Es un objeto JSON con el nuevo formato
+          const comentariosPorParametro: { [key: string]: string } = {};
+          
+          // Extraer comentario global si existe
+          if (comentariosParsed["global"]) {
+            // Actualizar reportSelection con el comentario global
+            const updatedReportSelection = {
+              ...parsedReportSelection,
+              comentarios: comentariosParsed["global"]
+            };
+            setReportSelection(updatedReportSelection);
+          }
+          
+          // Extraer comentarios por parámetro (todas las claves excepto "global")
+          Object.entries(comentariosParsed).forEach(([key, value]) => {
+            if (key !== "global" && typeof value === "string" && value.trim() !== "") {
+              comentariosPorParametro[key] = value;
+            }
+          });
+          
+          // Actualizar parameterComments con los comentarios por parámetro
+          if (Object.keys(comentariosPorParametro).length > 0) {
+            setParameterComments(comentariosPorParametro);
+          }
+        }
+      } catch (e) {
+        // Si no es JSON válido, es un string simple (formato antiguo)
+        // No hacer nada, ya está cargado en reportSelection.comentarios
+        console.log("ℹ️ Comentarios en formato string simple (legacy)");
+      }
     }
     
     // FALLBACK: Si no hay tolerancias en localStorage, obtenerlas del backend usando variable_proceso_id
@@ -400,6 +449,8 @@ export default function Reporte() {
   }, []);
 
   const handleNoteChange = (key: string, value: string) => {
+    // Los clientes no pueden editar notas
+    if (userRole === "client") return
     setReportNotes((prev) => ({
       ...prev,
       [key]: value,
@@ -407,6 +458,8 @@ export default function Reporte() {
   }
 
   const enableEditing = () => {
+    // Los clientes no pueden editar
+    if (userRole === "client") return
     setIsEditing(true)
   }
 
@@ -607,6 +660,28 @@ export default function Reporte() {
 
       // Nota: `proceso_id` ya NO es obligatorio para guardar el reporte.
 
+      // Combinar comentarios globales y por parámetro en un solo objeto JSON
+      // Formato: { "global": "...", "pH": "...", "Conductividad": "...", ... }
+      // Solo incluir parámetros que tengan comentarios no vacíos
+      const comentariosCombinados: Record<string, string> = {};
+      
+      // Agregar comentario global si existe y no está vacío
+      const comentarioGlobal = reportSelection.comentarios?.trim() || "";
+      if (comentarioGlobal) {
+        comentariosCombinados["global"] = comentarioGlobal;
+      }
+      
+      // Agregar comentarios por parámetro si existen y no están vacíos
+      if (parameterComments && Object.keys(parameterComments).length > 0) {
+        Object.entries(parameterComments).forEach(([paramName, comment]) => {
+          if (comment && comment.trim() !== "") {
+            comentariosCombinados[paramName] = comment.trim();
+          }
+        });
+      }
+      
+      console.log("📝 Comentarios combinados:", comentariosCombinados);
+
       // Preparar el reportSelection completo para enviar
       const reportDataToSend = {
         ...reportSelection,
@@ -619,7 +694,8 @@ export default function Reporte() {
           dirigido_a: reportSelection.plant?.dirigido_a
         },
         parameters: reportSelection.parameters || {},
-        comentarios: reportSelection.comentarios || "",
+        // Comentarios combinados en formato JSON (reemplaza comentarios y parameterComments)
+        comentarios: JSON.stringify(comentariosCombinados),
         fecha: reportSelection.fecha || new Date().toISOString().split('T')[0],
         generatedDate: reportSelection.generatedDate || new Date().toISOString(),
         empresa_id: empresaId,
@@ -634,15 +710,30 @@ export default function Reporte() {
         planta_id: reportSelection.plant?.id,
         usuario_id: reportSelection.user?.id,
         empresa_id: empresaId,
-        parameterComments: parameterComments || {} // Incluir comentarios por parámetro
+        // Mantener parameterComments para compatibilidad (pero el backend usará comentarios)
+        parameterComments: parameterComments || {}
       }
 
       console.log("📋 Payload completo que se enviará al servidor:")
       console.log(JSON.stringify(reportDataToSend, null, 2))
 
+      // Determinar si es actualización o creación
+      const reportId = reportSelection.report_id;
+      const isUpdate = !!reportId;
+      
+      // Determinar endpoint y método HTTP
+      const endpoint = isUpdate 
+        ? `${API_BASE_URL}${API_ENDPOINTS.REPORT_BY_ID(reportId)}`
+        : `${API_BASE_URL}${API_ENDPOINTS.REPORTS}`;
+      const method = isUpdate ? "PUT" : "POST";
+      
+      console.log(`🔄 ${isUpdate ? "Actualizando" : "Creando"} reporte${isUpdate ? ` (ID: ${reportId})` : ""}...`);
+      console.log(`📍 Endpoint: ${endpoint}`);
+      console.log(`🔧 Método: ${method}`);
+
       // Enviar el reportSelection completo al endpoint
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
-        method: "POST",
+      const response = await fetch(endpoint, {
+        method: method,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
@@ -657,35 +748,62 @@ export default function Reporte() {
       })
 
       if (!response.ok) {
-        let errorData: any = {}
-        let errorText = ""
+        // Leer el body solo una vez usando clone() para evitar el error "body stream already read"
+        const responseClone = response.clone();
+        let errorMessage = `Error ${response.status}: ${response.statusText}`;
         
         try {
-          errorData = await response.json()
-          console.error("❌ Error del servidor (JSON):", errorData)
-        } catch {
-          errorText = await response.text()
-          console.error("❌ Error del servidor (texto):", errorText)
+          const errorData = await responseClone.json();
+          console.error("❌ Error del servidor (JSON):", errorData);
+          errorMessage = errorData?.msg || errorData?.message || errorMessage;
+        } catch (jsonError) {
+          try {
+            const errorText = await response.text();
+            console.error("❌ Error del servidor (texto):", errorText);
+            errorMessage = errorText || errorMessage;
+          } catch (textError) {
+            console.error("❌ No se pudo leer el cuerpo de la respuesta de error");
+          }
+        }
+        
+        // Mensaje específico para 404
+        if (response.status === 404) {
+          if (isUpdate) {
+            errorMessage = `No se encontró el reporte con ID ${reportId}. El endpoint PUT puede no estar implementado en el backend.`;
+          } else {
+            errorMessage = `No se pudo crear el reporte. Error ${response.status}`;
+          }
         }
         
         // Mostrar mensaje de error más amigable al usuario
-        const errorMessage = errorData?.msg || errorData?.message || errorText || `Error ${response.status}`
-        alert(`Error al guardar el reporte: ${errorMessage}`)
-        throw new Error(`Error del servidor: ${response.status} - ${JSON.stringify(errorData) || errorText}`)
+        alert(`Error al ${isUpdate ? "actualizar" : "guardar"} el reporte: ${errorMessage}`);
+        setIsSaving(false);
+        return;
       }
 
       const result = await response.json()
-      console.log("✅ Reporte guardado exitosamente:", result)
+      console.log(`✅ Reporte ${isUpdate ? "actualizado" : "creado"} exitosamente:`, result)
       
       // Validar que el resultado no sea null
       if (!result || (result.ok === false)) {
         const errorMsg = result?.msg || result?.message || "El servidor devolvió un resultado nulo"
-        alert(`Error al guardar el reporte: ${errorMsg}`)
+        alert(`Error al ${isUpdate ? "actualizar" : "guardar"} el reporte: ${errorMsg}`)
         throw new Error(`Error: ${errorMsg}`)
       }
       
+      // Si se creó un nuevo reporte, actualizar el report_id en reportSelection
+      if (!isUpdate && result?.id) {
+        console.log("🆔 Nuevo reporte creado con ID:", result.id);
+        const updatedReportSelection = {
+          ...reportSelection,
+          report_id: result.id
+        };
+        setReportSelection(updatedReportSelection);
+        localStorage.setItem("reportSelection", JSON.stringify(updatedReportSelection));
+      }
+      
       // Mostrar mensaje de éxito
-      alert("Reporte guardado exitosamente")
+      alert(`Reporte ${isUpdate ? "actualizado" : "guardado"} exitosamente${isUpdate ? ` (ID: ${reportId})` : result?.id ? ` (ID: ${result.id})` : ""}`)
       
       // Ahora guardar las mediciones individuales por parámetro
       if (reportSelection.parameters && reportSelection.fecha) {
@@ -1052,6 +1170,17 @@ export default function Reporte() {
         pdf.text(`Fecha de medición: ${fechaMedicion}`, marginLeft, currentY);
         currentY += 8;
         
+        // Función auxiliar para convertir color hexadecimal a RGB
+        const hexToRgb = (hex: string): [number, number, number] | null => {
+          if (!hex || hex === "") return null;
+          const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+          return result ? [
+            parseInt(result[1], 16),
+            parseInt(result[2], 16),
+            parseInt(result[3], 16)
+          ] : null;
+        };
+        
         // Preparar datos de la tabla
         const allVariables = new Set<string>();
         Object.values(reportSelection.parameters).forEach((systemData: any) => {
@@ -1086,7 +1215,7 @@ export default function Reporte() {
           return row;
         });
         
-        // Agregar tabla usando AutoTable
+        // Agregar tabla usando AutoTable con colores
         autoTable(pdf, {
           head: [previewTableHeaders],
           body: previewTableData,
@@ -1095,6 +1224,61 @@ export default function Reporte() {
           headStyles: { fillColor: [66, 139, 202] },
           margin: { left: marginLeft, right: marginLeft },
           styles: { fontSize: 9 },
+          didParseCell: (data: any) => {
+            // Solo aplicar colores a las celdas del cuerpo (no al encabezado)
+            if (data.section === 'body' && data.column.index > 0) {
+              // Obtener el nombre de la variable (primera columna)
+              const variableName = previewTableData[data.row.index]?.[0];
+              // Extraer el nombre sin la unidad (si tiene formato "Variable (unidad)")
+              const variableNameClean = variableName ? variableName.split(' (')[0] : '';
+              
+              // Obtener el nombre del sistema (columna actual)
+              const systemName = systemNames[data.column.index - 1];
+              
+              // Obtener los datos del parámetro
+              const systemData = reportSelection.parameters[systemName];
+              const paramData = systemData?.[variableNameClean];
+              
+              // Obtener los límites de tolerancia
+              const tolerances = reportSelection?.variablesTolerancia?.[systemName] || {};
+              // Buscar la tolerancia por nombre de variable
+              let tolerance = Object.values(tolerances).find((tol: any) => 
+                tol && typeof tol === 'object' && tol.nombre === variableNameClean
+              ) as any;
+              
+              // Si no se encuentra por nombre, intentar buscar por ID o cualquier coincidencia
+              if (!tolerance && Object.keys(tolerances).length > 0) {
+                tolerance = Object.values(tolerances).find((tol: any) => 
+                  tol && typeof tol === 'object'
+                ) as any;
+              }
+              
+              // Calcular el color si tenemos datos y tolerancia
+              if (paramData && paramData.valor !== undefined && paramData.valor !== null && tolerance) {
+                const valorStr = String(paramData.valor);
+                const toleranceParam = {
+                  bien_min: tolerance.bien_min ?? null,
+                  bien_max: tolerance.bien_max ?? null,
+                  limite_min: tolerance.limite_min ?? null,
+                  limite_max: tolerance.limite_max ?? null,
+                  usar_limite_min: tolerance.usar_limite_min ?? false,
+                  usar_limite_max: tolerance.usar_limite_max ?? false
+                };
+                
+                const cellColorHex = getCellColor(valorStr, toleranceParam);
+                if (cellColorHex) {
+                  const rgbColor = hexToRgb(cellColorHex);
+                  if (rgbColor) {
+                    data.cell.styles.fillColor = rgbColor;
+                    // Ajustar color del texto para mejor contraste en celdas rojas/amarillas
+                    if (cellColorHex === "#FFC6CE" || cellColorHex === "#FFEB9C") {
+                      data.cell.styles.textColor = [0, 0, 0]; // Negro para mejor legibilidad
+                    }
+                  }
+                }
+              }
+            }
+          },
         });
         
         currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
@@ -2029,11 +2213,11 @@ export default function Reporte() {
                     <p>
                       <strong>Dirigido a: </strong>
                       <span
-                        contentEditable={isEditing}
+                        contentEditable={isEditing && userRole !== "client"}
                         suppressContentEditableWarning={true}
-                        onBlur={(e) => handleNoteChange("dirigido", e.currentTarget.innerText)}
+                        onBlur={(e) => userRole !== "client" && handleNoteChange("dirigido", e.currentTarget.innerText)}
                         className="border-bottom"
-                        style={{ minWidth: "300px", display: "inline-block" }}
+                        style={{ minWidth: "300px", display: "inline-block", cursor: userRole === "client" ? "default" : "text" }}
                       >
                         {reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING."}
                       </span>
@@ -2042,11 +2226,11 @@ export default function Reporte() {
                     <p>
                       <strong>Asunto: </strong>
                       <span
-                        contentEditable={isEditing}
+                        contentEditable={isEditing && userRole !== "client"}
                         suppressContentEditableWarning={true}
-                        onBlur={(e) => handleNoteChange("asunto", e.currentTarget.innerText)}
+                        onBlur={(e) => userRole !== "client" && handleNoteChange("asunto", e.currentTarget.innerText)}
                         className="border-bottom"
-                        style={{ minWidth: "400px", display: "inline-block" }}
+                        style={{ minWidth: "400px", display: "inline-block", cursor: userRole === "client" ? "default" : "text" }}
                       >
                         {reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente ||
                           `REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE ${(reportSelection?.plant?.nombre) || "NOMBRE DE LA PLANTA"}`}
@@ -2056,11 +2240,11 @@ export default function Reporte() {
                     <p>
                       <strong>Sistema Evaluado: </strong>
                       <span
-                        contentEditable={isEditing}
+                        contentEditable={isEditing && userRole !== "client"}
                         suppressContentEditableWarning={true}
-                        onBlur={(e) => handleNoteChange("sistema", e.currentTarget.innerText)}
+                        onBlur={(e) => userRole !== "client" && handleNoteChange("sistema", e.currentTarget.innerText)}
                         className="border-bottom"
-                        style={{ minWidth: "300px", display: "inline-block" }}
+                        style={{ minWidth: "300px", display: "inline-block", cursor: userRole === "client" ? "default" : "text" }}
                       >
                         {reportNotes["sistema"] || (reportSelection?.systemName ?? "Todos los sistemas")}
                       </span>
@@ -2069,11 +2253,11 @@ export default function Reporte() {
                     <p>
                       <strong>Fecha de muestra: </strong>
                       <span
-                        contentEditable={isEditing}
+                        contentEditable={isEditing && userRole !== "client"}
                         suppressContentEditableWarning={true}
-                        onBlur={(e) => handleNoteChange("fecha_muestra", e.currentTarget.innerText)}
+                        onBlur={(e) => userRole !== "client" && handleNoteChange("fecha_muestra", e.currentTarget.innerText)}
                         className="border-bottom"
-                        style={{ minWidth: "200px", display: "inline-block" }}
+                        style={{ minWidth: "200px", display: "inline-block", cursor: userRole === "client" ? "default" : "text" }}
                       >
                         {reportSelection?.fecha || currentDate}
                       </span>
@@ -2278,29 +2462,33 @@ export default function Reporte() {
                     </table>
                   </div>
 
-                  {/* Sección de comentarios */}
-                  <div className="mt-4 pt-4 border-t">
-                    <label htmlFor="preview-comments" className="block text-sm font-medium text-gray-700 mb-2">
-                      Comentarios para Previsualización de Datos:
-                    </label>
-                    <textarea
-                      id="preview-comments"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      rows={3}
-                      placeholder="Agregar comentarios sobre estos datos..."
-                      value={reportSelection.comentarios || ""}
-                      onChange={(e) => {
-                        if (reportSelection) {
-                          const updatedReportSelection = {
-                            ...reportSelection,
-                            comentarios: e.target.value
+                  {/* Sección de comentarios - Solo mostrar si hay contenido o si no es cliente */}
+                  {(userRole !== "client" || (reportSelection?.comentarios && reportSelection.comentarios.trim() !== "")) && (
+                    <div className="mt-4 pt-4 border-t">
+                      <label htmlFor="preview-comments" className="block text-sm font-medium text-gray-700 mb-2">
+                        Comentarios para Previsualización de Datos:
+                      </label>
+                      <textarea
+                        id="preview-comments"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        rows={3}
+                        placeholder="Agregar comentarios sobre estos datos..."
+                        value={reportSelection.comentarios || ""}
+                        onChange={(e) => {
+                          if (reportSelection && userRole !== "client") {
+                            const updatedReportSelection = {
+                              ...reportSelection,
+                              comentarios: e.target.value
+                            }
+                            setReportSelection(updatedReportSelection)
+                            localStorage.setItem("reportSelection", JSON.stringify(updatedReportSelection))
                           }
-                          setReportSelection(updatedReportSelection)
-                          localStorage.setItem("reportSelection", JSON.stringify(updatedReportSelection))
-                        }
-                      }}
-                    />
-                  </div>
+                        }}
+                        disabled={userRole === "client"}
+                        readOnly={userRole === "client"}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2364,20 +2552,24 @@ export default function Reporte() {
                           )}
                         </div>
                         
-                        {/* Sección de comentarios por parámetro */}
-                        <div className="mt-4 pt-4 border-t">
-                          <label htmlFor={`comment-${variable.id}`} className="block text-sm font-medium text-gray-700 mb-2">
-                            Comentarios para {variable.nombre}:
-                          </label>
-                          <textarea
-                            id={`comment-${variable.id}`}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            rows={3}
-                            placeholder="Agregar comentarios sobre este parámetro..."
-                            value={parameterComments[variable.nombre] || ""}
-                            onChange={(e) => handleParameterCommentChange(variable.nombre, e.target.value)}
-                          />
-                        </div>
+                        {/* Sección de comentarios por parámetro - Solo mostrar si hay contenido o si no es cliente */}
+                        {(userRole !== "client" || (parameterComments[variable.nombre] && parameterComments[variable.nombre].trim() !== "")) && (
+                          <div className="mt-4 pt-4 border-t">
+                            <label htmlFor={`comment-${variable.id}`} className="block text-sm font-medium text-gray-700 mb-2">
+                              Comentarios para {variable.nombre}:
+                            </label>
+                            <textarea
+                              id={`comment-${variable.id}`}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              rows={3}
+                              placeholder="Agregar comentarios sobre este parámetro..."
+                              value={parameterComments[variable.nombre] || ""}
+                              onChange={(e) => userRole !== "client" && handleParameterCommentChange(variable.nombre, e.target.value)}
+                              disabled={userRole === "client"}
+                              readOnly={userRole === "client"}
+                            />
+                          </div>
+                        )}
                       </div>
                       )
                     })}
@@ -2395,7 +2587,8 @@ export default function Reporte() {
                         type="checkbox"
                         id="includeTableInPDF"
                         checked={includeTableInPDF}
-                        onChange={(e) => setIncludeTableInPDF(e.target.checked)}
+                        onChange={(e) => userRole !== "client" && setIncludeTableInPDF(e.target.checked)}
+                        disabled={userRole === "client"}
                         className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
                       <label htmlFor="includeTableInPDF" className="text-sm text-gray-700 cursor-pointer">
@@ -2552,33 +2745,6 @@ export default function Reporte() {
                   })}
                 </div>
               )}
-
-              {reportSelection?.comentarios && (
-                <div className="mb-2 ml-10 mr-10">
-                  <strong>Comentarios globales:</strong> {reportSelection.comentarios}
-                </div>
-              )}
-
-              {/* Detailed Measurements Section */}
-              {reportSelection?.user && (
-                <div className="mb-4 ml-10 mr-10">
-                  <h5>Detalles de Mediciones</h5>
-                  <div className="card">
-                    <div className="card-body">
-                      <div className="row">
-                        <div className="col-md-6">
-                          <p><strong>Planta:</strong> {reportSelection.user.username}</p>
-                          <p><strong>Sistema:</strong> {reportSelection.systemName}</p>
-                        </div>
-                        <div className="col-md-6">
-                          <p><strong>Generado por:</strong> {reportSelection.user.username}</p>
-                          <p><strong>Fecha de generación:</strong> {reportSelection?.generatedDate ? new Date(reportSelection.generatedDate).toLocaleString('es-ES') : currentDate}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
               </div>
                {/* Footer Image */}
                 <div id="footer-img" className="text-center">
@@ -2659,44 +2825,44 @@ export default function Reporte() {
                 <i className="material-icons me-2">bug_report</i>
                 Prueba PDF
               </button> */}
+              {/* Botón Guardar - Solo para no clientes */}
               {userRole !== "client" && (
-                <>
-                  <button 
-                    className="btn btn-success"
-                    onClick={handleSaveReport}
-                    disabled={isSaving || isDownloading}
-                  >
-                    {isSaving ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Guardando...
-                      </>
-                    ) : (
-                      <>
-                        <i className="material-icons me-2">save</i>
-                        Guardar
-                      </>
-                    )}
-                  </button>
-                  <button 
-                    className="btn btn-danger"
-                    onClick={handleDownloadPDF}
-                    disabled={isSaving || isDownloading}
-                  >
-                    {isDownloading ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Generando PDF...
-                      </>
-                    ) : (
-                      <>
-                        <i className="material-icons me-2">download</i>
-                        Descargar PDF
-                      </>
-                    )}
-                  </button>
-                </>
+                <button 
+                  className="btn btn-success"
+                  onClick={handleSaveReport}
+                  disabled={isSaving || isDownloading}
+                >
+                  {isSaving ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <i className="material-icons me-2">save</i>
+                      Guardar
+                    </>
+                  )}
+                </button>
               )}
+              {/* Botón Descargar PDF - Disponible para todos, incluyendo clientes */}
+              <button 
+                className="btn btn-danger"
+                onClick={handleDownloadPDF}
+                disabled={isSaving || isDownloading}
+              >
+                {isDownloading ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Generando PDF...
+                  </>
+                ) : (
+                  <>
+                    <i className="material-icons me-2">download</i>
+                    Descargar PDF
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

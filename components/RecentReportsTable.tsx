@@ -24,7 +24,7 @@ interface RecentReportsTableProps {
   onTableClick: () => void;
   onDebugLog: (msg: string) => void;
   onViewReport: (report: Report) => void;
-  userRole?: "admin" | "user" | "client" | "guest";
+  userRole?: "admin" | "user" | "client" | "guest" | "analista";
 }
 
 const RecentReportsTable: React.FC<RecentReportsTableProps> = ({

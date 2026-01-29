@@ -602,19 +602,31 @@ export default function ReportManager() {
   const handleViewReport = (report: any) => {
     try {
       console.log("👁️ Visualizando reporte desde reportes pendientes:", report);
+      console.log("📋 Contexto actual - selectedEmpresa:", selectedEmpresa);
+      console.log("📋 Contexto actual - selectedPlant:", selectedPlant);
       
-      // Validar que tenemos los datos mínimos necesarios
-      if (!report.planta_id) {
-        console.error("❌ Error: No se encontró planta_id en los datos del reporte");
+      // Obtener planta_id: del reporte primero, luego del contexto actual como fallback
+      const plantaId = 
+        report.datos?.plant?.id || 
+        report.planta_id || 
+        selectedPlant?.id || 
+        null;
+      
+      if (!plantaId) {
+        console.error("❌ Error: No se encontró planta_id en los datos del reporte ni en el contexto");
         alert("Error: No se pueden visualizar reportes sin datos de planta completos");
         return;
       }
       
+      // Obtener empresa_id: del reporte primero, luego del contexto actual como fallback
       const empresaId =
         report?.empresa_id ??
         report?.datos?.empresa_id ??
         report?.datos?.user?.empresa_id ??
-        null
+        selectedEmpresa?.id ??  // Usar empresa preseleccionada como fallback
+        null;
+
+      console.log("✅ IDs obtenidos - planta_id:", plantaId, "empresa_id:", empresaId);
 
       // Reconstruir reportSelection desde los datos JSONB completos
       const reportSelection = {
@@ -627,8 +639,8 @@ export default function ReportManager() {
           empresa_id: empresaId
         },
         plant: {
-          id: report.datos?.plant?.id || report.planta_id,
-          nombre: report.datos?.plant?.nombre || report.plantName,
+          id: plantaId,  // Asegurar que siempre tengamos el ID correcto
+          nombre: report.datos?.plant?.nombre || report.plantName || selectedPlant?.nombre || "",
           dirigido_a: report.datos?.plant?.dirigido_a,
           mensaje_cliente: report.datos?.plant?.mensaje_cliente,
           systemName: report.datos?.plant?.systemName || report.datos?.systemName || report.systemName
@@ -641,10 +653,15 @@ export default function ReportManager() {
         comentarios: report.datos?.comentarios || report.observaciones || "",
         generatedDate: report.datos?.generatedDate || report.created_at || new Date().toISOString(),
         cliente_id: report.datos?.user?.cliente_id || null,
-        empresa_id: empresaId
+        empresa_id: empresaId,  // Asegurar que siempre esté presente
+        report_id: report.id || null,  // ID único del reporte para poder actualizarlo después
+        // Asegurar que planta_id esté explícitamente en el objeto para compatibilidad
+        planta_id: plantaId
       };
 
       console.log("📄 reportSelection reconstruido desde reportes pendientes:", reportSelection);
+      console.log("🔍 Validación - plant.id:", reportSelection.plant.id);
+      console.log("🔍 Validación - empresa_id:", reportSelection.empresa_id);
       
       // Guardar en localStorage
       localStorage.setItem("reportSelection", JSON.stringify(reportSelection));

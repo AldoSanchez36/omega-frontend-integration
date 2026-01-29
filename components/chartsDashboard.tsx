@@ -40,10 +40,12 @@ interface Plant {
 
 interface ChartsDashboardProps {
   plants: Plant[];
-  historicalData: Record<string, HistoricalDataPoint[]>;
+  // historicalData[systemId][paramId] = [{ timestamp, value }, ...]
+  historicalData: Record<string, Record<string, HistoricalDataPoint[]>>;
   getStatusColor: (status: string) => string;
   startDate: string;
   endDate: string;
+  loading?: boolean;
 }
 
 export function getDatePosition(dateStr: string, minDate: number, maxDate: number) {
@@ -168,7 +170,7 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                   <small>
                     <strong>Debug Info:</strong> Planta: {selectedPlant.nombre} | 
                     Sistemas: {selectedPlant.systems?.length || 0} | 
-                    Datos históricos: {Object.keys(historicalData).length} parámetros
+                    Datos históricos: {Object.values(historicalData).reduce((sum, sys) => sum + Object.keys(sys || {}).length, 0)} parámetros
                   </small>
                 </div>
                 
@@ -232,7 +234,7 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                             /* Charts View */
                             <div className="row g-3">
                               {selectedSystem.parameters.map((param) => {
-                              const data = historicalData[param.id] || [];
+                              const data = historicalData[selectedSystem.id]?.[param.id] || [];
                               
                               // Si no hay datos históricos, mostrar datos mock o placeholder
                               if (!data.length) {
@@ -431,7 +433,7 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                 </thead>
                                 <tbody>
                                   {selectedSystem.parameters.map((param) => {
-                                    const data = historicalData[param.id] || [];
+                                    const data = historicalData[selectedSystem.id]?.[param.id] || [];
                                     const maxValue = data.length ? Math.max(...data.map((d) => d.value)) : 0;
                                     const minValue = data.length ? Math.min(...data.map((d) => d.value)) : 0;
                                     const avgValue = data.length ? data.reduce((sum, d) => sum + d.value, 0) / data.length : 0;
@@ -478,7 +480,7 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                     <div className="card-body">
                                       <h6 className="card-title">Resumen del Sistema</h6>
                                       <p className="mb-1"><strong>Total de Parámetros:</strong> {selectedSystem.parameters.length}</p>
-                                      <p className="mb-1"><strong>Parámetros con Datos:</strong> {selectedSystem.parameters.filter(p => historicalData[p.id]?.length > 0).length}</p>
+                                      <p className="mb-1"><strong>Parámetros con Datos:</strong> {selectedSystem.parameters.filter(p => (historicalData[selectedSystem.id]?.[p.id]?.length || 0) > 0).length}</p>
                                       <p className="mb-0"><strong>Rango de Fechas:</strong> {startDate} - {endDate}</p>
                                     </div>
                                   </div>
@@ -487,8 +489,8 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                   <div className="card bg-light">
                                     <div className="card-body">
                                       <h6 className="card-title">Estadísticas Generales</h6>
-                                      <p className="mb-1"><strong>Total de Puntos:</strong> {selectedSystem.parameters.reduce((sum, p) => sum + (historicalData[p.id]?.length || 0), 0)}</p>
-                                      <p className="mb-1"><strong>Promedio por Parámetro:</strong> {(selectedSystem.parameters.reduce((sum, p) => sum + (historicalData[p.id]?.length || 0), 0) / selectedSystem.parameters.length).toFixed(1)}</p>
+                                      <p className="mb-1"><strong>Total de Puntos:</strong> {selectedSystem.parameters.reduce((sum, p) => sum + (historicalData[selectedSystem.id]?.[p.id]?.length || 0), 0)}</p>
+                                      <p className="mb-1"><strong>Promedio por Parámetro:</strong> {(selectedSystem.parameters.reduce((sum, p) => sum + (historicalData[selectedSystem.id]?.[p.id]?.length || 0), 0) / selectedSystem.parameters.length).toFixed(1)}</p>
                                       <p className="mb-0"><strong>Estado:</strong> <span className="badge bg-success">Activo</span></p>
                                     </div>
                                   </div>

@@ -79,9 +79,10 @@ export default function Dashboard() {
   const [dataLoading, setDataLoading] = useState(false)
   const [debugInfo, setDebugInfo] = useState<string[]>([])
   const [user, setUser] = useState<any>(null)
-  const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
+  const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest" | "analista">("guest")
   const [dashboardResumen, setDashboardResumen] = useState<{ plantas: number; procesos: number; variables: number; reportes: number } | null>(null)
-  const [historicalData, setHistoricalData] = useState<Record<string, any[]>>({});
+  // historicalData[systemId][paramId] = [{ timestamp, value }, ...]
+  const [historicalData, setHistoricalData] = useState<Record<string, Record<string, any[]>>>({});
   const [totalHistoricos, setTotalHistoricos] = useState<number>(0);
   const [historicalDataLoading, setHistoricalDataLoading] = useState<boolean>(false);
   
@@ -90,11 +91,9 @@ export default function Dashboard() {
     const today = new Date();
     const currentYear = today.getFullYear();
     const startDate = `${currentYear}-01-01`;
-    // Usar fecha actual en formato YYYY-MM-DD sin problemas de zona horaria
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const endDate = `${year}-${month}-${day}`;
+    // Para históricos en dashboard, tomar TODO el año en curso (evita excluir reportes "futuros" por fecha)
+    // y asegura que se consideren todos los puntos del año actual.
+    const endDate = `${currentYear}-12-31`;
     return { startDate, endDate };
   };
   
@@ -241,7 +240,7 @@ export default function Dashboard() {
 
       // 2. Obtener plantas de empresas con acceso completo (usuarios_empresas)
       const userId = user?.id || user?._id;
-      if (userId && (userRole === "client" || userRole === "user" || userRole === "analista")) {
+      if (userId && (userRole === "client" || userRole === "user" || userRole === "analista" || userRole === "guest")) {
         try {
           const empresasRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ACCESS_BY_USER(userId)}`, {
             headers: { Authorization: `Bearer ${token}` }
@@ -417,7 +416,8 @@ export default function Dashboard() {
         comentarios: report.datos?.comentarios || report.observaciones || "",
         generatedDate: report.datos?.generatedDate || report.created_at || new Date().toISOString(),
         cliente_id: report.datos?.user?.cliente_id || null,
-        empresa_id: empresaId
+        empresa_id: empresaId,
+        report_id: report.id || null  // ID único del reporte para poder actualizarlo después
       };
 
       console.log("📄 reportSelection reconstruido desde dashboard:", reportSelection);
@@ -533,7 +533,7 @@ export default function Dashboard() {
 
         // Obtener plantas accesibles del usuario para filtrar reportes
         let plantasAccesiblesIds: string[] = []
-        if (userRole === "client" || userRole === "user" || userRole === "analista") {
+        if (userRole === "client" || userRole === "user" || userRole === "analista" || userRole === "guest") {
           try {
             // 1. Obtener plantas con permisos específicos (usuarios_plantas)
             const plantasRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ACCESSIBLE}`, {
@@ -658,7 +658,7 @@ export default function Dashboard() {
             return tieneAcceso
           })
           console.log(`✅ Reportes filtrados: ${formattedReports.length} de ${reportesData.length} reportes mostrados`)
-        } else if ((userRole === "client" || userRole === "user" || userRole === "analista") && plantasAccesiblesIds.length === 0) {
+        } else if ((userRole === "client" || userRole === "user" || userRole === "analista" || userRole === "guest") && plantasAccesiblesIds.length === 0) {
           // Si no tiene plantas accesibles, no mostrar ningún reporte
           console.log("⚠️ Usuario no tiene plantas accesibles, no se mostrarán reportes")
           formattedReports = []
@@ -709,14 +709,33 @@ export default function Dashboard() {
 
     const fetchAllHistoricalData = async () => {
       setHistoricalDataLoading(true);
-      const allData: Record<string, any[]> = {};
+      const allData: Record<string, Record<string, any[]>> = {};
       let totalFetched = 0;
       let totalErrors = 0;
       
       try {
+        const extractValue = (measurement: any, variableName: string): number | null => {
+          if (!measurement) return null
+          // casos comunes
+          const direct = measurement.valor ?? measurement.value
+          if (direct !== undefined && direct !== null && !Number.isNaN(Number(direct))) return Number(direct)
+
+          // a veces viene con la variable como llave (p.ej. { fecha, "pH": 7.1 })
+          const byName = measurement[variableName]
+          if (byName !== undefined && byName !== null && !Number.isNaN(Number(byName))) return Number(byName)
+
+          // fallback: primer valor numérico distinto de fecha
+          const numeric = Object.entries(measurement)
+            .filter(([k]) => k !== "fecha")
+            .map(([, v]) => Number(v))
+            .find((v) => !Number.isNaN(v))
+          return numeric ?? null
+        }
+
         for (const plant of plants) {
           if (!plant.systems) continue;
           for (const system of plant.systems) {
+            if (!allData[system.id]) allData[system.id] = {}
             // Obtener datos por variable y proceso (más específico y correcto)
             for (const param of system.parameters) {
               try {
@@ -766,13 +785,13 @@ export default function Dashboard() {
                 const mappedData = filtered
                   .map(m => ({
                     timestamp: m.fecha,
-                    value: Number(m.valor || m.value || 0)
+                    value: extractValue(m, param.name)
                   }))
-                  .filter(d => !isNaN(d.value) && d.value !== null && d.value !== undefined)
+                  .filter(d => d.value !== null && d.value !== undefined && !Number.isNaN(Number(d.value)))
                   .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
                 
                 if (mappedData.length > 0) {
-                  allData[param.id] = mappedData;
+                  allData[system.id][param.id] = mappedData;
                   totalFetched += mappedData.length;
                   const añoActual = new Date().getFullYear();
                   console.log(`✅ ${param.name} (${system.name}): ${mappedData.length} puntos de datos del año ${añoActual}`);
@@ -793,7 +812,10 @@ export default function Dashboard() {
         setHistoricalData(allData);
         
         // Calcular total de puntos de datos históricos
-        const total = Object.values(allData).reduce((sum, dataArray) => sum + dataArray.length, 0);
+        const total = Object.values(allData).reduce((sum, systemMap) => {
+          const systemTotal = Object.values(systemMap || {}).reduce((s, arr: any[]) => s + (arr?.length || 0), 0)
+          return sum + systemTotal
+        }, 0);
         setTotalHistoricos(total);
       } catch (error) {
         console.error('❌ Error general cargando datos históricos:', error);
@@ -824,7 +846,7 @@ export default function Dashboard() {
   return (
     <div className="min-vh-100 bg-light">
       {/* Use the Navbar component */}
-      <Navbar role={userRole} />
+      <Navbar role={userRole as "admin" | "user" | "client" | "guest" | "analista"} />
 
       {/* Main Content */}
       <div className="container py-4">
@@ -837,7 +859,7 @@ export default function Dashboard() {
 
 
         {/* Stats Cards */}
-        <StatsCards dashboardResumen={dashboardResumen} userRole={userRole} totalHistoricos={totalHistoricos} />
+        <StatsCards dashboardResumen={dashboardResumen} userRole={userRole as "admin" | "user" | "client" | "guest" | "analista"} totalHistoricos={totalHistoricos} />
 
         {/* Quick Actions */}
         {userRole === "admin" && (
@@ -871,7 +893,7 @@ export default function Dashboard() {
             onTableClick={getClientReports}
             onDebugLog={addDebugLog}
             onViewReport={handleViewReport}
-            userRole={userRole}
+            userRole={userRole as "admin" | "user" | "client" | "guest" | "analista"}
           />
         </div>
 
