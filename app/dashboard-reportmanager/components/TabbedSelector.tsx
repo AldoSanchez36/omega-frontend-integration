@@ -717,8 +717,8 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                                   </i>
                                 </button>
                                 <button
-                                  className={`btn btn-outline-secondary ${
-                                    report.estatus ? "" : "btn-warning"
+                                  className={`btn ${
+                                    report.estatus ? "btn-outline-success border-success" : "btn-warning"
                                   }`}
                                   onClick={() => handleToggleReportStatus(report)}
                                   title={
@@ -727,8 +727,12 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                                       : "Oculto para clientes (click para publicar)"
                                   }
                                 >
-                                  <i className="material-icons" style={{ fontSize: "1rem" }}>
-                                    lock
+                                  <i
+                                    className={`material-icons ${report.estatus ? "text-success" : ""}`}
+                                    style={{ fontSize: report.estatus ? "1.15rem" : "1rem" }}
+                                    aria-hidden
+                                  >
+                                    {report.estatus ? "lock_open" : "lock"}
                                   </i>
                                 </button>
                               </div>

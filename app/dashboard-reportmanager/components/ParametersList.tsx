@@ -25,9 +25,9 @@ interface ParameterValue {
 interface Tolerance {
   id?: string;
   variable_id?: string;
-  proceso_id?: string;
-  planta_id?: string;
-  cliente_id?: string;
+  proceso_id?: string | null;
+  planta_id?: string | null;
+  cliente_id?: string | null;
   limite_min?: number | null;
   limite_max?: number | null;
   bien_min?: number | null;
@@ -167,8 +167,8 @@ const ParametersList: React.FC<ParametersListProps> = ({
 
   // Usar tolerancias filtradas si están disponibles, sino usar las originales
   const tolerancesToUse = Object.keys(filteredTolerances).length > 0 ? filteredTolerances : tolerancias;
-  const handleTolSave = async (variableId: string) => {
-    console.log('handleTolSave', variableId);
+  const handleTolSave = async (_variableId: string) => {
+    // Guardar tolerancia si se implementa en el futuro
   };
 
   return (

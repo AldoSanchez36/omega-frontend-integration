@@ -131,28 +131,9 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                             
                             if (fechaReporte) {
                               try {
-                                // Log para debugging (solo en desarrollo)
-                                if (process.env.NODE_ENV === 'development') {
-                                  console.log(`📅 [RecentReportsTable] Fecha del reporte ${report.id}:`, {
-                                    fechaOriginal: fechaReporte,
-                                    tipo: typeof fechaReporte,
-                                    datosCompletos: report.datos
-                                  });
-                                }
-                                
                                 const parsedDate = parseDateWithoutTimezone(fechaReporte);
                                 if (parsedDate) {
-                                  const formatted = formatDate(parsedDate);
-                                  
-                                  if (process.env.NODE_ENV === 'development') {
-                                    console.log(`✅ [RecentReportsTable] Fecha formateada:`, {
-                                      fechaOriginal: fechaReporte,
-                                      fechaParseada: parsedDate.toISOString(),
-                                      fechaFormateada: formatted
-                                    });
-                                  }
-                                  
-                                  return formatted;
+                                  return formatDate(parsedDate);
                                 }
                               } catch (e) {
                                 console.error("❌ Error formateando fecha del reporte:", e, fechaReporte);
@@ -183,7 +164,7 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                             </button>
                             {userRole !== "client" && (
                               <button
-                                className={report.estatus ? "btn btn-outline-secondary" : "btn btn-warning"}
+                                className={report.estatus ? "btn btn-outline-success border-success" : "btn btn-warning"}
                                 disabled
                                 title={
                                   report.estatus
@@ -192,8 +173,12 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                                 }
                                 style={{ cursor: "not-allowed" }}
                               >
-                                <i className="material-icons" style={{ fontSize: "1rem" }}>
-                                  lock
+                                <i
+                                  className={`material-icons ${report.estatus ? "text-success" : ""}`}
+                                  style={{ fontSize: report.estatus ? "1.15rem" : "1rem" }}
+                                  aria-hidden
+                                >
+                                  {report.estatus ? "lock_open" : "lock"}
                                 </i>
                               </button>
                             )}

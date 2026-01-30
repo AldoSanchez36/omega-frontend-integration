@@ -259,16 +259,6 @@ export default function Reporte() {
     try {
     const reportSelectionRaw = localStorage.getItem("reportSelection");
     const parsedReportSelection = reportSelectionRaw ? JSON.parse(reportSelectionRaw) : null;
-    console.log("📄 Reports - Datos recibidos del localStorage:", parsedReportSelection);
-    console.log("🆔 Reports - ID del reporte (report_id):", parsedReportSelection?.report_id || "No disponible");
-    console.log("📊 Reports - Parámetros recibidos:", parsedReportSelection?.parameters);
-    console.log("📊 Reports - Tolerancias recibidas:", parsedReportSelection?.variablesTolerancia);
-    console.log("📊 Reports - Claves de tolerancias:", parsedReportSelection?.variablesTolerancia ? Object.keys(parsedReportSelection.variablesTolerancia) : []);
-    if (parsedReportSelection?.variablesTolerancia) {
-      Object.entries(parsedReportSelection.variablesTolerancia).forEach(([key, value]: [string, any]) => {
-        console.log(`📊 Reports - Tolerancia [${key}]:`, value);
-      });
-    }
     setReportSelection(parsedReportSelection);
     
     // Cargar comentarios guardados si existen
@@ -311,7 +301,6 @@ export default function Reporte() {
       } catch (e) {
         // Si no es JSON válido, es un string simple (formato antiguo)
         // No hacer nada, ya está cargado en reportSelection.comentarios
-        console.log("ℹ️ Comentarios en formato string simple (legacy)");
       }
     }
     
@@ -402,12 +391,9 @@ export default function Reporte() {
                     
                     fetchedTolerances[variable.id] = toleranceDataFormatted;
                     fetchedTolerances[variableName] = toleranceDataFormatted;
-                    
-                    console.log(`✅ [Reports] Tolerancia obtenida para ${variableName}:`, toleranceDataFormatted);
                   }
                 } else if (toleranceResponse.status === 404 || toleranceResponse.status === 204) {
                   // No hay tolerancia para esta variable, continuar
-                  console.log(`ℹ️ [Reports] No hay tolerancia definida para ${variableName} en ${systemName}`);
                 }
               } catch (error) {
                 console.error(`❌ [Reports] Error obteniendo tolerancia para ${variableName}:`, error);
@@ -416,7 +402,6 @@ export default function Reporte() {
           }
           
           if (Object.keys(fetchedTolerances).length > 0) {
-            console.log(`✅ [Reports] Tolerancias obtenidas del backend: ${Object.keys(fetchedTolerances).length} parámetros`, fetchedTolerances);
             const updatedReportSelection = {
               ...parsedReportSelection,
               variablesTolerancia: fetchedTolerances
@@ -465,8 +450,6 @@ export default function Reporte() {
 
   const generatePDF = async () => {
     try {
-      console.log("Generando PDF...")
-
       const doc = new jsPDF()
 
       // Configuración inicial
@@ -480,14 +463,14 @@ export default function Reporte() {
       doc.text(`Sistema Evaluado: ${reportNotes["sistema"] || (reportSelection ? reportSelection.systemName : "Todos los sistemas") || "Todos los sistemas"}`, 20, 65)
       doc.text(`Ubicación: ${reportNotes["ubicacion"] || "San Luis Potosí, S.L.P."}`, 20, 75)
       
-      // Add metadata if available
-      if (reportSelection?.user) {
-        doc.text(`Planta: ${reportSelection.user.username}`, 20, 85)
-        doc.text(`Sistema: ${reportSelection.systemName}`, 20, 95)
-        doc.text(`Generado por: ${reportSelection.user.username}`, 20, 105)
+      // Planta (valor del sistema) y fecha
+      const plantaValue = reportSelection?.systemName ?? reportSelection?.plant?.nombre ?? "";
+      if (plantaValue) {
+        doc.text(`Planta: ${plantaValue}`, 20, 85)
       }
+      doc.text(`Fecha de generación: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleString('es-ES')}`, 20, 95)
 
-      let currentY = reportSelection?.user ? 120 : 90
+      let currentY = 105
 
       // Leyenda de colores
       doc.setFontSize(14)
@@ -589,8 +572,6 @@ export default function Reporte() {
       // Guardar el PDF
       const fileName = `Reporte_${currentDate.replace(/\s/g, "_").replace(/,/g, "")}.pdf`
       doc.save(fileName)
-
-      console.log("PDF generado exitosamente:", fileName)
       alert("PDF generado exitosamente!")
     } catch (error) {
       console.error("Error detallado generando PDF:", error)
@@ -622,8 +603,6 @@ export default function Reporte() {
     
     setIsSaving(true)
     try {
-      console.log("💾 Iniciando proceso de guardado de reporte...")
-      
       // Validar que tenemos datos del reporte
       if (!reportSelection) {
         alert("No hay datos de reporte disponibles")
@@ -679,8 +658,6 @@ export default function Reporte() {
           }
         });
       }
-      
-      console.log("📝 Comentarios combinados:", comentariosCombinados);
 
       // Preparar el reportSelection completo para enviar
       const reportDataToSend = {
@@ -709,13 +686,9 @@ export default function Reporte() {
         // Campos requeridos por el backend
         planta_id: reportSelection.plant?.id,
         usuario_id: reportSelection.user?.id,
-        empresa_id: empresaId,
         // Mantener parameterComments para compatibilidad (pero el backend usará comentarios)
         parameterComments: parameterComments || {}
       }
-
-      console.log("📋 Payload completo que se enviará al servidor:")
-      console.log(JSON.stringify(reportDataToSend, null, 2))
 
       // Determinar si es actualización o creación
       const reportId = reportSelection.report_id;
@@ -726,10 +699,6 @@ export default function Reporte() {
         ? `${API_BASE_URL}${API_ENDPOINTS.REPORT_BY_ID(reportId)}`
         : `${API_BASE_URL}${API_ENDPOINTS.REPORTS}`;
       const method = isUpdate ? "PUT" : "POST";
-      
-      console.log(`🔄 ${isUpdate ? "Actualizando" : "Creando"} reporte${isUpdate ? ` (ID: ${reportId})` : ""}...`);
-      console.log(`📍 Endpoint: ${endpoint}`);
-      console.log(`🔧 Método: ${method}`);
 
       // Enviar el reportSelection completo al endpoint
       const response = await fetch(endpoint, {
@@ -739,12 +708,6 @@ export default function Reporte() {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify(reportDataToSend)
-      })
-
-      console.log("📡 Respuesta del servidor:", {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok
       })
 
       if (!response.ok) {
@@ -782,8 +745,7 @@ export default function Reporte() {
       }
 
       const result = await response.json()
-      console.log(`✅ Reporte ${isUpdate ? "actualizado" : "creado"} exitosamente:`, result)
-      
+
       // Validar que el resultado no sea null
       if (!result || (result.ok === false)) {
         const errorMsg = result?.msg || result?.message || "El servidor devolvió un resultado nulo"
@@ -793,7 +755,6 @@ export default function Reporte() {
       
       // Si se creó un nuevo reporte, actualizar el report_id en reportSelection
       if (!isUpdate && result?.id) {
-        console.log("🆔 Nuevo reporte creado con ID:", result.id);
         const updatedReportSelection = {
           ...reportSelection,
           report_id: result.id
@@ -807,8 +768,6 @@ export default function Reporte() {
       
       // Ahora guardar las mediciones individuales por parámetro
       if (reportSelection.parameters && reportSelection.fecha) {
-        console.log("💾 Guardando mediciones individuales por parámetro...")
-        
         try {
           // Obtener todos los sistemas de la planta para mapear nombres a IDs
           const systemsResponse = await fetch(
@@ -907,17 +866,13 @@ export default function Reporte() {
                 usuario_id: reportSelection.user?.id || null,
                 planta_id: reportSelection.plant?.id || null,
               }
-              
-              console.log(`📝 Creando medición: ${parameterName} - ${systemName} - Fecha: ${fechaNormalizada} - Comentario: ${parameterComment}`)
-              
+
               measurementsToSave.push(measurement)
             })
           })
           
           // Guardar todas las mediciones
           if (measurementsToSave.length > 0) {
-            console.log(`📊 Guardando ${measurementsToSave.length} mediciones...`)
-            
             const saveResults = await Promise.allSettled(
               measurementsToSave.map(async (measurement) => {
                 const measResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS}`, {
@@ -940,8 +895,7 @@ export default function Reporte() {
             
             const successful = saveResults.filter(r => r.status === 'fulfilled').length
             const failed = saveResults.filter(r => r.status === 'rejected').length
-            
-            console.log(`✅ ${successful} mediciones guardadas exitosamente`)
+
             if (failed > 0) {
               console.warn(`⚠️ ${failed} mediciones fallaron al guardarse`)
               saveResults.forEach((result, index) => {
@@ -990,11 +944,8 @@ export default function Reporte() {
         return null;
       }
       
-      console.log(`📸 Exportando gráfico desde componente: ${variableName}`);
       const imageData = await chartRef.exportAsImage();
-      
       if (imageData) {
-        console.log(`✅ Gráfico ${variableName} exportado: ${(imageData.length / 1024).toFixed(2)}KB`);
           } else {
         console.warn(`⚠️ No se pudo exportar el gráfico: ${variableName}`);
       }
@@ -1031,8 +982,6 @@ export default function Reporte() {
   // Exportar a PDF usando jsPDF y AutoTable directamente
   const exportDOMToPDF = async (reportSelection: ReportSelection | null) => {
     try {
-      console.log("🎯 Iniciando generación de PDF con jsPDF y AutoTable...");
-      
       if (!reportSelection) {
         throw new Error("No hay datos de reporte disponibles");
       }
@@ -1155,7 +1104,6 @@ export default function Reporte() {
       if (reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
         currentY = checkSpaceAndAddPage(30, currentY);
         pdf.setFontSize(14);
-        pdf.text("Previsualización de Datos Guardados", marginLeft, currentY);
         currentY += 8;
         
         // Fecha de medición
@@ -1230,7 +1178,7 @@ export default function Reporte() {
               // Obtener el nombre de la variable (primera columna)
               const variableName = previewTableData[data.row.index]?.[0];
               // Extraer el nombre sin la unidad (si tiene formato "Variable (unidad)")
-              const variableNameClean = variableName ? variableName.split(' (')[0] : '';
+              const variableNameClean = variableName ? variableName.split(' (')[0].trim() : '';
               
               // Obtener el nombre del sistema (columna actual)
               const systemName = systemNames[data.column.index - 1];
@@ -1239,24 +1187,40 @@ export default function Reporte() {
               const systemData = reportSelection.parameters[systemName];
               const paramData = systemData?.[variableNameClean];
               
-              // Obtener los límites de tolerancia
-              const tolerances = reportSelection?.variablesTolerancia?.[systemName] || {};
-              // Buscar la tolerancia por nombre de variable
-              let tolerance = Object.values(tolerances).find((tol: any) => 
-                tol && typeof tol === 'object' && tol.nombre === variableNameClean
-              ) as any;
-              
-              // Si no se encuentra por nombre, intentar buscar por ID o cualquier coincidencia
-              if (!tolerance && Object.keys(tolerances).length > 0) {
-                tolerance = Object.values(tolerances).find((tol: any) => 
-                  tol && typeof tol === 'object'
-                ) as any;
+              // Misma búsqueda de tolerancia que la vista HTML (objeto plano por nombre/parameterId)
+              interface TolShape {
+                bien_min?: number | null;
+                bien_max?: number | null;
+                limite_min?: number | null;
+                limite_max?: number | null;
+                usar_limite_min?: boolean;
+                usar_limite_max?: boolean;
+              }
+              const tolerances = reportSelection?.variablesTolerancia || {};
+              const tolerancesRecord = tolerances as Record<string, unknown>;
+              let tolerance: TolShape | null = null;
+              const direct = tolerancesRecord[variableNameClean];
+              if (direct && typeof direct === 'object') {
+                tolerance = direct as TolShape;
+              } else {
+                const byNombre = Object.values(tolerancesRecord).find((tol: unknown) => 
+                  tol && typeof tol === 'object' && (tol as { nombre?: string }).nombre === variableNameClean
+                );
+                if (byNombre && typeof byNombre === 'object') tolerance = byNombre as TolShape;
+              }
+              if (!tolerance) {
+                const byCase = Object.values(tolerancesRecord).find((tol: unknown) => {
+                  const t = tol as { nombre?: string };
+                  return t && typeof t === 'object' && t.nombre && 
+                    t.nombre.trim().toLowerCase() === variableNameClean.toLowerCase();
+                });
+                if (byCase && typeof byCase === 'object') tolerance = byCase as TolShape;
               }
               
               // Calcular el color si tenemos datos y tolerancia
               if (paramData && paramData.valor !== undefined && paramData.valor !== null && tolerance) {
                 const valorStr = String(paramData.valor);
-                const toleranceParam = {
+                const toleranceParam: TolShape = {
                   bien_min: tolerance.bien_min ?? null,
                   bien_max: tolerance.bien_max ?? null,
                   limite_min: tolerance.limite_min ?? null,
@@ -1306,8 +1270,6 @@ export default function Reporte() {
       }
 
       // Capturar y agregar gráficos
-      console.log("📊 Buscando sección de gráficos...");
-      
       // Calcular variables disponibles para verificar si hay gráficos
       const variablesDisponibles = (() => {
         const variablesMap = new Map<string, string>();
@@ -1351,8 +1313,6 @@ export default function Reporte() {
       
       // Exportar gráficos directamente desde los componentes usando refs
       if (hasCharts && variablesDisponibles.length > 0) {
-        console.log(`📊 Exportando ${variablesDisponibles.length} gráficos desde componentes...`);
-        
         // Esperar un momento para que los gráficos se rendericen completamente
         await new Promise(resolve => setTimeout(resolve, 1000));
         
@@ -1360,15 +1320,11 @@ export default function Reporte() {
           const variable = variablesDisponibles[i];
           const variableName = variable.nombre;
           const chartTitle = `${variableName} (${variable.unidad})`;
-          
-          console.log(`📸 Exportando gráfico ${i + 1}/${variablesDisponibles.length}: ${chartTitle}`);
-          
+
           // Exportar gráfico desde el componente usando ref
           const chartData = await exportChartFromComponent(variableName);
           
           if (chartData) {
-            console.log(`✅ Gráfico ${i + 1} exportado exitosamente`);
-            
             const chartImg = new window.Image();
             chartImg.src = chartData;
             
@@ -1399,7 +1355,6 @@ export default function Reporte() {
                   currentY += commentLines.length * 4 + spacingMM;
                 }
                 
-                console.log(`✅ Gráfico ${i + 1} agregado al PDF`);
                 resolve(null);
               };
               chartImg.onerror = () => {
@@ -1411,8 +1366,6 @@ export default function Reporte() {
             console.warn(`⚠️ No se pudo exportar el gráfico ${i + 1}: ${chartTitle}`);
           }
         }
-      } else {
-        console.log("ℹ️ No hay gráficos para exportar");
       }
 
       // Agregar tabla histórica por sistema (igual que dashboard-historicos)
@@ -1564,8 +1517,8 @@ export default function Reporte() {
           
           // Fila FECHA/RANGOS
           const rangosRow = ["FECHA/RANGOS", ...parameters.map(p => {
-            const tolerances = reportSelection?.variablesTolerancia?.[systemName] || {};
-            let tolerance = tolerances[p.id] as any;
+            const tolerances = (reportSelection?.variablesTolerancia?.[systemName] || {}) as unknown as Record<string, { limite_min?: number | null; limite_max?: number | null }>;
+            let tolerance = tolerances[p.id];
             
             if (!tolerance) {
               tolerance = Object.values(tolerances).find((tol: any) => tol && typeof tol === 'object') as any;
@@ -1694,22 +1647,14 @@ export default function Reporte() {
         currentY += commentLines.length * 5 + spacingMM;
       }
 
-      // Detalles de mediciones
-      if (reportSelection.user) {
-        currentY = checkSpaceAndAddPage(30, currentY);
-        pdf.setFontSize(14);
-        pdf.text("Detalles de Mediciones", marginLeft, currentY);
-        currentY += 8;
-        pdf.setFontSize(10);
-        pdf.text(`Planta: ${reportSelection.user.username}`, marginLeft, currentY);
-        currentY += 5;
-        pdf.text(`Sistema: ${reportSelection.systemName}`, marginLeft, currentY);
-        currentY += 5;
-        pdf.text(`Generado por: ${reportSelection.user.username}`, marginLeft, currentY);
-        currentY += 5;
-        pdf.text(`Fecha de generación: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleString('es-ES')}`, marginLeft, currentY);
-        currentY += spacingMM;
-    }
+      // Pie de página: Planta (dato del sistema) y fecha de generación
+      currentY = checkSpaceAndAddPage(30, currentY);
+      pdf.setFontSize(10);
+      const plantaLabel = reportSelection?.systemName ?? reportSelection?.plant?.nombre ?? "";
+      pdf.text(`Planta: ${plantaLabel}`, marginLeft, currentY);
+      currentY += 5;
+      pdf.text(`Fecha de generación: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleString('es-ES')}`, marginLeft, currentY);
+      currentY += spacingMM;
 
     // Agregar footer a la última página
       if (footerData) {
@@ -1730,10 +1675,7 @@ export default function Reporte() {
 
       // Descargar PDF
     const fileName = `Reporte_${(reportSelection?.plant?.nombre || "General").replace(/\s+/g, "_")}_${new Date().toISOString().slice(0,10)}.pdf`;
-    console.log("💾 Descargando PDF:", fileName);
     pdf.save(fileName);
-    
-    console.log("✅ PDF descargado exitosamente");
     alert("✅ PDF descargado exitosamente!");
     
   } catch (error) {
@@ -1753,16 +1695,12 @@ export default function Reporte() {
     
     setIsDownloading(true)
     try {
-      console.log("📄 Iniciando descarga de PDF...")
-      
       // Validar que tenemos datos del reporte
       if (!reportSelection) {
         alert("No hay datos de reporte disponibles")
         return
       }
 
-      // Generar y descargar el PDF directamente
-      console.log("📄 Generando PDF...")
       await exportDOMToPDF(reportSelection)
       
     } catch (error) {
@@ -1900,10 +1838,6 @@ export default function Reporte() {
     
     // Intentar cargar fechas desde reportSelection primero
     if (reportSelection?.chartStartDate && reportSelection?.chartEndDate) {
-      console.log("📅 Cargando fechas de gráficos desde reportSelection:", {
-        chartStartDate: reportSelection.chartStartDate,
-        chartEndDate: reportSelection.chartEndDate
-      });
       setChartStartDate(reportSelection.chartStartDate);
       setChartEndDate(reportSelection.chartEndDate);
     } else {
@@ -1913,11 +1847,6 @@ export default function Reporte() {
       const startDateObj = new Date(today)
       startDateObj.setMonth(today.getMonth() - 12)
       const startDate = startDateObj.toISOString().split('T')[0]
-      
-      console.log("📅 Calculando fechas de gráficos desde hoy (fallback):", {
-        chartStartDate: startDate,
-        chartEndDate: endDate
-      });
       setChartStartDate(startDate)
       setChartEndDate(endDate)
     }
@@ -2127,8 +2056,8 @@ export default function Reporte() {
   }
   
   const isValueOutOfRange = (systemName: string, parameterId: string, value: number): boolean => {
-    const tolerances = reportSelection?.variablesTolerancia?.[systemName] || {}
-    let tolerance = tolerances[parameterId] as any
+    const tolerances = (reportSelection?.variablesTolerancia?.[systemName] ?? {}) as Record<string, { limite_min?: number | null; limite_max?: number | null }>
+    let tolerance = tolerances[parameterId]
     
     if (!tolerance) {
       tolerance = Object.values(tolerances).find((tol: any) => tol && typeof tol === 'object') as any
@@ -2167,12 +2096,11 @@ export default function Reporte() {
             <p className="mb-0">
               <strong>Fecha:</strong> {currentDate}
             </p>
-            {reportSelection?.user && (
+            {reportSelection && (
               <div className="mt-2">
                 <small>
-                  <strong>Planta:</strong> {reportSelection.user.username} | 
-                  <strong> Sistema:</strong> {reportSelection.systemName} | 
-                  <strong> Generado por:</strong> {reportSelection.user.username}
+                  <strong>Planta:</strong> {reportSelection.systemName ?? reportSelection.plant?.nombre ?? "—"} | 
+                  <strong> Fecha de generación:</strong> {reportSelection.generatedDate ? new Date(reportSelection.generatedDate).toLocaleString('es-ES') : currentDate}
                 </small>
               </div>
             )}
@@ -2308,9 +2236,7 @@ export default function Reporte() {
               {/* Previsualización de Datos Guardados */}
               {reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0 && (
                 <div className="mb-4 ml-10 mr-10">
-                  <h5 className="mb-3">
-                    <strong>Previsualización de Datos Guardados</strong>
-                  </h5>
+                  
                   
                   {/* Fecha de medición */}
                   <div className="mb-4">
@@ -2390,21 +2316,7 @@ export default function Reporte() {
                                       tol.nombre.trim().toLowerCase() === variable.trim().toLowerCase()
                                     ) as any;
                                   }
-                                  
-                                  // Log detallado para debugging
-                                  if (paramData && paramData.valor !== undefined && paramData.valor !== null) {
-                                    console.log(`🔍 [Reports] Búsqueda de tolerancia para "${variable}":`, {
-                                      encontrada: !!tolerance,
-                                      tolerancia: tolerance,
-                                      todasLasClaves: Object.keys(tolerances),
-                                      muestraTolerancias: Object.keys(tolerances).slice(0, 10).map(key => ({
-                                        key,
-                                        nombre: tolerances[key]?.nombre,
-                                        tieneNombre: !!tolerances[key]?.nombre
-                                      }))
-                                    });
-                                  }
-                                  
+
                                   // Aplicar color según los límites
                                   let cellColor = "";
                                   if (paramData && paramData.valor !== undefined && paramData.valor !== null && tolerance) {
@@ -2418,21 +2330,6 @@ export default function Reporte() {
                                       usar_limite_max: tolerance.usar_limite_max ?? false
                                     };
                                     cellColor = getCellColor(valorStr, toleranceParam);
-                                    
-                                    // Log para debugging (siempre mostrar)
-                                    console.log(`🎨 [Reports] Color aplicado para ${variable} (${systemName}):`, {
-                                      valor: paramData.valor,
-                                      cellColor,
-                                      toleranceParam,
-                                      tolerance
-                                    });
-                                  } else if (paramData && paramData.valor !== undefined && paramData.valor !== null && !tolerance) {
-                                    // Log si no se encontró tolerancia (siempre mostrar)
-                                    console.warn(`⚠️ [Reports] No se encontró tolerancia para ${variable} (${systemName}):`, {
-                                      valor: paramData.valor,
-                                      tolerancesKeys: Object.keys(tolerances),
-                                      tolerancesSample: Object.keys(tolerances).slice(0, 5).map(key => ({ key, nombre: tolerances[key]?.nombre }))
-                                    });
                                   }
                                   
                                   // Crear objeto de estilo con backgroundColor
@@ -2465,9 +2362,6 @@ export default function Reporte() {
                   {/* Sección de comentarios - Solo mostrar si hay contenido o si no es cliente */}
                   {(userRole !== "client" || (reportSelection?.comentarios && reportSelection.comentarios.trim() !== "")) && (
                     <div className="mt-4 pt-4 border-t">
-                      <label htmlFor="preview-comments" className="block text-sm font-medium text-gray-700 mb-2">
-                        Comentarios para Previsualización de Datos:
-                      </label>
                       <textarea
                         id="preview-comments"
                         className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -2515,19 +2409,7 @@ export default function Reporte() {
                       const primarySystemName = variable.sistemas && variable.sistemas.length > 0 
                         ? variable.sistemas[0] 
                         : undefined;
-                      
-                      // Log para debugging
-                      console.log(`📊 [Reports] Renderizando gráfico para variable:`, {
-                        variable: variable.nombre,
-                        unidad: variable.unidad,
-                        sistemas: variable.sistemas,
-                        primarySystemName,
-                        clientName: reportSelection?.plant?.nombre,
-                        userId: reportSelection?.user?.id,
-                        chartStartDate,
-                        chartEndDate
-                      });
-                      
+
                       return (
                       <div key={variable.id} className="border rounded-lg p-4 bg-white">
                         <div>
