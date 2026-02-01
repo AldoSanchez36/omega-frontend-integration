@@ -703,131 +703,103 @@ export default function Dashboard() {
     }
   }, []); // Solo ejecutar una vez al montar
 
+  // Datos históricos desde reportes.datos (JSON) en lugar de tabla mediciones
   useEffect(() => {
     if (!plants.length) return;
-    const token = authService.getToken();
 
-    const fetchAllHistoricalData = async () => {
+    const buildHistoricalDataFromReportes = () => {
       setHistoricalDataLoading(true);
       const allData: Record<string, Record<string, any[]>> = {};
-      let totalFetched = 0;
-      let totalErrors = 0;
-      
+      const plantIds = new Set(plants.map((p) => p.id));
+
       try {
-        const extractValue = (measurement: any, variableName: string): number | null => {
-          if (!measurement) return null
-          // casos comunes
-          const direct = measurement.valor ?? measurement.value
-          if (direct !== undefined && direct !== null && !Number.isNaN(Number(direct))) return Number(direct)
-
-          // a veces viene con la variable como llave (p.ej. { fecha, "pH": 7.1 })
-          const byName = measurement[variableName]
-          if (byName !== undefined && byName !== null && !Number.isNaN(Number(byName))) return Number(byName)
-
-          // fallback: primer valor numérico distinto de fecha
-          const numeric = Object.entries(measurement)
-            .filter(([k]) => k !== "fecha")
-            .map(([, v]) => Number(v))
-            .find((v) => !Number.isNaN(v))
-          return numeric ?? null
-        }
-
+        // Inicializar estructura por sistema y parámetro
         for (const plant of plants) {
           if (!plant.systems) continue;
           for (const system of plant.systems) {
-            if (!allData[system.id]) allData[system.id] = {}
-            // Obtener datos por variable y proceso (más específico y correcto)
+            if (!allData[system.id]) allData[system.id] = {};
             for (const param of system.parameters) {
-              try {
-                // Usar el endpoint que filtra por variable Y proceso
-                const res = await fetch(
-                  `${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_PROCESS(param.name, system.name)}`,
-                  { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-                );
-                
-                if (!res.ok) {
-                  console.warn(`⚠️ Error obteniendo datos para ${param.name} en ${system.name}: ${res.status}`);
-                  totalErrors++;
-                  continue;
-                }
-                
-                const result = await res.json();
-                const json: any[] = result.mediciones || [];
-                
-                // Filtrar datos por fecha del año actual
-                const filtered = json.filter(m => {
-                  if (!m.fecha) return false;
-                  
-                  // Normalizar fecha de medición (manejar diferentes formatos)
-                  const fechaMedicion = new Date(m.fecha);
-                  if (isNaN(fechaMedicion.getTime())) return false;
-                  
-                  // Obtener año de la medición
-                  const añoMedicion = fechaMedicion.getFullYear();
-                  const añoActual = new Date().getFullYear();
-                  
-                  // Solo incluir datos del año actual
-                  if (añoMedicion !== añoActual) return false;
-                  
-                  // Filtrar por rango de fechas (del 1 de enero hasta hoy)
-                  const start = new Date(startDate + 'T00:00:00');
-                  const end = new Date(endDate + 'T23:59:59');
-                  
-                  // Comparar solo fechas (sin hora) para evitar problemas de zona horaria
-                  const fechaMedicionDate = new Date(fechaMedicion.getFullYear(), fechaMedicion.getMonth(), fechaMedicion.getDate());
-                  const startDateOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-                  const endDateOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-                  
-                  return fechaMedicionDate >= startDateOnly && fechaMedicionDate <= endDateOnly;
-                });
-                
-                // Mapear datos al formato esperado
-                const mappedData = filtered
-                  .map(m => ({
-                    timestamp: m.fecha,
-                    value: extractValue(m, param.name)
-                  }))
-                  .filter(d => d.value !== null && d.value !== undefined && !Number.isNaN(Number(d.value)))
-                  .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-                
-                if (mappedData.length > 0) {
-                  allData[system.id][param.id] = mappedData;
-                  totalFetched += mappedData.length;
-                  const añoActual = new Date().getFullYear();
-                  console.log(`✅ ${param.name} (${system.name}): ${mappedData.length} puntos de datos del año ${añoActual}`);
-                } else {
-                  const añoActual = new Date().getFullYear();
-                  console.log(`ℹ️ ${param.name} (${system.name}): Sin datos del año ${añoActual} en el rango ${startDate} - ${endDate}`);
-                }
-              } catch (error) {
-                console.error(`❌ Error procesando ${param.name} en ${system.name}:`, error);
-                totalErrors++;
-              }
+              allData[system.id][param.id] = [];
             }
           }
         }
-        
-        const añoActual = new Date().getFullYear();
-        console.log(`📊 Resumen año ${añoActual}: ${totalFetched} puntos de datos obtenidos, ${totalErrors} errores`);
+
+        // Construir puntos desde reportes: cada reporte tiene datos.parameters[systemName][paramName] = { valor, unidad } y datos.fecha
+        for (const report of reports) {
+          const datos = report.datos || (report as any).reportSelection || {};
+          const fechaReporte = datos.fecha || (report as any).created_at || (report as any).fecha;
+          if (!fechaReporte) continue;
+
+          const fechaStr = typeof fechaReporte === "string"
+            ? fechaReporte.split("T")[0]
+            : new Date(fechaReporte).toISOString().split("T")[0];
+          const fechaDate = new Date(fechaStr);
+          if (isNaN(fechaDate.getTime())) continue;
+
+          const start = new Date(startDate + "T00:00:00");
+          const end = new Date(endDate + "T23:59:59");
+          const fechaOnly = new Date(fechaDate.getFullYear(), fechaDate.getMonth(), fechaDate.getDate());
+          const startOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+          const endOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+          if (fechaOnly < startOnly || fechaOnly > endOnly) continue;
+
+          const reportPlantaId = report.planta_id || datos?.plant?.id;
+          if (!reportPlantaId || !plantIds.has(reportPlantaId)) continue;
+
+          const parametersBySystem = datos.parameters || {};
+          for (const systemName of Object.keys(parametersBySystem)) {
+            const paramsByName = parametersBySystem[systemName] || {};
+            const plant = plants.find((p) => p.id === reportPlantaId);
+            const system = plant?.systems?.find((s) => s.name === systemName);
+            if (!system) continue;
+
+            for (const paramName of Object.keys(paramsByName)) {
+              const paramData = paramsByName[paramName];
+              const valor = paramData?.valor ?? paramData?.value;
+              if (valor === undefined || valor === null || Number.isNaN(Number(valor))) continue;
+
+              const param = system.parameters?.find((p) => p.name === paramName);
+              if (!param || !allData[system.id]) continue;
+
+              if (!allData[system.id][param.id]) allData[system.id][param.id] = [];
+              allData[system.id][param.id].push({
+                timestamp: fechaReporte,
+                value: Number(valor),
+              });
+            }
+          }
+        }
+
+        // Ordenar cada serie por timestamp
+        for (const systemId of Object.keys(allData)) {
+          for (const paramId of Object.keys(allData[systemId])) {
+            allData[systemId][paramId].sort(
+              (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+            );
+          }
+        }
+
         setHistoricalData(allData);
-        
-        // Calcular total de puntos de datos históricos
         const total = Object.values(allData).reduce((sum, systemMap) => {
-          const systemTotal = Object.values(systemMap || {}).reduce((s, arr: any[]) => s + (arr?.length || 0), 0)
-          return sum + systemTotal
+          const systemTotal = Object.values(systemMap || {}).reduce(
+            (s, arr: any[]) => s + (arr?.length || 0),
+            0
+          );
+          return sum + systemTotal;
         }, 0);
         setTotalHistoricos(total);
+        console.log(
+          `📊 Datos históricos desde reportes: ${total} puntos (rango ${startDate} - ${endDate})`
+        );
       } catch (error) {
-        console.error('❌ Error general cargando datos históricos:', error);
+        console.error("❌ Error construyendo datos históricos desde reportes:", error);
       } finally {
-        // Siempre establecer loading en false al finalizar, incluso si hay errores o no hay datos
         setHistoricalDataLoading(false);
-        console.log('✅ Carga de datos históricos finalizada');
       }
     };
 
-    fetchAllHistoricalData();
-  }, [plants, startDate, endDate]);
+    buildHistoricalDataFromReportes();
+  }, [plants, startDate, endDate, reports]);
 
   // Don't render if user is not loaded
   if (!user) {

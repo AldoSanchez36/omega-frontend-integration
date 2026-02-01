@@ -763,165 +763,9 @@ export default function Reporte() {
         localStorage.setItem("reportSelection", JSON.stringify(updatedReportSelection));
       }
       
-      // Mostrar mensaje de éxito
-      alert(`Reporte ${isUpdate ? "actualizado" : "guardado"} exitosamente${isUpdate ? ` (ID: ${reportId})` : result?.id ? ` (ID: ${result.id})` : ""}`)
-      
-      // Ahora guardar las mediciones individuales por parámetro
-      if (reportSelection.parameters && reportSelection.fecha) {
-        try {
-          // Obtener todos los sistemas de la planta para mapear nombres a IDs
-          const systemsResponse = await fetch(
-            `${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT_NAME(reportSelection.plant?.nombre || "")}`,
-            {
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
-            }
-          )
-          
-          let systemsMap: Record<string, { id: string; nombre: string }> = {}
-          if (systemsResponse.ok) {
-            const systemsData = await systemsResponse.json()
-            const systemsList = systemsData.procesos || systemsData || []
-            systemsList.forEach((sys: any) => {
-              systemsMap[sys.nombre] = { id: sys.id, nombre: sys.nombre }
-            })
-          }
-          
-          // Crear array de promesas para obtener variables de cada sistema
-          const variablePromises = Object.entries(reportSelection.parameters).map(async ([systemName, systemParams]: [string, any]) => {
-            const systemInfo = systemsMap[systemName]
-            if (!systemInfo) {
-              console.warn(`⚠️ Sistema "${systemName}" no encontrado, saltando...`)
-              return { systemName, variables: null, systemParams: null }
-            }
-            
-            // Obtener parámetros del sistema para mapear nombres a IDs
-            try {
-              const varsResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(systemInfo.id)}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-              })
-              
-              if (!varsResponse.ok) {
-                console.error(`❌ Error obteniendo variables del sistema ${systemName}`)
-                return { systemName, variables: null, systemParams: null }
-              }
-              
-              const varsData = await varsResponse.json()
-              const variablesList = varsData.variables || varsData || []
-              const variablesMap: Record<string, { id: string; nombre: string }> = {}
-              variablesList.forEach((v: any) => {
-                variablesMap[v.nombre] = { id: v.id, nombre: v.nombre }
-              })
-              
-              return { systemName, variables: variablesMap, systemParams, systemInfo }
-            } catch (error) {
-              console.error(`❌ Error obteniendo variables del sistema ${systemName}:`, error)
-              return { systemName, variables: null, systemParams: null }
-            }
-          })
-          
-          // Esperar a que se obtengan todas las variables
-          const systemsData = await Promise.all(variablePromises)
-          
-          // Crear array de mediciones a guardar
-          const measurementsToSave: any[] = []
-          
-          systemsData.forEach(({ systemName, variables, systemParams, systemInfo }) => {
-            if (!variables || !systemParams || !systemInfo) return
-            
-            // Iterar sobre cada parámetro del sistema
-            Object.entries(systemParams).forEach(([parameterName, paramData]: [string, any]) => {
-              const variableInfo = variables[parameterName]
-              if (!variableInfo) {
-                console.warn(`⚠️ Variable "${parameterName}" no encontrada en sistema "${systemName}", saltando...`)
-                return
-              }
-              
-              // Normalizar fecha a formato YYYY-MM-DD
-              let fechaNormalizada = reportSelection.fecha
-              if (fechaNormalizada) {
-                // Si viene como ISO string completo, extraer solo la fecha
-                if (fechaNormalizada.includes('T')) {
-                  fechaNormalizada = fechaNormalizada.split('T')[0]
-                }
-                // Si viene en otro formato, intentar parsearlo
-                const fechaDate = new Date(fechaNormalizada)
-                if (!isNaN(fechaDate.getTime())) {
-                  fechaNormalizada = fechaDate.toISOString().split('T')[0]
-                }
-              }
-              
-              // Obtener comentario del parámetro si existe
-              const parameterComment = parameterComments[parameterName] || reportSelection.comentarios || ""
-              
-              // Crear medición individual
-              const measurement = {
-                fecha: fechaNormalizada,
-                comentarios: parameterComment,
-                valor: paramData.valor,
-                variable_id: variableInfo.id,
-                proceso_id: systemInfo.id,
-                sistema: systemName, // Usar el nombre del sistema como sistema (S01, S02, etc.)
-                usuario_id: reportSelection.user?.id || null,
-                planta_id: reportSelection.plant?.id || null,
-              }
+      // Mostrar mensaje de éxito (los valores ya están en reportes.datos; no se usa tabla mediciones)
+      alert(`Reporte ${isUpdate ? "actualizado" : "guardado"} exitosamente en el sistema${isUpdate ? ` (ID: ${reportId})` : result?.id ? ` (ID: ${result.id})` : ""}`)
 
-              measurementsToSave.push(measurement)
-            })
-          })
-          
-          // Guardar todas las mediciones
-          if (measurementsToSave.length > 0) {
-            const saveResults = await Promise.allSettled(
-              measurementsToSave.map(async (measurement) => {
-                const measResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS}`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                  },
-                  body: JSON.stringify(measurement)
-                })
-                
-                if (!measResponse.ok) {
-                  const errorData = await measResponse.json().catch(() => ({}))
-                  throw new Error(`Error ${measResponse.status}: ${JSON.stringify(errorData)}`)
-                }
-                
-                return measResponse.json()
-              })
-            )
-            
-            const successful = saveResults.filter(r => r.status === 'fulfilled').length
-            const failed = saveResults.filter(r => r.status === 'rejected').length
-
-            if (failed > 0) {
-              console.warn(`⚠️ ${failed} mediciones fallaron al guardarse`)
-              saveResults.forEach((result, index) => {
-                if (result.status === 'rejected') {
-                  console.error(`❌ Error guardando medición ${index + 1}:`, result.reason)
-                }
-              })
-            }
-            
-            if (failed === 0) {
-              alert("✅ Reporte y mediciones guardados exitosamente en el sistema")
-            } else {
-              alert(`✅ Reporte guardado. ${successful} mediciones guardadas, ${failed} fallaron.`)
-            }
-          } else {
-            console.warn("⚠️ No se encontraron mediciones para guardar")
-            alert("✅ Reporte guardado exitosamente en el sistema")
-          }
-        } catch (error) {
-          console.error("❌ Error guardando mediciones individuales:", error)
-          alert("✅ Reporte guardado, pero hubo errores al guardar las mediciones individuales")
-        }
-      } else {
-        alert("✅ Reporte guardado exitosamente en el sistema")
-      }
-      
     } catch (error) {
       console.error("❌ Error en handleSaveReport:", error)
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -1385,33 +1229,59 @@ export default function Reporte() {
         // Obtener token para las peticiones
         const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
         const plantName = reportSelection?.plant?.nombre;
-        
+        const plantId = reportSelection?.plant?.id;
+
+        // Obtener reportes para construir histórico desde reportes.datos (en lugar de tabla mediciones)
+        let reportesFiltrados: any[] = [];
+        if (token && plantId) {
+          try {
+            const reportesRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (reportesRes.ok) {
+              const reportesData = await reportesRes.json();
+              const reportes: any[] = reportesData.reportes || [];
+              const start = new Date(pdfChartStartDate);
+              const end = new Date(pdfChartEndDate);
+              end.setHours(23, 59, 59, 999);
+              reportesFiltrados = reportes.filter((report: any) => {
+                const rPlantaId = report.planta_id || report.datos?.plant?.id;
+                if (rPlantaId !== plantId) return false;
+                const fechaReporte = report.datos?.fecha || report.fecha || report.created_at;
+                if (!fechaReporte) return false;
+                const fecha = new Date(fechaReporte);
+                return !isNaN(fecha.getTime()) && fecha >= start && fecha <= end;
+              });
+            }
+          } catch (e) {
+            console.error("Error obteniendo reportes para PDF:", e);
+          }
+        }
+
         // Iterar sobre cada sistema
         for (const systemName of Object.keys(reportSelection.parameters)) {
-          // Obtener todos los parámetros del sistema desde la API (igual que dashboard-historicos)
+          // Obtener todos los parámetros del sistema desde la API
           let parameters: Array<{ id: string; nombre: string; unidad: string }> = [];
           let historicalData: HistoricalDataByDate = {};
-          
+
           try {
-            // Obtener el ID del sistema desde su nombre
             if (token && plantName) {
               const systemsResponse = await fetch(
                 `${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT_NAME(plantName)}`,
                 { headers: { Authorization: `Bearer ${token}` } }
               );
-              
+
               if (systemsResponse.ok) {
                 const systemsData = await systemsResponse.json();
                 const systemsList = systemsData.procesos || systemsData || [];
                 const systemInfo = systemsList.find((sys: any) => sys.nombre === systemName);
-                
+
                 if (systemInfo?.id) {
-                  // Obtener todos los parámetros del sistema usando el ID (igual que dashboard-historicos)
                   const varsResponse = await fetch(
                     `${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(systemInfo.id)}`,
                     { headers: { Authorization: `Bearer ${token}` } }
                   );
-                  
+
                   if (varsResponse.ok) {
                     const varsData = await varsResponse.json();
                     const variablesList = varsData.variables || varsData || [];
@@ -1421,46 +1291,32 @@ export default function Reporte() {
                       unidad: v.unidad || ""
                     }));
                   }
-                  
-                  // Obtener datos históricos (igual que dashboard-historicos)
-                  const measurementsResponse = await fetch(
-                    `${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_PROCESS(systemInfo.nombre)}`,
-                    { headers: { Authorization: `Bearer ${token}` } }
-                  );
-                  
-                  if (measurementsResponse.ok) {
-                    const measurementsData = await measurementsResponse.json();
-                    const measurements: HistoricalMeasurement[] = measurementsData.mediciones || [];
-                    
-                    // Filtrar por rango de fechas
-                    const filteredMeasurements = measurements.filter((m: HistoricalMeasurement) => {
-                      const fecha = new Date(m.fecha);
-                      const start = new Date(pdfChartStartDate);
-                      const end = new Date(pdfChartEndDate);
-                      end.setHours(23, 59, 59, 999);
-                      return fecha >= start && fecha <= end;
-                    });
-                    
-                    // Organizar datos por fecha y variable_id (igual que dashboard-historicos)
-                    filteredMeasurements.forEach((measurement: HistoricalMeasurement) => {
-                      const fechaStr = new Date(measurement.fecha).toISOString().split('T')[0];
-                      
-                      if (!historicalData[fechaStr]) {
-                        historicalData[fechaStr] = {};
-                      }
-                      
-                      // Usar variable_id como key (igual que dashboard-historicos)
-                      historicalData[fechaStr][measurement.variable_id] = {
-                        valor: measurement.valor,
-                        unidad: measurement.unidad,
-                        comentarios: measurement.comentarios
+
+                  // Construir historicalData desde reportes.datos (columna JSON)
+                  reportesFiltrados.forEach((report: any) => {
+                    const datos = report.datos || report.reportSelection || {};
+                    const fechaReporte = datos.fecha || report.fecha || report.created_at;
+                    if (!fechaReporte) return;
+                    const fechaStr = typeof fechaReporte === "string"
+                      ? fechaReporte.split("T")[0]
+                      : new Date(fechaReporte).toISOString().split("T")[0];
+                    if (!historicalData[fechaStr]) historicalData[fechaStr] = {};
+                    const paramsForSystem = datos.parameters?.[systemName] || {};
+                    const parameterComments = datos.parameterComments || {};
+                    parameters.forEach((param) => {
+                      const paramData = paramsForSystem[param.nombre];
+                      const valor = paramData?.valor ?? paramData?.value;
+                      if (valor === undefined || valor === null || Number.isNaN(Number(valor))) return;
+                      historicalData[fechaStr][param.id] = {
+                        valor: Number(valor),
+                        unidad: paramData?.unidad ?? param.unidad ?? "",
+                        comentarios: parameterComments[param.nombre] ?? parameterComments[param.id] ?? datos.comentarios ?? ""
                       };
-                      
-                      if (measurement.comentarios && !historicalData[fechaStr].comentarios_globales) {
-                        historicalData[fechaStr].comentarios_globales = measurement.comentarios;
-                      }
                     });
-                  }
+                    if (datos.comentarios && !historicalData[fechaStr].comentarios_globales) {
+                      historicalData[fechaStr].comentarios_globales = datos.comentarios;
+                    }
+                  });
                 }
               }
             }
@@ -1557,7 +1413,7 @@ export default function Reporte() {
                 const valor = value && typeof value === 'object' && 'valor' in value ? value.valor : undefined;
                 return valor !== undefined ? valor.toFixed(2) : "—";
               }),
-              dateData.comentarios_globales || "—"
+              parseCommentDisplay(dateData.comentarios_globales)
             ];
             dataRows.push(row);
           });
@@ -1913,72 +1769,81 @@ export default function Reporte() {
     }
   }
   
-  // Función para cargar datos históricos por sistema (igual que dashboard-historicos)
+  // Función para cargar datos históricos por sistema desde reportes.datos (columna JSON)
   const fetchHistoricalDataForSystem = async (systemName: string) => {
     if (!reportSelection || !chartStartDate || !chartEndDate) return
-    
+
     setHistoricalLoading(prev => ({ ...prev, [systemName]: true }))
     setHistoricalError(prev => ({ ...prev, [systemName]: null }))
-    
+
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
-      
-      // Primero obtener todos los parámetros del sistema desde la API
+      const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
+      const plantId = reportSelection?.plant?.id
+
       const allParameters = await getSystemParameters(systemName)
       setSystemParameters(prev => ({ ...prev, [systemName]: allParameters }))
-      
-      // Obtener mediciones históricas (igual que dashboard-historicos)
-      const res = await fetch(
-        `${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_PROCESS(systemName)}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      )
-      
+
+      if (!token || !plantId) {
+        setHistoricalDataBySystem(prev => ({ ...prev, [systemName]: {} }))
+        return
+      }
+
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
       if (!res.ok) {
         if (res.status === 401) {
-          localStorage.removeItem('Organomex_token')
-          localStorage.removeItem('Organomex_user')
-          router.push('/logout')
+          localStorage.removeItem("Organomex_token")
+          localStorage.removeItem("Organomex_user")
+          router.push("/logout")
           return
         }
-        throw new Error("No se pudieron cargar las mediciones históricas.")
+        throw new Error("No se pudieron cargar los reportes.")
       }
-      
+
       const data = await res.json()
-      const measurements: HistoricalMeasurement[] = data.mediciones || []
-      
-      // Filtrar por rango de fechas
-      const filteredMeasurements = measurements.filter((m: HistoricalMeasurement) => {
-        const fecha = new Date(m.fecha)
-        const start = new Date(chartStartDate)
-        const end = new Date(chartEndDate)
-        end.setHours(23, 59, 59, 999)
-        return fecha >= start && fecha <= end
+      const reportes: any[] = data.reportes || []
+      const start = new Date(chartStartDate)
+      const end = new Date(chartEndDate)
+      end.setHours(23, 59, 59, 999)
+
+      const reportesFiltrados = reportes.filter((report: any) => {
+        const rPlantaId = report.planta_id || report.datos?.plant?.id
+        if (rPlantaId !== plantId) return false
+        const fechaReporte = report.datos?.fecha || report.fecha || report.created_at
+        if (!fechaReporte) return false
+        const fecha = new Date(fechaReporte)
+        return !isNaN(fecha.getTime()) && fecha >= start && fecha <= end
       })
-      
-      // Organizar datos por fecha y variable_id (igual que dashboard-historicos)
+
       const organizedData: HistoricalDataByDate = {}
-      
-      filteredMeasurements.forEach((measurement: HistoricalMeasurement) => {
-        const fechaStr = new Date(measurement.fecha).toISOString().split('T')[0]
-        
-        if (!organizedData[fechaStr]) {
-          organizedData[fechaStr] = {}
-        }
-        
-        // Usar variable_id como key (igual que dashboard-historicos)
-        organizedData[fechaStr][measurement.variable_id] = {
-          valor: measurement.valor,
-          unidad: measurement.unidad,
-          comentarios: measurement.comentarios
-        }
-        
-        if (measurement.comentarios && !organizedData[fechaStr].comentarios_globales) {
-          organizedData[fechaStr].comentarios_globales = measurement.comentarios
+      reportesFiltrados.forEach((report: any) => {
+        const datos = report.datos || report.reportSelection || {}
+        const fechaReporte = datos.fecha || report.fecha || report.created_at
+        if (!fechaReporte) return
+        const fechaStr =
+          typeof fechaReporte === "string"
+            ? fechaReporte.split("T")[0]
+            : new Date(fechaReporte).toISOString().split("T")[0]
+        if (!organizedData[fechaStr]) organizedData[fechaStr] = {}
+        const paramsForSystem = datos.parameters?.[systemName] || {}
+        const parameterComments = datos.parameterComments || {}
+        allParameters.forEach((param) => {
+          const paramData = paramsForSystem[param.nombre]
+          const valor = paramData?.valor ?? paramData?.value
+          if (valor === undefined || valor === null || Number.isNaN(Number(valor))) return
+          organizedData[fechaStr][param.id] = {
+            valor: Number(valor),
+            unidad: paramData?.unidad ?? param.unidad ?? "",
+            comentarios: parameterComments[param.nombre] ?? parameterComments[param.id] ?? datos.comentarios ?? ""
+          }
+        })
+        if (datos.comentarios && !organizedData[fechaStr].comentarios_globales) {
+          organizedData[fechaStr].comentarios_globales = datos.comentarios
         }
       })
-      
+
       setHistoricalDataBySystem(prev => ({ ...prev, [systemName]: organizedData }))
     } catch (e: any) {
       setHistoricalError(prev => ({ ...prev, [systemName]: `Error al cargar datos históricos: ${e.message}` }))
@@ -2081,6 +1946,27 @@ export default function Reporte() {
       month: '2-digit',
       year: '2-digit'
     })
+  }
+
+  // Extraer texto de comentario: si viene como JSON {"global":"..."} mostrar solo el valor
+  const parseCommentDisplay = (value: unknown): string => {
+    if (value === null || value === undefined) return "—"
+    if (typeof value === "object" && value !== null && "global" in value && typeof (value as { global?: string }).global === "string") {
+      return (value as { global: string }).global
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim()
+      if (trimmed.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(trimmed) as { global?: string }
+          if (typeof parsed?.global === "string") return parsed.global
+        } catch {
+          /* no es JSON válido, devolver tal cual */
+        }
+      }
+      return trimmed || "—"
+    }
+    return String(value)
   }
 
   return (
@@ -2613,7 +2499,7 @@ export default function Reporte() {
                                       <td className={`border px-2 py-2 text-xs ${
                                         isEven ? "bg-green-50" : "bg-pink-50"
                                       }`}>
-                                        {dateData.comentarios_globales || "—"}
+                                        {parseCommentDisplay(dateData.comentarios_globales)}
                                       </td>
                                     </tr>
                                   )

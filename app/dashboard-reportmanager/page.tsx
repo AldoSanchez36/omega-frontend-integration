@@ -504,42 +504,87 @@ export default function ReportManager() {
   handleSaveData = handleSaveDataFromHook;
   setMedicionesPreview = setMedicionesPreviewFromHook;
 
-  // 2. Agrega la función para fetch dinámico:
+  // 2. Fetch "sistemas" por parámetro desde reportes.datos (en lugar de tabla mediciones)
   async function fetchSistemasForParametro(param: Parameter) {
-    if (!selectedSystem) return;
-    
+    if (!selectedSystem || !selectedPlant || !selectedSystemData) return;
+
     try {
-      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLEID(param.id)}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      })
-      
-      if (!res.ok) {
-        if (res.status === 404) {
-          // Si no hay mediciones, usar sistema por defecto
-          return;
-        }
-        throw new Error(`Error ${res.status}: ${res.statusText}`);
-      }
-      
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return;
+
       const data = await res.json();
-      const medicionesFiltradas = (data.mediciones || []).filter((m: any) => m.proceso_id === selectedSystem)
-      const sistemasRaw = medicionesFiltradas.map((m: any) => String(m.sistema))
-      let maxNum = 1
-      sistemasRaw.forEach((s: string) => {
-        const match = s.match(/^S(\d+)$/)
-        if (match) {
-          const num = parseInt(match[1], 10)
-          if (num > maxNum) maxNum = num
-        }
-      })
-      let sistemasSecuencia = Array.from({length: maxNum}, (_, i) => `S${String(i+1).padStart(2, '0')}`)
-      if (sistemasSecuencia.length === 0) sistemasSecuencia = ["S01"]
-      // setSistemasPorParametro(prev => ({ ...prev, [param.id]: sistemasSecuencia })) // This line is removed
+      const reportes: any[] = data.reportes || [];
+      const systemName = selectedSystemData.nombre;
+
+      const reportesConParam = reportes.filter((report: any) => {
+        const plantaId = report.planta_id || report.datos?.plant?.id;
+        if (plantaId !== selectedPlant.id) return false;
+        const paramsForSystem = report.datos?.parameters?.[systemName] || report.reportSelection?.parameters?.[systemName] || {};
+        return param.nombre in paramsForSystem && paramsForSystem[param.nombre]?.valor != null;
+      });
+      // Resultado no se asigna a estado (mismo comportamiento que antes); solo se evita llamar a mediciones
+      if (reportesConParam.length > 0) {
+        // Parámetro tiene datos en reportes para este sistema
+      }
     } catch (error) {
-      console.error(`Error fetching sistemas for parameter ${param.nombre}:`, error);
-      // En caso de error, continuar sin sistemas específicos
+      console.error(`Error fetching datos para parámetro ${param.nombre} desde reportes:`, error);
     }
   }
+
+  // Poblar medicionesPreview desde reportes.datos (columna JSON) para que ParametersList muestre datos históricos
+  useEffect(() => {
+    if (!token || !selectedPlant || !selectedSystem || parameters.length === 0 || !selectedSystemData) {
+      setMedicionesPreview([]);
+      return;
+    }
+
+    const loadMedicionesPreviewFromReportes = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const reportes: any[] = data.reportes || [];
+        const systemName = selectedSystemData.nombre;
+        const built: { variable_id: string; fecha: string; sistema: string; valor: number }[] = [];
+
+        reportes.forEach((report: any) => {
+          const datos = report.datos || report.reportSelection || {};
+          const fecha = datos.fecha || report.fecha || report.created_at;
+          if (!fecha) return;
+
+          const fechaStr = typeof fecha === "string" ? fecha.split("T")[0] : new Date(fecha).toISOString().split("T")[0];
+          const plantaId = report.planta_id || datos.plant?.id;
+          if (plantaId !== selectedPlant.id) return;
+
+          const paramsForSystem = datos.parameters?.[systemName] || {};
+          parameters.forEach((param) => {
+            const paramData = paramsForSystem[param.nombre];
+            const valor = paramData?.valor ?? paramData?.value;
+            if (valor == null || Number.isNaN(Number(valor))) return;
+
+            built.push({
+              variable_id: param.id,
+              fecha: fechaStr,
+              sistema: "S01",
+              valor: Number(valor),
+            });
+          });
+        });
+
+        setMedicionesPreview(built);
+      } catch (error) {
+        console.error("Error cargando preview de mediciones desde reportes:", error);
+        setMedicionesPreview([]);
+      }
+    };
+
+    loadMedicionesPreviewFromReportes();
+  }, [token, selectedPlant, selectedSystem, parameters, selectedSystemData, setMedicionesPreview]);
 
   // 3. Handler actualizado para ser específico por sistema
   const handleParameterChange = (parameterId: string, field: "checked" | "value", value: boolean | number) => {

@@ -226,7 +226,7 @@ export default function HistoricosPage() {
     fetchTolerances()
   }, [fetchTolerances])
 
-  // Fetch historical data
+  // Fetch historical data desde reportes.datos (columna JSON) en lugar de tabla mediciones
   const fetchHistoricalData = useCallback(async () => {
     if (!selectedSystem || !startDate || !endDate || parameters.length === 0) {
       setHistoricalData({})
@@ -237,58 +237,89 @@ export default function HistoricosPage() {
     setHistoricalError(null)
 
     try {
-      const systemData = systems.find(s => s.id === selectedSystem)
+      const systemData = systems.find((s) => s.id === selectedSystem)
       if (!systemData) return
 
-      // Obtener todas las mediciones del proceso
-      const res = await fetch(
-        `${API_BASE_URL}${API_ENDPOINTS.MEASUREMENTS_BY_PROCESS(systemData.nombre)}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      )
+      // Obtener reportes del usuario (misma API que dashboard)
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
 
       if (!res.ok) {
         if (res.status === 401) {
-          localStorage.removeItem('Organomex_token');
-          localStorage.removeItem('Organomex_user');
-          router.push('/logout');
-          return;
+          localStorage.removeItem("Organomex_token")
+          localStorage.removeItem("Organomex_user")
+          router.push("/logout")
+          return
         }
-        throw new Error("No se pudieron cargar las mediciones históricas.")
+        throw new Error("No se pudieron cargar los reportes.")
       }
 
       const data = await res.json()
-      const measurements: HistoricalMeasurement[] = data.mediciones || []
+      const reportes: any[] = data.reportes || []
 
-      // Filtrar por rango de fechas
-      const filteredMeasurements = measurements.filter((m: HistoricalMeasurement) => {
-        const fecha = new Date(m.fecha)
-        const start = new Date(startDate)
-        const end = new Date(endDate)
-        end.setHours(23, 59, 59, 999)
-        return fecha >= start && fecha <= end
+      const start = new Date(startDate)
+      const end = new Date(endDate)
+      end.setHours(23, 59, 59, 999)
+
+      // Filtrar reportes por planta del sistema y rango de fechas
+      const reportesFiltrados = reportes.filter((report: any) => {
+        const plantaId = report.planta_id || report.datos?.plant?.id
+        if (plantaId !== systemData.planta_id) return false
+
+        const fechaReporte = report.datos?.fecha || report.fecha || report.created_at
+        if (!fechaReporte) return false
+
+        const fecha = new Date(fechaReporte)
+        return !isNaN(fecha.getTime()) && fecha >= start && fecha <= end
       })
 
-      // Organizar datos por fecha y variable
+      // Construir organizedData desde reportes.datos.parameters[systemName][paramName]
       const organizedData: HistoricalDataByDate = {}
 
-      filteredMeasurements.forEach((measurement: HistoricalMeasurement) => {
-        const fechaStr = new Date(measurement.fecha).toISOString().split('T')[0]
-        
+      reportesFiltrados.forEach((report: any) => {
+        const datos = report.datos || report.reportSelection || {}
+        const fechaReporte = datos.fecha || report.fecha || report.created_at
+        const fechaStr =
+          typeof fechaReporte === "string"
+            ? fechaReporte.split("T")[0]
+            : new Date(fechaReporte).toISOString().split("T")[0]
+
         if (!organizedData[fechaStr]) {
           organizedData[fechaStr] = {}
         }
 
-        organizedData[fechaStr][measurement.variable_id] = {
-          valor: measurement.valor,
-          unidad: measurement.unidad,
-          comentarios: measurement.comentarios
-        }
+        const paramsForSystem = datos.parameters?.[systemData.nombre] || {}
+        const parameterComments = datos.parameterComments || {}
 
-        // Si hay comentarios, guardarlos como comentarios globales de la fecha
-        if (measurement.comentarios && !organizedData[fechaStr].comentarios_globales) {
-          organizedData[fechaStr].comentarios_globales = measurement.comentarios
+        parameters.forEach((param) => {
+          const paramData = paramsForSystem[param.nombre]
+          const valor = paramData?.valor ?? paramData?.value
+          if (valor === undefined || valor === null || Number.isNaN(Number(valor))) return
+
+          organizedData[fechaStr][param.id] = {
+            valor: Number(valor),
+            unidad: paramData?.unidad ?? param.unidad ?? "",
+            comentarios: parameterComments[param.nombre] ?? parameterComments[param.id] ?? datos.comentarios ?? "",
+          }
+        })
+
+        if (datos.comentarios != null && datos.comentarios !== "" && !organizedData[fechaStr].comentarios_globales) {
+          const raw = datos.comentarios
+          const normalized =
+            typeof raw === "string" && raw.trim().startsWith("{")
+              ? (() => {
+                  try {
+                    const p = JSON.parse(raw) as { global?: string }
+                    return typeof p?.global === "string" ? p.global : raw
+                  } catch {
+                    return raw
+                  }
+                })()
+              : typeof raw === "object" && raw !== null && "global" in raw && typeof (raw as { global?: string }).global === "string"
+                ? (raw as { global: string }).global
+                : String(raw)
+          organizedData[fechaStr].comentarios_globales = normalized
         }
       })
 
@@ -424,6 +455,27 @@ export default function HistoricosPage() {
       month: '2-digit',
       year: '2-digit'
     })
+  }
+
+  // Extraer texto de comentario: si viene como JSON {"global":"..."} mostrar solo el valor, sino el string directo
+  const parseCommentDisplay = (value: unknown): string => {
+    if (value === null || value === undefined) return "—"
+    if (typeof value === "object" && value !== null && "global" in value && typeof (value as { global?: string }).global === "string") {
+      return (value as { global: string }).global
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim()
+      if (trimmed.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(trimmed) as { global?: string }
+          if (typeof parsed?.global === "string") return parsed.global
+        } catch {
+          /* no es JSON válido, devolver tal cual */
+        }
+      }
+      return trimmed || "—"
+    }
+    return String(value)
   }
 
   if (loading) {
@@ -609,7 +661,7 @@ export default function HistoricosPage() {
                               <td className={`border px-2 py-2 text-xs ${
                                 isEven ? "bg-green-50" : "bg-pink-50"
                               }`}>
-                                {dateData.comentarios_globales || "—"}
+                                {parseCommentDisplay(dateData.comentarios_globales)}
                               </td>
                             </tr>
                           )
