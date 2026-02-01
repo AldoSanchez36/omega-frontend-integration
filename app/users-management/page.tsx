@@ -648,14 +648,6 @@ export default function UsersManagement() {
         throw new Error("ID de usuario no encontrado")
       }
 
-      console.log("Actualizando usuario:", {
-        userId,
-        username: editUsername,
-        email: editEmail,
-        puesto: editPuesto,
-        endpoint: `${API_BASE_URL}${API_ENDPOINTS.USER_UPDATE(userId)}`
-      })
-
       const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USER_UPDATE(userId)}`, {
         method: "PATCH",
         headers: {
@@ -668,12 +660,6 @@ export default function UsersManagement() {
           puesto: editPuesto,
           empresa: editEmpresa,
         }),
-      })
-
-      console.log("Respuesta del servidor:", {
-        status: res.status,
-        statusText: res.statusText,
-        ok: res.ok
       })
 
       if (!res.ok) {
@@ -689,9 +675,7 @@ export default function UsersManagement() {
         throw new Error(errorMsg)
       }
 
-      const responseData = await res.json()
-      console.log("Usuario actualizado exitosamente:", responseData)
-      
+      await res.json()
       setEditSuccess("Usuario actualizado correctamente.")
       setTimeout(() => {
         closeEditModal()
@@ -725,10 +709,6 @@ export default function UsersManagement() {
       }
 
       const userId = getUserId(selectedUserForDelete)
-      console.log("Eliminando usuario:", {
-        userId,
-        endpoint: `${API_BASE_URL}${API_ENDPOINTS.USER_DELETE(userId)}`
-      })
 
       const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USER_DELETE(userId)}`, {
         method: "DELETE",
@@ -736,12 +716,6 @@ export default function UsersManagement() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
         },
-      })
-
-      console.log("Respuesta del servidor:", {
-        status: res.status,
-        statusText: res.statusText,
-        ok: res.ok
       })
 
       if (!res.ok) {
@@ -757,9 +731,7 @@ export default function UsersManagement() {
         return
       }
 
-      const data = await res.json()
-      console.log("Usuario eliminado exitosamente:", data)
-      
+      await res.json()
       setDeleteSuccess("Usuario eliminado exitosamente")
       
       // Actualizar la lista de usuarios
@@ -896,7 +868,6 @@ export default function UsersManagement() {
             });
 
             await Promise.all(deletePromises);
-            console.log(`✅ Eliminados ${plantasAEliminar.length} permisos de plantas de la empresa`);
           }
         } catch (error) {
           console.error("Error eliminando permisos de plantas:", error);
@@ -920,7 +891,6 @@ export default function UsersManagement() {
           });
           
           if (res.ok) {
-            console.log("✅ Permiso de empresa eliminado");
           } else {
             console.warn("⚠️ No se pudo eliminar permiso de empresa (puede que no exista)");
           }
@@ -932,20 +902,14 @@ export default function UsersManagement() {
 
       if (permisoEspecificoPlanta) {
         // CASO 1: Permiso específico por PLANTA
-        console.log("📋 Asignando permiso específico de PLANTA");
-        
         // 1. Verificar si ya existe permiso de empresa completa para esta empresa
         const tieneAccesoEmpresa = await checkEmpresaAccess();
         if (tieneAccesoEmpresa) {
-          console.log("⚠️ Usuario tiene acceso de empresa completa, eliminando...");
           await removeEmpresaAccess();
         }
 
         // 2. Verificar si ya existe permiso para esta planta específica
-        const tieneAccesoPlanta = await checkPlantaAccess(plantaSeleccionadaModal);
-        if (tieneAccesoPlanta) {
-          console.log("⚠️ Usuario ya tiene permiso para esta planta, actualizando...");
-        }
+        await checkPlantaAccess(plantaSeleccionadaModal);
 
         // 3. Asignar/actualizar permiso de planta
         const payload = {
@@ -972,13 +936,8 @@ export default function UsersManagement() {
         setPermisosSuccess("Permisos asignados para la planta específica");
       } else {
         // CASO 2: Permiso para toda la EMPRESA
-        console.log("📋 Asignando permiso de EMPRESA completa");
-        
         // 1. Verificar si ya existe permiso de empresa
-        const tieneAccesoEmpresa = await checkEmpresaAccess();
-        if (tieneAccesoEmpresa) {
-          console.log("⚠️ Usuario ya tiene permiso de empresa, actualizando...");
-        }
+        await checkEmpresaAccess();
 
         // 2. Eliminar todos los permisos de plantas de esta empresa (si existen)
         await removePlantAccessForEmpresa();
@@ -997,18 +956,7 @@ export default function UsersManagement() {
         if (!empresaNombre) {
           console.warn("⚠️ [Frontend] No se encontró nombre de empresa para empresa_id:", empresaSeleccionadaModal, "en empresasModal:", empresasModal);
         }
-        
-        console.log("📤 [Frontend] Enviando datos al backend para asignar permiso de empresa:", {
-          usuario_id: usuarioId,
-          usuario_nombre: usuarioNombre,
-          usuario_rol: usuarioRol,
-          empresa_id: empresaSeleccionadaModal,
-          empresa_nombre: empresaNombre,
-          activo: true,
-          selectedUserForPermissions: selectedUserForPermissions,
-          empresaData: empresaData
-        });
-        
+
         const payload = {
           usuario_id: usuarioId,
           empresa_id: empresaSeleccionadaModal,
@@ -1027,22 +975,14 @@ export default function UsersManagement() {
           },
           body: JSON.stringify(payload)
         });
-        
-        console.log("📥 [Frontend] Respuesta del backend:", {
-          status: res.status,
-          statusText: res.statusText,
-          ok: res.ok
-        });
-        
+
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
           console.error("❌ [Frontend] Error del backend:", errorData);
           throw new Error(errorData.msg || errorData.message || `Error al guardar permisos de empresa (${res.status})`);
         }
         
-        const responseData = await res.json().catch(() => ({}));
-        console.log("✅ [Frontend] Respuesta exitosa del backend:", responseData);
-        
+        await res.json().catch(() => ({}));
         // Usar empresaNombre que ya fue declarado arriba
         setPermisosSuccess(`Permisos asignados para toda ${empresaNombre || "la empresa"}`);
       }

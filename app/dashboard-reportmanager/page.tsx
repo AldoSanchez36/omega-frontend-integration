@@ -22,6 +22,15 @@ import Charts from "./components/Charts"
 import ScrollArrow from "./components/ScrollArrow"
 
 // Interfaces
+interface User {
+  id: string
+  username: string
+  email?: string
+  puesto?: string
+  role?: string
+  verificado?: boolean
+}
+
 interface Empresa {
   id: string
   nombre: string
@@ -135,15 +144,11 @@ export default function ReportManager() {
   // Obtener usuario conectado
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      //console.log('🔍 Buscando usuario en localStorage...');
       const userData = localStorage.getItem('Organomex_user');
-      //console.log('📄 Datos del localStorage:', userData);
-      
       if (userData) {
         try {
           const user = JSON.parse(userData);
           setCurrentUser(user);
-          //console.log('👤 Usuario conectado obtenido:', user);
         } catch (error) {
           console.error('❌ Error parsing user data:', error);
         }
@@ -178,7 +183,6 @@ export default function ReportManager() {
           setDisplayedPlants([]);
         }
       } else {
-        console.log('🔄 [dashboard-reportmanager] Updating displayedPlants from hook:', plants.length, 'plants')
         setDisplayedPlants(plants);
       }
     }
@@ -511,7 +515,6 @@ export default function ReportManager() {
       
       if (!res.ok) {
         if (res.status === 404) {
-          console.log(`No hay mediciones para variable ${param.nombre}, usando sistema por defecto`);
           // Si no hay mediciones, usar sistema por defecto
           return;
         }
@@ -574,7 +577,6 @@ export default function ReportManager() {
         },
       },
     }));
-    //console.log("📥 Medición ingresada:", parameterId, data);
   }, [selectedSystem]);
 
   // Función para manejar cambios de estado de límites por sistema
@@ -585,15 +587,6 @@ export default function ReportManager() {
       ...prev,
       [selectedSystem]: newLimitsState,
     }));
-    
-    console.log("🔘 Estado de límites actualizado para sistema", selectedSystem, ":", newLimitsState);
-    
-    // Aquí puedes agregar lógica adicional basada en el estado de los límites
-    const hasAnyActivatedLimits = Object.values(newLimitsState).some(limits => 
-      limits.limite_min || limits.limite_max
-    );
-    
-    console.log("📊 ¿Alguna variable tiene límites activados?", hasAnyActivatedLimits);
   }, [selectedSystem]);
 
   
@@ -601,10 +594,6 @@ export default function ReportManager() {
   // Función para manejar la vista del reporte desde reportes pendientes
   const handleViewReport = (report: any) => {
     try {
-      console.log("👁️ Visualizando reporte desde reportes pendientes:", report);
-      console.log("📋 Contexto actual - selectedEmpresa:", selectedEmpresa);
-      console.log("📋 Contexto actual - selectedPlant:", selectedPlant);
-      
       // Obtener planta_id: del reporte primero, luego del contexto actual como fallback
       const plantaId = 
         report.datos?.plant?.id || 
@@ -625,8 +614,6 @@ export default function ReportManager() {
         report?.datos?.user?.empresa_id ??
         selectedEmpresa?.id ??  // Usar empresa preseleccionada como fallback
         null;
-
-      console.log("✅ IDs obtenidos - planta_id:", plantaId, "empresa_id:", empresaId);
 
       // Reconstruir reportSelection desde los datos JSONB completos
       const reportSelection = {
@@ -659,10 +646,6 @@ export default function ReportManager() {
         planta_id: plantaId
       };
 
-      console.log("📄 reportSelection reconstruido desde reportes pendientes:", reportSelection);
-      console.log("🔍 Validación - plant.id:", reportSelection.plant.id);
-      console.log("🔍 Validación - empresa_id:", reportSelection.empresa_id);
-      
       // Guardar en localStorage
       localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
       
@@ -682,9 +665,6 @@ export default function ReportManager() {
     const savedReportData = localStorage.getItem("reportSelection");
     
     if (savedReportData) {
-      //console.log("📊 Usando datos previamente guardados para generar reporte");
-      //console.log("💾 Datos guardados:", JSON.parse(savedReportData));
-      
       // Solo actualizar la fecha de generación y las fechas de gráficos
       const reportData = JSON.parse(savedReportData);
       reportData.generatedDate = new Date().toISOString();
@@ -704,14 +684,11 @@ export default function ReportManager() {
       }
       
       localStorage.setItem("reportSelection", JSON.stringify(reportData));
-      //console.log("✅ reportSelection actualizado con nueva fecha de generación");
       router.push("/reports");
       return;
     }
 
     // Si no hay datos guardados, crear la estructura básica
-    console.log("⚠️ No se encontraron datos guardados, creando estructura básica");
-    
     const reportSelection = {
       user: currentUser ? { 
         id: currentUser.id,
@@ -738,7 +715,6 @@ export default function ReportManager() {
     };
     
     localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
-    console.log("✅ reportSelection básico guardado en localStorage");
     router.push("/reports");
   }
 

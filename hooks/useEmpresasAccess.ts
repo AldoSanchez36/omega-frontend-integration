@@ -133,14 +133,10 @@ export function useEmpresasAccess(token: string | null, options: UseEmpresasAcce
     try {
       // Fetch plants by empresa
       const url = `${API_BASE_URL}/api/plantas/empresa/${empresa.id}`
-      console.log('🔍 Fetching plants for empresa:', empresa.id, 'URL:', url)
-      
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      
-      console.log('📡 Response status:', res.status, 'Content-Type:', res.headers.get("content-type"))
-      
+
       // Check if response is JSON
       const contentType = res.headers.get("content-type")
       if (!contentType || !contentType.includes("application/json")) {
@@ -158,18 +154,12 @@ export function useEmpresasAccess(token: string | null, options: UseEmpresasAcce
         throw new Error(errorData.msg || errorData.message || `Error ${res.status}: No se pudieron cargar las plantas para la empresa.`)
       }
       const data = await res.json()
-      console.log('✅ Plants data received:', data)
-      console.log('📊 Plants array:', data.plantas)
-      console.log('📊 Plants count:', data.plantas?.length || 0)
-      
       const plantasArray = data.plantas || data || []
-      console.log('📦 Setting plants state with', plantasArray.length, 'plants')
       setPlants(plantasArray)
       
       // Auto-select first plant if enabled and plants are available
       if (plantasArray.length > 0 && autoSelectFirstPlant) {
         const firstPlant = plantasArray[0]
-        console.log('🔄 Auto-selecting first plant:', firstPlant.nombre)
         // Set the plant directly and load its systems
         setSelectedPlant(firstPlant)
         
