@@ -389,24 +389,54 @@ export default function Dashboard() {
     router.push("/dashboard-reportList")
   }
 
-  // Función para manejar la vista del reporte desde el dashboard
-  const handleViewReport = (report: any) => {
+  // Función para manejar la vista del reporte desde el dashboard (obtiene orden de parámetros y sistemas para que /reports muestre la tabla en el orden correcto también para cliente)
+  const handleViewReport = async (report: any) => {
     try {
       console.log("👁️ Visualizando reporte desde dashboard:", report);
       
-      // Validar que tenemos los datos mínimos necesarios
       if (!report.planta_id) {
         console.error("❌ Error: No se encontró planta_id en los datos del reporte");
         alert("Error: No se pueden visualizar reportes sin datos de planta completos");
         return;
       }
+
+      const plantId = report.datos?.plant?.id || report.planta_id;
+      const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null;
+      let parameterOrder: string[] | undefined;
+      let systemOrder: string[] | undefined;
+
+      if (token) {
+        try {
+          const [ordenRes, sistemasRes] = await Promise.all([
+            fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ORDEN_VARIABLES(plantId)}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }),
+            fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(plantId)}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }),
+          ]);
+          if (ordenRes.ok) {
+            const ordenData = await ordenRes.json();
+            if (ordenData.ok && Array.isArray(ordenData.variables)) {
+              parameterOrder = ordenData.variables.map((v: { nombre?: string }) => v.nombre).filter(Boolean);
+            }
+          }
+          if (sistemasRes.ok) {
+            const sistemasData = await sistemasRes.json();
+            const procesos = sistemasData.procesos || sistemasData || [];
+            const sorted = [...procesos].sort((a: { orden?: number }, b: { orden?: number }) => (a.orden ?? 999999) - (b.orden ?? 999999));
+            systemOrder = sorted.map((s: { nombre?: string }) => s.nombre).filter(Boolean);
+          }
+        } catch (_) {
+          // Si falla (ej. cliente sin permiso en backend antiguo), seguimos sin orden; /reports usará fallback
+        }
+      }
       
-      // Reconstruir reportSelection desde los datos JSONB completos (igual que dashboard-reportmanager)
       const empresaId =
         report?.empresa_id ??
         report?.datos?.empresa_id ??
         report?.datos?.user?.empresa_id ??
-        null
+        null;
 
       const reportSelection = {
         user: {
@@ -427,27 +457,21 @@ export default function Dashboard() {
         systemName: report.datos?.systemName || report.systemName,
         parameters: report.datos?.parameters || {},
         variablesTolerancia: report.datos?.variablesTolerancia || {},
-        mediciones: [], // Los datos de mediciones se reconstruirán en la página reports
+        mediciones: [],
         fecha: report.datos?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
         comentarios: report.datos?.comentarios || report.observaciones || "",
         generatedDate: report.datos?.generatedDate || report.created_at || new Date().toISOString(),
         cliente_id: report.datos?.user?.cliente_id || null,
         empresa_id: empresaId,
-        report_id: report.id || null  // ID único del reporte para poder actualizarlo después
+        report_id: report.id || null,
+        ...(parameterOrder?.length && { parameterOrder }),
+        ...(systemOrder?.length && { systemOrder }),
       };
 
       console.log("📄 reportSelection reconstruido desde dashboard:", reportSelection);
       console.log("🔍 Validación plant.id:", reportSelection.plant.id);
-      console.log("🏭 Datos de planta:", {
-        planta_id: report.planta_id,
-        planta_nombre: report.plantName,
-        systemName: report.systemName
-      });
       
-      // Guardar en localStorage
       localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
-      
-      // Redirigir a la página de reports
       router.push("/reports");
       
     } catch (error) {

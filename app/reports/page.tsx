@@ -118,6 +118,10 @@ interface ReportSelection {
   };
   chartStartDate?: string; // Fecha inicio para gráficos
   chartEndDate?: string; // Fecha fin para gráficos
+  /** Orden de parámetros (para que cliente vea mismo orden que admin cuando el fetch en /reports falle o tarde) */
+  parameterOrder?: string[];
+  /** Orden de sistemas/columnas (mismo propósito) */
+  systemOrder?: string[];
 }
 
 export default function Reporte() {
@@ -442,9 +446,10 @@ export default function Reporte() {
     setCurrentDate(formattedDate)
   }, []);
 
-  // Cargar orden de variables de la planta cuando hay reporte con planta
+  // Cargar orden de variables de la planta cuando hay reporte con planta (cliente y admin/user deben ver el mismo orden)
+  const plantIdForOrder = reportSelection?.plant?.id ?? (reportSelection?.plant as { _id?: string })?._id
   useEffect(() => {
-    const plantId = reportSelection?.plant?.id
+    const plantId = plantIdForOrder
     if (!plantId) {
       setPlantOrderVariables([])
       return
@@ -466,11 +471,11 @@ export default function Reporte() {
       })
       .catch(() => { if (!cancelled) setPlantOrderVariables([]) })
     return () => { cancelled = true }
-  }, [reportSelection?.plant?.id])
+  }, [plantIdForOrder])
 
   // Cargar sistemas de la planta en el mismo orden que reportmanager (por orden)
   useEffect(() => {
-    const plantId = reportSelection?.plant?.id
+    const plantId = plantIdForOrder
     if (!plantId) {
       setPlantSystemsOrder([])
       return
@@ -494,18 +499,25 @@ export default function Reporte() {
       })
       .catch(() => { if (!cancelled) setPlantSystemsOrder([]) })
     return () => { cancelled = true }
-  }, [reportSelection?.plant?.id])
+  }, [plantIdForOrder])
 
   // Nombres de sistemas en el mismo orden que reportmanager (solo los que tienen datos en el reporte)
   const orderedSystemNames = (() => {
     const params = reportSelection?.parameters
     if (!params) return []
     const keys = Object.keys(params)
-    if (plantSystemsOrder.length === 0) return keys
-    const namesFromApi = plantSystemsOrder.map((s) => s.nombre)
-    const ordered = namesFromApi.filter((n) => params[n] !== undefined)
-    const rest = keys.filter((n) => !namesFromApi.includes(n))
-    return [...ordered, ...rest]
+    if (plantSystemsOrder.length > 0) {
+      const namesFromApi = plantSystemsOrder.map((s) => s.nombre)
+      const ordered = namesFromApi.filter((n) => params[n] !== undefined)
+      const rest = keys.filter((n) => !namesFromApi.includes(n))
+      return [...ordered, ...rest]
+    }
+    if (reportSelection?.systemOrder?.length) {
+      const ordered = reportSelection.systemOrder.filter((n) => params[n] !== undefined)
+      const rest = keys.filter((n) => !reportSelection.systemOrder!.includes(n))
+      return [...ordered, ...rest]
+    }
+    return keys
   })()
 
   // Formatear fecha sin problemas de zona horaria (para strings YYYY-MM-DD)
@@ -2372,12 +2384,20 @@ export default function Reporte() {
                           Object.values(reportSelection.parameters).forEach((systemData: any) => {
                             Object.keys(systemData).forEach(variable => allVariables.add(variable));
                           });
-                          const orderedVariableList = plantOrderVariables.length > 0
-                            ? [
-                                ...plantOrderVariables.map((v) => v.nombre).filter((n) => allVariables.has(n)),
-                                ...Array.from(allVariables).filter((n) => !plantOrderVariables.some((v) => v.nombre === n)),
-                              ]
-                            : Array.from(allVariables);
+                          let orderedVariableList: string[];
+                          if (plantOrderVariables.length > 0) {
+                            orderedVariableList = [
+                              ...plantOrderVariables.map((v) => v.nombre).filter((n) => allVariables.has(n)),
+                              ...Array.from(allVariables).filter((n) => !plantOrderVariables.some((v) => v.nombre === n)),
+                            ];
+                          } else if (reportSelection.parameterOrder?.length) {
+                            orderedVariableList = [
+                              ...reportSelection.parameterOrder.filter((n) => allVariables.has(n)),
+                              ...Array.from(allVariables).filter((n) => !reportSelection.parameterOrder!.includes(n)),
+                            ];
+                          } else {
+                            orderedVariableList = Array.from(allVariables);
+                          }
                           
                           return orderedVariableList.map(variable => {
                             // Obtener la unidad del primer sistema que tenga datos para esta variable
