@@ -48,6 +48,8 @@ interface ChartsDashboardProps {
   reportCount?: number;
   /** Año mostrado (ej. 2025) para etiqueta en la sección de reportes gráficos */
   yearLabel?: number;
+  /** Si true, los datos se basan en los últimos 10 reportes por planta (admin/user/analista) */
+  last10PerPlant?: boolean;
 }
 
 export function getDatePosition(dateStr: string, minDate: number, maxDate: number) {
@@ -65,6 +67,7 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
   loading = false,
   reportCount,
   yearLabel,
+  last10PerPlant = false,
 }) => {
   const [activePlant, setActivePlant] = useState<string | null>(null);
   const [activeSystem, setActiveSystem] = useState<string | null>(null);
@@ -147,42 +150,38 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
               </div>
             ) : (
               <>
-                {/* Plant Tabs */}
-                <div className="border-bottom">
-                  <div className="nav nav-tabs nav-fill" role="tablist">
-                    {plants.slice(0, 4).map((plant) => (
-                      <button
-                        key={plant.id}
-                        className={`nav-link ${activePlant === plant.id ? 'active' : ''}`}
-                        onClick={() => {
-                          setActivePlant(plant.id);
-                          setActiveSystem(null);
-                        }}
-                        disabled={loading}
-                      >
-                        <i className="material-icons me-1">factory</i>
-                        {plant.nombre}
-                        <span className={`badge ms-2 ${getStatusColor(plant.status || "active")}`}>
-                          {plant.systems?.length || 0}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                {/* Selector de planta: etiqueta fuera del droplist; el dropdown solo muestra plantas */}
+                <div className="border-bottom p-2 bg-light">
+                  <label htmlFor="plant-select" className="form-label small mb-0 me-2 fw-semibold">
+                    Seleccionar planta:
+                  </label>
+                  <select
+                    id="plant-select"
+                    className="form-select form-select-sm d-inline-block"
+                    value={activePlant ?? ""}
+                    onChange={(e) => {
+                      const id = e.target.value || null;
+                      setActivePlant(id);
+                      setActiveSystem(null);
+                    }}
+                    disabled={loading}
+                    style={{ minWidth: "220px", maxWidth: "400px" }}
+                    aria-label="Seleccionar planta"
+                  >
+                    {plants.length === 0 ? (
+                      <option value="" disabled>Ninguna planta disponible</option>
+                    ) : (
+                      plants.map((plant) => (
+                        <option key={plant.id} value={plant.id}>
+                          {plant.nombre} ({plant.systems?.length ?? 0} sistemas)
+                        </option>
+                      ))
+                    )}
+                  </select>
                 </div>
 
                 {selectedPlant && (
               <div className="p-3">
-                {/* Debug Info: reportes cargados = puntos por gráfico; la lista de parámetros es desplazable */}
-                <div className="alert alert-info mb-3">
-                  <small>
-                    <strong>Debug Info:</strong> Planta: {selectedPlant.nombre} | 
-                    Sistemas: {selectedPlant.systems?.length || 0} | 
-                    Reportes cargados: {reportCount ?? "—"} (1 punto por reporte en cada gráfico) | 
-                    Parámetros con datos: {Object.values(historicalData).reduce((sum, sys) => sum + Object.keys(sys || {}).length, 0)}. 
-                    Desplaza hacia abajo para ver todos los parámetros del sistema.
-                  </small>
-                </div>
-                
                 {/* Loading Indicator */}
                 {loading && (
                   <div className="text-center py-5 mb-4">
@@ -291,10 +290,10 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                               const adjustedMax = maxValue + valueRange * 0.1;
                               const adjustedRange = adjustedMax - adjustedMin;
                               
-                              // Dimensiones mejoradas con mejor proporción
-                              const padding = { top: 12, right: 12, bottom: 12, left: 12 };
-                              const chartHeight = 160; // Reducido para mejor proporción
-                              const chartWidth = 100; // Ancho del viewBox
+                              // Dimensiones: padding horizontal mínimo para que la curva use todo el ancho
+                              const padding = { top: 16, right: -20, bottom: 24, left: -10 };
+                              const chartHeight = 200;
+                              const chartWidth = 120;
                               const plotWidth = chartWidth - padding.left - padding.right;
                               const plotHeight = chartHeight - padding.top - padding.bottom;
 
@@ -317,15 +316,15 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
 
                               return (
                                 <div key={param.id} className="col-md-6 col-lg-4">
-                                  <div className="card h-100">
-                                    <div className="card-header py-2">
+                                  <div className="card h-100 shadow-sm">
+                                    <div className="card-header py-2 px-3">
                                       <div className="d-flex justify-content-between align-items-center">
-                                        <h6 className="mb-0 text-primary">{param.name}</h6>
+                                        <h6 className="mb-0 text-primary fw-semibold">{param.name}</h6>
                                         <small className="text-muted">{param.unit}</small>
                                       </div>
                                     </div>
-                                    <div className="card-body py-2">
-                                      {/* Enhanced Interactive Chart */}
+                                    <div className="card-body py-3 px-3">
+                                      {/* Gráfico con mejor proporción y etiquetas legibles */}
                                       <div className="mb-2 position-relative" style={{ height: `${chartHeight}px`, minHeight: `${chartHeight}px`, width: '100%' }}>
                                         <svg 
                                           width="100%" 
@@ -391,7 +390,7 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                                 <circle
                                                   cx={point.x}
                                                   cy={point.y}
-                                                  r="3"
+                                                  r="3.5"
                                                   fill="#007bff"
                                                   stroke="white"
                                                   strokeWidth="1.5"
@@ -401,17 +400,18 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                               </g>
                                             );
                                           })}
-                                          {/* Etiquetas eje Y (valor) - 3 marcas */}
+                                          {/* Etiquetas eje Y (valor) - 3 marcas, tamaño legible */}
                                           {[adjustedMin, (adjustedMin + adjustedMax) / 2, adjustedMax].map((val, i) => {
                                             const y = padding.top + ((adjustedMax - val) / adjustedRange) * plotHeight;
                                             return (
                                               <text
                                                 key={`y-${i}`}
-                                                x={padding.left - 2}
-                                                y={y + 3}
+                                                x={padding.left - 4}
+                                                y={y + 4}
                                                 textAnchor="end"
-                                                fontSize="6"
-                                                fill="#666"
+                                                fontSize="9"
+                                                fill="#374151"
+                                                fontWeight="500"
                                               >
                                                 {val.toFixed(1)}
                                               </text>
@@ -427,10 +427,11 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                               <text
                                                 key={`x-${idx}`}
                                                 x={p.x}
-                                                y={chartHeight - 2}
+                                                y={chartHeight - 6}
                                                 textAnchor="middle"
-                                                fontSize="5"
-                                                fill="#666"
+                                                fontSize="8"
+                                                fill="#374151"
+                                                fontWeight="500"
                                               >
                                                 {fechaLabel}
                                               </text>
@@ -438,28 +439,25 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                           })}
                                         </svg>
                                       </div>
-                                      <div className="text-muted text-center" style={{ fontSize: "0.6rem" }}>
-                                        Eje X: Fecha · Eje Y: Valor ({param.unit})
-                                      </div>
                                       
-                                      {/* Enhanced Stats with Better Contrast - Reduced Size */}
-                                      <div className="row g-1 text-center mt-2">
+                                      {/* Resumen Alto / Prom / Bajo con tipografía más legible */}
+                                      <div className="row g-2 text-center mt-2">
                                         <div className="col-4">
-                                          <div className="p-1 rounded shadow-sm" style={{ backgroundColor: '#d4edda', border: '1px solid #c3e6cb' }}>
-                                            <div className="fw-bold text-dark" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>{maxValue.toFixed(1)}</div>
-                                            <div className="text-muted" style={{ fontSize: '0.55rem', lineHeight: '1' }}>Alto</div>
+                                          <div className="p-2 rounded shadow-sm" style={{ backgroundColor: '#d4edda', border: '1px solid #c3e6cb' }}>
+                                            <div className="fw-bold text-dark" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>{maxValue.toFixed(1)}</div>
+                                            <div className="text-muted" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>Alto</div>
                                           </div>
                                         </div>
                                         <div className="col-4">
-                                          <div className="p-1 rounded shadow-sm" style={{ backgroundColor: '#cce5ff', border: '1px solid #b3d9ff' }}>
-                                            <div className="fw-bold text-dark" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>{avgValue.toFixed(1)}</div>
-                                            <div className="text-muted" style={{ fontSize: '0.55rem', lineHeight: '1' }}>Prom</div>
+                                          <div className="p-2 rounded shadow-sm" style={{ backgroundColor: '#cce5ff', border: '1px solid #b3d9ff' }}>
+                                            <div className="fw-bold text-dark" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>{avgValue.toFixed(1)}</div>
+                                            <div className="text-muted" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>Prom</div>
                                           </div>
                                         </div>
                                         <div className="col-4">
-                                          <div className="p-1 rounded shadow-sm" style={{ backgroundColor: '#f8d7da', border: '1px solid #f5c6cb' }}>
-                                            <div className="fw-bold text-dark" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>{minValue.toFixed(1)}</div>
-                                            <div className="text-muted" style={{ fontSize: '0.55rem', lineHeight: '1' }}>Bajo</div>
+                                          <div className="p-2 rounded shadow-sm" style={{ backgroundColor: '#f8d7da', border: '1px solid #f5c6cb' }}>
+                                            <div className="fw-bold text-dark" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>{minValue.toFixed(1)}</div>
+                                            <div className="text-muted" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>Bajo</div>
                                           </div>
                                         </div>
                                       </div>

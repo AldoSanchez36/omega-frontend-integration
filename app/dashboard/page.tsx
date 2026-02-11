@@ -219,6 +219,24 @@ export default function Dashboard() {
 
     const fetchPlants = async (): Promise<Plant[]> => {
       let todasLasPlantas: Plant[] = [];
+
+      // Admin: obtener todas las plantas para poder cambiar entre ellas en gráficos históricos
+      if (userRole === "admin") {
+        try {
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ALL}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const list = data.plantas || data || [];
+            todasLasPlantas = Array.isArray(list) ? list : [];
+            console.log(`✅ Admin: todas las plantas cargadas: ${todasLasPlantas.length}`);
+            return todasLasPlantas;
+          }
+        } catch (error) {
+          console.error("Error obteniendo todas las plantas (admin):", error);
+        }
+      }
       
       // 1. Obtener plantas con permisos específicos (usuarios_plantas)
       try {
@@ -668,10 +686,16 @@ export default function Dashboard() {
           formattedReports = []
         }
         
-        // Ordenar reportes del más reciente al más antiguo por fecha
+        // Ordenar por fecha del reporte (columna fecha de la tabla reportes), no por fecha de subida
+        const getReportDate = (r: any) => {
+          const raw = r.datos?.fecha ?? r.fecha
+          if (!raw) return 0
+          const s = typeof raw === "string" ? raw.split("T")[0] : ""
+          return /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s).getTime() : new Date(raw).getTime()
+        }
         const sortedReports = formattedReports.sort((a, b) => {
-          const dateA = new Date(a.created_at || 0).getTime()
-          const dateB = new Date(b.created_at || 0).getTime()
+          const dateA = getReportDate(a)
+          const dateB = getReportDate(b)
           return dateB - dateA // Orden descendente (más reciente primero)
         })
         
@@ -710,6 +734,32 @@ export default function Dashboard() {
       const allData: Record<string, Record<string, any[]>> = {};
       const plantIds = new Set(plants.map((p) => p.id));
 
+      const getReportDate = (r: any) => {
+        const raw = r.datos?.fecha ?? r.fecha;
+        if (!raw) return 0;
+        const s = typeof raw === "string" ? raw.split("T")[0] : "";
+        return /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s).getTime() : new Date(raw).getTime();
+      };
+
+      // Para admin/user/analista: usar solo los últimos 10 reportes por planta (por fecha del reporte)
+      // Para cliente: usar todos los reportes del rango de fechas
+      const REPORTS_PER_PLANT_LIMIT = 10;
+      let reportsToUse = reports;
+      if (userRole !== "client") {
+        const byPlant = new Map<string, any[]>();
+        for (const r of reports) {
+          const plantId = r.planta_id || r.datos?.plant?.id;
+          if (!plantId || !plantIds.has(plantId)) continue;
+          if (!byPlant.has(plantId)) byPlant.set(plantId, []);
+          byPlant.get(plantId)!.push(r);
+        }
+        reportsToUse = [];
+        byPlant.forEach((list) => {
+          const sorted = [...list].sort((a, b) => getReportDate(b) - getReportDate(a));
+          reportsToUse.push(...sorted.slice(0, REPORTS_PER_PLANT_LIMIT));
+        });
+      }
+
       try {
         // Inicializar estructura por sistema y parámetro
         for (const plant of plants) {
@@ -723,7 +773,7 @@ export default function Dashboard() {
         }
 
         // Construir puntos desde reportes: cada reporte tiene datos.parameters[systemName][paramName] = { valor, unidad } y datos.fecha
-        for (const report of reports) {
+        for (const report of reportsToUse) {
           const datos = report.datos || (report as any).reportSelection || {};
           const fechaReporte = datos.fecha || (report as any).created_at || (report as any).fecha;
           if (!fechaReporte) continue;
@@ -734,12 +784,15 @@ export default function Dashboard() {
           const fechaDate = new Date(fechaStr);
           if (isNaN(fechaDate.getTime())) continue;
 
-          const start = new Date(startDate + "T00:00:00");
-          const end = new Date(endDate + "T23:59:59");
-          const fechaOnly = new Date(fechaDate.getFullYear(), fechaDate.getMonth(), fechaDate.getDate());
-          const startOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-          const endOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-          if (fechaOnly < startOnly || fechaOnly > endOnly) continue;
+          // Para cliente: filtrar por rango de fechas; para otros roles ya se limitó por últimos 10 por planta
+          if (userRole === "client") {
+            const start = new Date(startDate + "T00:00:00");
+            const end = new Date(endDate + "T23:59:59");
+            const fechaOnly = new Date(fechaDate.getFullYear(), fechaDate.getMonth(), fechaDate.getDate());
+            const startOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+            const endOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+            if (fechaOnly < startOnly || fechaOnly > endOnly) continue;
+          }
 
           const reportPlantaId = report.planta_id || datos?.plant?.id;
           if (!reportPlantaId || !plantIds.has(reportPlantaId)) continue;
@@ -807,7 +860,7 @@ export default function Dashboard() {
     };
 
     buildHistoricalDataFromReportes();
-  }, [plants, startDate, endDate, reports]);
+  }, [plants, startDate, endDate, reports, userRole]);
 
   // Don't render if user is not loaded
   if (!user) {
@@ -867,7 +920,7 @@ export default function Dashboard() {
         <div className="row mb-4">
           
           <RecentReportsTable
-            reports={reports}
+            reports={reports.slice(0, 20)}
             dataLoading={dataLoading}
             getStatusColor={getStatusColor}
             onTableClick={getClientReports}
@@ -877,8 +930,8 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* System Charts - Historical Data - Solo visible para clientes */}
-        {userRole === "client" && (
+        {/* System Charts - Historical Data: clientes ven todos los reportes del rango; admin/user/analista ven últimos 10 por planta */}
+        {(userRole === "client" || userRole === "admin" || userRole === "user" || userRole === "analista") && (
           <div className="row mb-4">
             <ChartsDashboard
               plants={plants}
@@ -889,6 +942,7 @@ export default function Dashboard() {
               loading={historicalDataLoading}
               reportCount={reports.length}
               yearLabel={HISTORICAL_YEAR}
+              last10PerPlant={userRole !== "client"}
             />
           </div>
         )}
