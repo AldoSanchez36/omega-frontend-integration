@@ -12,6 +12,7 @@ import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import { authService } from "@/services/authService"
 import { useEmpresasAccess } from "@/hooks/useEmpresasAccess"
 import TabbedSelectorHistoricos from "./components/TabbedSelectorHistoricos"
+import { ParameterChartCard } from "./components/ParameterChartCard"
 import ScrollArrow from "../dashboard-reportmanager/components/ScrollArrow"
 
 // Interfaces
@@ -480,9 +481,24 @@ export default function HistoricosPage() {
   }
 
   // Ordenar fechas
-  const sortedDates = Object.keys(historicalData).sort((a, b) => 
+  const sortedDates = Object.keys(historicalData).sort((a, b) =>
     new Date(a).getTime() - new Date(b).getTime()
   )
+
+  // Serie por parámetro para los gráficos: valor vs fecha del reporte (solo sistema seleccionado)
+  const chartSeriesByParam = useMemo(() => {
+    const out: Record<string, { timestamp: string; value: number }[]> = {}
+    sortedParameters.forEach((param) => {
+      out[param.id] = sortedDates
+        .map((fecha) => {
+          const v = historicalData[fecha]?.[param.id]?.valor
+          if (v === undefined || v === null || Number.isNaN(Number(v))) return null
+          return { timestamp: fecha, value: Number(v) }
+        })
+        .filter((d): d is { timestamp: string; value: number } => d != null)
+    })
+    return out
+  }, [sortedParameters, sortedDates, historicalData])
 
   // Formatear fecha para mostrar
   const formatDate = (dateStr: string): string => {
@@ -575,6 +591,28 @@ export default function HistoricosPage() {
             onStartDateChange={setStartDate}
             onEndDateChange={setEndDate}
           />
+
+          {/* Gráficos por parámetro del sistema seleccionado (entre filtros y tabla) */}
+          {selectedSystem && parameters.length > 0 && !historicalLoading && !historicalError && sortedDates.length > 0 && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>
+                  Gráficos por parámetro - {selectedSystemData?.nombre}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-2 sm:px-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {sortedParameters.map((param) => (
+                    <ParameterChartCard
+                      key={param.id}
+                      param={{ id: param.id, nombre: param.nombre, unidad: param.unidad }}
+                      data={chartSeriesByParam[param.id] ?? []}
+                    />
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Tabla Histórica */}
           {selectedSystem && parameters.length > 0 && (
