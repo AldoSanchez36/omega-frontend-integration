@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -123,6 +123,9 @@ export default function HistoricosPage() {
   const [historicalLoading, setHistoricalLoading] = useState(false)
   const [historicalError, setHistoricalError] = useState<string | null>(null)
 
+  // Orden de parámetros por planta
+  const [plantOrderVariables, setPlantOrderVariables] = useState<{ id: string; nombre: string; orden: number }[]>([])
+
   // Calcular fechas por defecto (últimos 12 meses)
   useEffect(() => {
     const today = new Date()
@@ -225,6 +228,40 @@ export default function HistoricosPage() {
   useEffect(() => {
     fetchTolerances()
   }, [fetchTolerances])
+
+  // Cargar orden de variables de la planta
+  useEffect(() => {
+    if (!selectedPlant?.id || !token) {
+      setPlantOrderVariables([])
+      return
+    }
+    let cancelled = false
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ORDEN_VARIABLES(selectedPlant.id)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        if (data.ok && Array.isArray(data.variables)) {
+          setPlantOrderVariables(data.variables)
+        } else {
+          setPlantOrderVariables([])
+        }
+      })
+      .catch(() => { if (!cancelled) setPlantOrderVariables([]) })
+    return () => { cancelled = true }
+  }, [selectedPlant?.id, token])
+
+  const sortedParameters = useMemo(() => {
+    if (plantOrderVariables.length === 0) return parameters
+    const orderMap = new Map(plantOrderVariables.map((v, i) => [v.id, i]))
+    return [...parameters].sort((a, b) => {
+      const ia = orderMap.get(a.id) ?? 9999
+      const ib = orderMap.get(b.id) ?? 9999
+      if (ia !== ib) return ia - ib
+      return (a.nombre || "").localeCompare(b.nombre || "")
+    })
+  }, [parameters, plantOrderVariables])
 
   // Fetch historical data desde reportes.datos (columna JSON) en lugar de tabla mediciones
   const fetchHistoricalData = useCallback(async () => {
@@ -568,7 +605,7 @@ export default function HistoricosPage() {
                           <th className="border px-2 py-2 text-left font-semibold w-24">
                             PARAMETROS
                           </th>
-                          {parameters.map((param) => (
+                          {sortedParameters.map((param) => (
                             <th key={param.id} className="border px-1 py-2 text-center font-semibold">
                               <div className="text-xs">{param.nombre}</div>
                               <div className="text-xs font-normal">({param.unidad})</div>
@@ -583,7 +620,7 @@ export default function HistoricosPage() {
                           <td className="border px-2 py-2 font-semibold bg-green-100">
                             ALTO
                           </td>
-                          {parameters.map((param) => (
+                          {sortedParameters.map((param) => (
                             <td key={param.id} className="border px-1 py-2 text-center text-xs">
                               {highLowValues[param.id]?.alto.toFixed(2) || "—"}
                             </td>
@@ -595,7 +632,7 @@ export default function HistoricosPage() {
                           <td className="border px-2 py-2 font-semibold bg-green-100">
                             BAJO
                           </td>
-                          {parameters.map((param) => (
+                          {sortedParameters.map((param) => (
                             <td key={param.id} className="border px-1 py-2 text-center text-xs">
                               {highLowValues[param.id]?.bajo.toFixed(2) || "—"}
                             </td>
@@ -607,7 +644,7 @@ export default function HistoricosPage() {
                           <td className="border px-2 py-2 font-semibold bg-green-100">
                             PROMEDIO
                           </td>
-                          {parameters.map((param) => (
+                          {sortedParameters.map((param) => (
                             <td key={param.id} className="border px-1 py-2 text-center text-xs">
                               {averageValues[param.id] && averageValues[param.id] > 0 
                                 ? averageValues[param.id].toFixed(2) 
@@ -621,7 +658,7 @@ export default function HistoricosPage() {
                           <td className="border px-2 py-2 font-semibold bg-blue-800">
                             FECHA/RANGOS
                           </td>
-                          {parameters.map((param) => (
+                          {sortedParameters.map((param) => (
                             <td key={param.id} className="border px-1 py-2 text-center text-xs">
                               {getAcceptableRange(param.id)}
                             </td>
@@ -642,7 +679,7 @@ export default function HistoricosPage() {
                               }`}>
                                 {formatDate(fecha)}
                               </td>
-                              {parameters.map((param) => {
+                              {sortedParameters.map((param) => {
                                 const value = dateData[param.id]
                                 const valor = value && typeof value === 'object' && 'valor' in value ? value.valor : undefined
                                 const isOutOfRange = valor !== undefined && isValueOutOfRange(param.id, valor)

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -20,6 +20,7 @@ import TabbedSelector from "./components/TabbedSelector"
 import ParametersList from "./components/ParametersList"
 import Charts from "./components/Charts"
 import ScrollArrow from "./components/ScrollArrow"
+import { parseComentariosForDisplay } from "./utils"
 
 // Interfaces
 interface User {
@@ -396,6 +397,92 @@ export default function ReportManager() {
   // Función para obtener parámetros de todos los sistemas
   const [allParameters, setAllParameters] = useState<Record<string, Parameter[]>>({});
   
+  // Orden de parámetros por planta (para mostrar en orden configurado)
+  const [plantOrderVariables, setPlantOrderVariables] = useState<{ id: string; nombre: string; unidad?: string; orden: number }[]>([]);
+  
+  // Cargar orden de variables de la planta al seleccionar planta
+  useEffect(() => {
+    if (!selectedPlant?.id || !token) {
+      setPlantOrderVariables([]);
+      return;
+    }
+    let cancelled = false;
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ORDEN_VARIABLES(selectedPlant.id)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data.ok && Array.isArray(data.variables)) {
+          setPlantOrderVariables(data.variables);
+        } else {
+          setPlantOrderVariables([]);
+        }
+      })
+      .catch(() => { if (!cancelled) setPlantOrderVariables([]); });
+    return () => { cancelled = true; };
+  }, [selectedPlant?.id, token]);
+
+  // Parámetros del sistema actual ordenados según la planta
+  const sortedParameters = useMemo(() => {
+    if (plantOrderVariables.length === 0) return parameters;
+    const orderMap = new Map(plantOrderVariables.map((v, i) => [v.id, i]));
+    return [...parameters].sort((a, b) => {
+      const ia = orderMap.get(a.id) ?? 9999;
+      const ib = orderMap.get(b.id) ?? 9999;
+      if (ia !== ib) return ia - ib;
+      return (a.nombre || "").localeCompare(b.nombre || "");
+    });
+  }, [parameters, plantOrderVariables]);
+
+  // Datos para gráficos desde columna datos de reportes (no tabla mediciones)
+  const [chartDataFromReportes, setChartDataFromReportes] = useState<Record<string, Array<{ fecha: string; sistema: string; valor: number }>>>({});
+
+  useEffect(() => {
+    if (!token || !selectedPlant?.id || !chartStartDate || !chartEndDate) {
+      setChartDataFromReportes({});
+      return;
+    }
+    let cancelled = false;
+    const startNorm = chartStartDate.includes("T") ? chartStartDate.split("T")[0] : chartStartDate;
+    const endNorm = chartEndDate.includes("T") ? chartEndDate.split("T")[0] : chartEndDate;
+
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        const reportes: any[] = data.reportes || [];
+        const byVariable: Record<string, Array<{ fecha: string; sistema: string; valor: number }>> = {};
+
+        reportes.forEach((report: any) => {
+          const datos = report.datos || report.reportSelection || {};
+          const fechaRaw = datos.fecha || report.fecha || report.created_at;
+          if (!fechaRaw) return;
+          const fecha = typeof fechaRaw === "string" ? fechaRaw.split("T")[0] : new Date(fechaRaw).toISOString().split("T")[0];
+          if (fecha < startNorm || fecha > endNorm) return;
+          const plantaId = report.planta_id || datos.plant?.id;
+          if (plantaId !== selectedPlant.id) return;
+
+          const parametersData = datos.parameters || {};
+          Object.entries(parametersData).forEach(([sistema, params]: [string, any]) => {
+            if (!params || typeof params !== "object") return;
+            Object.entries(params).forEach(([variableName, paramData]: [string, any]) => {
+              const valor = paramData?.valor ?? paramData?.value;
+              if (valor == null || Number.isNaN(Number(valor))) return;
+              if (!byVariable[variableName]) byVariable[variableName] = [];
+              byVariable[variableName].push({ fecha, sistema, valor: Number(valor) });
+            });
+          });
+        });
+
+        setChartDataFromReportes(byVariable);
+      })
+      .catch(() => { if (!cancelled) setChartDataFromReportes({}); });
+    return () => { cancelled = true; };
+  }, [token, selectedPlant?.id, chartStartDate, chartEndDate]);
+
   // Cargar parámetros de todos los sistemas cuando se selecciona una planta
   useEffect(() => {
     async function loadAllParameters() {
@@ -829,6 +916,7 @@ export default function ReportManager() {
             handleChartStartDateChange={setChartStartDate}
             handleChartEndDateChange={setChartEndDate}
             token={token}
+            currentUser={currentUser}
             onViewReport={handleViewReport}
             activeTab={activeTopTab}
             onActiveTabChange={setActiveTopTab}
@@ -837,7 +925,7 @@ export default function ReportManager() {
           {/* Parámetros */}
           {activeTopTab !== "reportes-pendientes" && selectedSystemData && parameters.length > 0 && (
             <ParametersList
-              parameters={parameters}
+              parameters={sortedParameters}
               parameterValues={parameterValues}
               handleUnitChange={handleUnitChange}
               handleParameterChange={handleParameterChange}
@@ -938,13 +1026,19 @@ export default function ReportManager() {
                     </thead>
                     <tbody>
                       {(() => {
-                        // Obtener todas las variables únicas
                         const allVariables = new Set<string>();
                         Object.values(savedReportData.parameters).forEach((systemData: any) => {
                           Object.keys(systemData).forEach(variable => allVariables.add(variable));
                         });
+                        const orderedNames = plantOrderVariables.map((v) => v.nombre);
+                        const orderedVariableList = orderedNames.length > 0
+                          ? [
+                              ...orderedNames.filter((n) => allVariables.has(n)),
+                              ...Array.from(allVariables).filter((n) => !orderedNames.includes(n)),
+                            ]
+                          : Array.from(allVariables);
                         
-                        return Array.from(allVariables).map(variable => {
+                        return orderedVariableList.map(variable => {
                           // Obtener la unidad del primer sistema que tenga datos para esta variable
                           let unidad = '';
                           for (const systemName of Object.keys(savedReportData.parameters)) {
@@ -979,12 +1073,15 @@ export default function ReportManager() {
                 </div>
 
                 {/* Comentarios si existen */}
-                {savedReportData.comentarios && (
-                  <div className="mt-4">
-                    <h4 className="text-lg font-semibold mb-2">Comentarios:</h4>
-                    <p className="text-gray-700 bg-gray-50 p-3 rounded">{savedReportData.comentarios}</p>
-                  </div>
-                )}
+                {(() => {
+                  const comentariosTexto = parseComentariosForDisplay(savedReportData.comentarios);
+                  return comentariosTexto ? (
+                    <div className="mt-4">
+                      <h4 className="text-lg font-semibold mb-2">Comentarios:</h4>
+                      <p className="text-gray-700 bg-gray-50 p-3 rounded">{comentariosTexto}</p>
+                    </div>
+                  ) : null;
+                })()}
               </CardContent>
             </Card>
           )}
@@ -998,6 +1095,7 @@ export default function ReportManager() {
               clientName={selectedPlantData?.clientName}
               processName={selectedSystemData?.nombre}
               userId={currentUser?.id}
+              dataFromReportes={chartDataFromReportes}
             />
           )}
 

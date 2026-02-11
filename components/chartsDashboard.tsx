@@ -40,12 +40,14 @@ interface Plant {
 
 interface ChartsDashboardProps {
   plants: Plant[];
-  // historicalData[systemId][paramId] = [{ timestamp, value }, ...]
   historicalData: Record<string, Record<string, HistoricalDataPoint[]>>;
   getStatusColor: (status: string) => string;
   startDate: string;
   endDate: string;
   loading?: boolean;
+  reportCount?: number;
+  /** Año mostrado (ej. 2025) para etiqueta en la sección de reportes gráficos */
+  yearLabel?: number;
 }
 
 export function getDatePosition(dateStr: string, minDate: number, maxDate: number) {
@@ -61,6 +63,8 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
   startDate,
   endDate,
   loading = false,
+  reportCount,
+  yearLabel,
 }) => {
   const [activePlant, setActivePlant] = useState<string | null>(null);
   const [activeSystem, setActiveSystem] = useState<string | null>(null);
@@ -107,6 +111,9 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
             <h5 className="mb-0">
               <i className="material-icons me-2">analytics</i>
               Gráficos Históricos de Sistemas
+              {yearLabel != null && (
+                <span className="badge bg-secondary ms-2">Año {yearLabel}</span>
+              )}
             </h5>
             <div className="btn-group" role="group">
               <button
@@ -165,12 +172,14 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
 
                 {selectedPlant && (
               <div className="p-3">
-                {/* Debug Info */}
+                {/* Debug Info: reportes cargados = puntos por gráfico; la lista de parámetros es desplazable */}
                 <div className="alert alert-info mb-3">
                   <small>
                     <strong>Debug Info:</strong> Planta: {selectedPlant.nombre} | 
                     Sistemas: {selectedPlant.systems?.length || 0} | 
-                    Datos históricos: {Object.values(historicalData).reduce((sum, sys) => sum + Object.keys(sys || {}).length, 0)} parámetros
+                    Reportes cargados: {reportCount ?? "—"} (1 punto por reporte en cada gráfico) | 
+                    Parámetros con datos: {Object.values(historicalData).reduce((sum, sys) => sum + Object.keys(sys || {}).length, 0)}. 
+                    Desplaza hacia abajo para ver todos los parámetros del sistema.
                   </small>
                 </div>
                 
@@ -371,21 +380,66 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                             />
                                           )}
                                           
-                                          {/* Data points más visibles */}
-                                          {chartPoints.map((point, i) => (
-                                            <circle
-                                              key={i}
-                                              cx={point.x}
-                                              cy={point.y}
-                                              r="3"
-                                              fill="#007bff"
-                                              stroke="white"
-                                              strokeWidth="1.5"
-                                              className="data-point"
-                                              style={{ cursor: 'pointer' }}
-                                            />
-                                          ))}
+                                          {/* Data points más visibles con tooltip x (fecha) y y (valor) */}
+                                          {chartPoints.map((point, i) => {
+                                            const fechaLabel = point.timestamp
+                                              ? new Date(point.timestamp).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })
+                                              : "";
+                                            return (
+                                              <g key={i}>
+                                                <title>{`x (fecha): ${fechaLabel} · y (valor): ${point.value.toFixed(2)} ${param.unit}`}</title>
+                                                <circle
+                                                  cx={point.x}
+                                                  cy={point.y}
+                                                  r="3"
+                                                  fill="#007bff"
+                                                  stroke="white"
+                                                  strokeWidth="1.5"
+                                                  className="data-point"
+                                                  style={{ cursor: "pointer" }}
+                                                />
+                                              </g>
+                                            );
+                                          })}
+                                          {/* Etiquetas eje Y (valor) - 3 marcas */}
+                                          {[adjustedMin, (adjustedMin + adjustedMax) / 2, adjustedMax].map((val, i) => {
+                                            const y = padding.top + ((adjustedMax - val) / adjustedRange) * plotHeight;
+                                            return (
+                                              <text
+                                                key={`y-${i}`}
+                                                x={padding.left - 2}
+                                                y={y + 3}
+                                                textAnchor="end"
+                                                fontSize="6"
+                                                fill="#666"
+                                              >
+                                                {val.toFixed(1)}
+                                              </text>
+                                            );
+                                          })}
+                                          {/* Etiquetas eje X (fecha) - primera, central, última */}
+                                          {chartPoints.length > 0 && [0, Math.floor(chartPoints.length / 2), chartPoints.length - 1].filter((i) => i >= 0 && i < chartPoints.length).map((idx) => {
+                                            const p = chartPoints[idx];
+                                            const fechaLabel = p.timestamp
+                                              ? new Date(p.timestamp).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })
+                                              : "";
+                                            return (
+                                              <text
+                                                key={`x-${idx}`}
+                                                x={p.x}
+                                                y={chartHeight - 2}
+                                                textAnchor="middle"
+                                                fontSize="5"
+                                                fill="#666"
+                                              >
+                                                {fechaLabel}
+                                              </text>
+                                            );
+                                          })}
                                         </svg>
+                                      </div>
+                                      <div className="text-muted text-center" style={{ fontSize: "0.6rem" }}>
+                                        Eje X: Fecha · Eje Y: Valor ({param.unit})
                                       </div>
                                       
                                       {/* Enhanced Stats with Better Contrast - Reduced Size */}

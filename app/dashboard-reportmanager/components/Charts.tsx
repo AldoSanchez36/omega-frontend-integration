@@ -11,6 +11,8 @@ interface Parameter {
   unidad: string;
 }
 
+export type ChartDataFromReportes = Record<string, Array<{ fecha: string; sistema: string; valor: number }>>;
+
 interface ChartsProps {
   selectedParameters: Parameter[];
   startDate: string;
@@ -18,9 +20,11 @@ interface ChartsProps {
   clientName?: string;
   processName?: string;
   userId?: string;
+  /** Datos extraídos de reportes.datos (columna datos); si se pasa, los gráficos usan esto en lugar de la API de mediciones */
+  dataFromReportes?: ChartDataFromReportes;
 }
 
-const Charts: React.FC<ChartsProps> = ({ selectedParameters, startDate, endDate, clientName, processName, userId }) => {
+const Charts: React.FC<ChartsProps> = ({ selectedParameters, startDate, endDate, clientName, processName, userId, dataFromReportes }) => {
   return (
     <Card className="mb-6">
       <CardHeader>
@@ -51,6 +55,7 @@ const Charts: React.FC<ChartsProps> = ({ selectedParameters, startDate, endDate,
                       clientName={clientName}
                       processName={processName}
                       userId={userId}
+                      medicionesFromReportes={dataFromReportes ? (dataFromReportes[param.nombre] ?? []) : undefined}
                     />
                   </div>
                 </div>

@@ -37,6 +37,7 @@ export const API_ENDPOINTS = {
   PLANTS_CREATE: '/api/plantas/crear',
   PLANTS_UPDATE: (plantId: string) => `/api/plantas/update/${plantId}`,
   PLANTS_DELETE: (plantId: string) => `/api/plantas/delete/${plantId}`,
+  PLANTS_ORDEN_VARIABLES: (plantId: string) => `/api/plantas/${plantId}/orden-variables`,
   PLANTS_ACCESSIBLE: '/api/plantas/accesibles',
   PLANTS_ALL: '/api/plantas/all', 
   PLANTS_ALL_ID: '/api/plantas/allID',

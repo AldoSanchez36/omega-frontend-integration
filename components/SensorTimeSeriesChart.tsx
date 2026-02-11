@@ -38,6 +38,12 @@ interface PivotData {
   [sensor: string]: string | number | undefined
 }
 
+export interface MedicionFromReporte {
+  fecha: string
+  sistema: string
+  valor: number
+}
+
 interface Props {
   variable: string             // p.ej. "Cloro Libre"
   startDate: string            // "2025-04-04"
@@ -48,6 +54,8 @@ interface Props {
   processName?: string         // Nombre del proceso para verificar datos primero
   clientName?: string          // Nombre del cliente para la lógica de cascada
   userId?: string              // ID del usuario para filtrado específico
+  /** Si se proporciona, se usan estos datos (p. ej. de reportes.datos) en lugar de la API de mediciones */
+  medicionesFromReportes?: MedicionFromReporte[] | null
 }
 
 export interface ChartExportRef {
@@ -56,7 +64,7 @@ export interface ChartExportRef {
 }
 
 export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
-  variable, startDate, endDate, apiBase, unidades, hideXAxisLabels, processName, clientName, userId
+  variable, startDate, endDate, apiBase, unidades, hideXAxisLabels, processName, clientName, userId, medicionesFromReportes
 }, ref) => {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   // Paleta de colores fija para evitar problemas de hidratación
@@ -81,25 +89,52 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
   const encodedVar = encodeURIComponent(variable)
 
   useEffect(() => {
+    const normalizeDate = (dateStr: string): string => {
+      if (!dateStr) return ''
+      if (dateStr.includes('T')) return dateStr.split('T')[0]
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr
+      const date = new Date(dateStr)
+      return !isNaN(date.getTime()) ? date.toISOString().split('T')[0] : dateStr
+    }
+
     async function load() {
       setLoading(true)
       setError(null)
-      
+
       try {
-        let finalData: RawMeasurement[] = [];
-        
-        // Normalizar fechas para comparación (solo YYYY-MM-DD)
-        const normalizeDate = (dateStr: string): string => {
-          if (!dateStr) return ''
-          if (dateStr.includes('T')) return dateStr.split('T')[0]
-          if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr
-          const date = new Date(dateStr)
-          return !isNaN(date.getTime()) ? date.toISOString().split('T')[0] : dateStr
-        }
-        
         const startDateNormalized = normalizeDate(startDate)
         const endDateNormalized = normalizeDate(endDate)
-        
+
+        // Si se pasan datos desde reportes.datos, usarlos en lugar de la API de mediciones
+        if (medicionesFromReportes !== undefined && medicionesFromReportes !== null) {
+          const list = Array.isArray(medicionesFromReportes) ? medicionesFromReportes : [];
+          const filtered = list.filter(m => {
+            const fechaNorm = normalizeDate(m.fecha)
+            return fechaNorm >= startDateNormalized && fechaNorm <= endDateNormalized
+          })
+          const sensorSet = new Set(filtered.map(m => m.sistema))
+          const sensorList = Array.from(sensorSet).sort()
+          const dateSet = new Set(filtered.map(m => normalizeDate(m.fecha)))
+          const dateList = Array.from(dateSet).sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+          const pivotData: PivotData[] = dateList.map(fecha => {
+            const row: PivotData = {
+              fecha,
+              fechaEtiqueta: new Date(fecha).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
+            }
+            sensorList.forEach(sensor => {
+              const meas = filtered.find(m => normalizeDate(m.fecha) === fecha && m.sistema === sensor)
+              row[sensor] = meas ? meas.valor : undefined
+            })
+            return row
+          })
+          setSensors(sensorList)
+          setData(pivotData)
+          setLoading(false)
+          return
+        }
+
+        let finalData: RawMeasurement[] = [];
+
         console.log(`📊 [SensorTimeSeriesChart] Buscando datos para:`, {
           variable,
           clientName,
@@ -263,7 +298,7 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
        }
      }
     load()
-  }, [variable, startDate, endDate, apiBase, token, processName, clientName, userId])
+  }, [variable, startDate, endDate, apiBase, token, processName, clientName, userId, medicionesFromReportes])
 
   // Función para exportar como SVG (debe estar antes de los returns condicionales)
   const exportAsSVG = (): string | null => {

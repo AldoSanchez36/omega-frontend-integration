@@ -86,14 +86,12 @@ export default function Dashboard() {
   const [totalHistoricos, setTotalHistoricos] = useState<number>(0);
   const [historicalDataLoading, setHistoricalDataLoading] = useState<boolean>(false);
   
-  // Asegurar que las fechas por defecto sean del año actual
+  // Ajuste temporal: año a mostrar en gráficos históricos para clientes (cambiar a new Date().getFullYear() para año actual)
+  const HISTORICAL_YEAR = 2025;
   const getCurrentYearDates = () => {
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const startDate = `${currentYear}-01-01`;
-    // Para históricos en dashboard, tomar TODO el año en curso (evita excluir reportes "futuros" por fecha)
-    // y asegura que se consideren todos los puntos del año actual.
-    const endDate = `${currentYear}-12-31`;
+    const year = HISTORICAL_YEAR;
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
     return { startDate, endDate };
   };
   
@@ -591,10 +589,16 @@ export default function Dashboard() {
           }
         }
 
-        // Usar el endpoint de reportes con filtrado por rol
-        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        // Pedir todos los reportes del año para la sección de reportes gráficos (rango startDate–endDate).
+        const reportesLimit = 500
+        const params = new URLSearchParams()
+        params.set("limit", String(reportesLimit))
+        params.set("startDate", startDate)
+        params.set("endDate", endDate)
+        const response = await fetch(
+          `${API_BASE_URL}${API_ENDPOINTS.REPORTS}?${params.toString()}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
         
         let reportesData: any[] = []
         
@@ -684,24 +688,18 @@ export default function Dashboard() {
 
     fetchResumen();
     fetchReportes();
-  }, [user, userRole]);
+  }, [user, userRole, startDate, endDate]);
 
-  // Asegurar que las fechas siempre sean del año actual
+  // Asegurar que las fechas coincidan con HISTORICAL_YEAR (temporal: 2025)
   useEffect(() => {
-    const { startDate: currentYearStart, endDate: currentYearEnd } = getCurrentYearDates();
-    const currentYear = new Date().getFullYear();
-    
-    // Verificar si las fechas actuales son del año actual
+    const { startDate: yearStart, endDate: yearEnd } = getCurrentYearDates();
     const startYear = new Date(startDate).getFullYear();
     const endYear = new Date(endDate).getFullYear();
-    
-    // Si las fechas no son del año actual, actualizarlas
-    if (startYear !== currentYear || endYear !== currentYear) {
-      setStartDate(currentYearStart);
-      setEndDate(currentYearEnd);
-      console.log(`📅 Fechas actualizadas al año actual: ${currentYearStart} - ${currentYearEnd}`);
+    if (startYear !== HISTORICAL_YEAR || endYear !== HISTORICAL_YEAR) {
+      setStartDate(yearStart);
+      setEndDate(yearEnd);
     }
-  }, []); // Solo ejecutar una vez al montar
+  }, []);
 
   // Datos históricos desde reportes.datos (JSON) en lugar de tabla mediciones
   useEffect(() => {
@@ -747,10 +745,18 @@ export default function Dashboard() {
           if (!reportPlantaId || !plantIds.has(reportPlantaId)) continue;
 
           const parametersBySystem = datos.parameters || {};
+          const normalizeName = (n: string) => (n || "").trim().toLowerCase();
+          const normalizeParamName = (name: string) => {
+            const n = normalizeName(name);
+            if (n === "resisitividad") return "resistividad";
+            return n;
+          };
           for (const systemName of Object.keys(parametersBySystem)) {
             const paramsByName = parametersBySystem[systemName] || {};
             const plant = plants.find((p) => p.id === reportPlantaId);
-            const system = plant?.systems?.find((s) => s.name === systemName);
+            const system = plant?.systems?.find(
+              (s) => normalizeName(s.name) === normalizeName(systemName)
+            );
             if (!system) continue;
 
             for (const paramName of Object.keys(paramsByName)) {
@@ -758,7 +764,9 @@ export default function Dashboard() {
               const valor = paramData?.valor ?? paramData?.value;
               if (valor === undefined || valor === null || Number.isNaN(Number(valor))) continue;
 
-              const param = system.parameters?.find((p) => p.name === paramName);
+              const param = system.parameters?.find(
+                (p) => normalizeParamName(p.name) === normalizeParamName(paramName)
+              );
               if (!param || !allData[system.id]) continue;
 
               if (!allData[system.id][param.id]) allData[system.id][param.id] = [];
@@ -879,6 +887,8 @@ export default function Dashboard() {
               startDate={startDate}
               endDate={endDate}
               loading={historicalDataLoading}
+              reportCount={reports.length}
+              yearLabel={HISTORICAL_YEAR}
             />
           </div>
         )}

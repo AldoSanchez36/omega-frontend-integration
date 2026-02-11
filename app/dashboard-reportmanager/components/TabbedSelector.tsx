@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants";
+import CargaReportesTab from "./CargaReportesTab";
+import { parseComentariosForDisplay } from "../utils";
 
 interface Empresa {
   id: string;
@@ -43,6 +45,13 @@ interface Report {
   estatus?: boolean;
 }
 
+interface CurrentUser {
+  id: string;
+  username: string;
+  email?: string;
+  puesto?: string;
+}
+
 interface TabbedSelectorProps {
   displayedEmpresas: Empresa[];
   displayedPlants: Plant[];
@@ -68,6 +77,7 @@ interface TabbedSelectorProps {
   handleChartStartDateChange: (fecha: string) => void;
   handleChartEndDateChange: (fecha: string) => void;
   token: string | null;
+  currentUser: CurrentUser | null;
   onViewReport: (report: Report) => void;
   activeTab?: string;
   onActiveTabChange?: (tab: string) => void;
@@ -98,6 +108,7 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
   handleChartStartDateChange,
   handleChartEndDateChange,
   token,
+  currentUser,
   onViewReport,
   activeTab: controlledActiveTab,
   onActiveTabChange,
@@ -241,7 +252,7 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
               ...(report.reportSelection || report.datos || {}),
               fecha: datosJsonb.fecha || report.fecha || (report.reportSelection?.fecha) || (report.datos?.fecha)
             },
-            observaciones: datosJsonb.comentarios || report.comentarios || report.observaciones || "",
+            observaciones: parseComentariosForDisplay(datosJsonb.comentarios || report.comentarios || report.observaciones || ""),
             usuario: datosJsonb.user?.username || report.usuario || "",
             puesto: datosJsonb.user?.puesto || report.puesto || ""
           };
@@ -386,6 +397,21 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                 `}
               >
                 Reportes Pendientes
+              </TabsTrigger>
+              <TabsTrigger 
+                value="carga-reportes" 
+                className={`
+                  relative px-5 py-2.5 text-sm font-medium rounded-t-md
+                  transition-all duration-150 ease-in-out
+                  border border-b-0 border-transparent
+                  data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:border-gray-300 data-[state=active]:border-b-white
+                  data-[state=active]:shadow-[0_-2px_4px_rgba(0,0,0,0.05)]
+                  data-[state=inactive]:bg-transparent data-[state=inactive]:text-gray-600 data-[state=inactive]:hover:bg-gray-200 data-[state=inactive]:hover:text-gray-900
+                  -mb-px z-10
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2
+                `}
+              >
+                Carga de reportes
               </TabsTrigger>
             </TabsList>
           </div>
@@ -752,6 +778,17 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                 )}
               </div>
             </div>
+          </TabsContent>
+
+          {/* Pestaña 5: Carga de reportes desde CSV */}
+          <TabsContent value="carga-reportes" className="mt-0 p-6 bg-white border-t border-gray-200">
+            <CargaReportesTab
+              token={token}
+              selectedEmpresa={selectedEmpresa}
+              selectedPlant={selectedPlant}
+              currentUser={currentUser}
+              systems={systems}
+            />
           </TabsContent>
         </Tabs>
       </CardContent>

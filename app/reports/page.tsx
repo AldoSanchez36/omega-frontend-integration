@@ -94,7 +94,7 @@ interface ReportSelection {
   parameters: {
     [systemName: string]: {
       [parameterName: string]: {
-        valor: number;
+        valor?: number | null;
         unidad: string;
         valorOriginal?: number;
         formulaAplicada?: string;
@@ -136,6 +136,12 @@ export default function Reporte() {
   
   // Estado para comentarios por parámetro/variable
   const [parameterComments, setParameterComments] = useState<{ [variableName: string]: string }>({})
+  
+  // Orden de parámetros por planta (para mostrar tablas en orden configurado)
+  const [plantOrderVariables, setPlantOrderVariables] = useState<{ id: string; nombre: string; orden: number }[]>([])
+  
+  // Orden de sistemas de la planta (mismo que dashboard-reportmanager: por campo orden)
+  const [plantSystemsOrder, setPlantSystemsOrder] = useState<{ id: string; nombre: string; orden?: number }[]>([])
   
   // Estado para controlar si la tabla se incluye en el PDF
   const [includeTableInPDF, setIncludeTableInPDF] = useState<boolean>(false)
@@ -433,6 +439,72 @@ export default function Reporte() {
     setCurrentDate(formattedDate)
   }, []);
 
+  // Cargar orden de variables de la planta cuando hay reporte con planta
+  useEffect(() => {
+    const plantId = reportSelection?.plant?.id
+    if (!plantId) {
+      setPlantOrderVariables([])
+      return
+    }
+    const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
+    if (!token) return
+    let cancelled = false
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ORDEN_VARIABLES(plantId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        if (data.ok && Array.isArray(data.variables)) {
+          setPlantOrderVariables(data.variables)
+        } else {
+          setPlantOrderVariables([])
+        }
+      })
+      .catch(() => { if (!cancelled) setPlantOrderVariables([]) })
+    return () => { cancelled = true }
+  }, [reportSelection?.plant?.id])
+
+  // Cargar sistemas de la planta en el mismo orden que reportmanager (por orden)
+  useEffect(() => {
+    const plantId = reportSelection?.plant?.id
+    if (!plantId) {
+      setPlantSystemsOrder([])
+      return
+    }
+    const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
+    if (!token) return
+    let cancelled = false
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(plantId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        const procesos = data.procesos || data || []
+        const sorted = [...procesos].sort((a: { orden?: number }, b: { orden?: number }) => {
+          const oa = a.orden ?? 999999
+          const ob = b.orden ?? 999999
+          return oa - ob
+        })
+        setPlantSystemsOrder(sorted)
+      })
+      .catch(() => { if (!cancelled) setPlantSystemsOrder([]) })
+    return () => { cancelled = true }
+  }, [reportSelection?.plant?.id])
+
+  // Nombres de sistemas en el mismo orden que reportmanager (solo los que tienen datos en el reporte)
+  const orderedSystemNames = (() => {
+    const params = reportSelection?.parameters
+    if (!params) return []
+    const keys = Object.keys(params)
+    if (plantSystemsOrder.length === 0) return keys
+    const namesFromApi = plantSystemsOrder.map((s) => s.nombre)
+    const ordered = namesFromApi.filter((n) => params[n] !== undefined)
+    const rest = keys.filter((n) => !namesFromApi.includes(n))
+    return [...ordered, ...rest]
+  })()
+
   const handleNoteChange = (key: string, value: string) => {
     // Los clientes no pueden editar notas
     if (userRole === "client") return
@@ -440,6 +512,29 @@ export default function Reporte() {
       ...prev,
       [key]: value,
     }))
+  }
+
+  // Actualizar valor de un parámetro en la tabla de datos (editables)
+  const handleParameterValueChange = (systemName: string, variableName: string, value: string) => {
+    if (!reportSelection?.parameters || userRole === "client") return
+    const trimmed = value.trim()
+    const numVal = trimmed === "" || trimmed === "—" ? null : Number(trimmed)
+    const valorFinal = numVal !== null && !Number.isNaN(numVal) ? numVal : null
+
+    const updatedParameters = { ...reportSelection.parameters }
+    if (!updatedParameters[systemName]) updatedParameters[systemName] = {}
+    const current = updatedParameters[systemName][variableName]
+    updatedParameters[systemName] = {
+      ...updatedParameters[systemName],
+      [variableName]: {
+        ...(current || {}),
+        valor: valorFinal ?? current?.valor ?? null,
+        unidad: current?.unidad ?? "",
+      },
+    }
+    const updatedReportSelection = { ...reportSelection, parameters: updatedParameters }
+    setReportSelection(updatedReportSelection)
+    localStorage.setItem("reportSelection", JSON.stringify(updatedReportSelection))
   }
 
   const enableEditing = () => {
@@ -499,15 +594,21 @@ export default function Reporte() {
       doc.text("Análisis Comparativo por Parámetro", 20, currentY)
       currentY += 10
 
-      // Crear tabla comparativa
+      // Crear tabla comparativa (orden según planta)
       const allParams = new Set<string>();
       Object.values(reportSelection?.parameters || {}).forEach((systemData: any) => {
         Object.keys(systemData).forEach(variable => allParams.add(variable));
       });
+      const orderedParamNames = plantOrderVariables.length > 0
+        ? [
+            ...plantOrderVariables.map((v) => v.nombre).filter((n) => allParams.has(n)),
+            ...Array.from(allParams).filter((n) => !plantOrderVariables.some((v) => v.nombre === n)),
+          ]
+        : Array.from(allParams);
 
-      const systemNames = Object.keys(reportSelection?.parameters || {});
+      const systemNames = orderedSystemNames.length > 0 ? orderedSystemNames : Object.keys(reportSelection?.parameters || {});
       const tableHeaders = ["Parámetro", ...systemNames];
-      const tableData = Array.from(allParams).map((paramName: string) => {
+      const tableData = orderedParamNames.map((paramName: string) => {
         const row: string[] = [paramName];
         systemNames.forEach((systemName: string) => {
           const systemData = reportSelection?.parameters?.[systemName];
@@ -530,8 +631,10 @@ export default function Reporte() {
 
       currentY = ((doc as any).lastAutoTable.finalY as number) + 20;
 
-      // Datos detallados por sistema
-      (Object.entries(reportSelection?.parameters || {}) as [string, any][]).forEach(([systemName, parameters]: [string, any]) => {
+      // Datos detallados por sistema (mismo orden que reportmanager)
+      const pdfSystemNames = orderedSystemNames.length > 0 ? orderedSystemNames : Object.keys(reportSelection?.parameters || {});
+      pdfSystemNames.forEach((systemName: string) => {
+        const parameters = reportSelection?.parameters?.[systemName];
         if (currentY > 250) {
           doc.addPage();
           currentY = 20;
@@ -973,15 +1076,21 @@ export default function Reporte() {
           ] : null;
         };
         
-        // Preparar datos de la tabla
+        // Preparar datos de la tabla (orden según planta)
         const allVariables = new Set<string>();
         Object.values(reportSelection.parameters).forEach((systemData: any) => {
           Object.keys(systemData).forEach(variable => allVariables.add(variable));
         });
+        const orderedVariableList = plantOrderVariables.length > 0
+          ? [
+              ...plantOrderVariables.map((v) => v.nombre).filter((n) => allVariables.has(n)),
+              ...Array.from(allVariables).filter((n) => !plantOrderVariables.some((v) => v.nombre === n)),
+            ]
+          : Array.from(allVariables);
         
-        const systemNames = Object.keys(reportSelection.parameters);
+        const systemNames = orderedSystemNames.length > 0 ? orderedSystemNames : Object.keys(reportSelection.parameters);
         const previewTableHeaders = ["Variable", ...systemNames];
-        const previewTableData = Array.from(allVariables).map(variable => {
+        const previewTableData = orderedVariableList.map(variable => {
           // Obtener la unidad del primer sistema que tenga datos para esta variable
           let unidad = '';
           for (const systemName of systemNames) {
@@ -999,7 +1108,7 @@ export default function Reporte() {
           
           systemNames.forEach((systemName: string) => {
             const systemData = reportSelection.parameters[systemName];
-            const paramData = systemData[variable];
+            const paramData = systemData?.[variable];
             // Mostrar solo el valor sin la unidad
             const value = paramData ? String(paramData.valor) : "—";
             row.push(value);
@@ -1258,8 +1367,8 @@ export default function Reporte() {
           }
         }
 
-        // Iterar sobre cada sistema
-        for (const systemName of Object.keys(reportSelection.parameters)) {
+        // Iterar sobre cada sistema (mismo orden que reportmanager)
+        for (const systemName of orderedSystemNames.length > 0 ? orderedSystemNames : Object.keys(reportSelection.parameters)) {
           // Obtener todos los parámetros del sistema desde la API
           let parameters: Array<{ id: string; nombre: string; unidad: string }> = [];
           let historicalData: HistoricalDataByDate = {};
@@ -1660,8 +1769,9 @@ export default function Reporte() {
   // Obtener variables disponibles para gráficos desde parameters con sus unidades y sistemas
   const variablesDisponibles = (() => {
     const variablesMap = new Map<string, { unidad: string; sistemas: string[] }>(); // Map<variableName, {unidad, sistemas[]}>
-    
-    Object.entries(reportSelection?.parameters || {}).forEach(([systemName, systemData]: [string, any]) => {
+    const sysNames = orderedSystemNames.length > 0 ? orderedSystemNames : Object.keys(reportSelection?.parameters || {});
+    sysNames.forEach((systemName: string) => {
+      const systemData = reportSelection?.parameters?.[systemName] || {};
       Object.entries(systemData).forEach(([variableName, paramData]: [string, any]) => {
         if (paramData?.unidad) {
           if (!variablesMap.has(variableName)) {
@@ -1857,7 +1967,7 @@ export default function Reporte() {
   useEffect(() => {
     if (!reportSelection || !chartStartDate || !chartEndDate) return
     
-    const systemNames = Object.keys(reportSelection.parameters || {})
+    const systemNames = orderedSystemNames.length > 0 ? orderedSystemNames : Object.keys(reportSelection.parameters || {})
     systemNames.forEach(systemName => {
       fetchHistoricalDataForSystem(systemName)
     })
@@ -2141,7 +2251,7 @@ export default function Reporte() {
                       <thead>
                         <tr className="bg-gray-100">
                           <th className="border px-4 py-2 text-left font-semibold">Variable</th>
-                          {Object.keys(reportSelection.parameters).map(systemName => (
+                          {orderedSystemNames.map(systemName => (
                             <th key={systemName} className="border px-4 py-2 text-center font-semibold">
                               {systemName}
                             </th>
@@ -2150,18 +2260,23 @@ export default function Reporte() {
                       </thead>
                       <tbody>
                         {(() => {
-                          // Obtener todas las variables únicas
                           const allVariables = new Set<string>();
                           Object.values(reportSelection.parameters).forEach((systemData: any) => {
                             Object.keys(systemData).forEach(variable => allVariables.add(variable));
                           });
+                          const orderedVariableList = plantOrderVariables.length > 0
+                            ? [
+                                ...plantOrderVariables.map((v) => v.nombre).filter((n) => allVariables.has(n)),
+                                ...Array.from(allVariables).filter((n) => !plantOrderVariables.some((v) => v.nombre === n)),
+                              ]
+                            : Array.from(allVariables);
                           
-                          return Array.from(allVariables).map(variable => {
+                          return orderedVariableList.map(variable => {
                             // Obtener la unidad del primer sistema que tenga datos para esta variable
                             let unidad = '';
-                            for (const systemName of Object.keys(reportSelection.parameters)) {
+                            for (const systemName of orderedSystemNames) {
                               const systemData = reportSelection.parameters[systemName];
-                              const paramData = systemData[variable];
+                              const paramData = systemData?.[variable];
                               if (paramData && paramData.unidad) {
                                 unidad = paramData.unidad;
                                 break;
@@ -2173,9 +2288,9 @@ export default function Reporte() {
                                 <td className="border px-4 py-2 font-medium">
                                   {variable}{unidad ? ` (${unidad})` : ''}
                                 </td>
-                                {Object.keys(reportSelection.parameters).map(systemName => {
+                                {orderedSystemNames.map(systemName => {
                                   const systemData = reportSelection.parameters[systemName];
-                                  const paramData = systemData[variable];
+                                  const paramData = systemData?.[variable];
                                   
                                   // Buscar tolerancia para esta variable
                                   // La estructura guardada es: { [parameterId]: { nombre, ... }, [parameterName]: { nombre, ... } }
@@ -2227,13 +2342,28 @@ export default function Reporte() {
                                     borderColor: cellColor
                                   } : {};
                                   
+                                  const displayValue = paramData?.valor != null ? paramData.valor : "";
+                                  const isEditable = userRole !== "client";
+
                                   return (
                                     <td 
                                       key={systemName} 
-                                      className="border px-4 py-2 text-center"
+                                      className="border px-2 py-1 text-center align-middle"
                                       style={cellStyle}
                                     >
-                                      {paramData ? paramData.valor : '—'}
+                                      {isEditable ? (
+                                        <input
+                                          type="text"
+                                          inputMode="decimal"
+                                          className="w-full min-w-[3rem] max-w-[5rem] mx-auto px-2 py-1 text-center text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-inherit"
+                                          value={displayValue === "" ? "" : String(displayValue)}
+                                          placeholder="—"
+                                          onChange={(e) => handleParameterValueChange(systemName, variable, e.target.value)}
+                                          aria-label={`Valor ${variable} en ${systemName}`}
+                                        />
+                                      ) : (
+                                        paramData?.valor != null ? paramData.valor : "—"
+                                      )}
                                     </td>
                                   );
                                 })}
@@ -2369,7 +2499,7 @@ export default function Reporte() {
                       Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}                    </p>
                   )}
                   
-                  {Object.keys(reportSelection.parameters).map((systemName) => {
+                  {orderedSystemNames.map((systemName) => {
                     const parameters = systemParameters[systemName] || []
                     const historicalData = historicalDataBySystem[systemName] || {}
                     const isLoading = historicalLoading[systemName] || false
