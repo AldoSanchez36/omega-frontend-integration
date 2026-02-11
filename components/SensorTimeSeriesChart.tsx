@@ -427,6 +427,26 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
     </div>
   );
 
+  // Calcular intervalo para el eje X basado en el número de datos
+  const calculateXAxisInterval = (dataLength: number): number | "preserveStartEnd" => {
+    if (dataLength <= 15) {
+      // Para pocos datos, mostrar todos
+      return 0;
+    } else if (dataLength <= 30) {
+      // Para datos intermedios, mostrar cada 2
+      return 1;
+    } else if (dataLength <= 50) {
+      // Para 40-46 datos, mostrar aproximadamente 8-12 etiquetas
+      // Intervalo de 4-5 para tener ~10 etiquetas visibles
+      return Math.floor(dataLength / 10);
+    } else {
+      // Para muchos datos, usar preserveStartEnd para mostrar primera y última
+      return "preserveStartEnd";
+    }
+  };
+
+  const xAxisInterval = calculateXAxisInterval(data.length);
+
   // Config dinámico de líneas
   const chartConfig = sensors.reduce((cfg, sensor, i) => ({
     ...cfg,
@@ -446,8 +466,8 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div ref={chartContainerRef}>
-          <ChartContainer config={chartConfig}>
+        <div ref={chartContainerRef} className="w-full" style={{ height: '384px' }}>
+          <ChartContainer config={chartConfig} className="h-full w-full">
             <LineChart
               data={data}
               margin={{ left: 12, right: 12 }}
@@ -466,11 +486,14 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
               />
               <XAxis
                 dataKey="fechaEtiqueta"
-                interval={0}
+                interval={hideXAxisLabels ? undefined : xAxisInterval}
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
                 tick={hideXAxisLabels ? false : undefined}
+                angle={data.length > 30 ? -45 : 0}
+                textAnchor={data.length > 30 ? "end" : "middle"}
+                height={data.length > 30 ? 60 : 30}
               />
               <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
 

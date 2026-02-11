@@ -2538,7 +2538,7 @@ export default function Reporte() {
                       <div key={variable.id} className="border rounded-lg p-4 bg-white">
                         <div>
                           {chartStartDate && chartEndDate && (
-                            <div className="max-w-4xl [&_svg]:max-h-96">
+                            <div className="w-full">
                               <SensorTimeSeriesChart
                                 ref={(ref) => {
                                   if (ref) {
