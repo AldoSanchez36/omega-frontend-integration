@@ -181,6 +181,9 @@ export default function Reporte() {
   const [historicalError, setHistoricalError] = useState<{ [systemName: string]: string | null }>({})
   const [systemParameters, setSystemParameters] = useState<{ [systemName: string]: Array<{ id: string; nombre: string; unidad: string }> }>({})
   
+  // Datos para gráficos desde columna datos de reportes (no tabla mediciones)
+  const [chartDataFromReportes, setChartDataFromReportes] = useState<Record<string, Array<{ fecha: string; sistema: string; valor: number }>>>({})
+  
   // Función para obtener o crear ref para un gráfico
   const getChartRef = (variableName: string): ChartExportRef | null => {
     return chartRefs.current.get(variableName) || null
@@ -504,6 +507,30 @@ export default function Reporte() {
     const rest = keys.filter((n) => !namesFromApi.includes(n))
     return [...ordered, ...rest]
   })()
+
+  // Formatear fecha sin problemas de zona horaria (para strings YYYY-MM-DD)
+  const formatFechaLocal = (fechaStr: string | undefined | null): string => {
+    if (!fechaStr) return "";
+    const trimmed = String(fechaStr).trim();
+    if (!trimmed) return "";
+    // Si es formato YYYY-MM-DD, parsear manualmente para evitar zona horaria
+    const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})(?:T|$)/);
+    if (match) {
+      const [, year, month, day] = match;
+      const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
+      return date.toLocaleDateString('es-ES', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+    }
+    // Fallback: usar Date normal si no es formato esperado
+    return new Date(trimmed).toLocaleDateString('es-ES', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  }
 
   const handleNoteChange = (key: string, value: string) => {
     // Los clientes no pueden editar notas
@@ -1056,11 +1083,7 @@ export default function Reporte() {
         // Fecha de medición
         pdf.setFontSize(10);
         const fechaMedicion = reportSelection.fecha 
-          ? new Date(reportSelection.fecha).toLocaleDateString('es-ES', {
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric'
-            })
+          ? formatFechaLocal(reportSelection.fecha)
           : currentDate;
         pdf.text(`Fecha de medición: ${fechaMedicion}`, marginLeft, currentY);
         currentY += 8;
@@ -1402,14 +1425,17 @@ export default function Reporte() {
                   }
 
                   // Construir historicalData desde reportes.datos (columna JSON)
+                  const toFechaYMDForPDF = (raw: string | number | Date): string => {
+                    if (!raw) return "";
+                    const s = typeof raw === "string" ? raw.split("T")[0] : new Date(raw).toISOString().split("T")[0];
+                    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : new Date(raw).toISOString().split("T")[0];
+                  };
                   reportesFiltrados.forEach((report: any) => {
                     const datos = report.datos || report.reportSelection || {};
                     const fechaReporte = datos.fecha || report.fecha || report.created_at;
                     if (!fechaReporte) return;
-                    const fechaStr = typeof fechaReporte === "string"
-                      ? fechaReporte.split("T")[0]
-                      : new Date(fechaReporte).toISOString().split("T")[0];
-                    if (!historicalData[fechaStr]) historicalData[fechaStr] = {};
+                    const fechaStr = toFechaYMDForPDF(fechaReporte);
+                    if (!fechaStr || !historicalData[fechaStr]) historicalData[fechaStr] = {};
                     const paramsForSystem = datos.parameters?.[systemName] || {};
                     const parameterComments = datos.parameterComments || {};
                     parameters.forEach((param) => {
@@ -1508,11 +1534,23 @@ export default function Reporte() {
           const dataRows: string[][] = [];
           sortedDates.forEach((fecha) => {
             const dateData = historicalData[fecha];
-            const fechaFormateada = new Date(fecha).toLocaleDateString('es-ES', {
-              day: '2-digit',
-              month: '2-digit',
-              year: '2-digit'
-            });
+            // Formatear fecha sin problemas de zona horaria
+            const match = String(fecha).trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:T|$)/);
+            const fechaFormateada = match
+              ? (() => {
+                  const [, year, month, day] = match;
+                  const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
+                  return date.toLocaleDateString('es-ES', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: '2-digit'
+                  });
+                })()
+              : new Date(fecha).toLocaleDateString('es-ES', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: '2-digit'
+                });
             
             const row = [
               fechaFormateada,
@@ -1817,6 +1855,65 @@ export default function Reporte() {
       setChartEndDate(endDate)
     }
   }, [reportSelection])
+
+  // Construir datos para gráficos desde reportes.datos (solo tabla reportes, no mediciones)
+  useEffect(() => {
+    if (!reportSelection?.plant?.id || !chartStartDate || !chartEndDate) {
+      setChartDataFromReportes({});
+      return;
+    }
+    let cancelled = false;
+    const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null;
+    if (!token) {
+      setChartDataFromReportes({});
+      return;
+    }
+    
+    const startNorm = chartStartDate.includes("T") ? chartStartDate.split("T")[0] : chartStartDate;
+    const endNorm = chartEndDate.includes("T") ? chartEndDate.split("T")[0] : chartEndDate;
+
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        const reportes: any[] = data.reportes || [];
+        const byVariable: Record<string, Array<{ fecha: string; sistema: string; valor: number }>> = {};
+
+        const toFechaYMD = (raw: string | number | Date): string => {
+          if (!raw) return "";
+          const s = typeof raw === "string" ? raw.split("T")[0] : new Date(raw).toISOString().split("T")[0];
+          return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : new Date(raw).toISOString().split("T")[0];
+        };
+        
+        reportes.forEach((report: any) => {
+          const datos = report.datos || report.reportSelection || {};
+          const fechaRaw = datos.fecha || report.fecha || report.created_at;
+          if (!fechaRaw) return;
+          const fecha = toFechaYMD(fechaRaw);
+          if (!fecha || fecha < startNorm || fecha > endNorm) return;
+          const plantaId = report.planta_id || datos.plant?.id;
+          if (plantaId !== reportSelection.plant.id) return;
+
+          const parametersData = datos.parameters || {};
+          Object.entries(parametersData).forEach(([sistema, params]: [string, any]) => {
+            if (!params || typeof params !== "object") return;
+            const sistemaNorm = (sistema || "").trim();
+            Object.entries(params).forEach(([variableName, paramData]: [string, any]) => {
+              const valor = paramData?.valor ?? paramData?.value;
+              if (valor == null || Number.isNaN(Number(valor))) return;
+              if (!byVariable[variableName]) byVariable[variableName] = [];
+              byVariable[variableName].push({ fecha, sistema: sistemaNorm, valor: Number(valor) });
+            });
+          });
+        });
+
+        setChartDataFromReportes(byVariable);
+      })
+      .catch(() => { if (!cancelled) setChartDataFromReportes({}); });
+    return () => { cancelled = true; };
+  }, [reportSelection?.plant?.id, chartStartDate, chartEndDate])
   
   // Función para obtener parámetros de un sistema desde la API (igual que dashboard-historicos)
   const getSystemParameters = async (systemName: string): Promise<Array<{ id: string; nombre: string; unidad: string }>> => {
@@ -1932,11 +2029,14 @@ export default function Reporte() {
         const datos = report.datos || report.reportSelection || {}
         const fechaReporte = datos.fecha || report.fecha || report.created_at
         if (!fechaReporte) return
-        const fechaStr =
-          typeof fechaReporte === "string"
-            ? fechaReporte.split("T")[0]
-            : new Date(fechaReporte).toISOString().split("T")[0]
-        if (!organizedData[fechaStr]) organizedData[fechaStr] = {}
+        // Normalizar fecha a YYYY-MM-DD sin problemas de zona horaria
+        const toFechaYMD = (raw: string | number | Date): string => {
+          if (!raw) return "";
+          const s = typeof raw === "string" ? raw.split("T")[0] : new Date(raw).toISOString().split("T")[0];
+          return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : new Date(raw).toISOString().split("T")[0];
+        };
+        const fechaStr = toFechaYMD(fechaReporte);
+        if (!fechaStr || !organizedData[fechaStr]) organizedData[fechaStr] = {}
         const paramsForSystem = datos.parameters?.[systemName] || {}
         const parameterComments = datos.parameterComments || {}
         allParameters.forEach((param) => {
@@ -2050,12 +2150,24 @@ export default function Reporte() {
   }
   
   const formatDate = (dateStr: string): string => {
-    const date = new Date(dateStr)
+    // Si es formato YYYY-MM-DD, parsear manualmente para evitar zona horaria
+    const match = String(dateStr).trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:T|$)/);
+    if (match) {
+      const [, year, month, day] = match;
+      const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
+      return date.toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: '2-digit'
+      });
+    }
+    // Fallback: usar Date normal si no es formato esperado
+    const date = new Date(dateStr);
     return date.toLocaleDateString('es-ES', {
       day: '2-digit',
       month: '2-digit',
       year: '2-digit'
-    })
+    });
   }
 
   // Extraer texto de comentario: si viene como JSON {"global":"..."} mostrar solo el valor
@@ -2237,11 +2349,7 @@ export default function Reporte() {
                   {/* Fecha de medición */}
                   <div className="mb-4">
                     <h6 className="text-base font-semibold text-blue-800">
-                      Fecha de medición: {reportSelection.fecha ? new Date(reportSelection.fecha).toLocaleDateString('es-ES', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric'
-                      }) : currentDate}
+                      Fecha de medición: {reportSelection.fecha ? formatFechaLocal(reportSelection.fecha) : currentDate}
                     </h6>
                   </div>
 
@@ -2445,6 +2553,7 @@ export default function Reporte() {
                                 clientName={reportSelection?.plant?.nombre}
                                 processName={primarySystemName}
                                 userId={reportSelection?.user?.id}
+                                medicionesFromReportes={chartDataFromReportes[variable.nombre] || []}
                               />
                             </div>
                           )}

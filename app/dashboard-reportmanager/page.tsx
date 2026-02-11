@@ -456,23 +456,29 @@ export default function ReportManager() {
         const reportes: any[] = data.reportes || [];
         const byVariable: Record<string, Array<{ fecha: string; sistema: string; valor: number }>> = {};
 
+        const toFechaYMD = (raw: string | number | Date): string => {
+          if (!raw) return "";
+          const s = typeof raw === "string" ? raw.split("T")[0] : new Date(raw).toISOString().split("T")[0];
+          return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : new Date(raw).toISOString().split("T")[0];
+        };
         reportes.forEach((report: any) => {
           const datos = report.datos || report.reportSelection || {};
           const fechaRaw = datos.fecha || report.fecha || report.created_at;
           if (!fechaRaw) return;
-          const fecha = typeof fechaRaw === "string" ? fechaRaw.split("T")[0] : new Date(fechaRaw).toISOString().split("T")[0];
-          if (fecha < startNorm || fecha > endNorm) return;
+          const fecha = toFechaYMD(fechaRaw);
+          if (!fecha || fecha < startNorm || fecha > endNorm) return;
           const plantaId = report.planta_id || datos.plant?.id;
           if (plantaId !== selectedPlant.id) return;
 
           const parametersData = datos.parameters || {};
           Object.entries(parametersData).forEach(([sistema, params]: [string, any]) => {
             if (!params || typeof params !== "object") return;
+            const sistemaNorm = (sistema || "").trim();
             Object.entries(params).forEach(([variableName, paramData]: [string, any]) => {
               const valor = paramData?.valor ?? paramData?.value;
               if (valor == null || Number.isNaN(Number(valor))) return;
               if (!byVariable[variableName]) byVariable[variableName] = [];
-              byVariable[variableName].push({ fecha, sistema, valor: Number(valor) });
+              byVariable[variableName].push({ fecha, sistema: sistemaNorm, valor: Number(valor) });
             });
           });
         });
