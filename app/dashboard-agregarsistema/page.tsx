@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2, Plus, Edit, Save, Check, ChevronUp, ChevronDown } from "lucide-react"
+import { Trash2, Plus, Edit, Save, Check, ChevronUp, ChevronDown, ChevronRight } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { v4 as uuidv4 } from "uuid"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import Navbar from "@/components/Navbar"
@@ -137,6 +138,13 @@ export default function ParameterManager() {
   const [showImportFromSystem, setShowImportFromSystem] = useState(false);
   const [selectedSourceSystemId, setSelectedSourceSystemId] = useState<string>("");
   const [sourceSystemParameters, setSourceSystemParameters] = useState<Parameter[]>([]);
+
+  // Orden de parámetros por planta (sección "Orden de parámetros de la planta")
+  const [plantOrderVariables, setPlantOrderVariables] = useState<{ id: string; nombre: string; unidad: string; orden?: number }[]>([])
+  const [loadingOrdenVariables, setLoadingOrdenVariables] = useState(false)
+  const [savingOrdenVariables, setSavingOrdenVariables] = useState(false)
+  const [errorOrdenVariables, setErrorOrdenVariables] = useState<string | null>(null)
+  const [ordenParametrosOpen, setOrdenParametrosOpen] = useState(false)
 
   // Estado para tolerancias por parámetro
   const [tolerancias, setTolerancias] = useState<Record<string, any>>({})
@@ -846,6 +854,47 @@ export default function ParameterManager() {
     }
   }
 
+  const handleMoveOrdenVariableUp = (index: number) => {
+    if (index <= 0) return
+    setPlantOrderVariables((prev) => {
+      const next = [...prev]
+      ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
+      return next
+    })
+  }
+
+  const handleMoveOrdenVariableDown = (index: number) => {
+    if (index >= plantOrderVariables.length - 1) return
+    setPlantOrderVariables((prev) => {
+      const next = [...prev]
+      ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
+      return next
+    })
+  }
+
+  const handleSaveOrdenVariables = async () => {
+    if (!selectedPlant?.id || !token) return
+    setSavingOrdenVariables(true)
+    setErrorOrdenVariables(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ORDEN_VARIABLES(selectedPlant.id)}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ variable_ids: plantOrderVariables.map((v) => v.id) }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.msg || "Error al guardar orden")
+      setErrorOrdenVariables(null)
+    } catch (e: any) {
+      setErrorOrdenVariables(e.message || "Error al guardar orden")
+    } finally {
+      setSavingOrdenVariables(false)
+    }
+  }
+
   const handleCreateEmpresa = async () => {
     if (!newEmpresaName.trim()) {
       alert("Por favor, ingrese el nombre de la empresa.")
@@ -1327,6 +1376,41 @@ export default function ParameterManager() {
     fetchParameters()
   }, [fetchParameters])
 
+  // Cargar orden de variables de la planta al seleccionar planta
+  useEffect(() => {
+    if (!selectedPlant?.id || !token) {
+      setPlantOrderVariables([])
+      setErrorOrdenVariables(null)
+      return
+    }
+    let cancelled = false
+    setLoadingOrdenVariables(true)
+    setErrorOrdenVariables(null)
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ORDEN_VARIABLES(selectedPlant.id)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        if (data.ok && Array.isArray(data.variables)) {
+          setPlantOrderVariables(data.variables)
+        } else {
+          setPlantOrderVariables([])
+          if (!data.ok) setErrorOrdenVariables(data.msg || "Error al cargar orden")
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPlantOrderVariables([])
+          setErrorOrdenVariables("Error al cargar orden de parámetros")
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingOrdenVariables(false)
+      })
+    return () => { cancelled = true }
+  }, [selectedPlant?.id, token])
+
   // Cleanup timeouts al desmontar el componente
   useEffect(() => {
     return () => {
@@ -1560,156 +1644,6 @@ export default function ParameterManager() {
     } catch (e: any) {
       setError(`Error al mover sistema: ${e.message}`)
       console.error('Error al mover sistema hacia arriba:', e)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Función para mover un parámetro hacia arriba
-  const handleMoveParameterUp = async (param: Parameter) => {
-    const currentIndex = parameters.findIndex(p => p.id === param.id)
-    if (currentIndex <= 0) return // Ya está en la primera posición
-
-    const prevParam = parameters[currentIndex - 1]
-    
-    // Usar los valores reales de orden, si no existen, usar el índice como fallback
-    const currentOrden = param.orden ?? currentIndex
-    const prevOrden = prevParam.orden ?? currentIndex - 1
-
-    setLoading(true)
-    setError(null)
-    try {
-      // Intercambiar los órdenes
-      const [res1, res2] = await Promise.all([
-        fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE_ORDER(param.id, selectedSystemId!)}`, {
-          method: 'PATCH',
-          headers: { 
-            'Content-Type': 'application/json', 
-            Authorization: `Bearer ${token}` 
-          },
-          body: JSON.stringify({ orden: prevOrden }),
-        }),
-        fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE_ORDER(prevParam.id, selectedSystemId!)}`, {
-          method: 'PATCH',
-          headers: { 
-            'Content-Type': 'application/json', 
-            Authorization: `Bearer ${token}` 
-          },
-          body: JSON.stringify({ orden: currentOrden }),
-        }),
-      ])
-
-      if (!res1.ok || !res2.ok) {
-        const errorData1 = await res1.json().catch(() => ({}))
-        const errorData2 = await res2.json().catch(() => ({}))
-        
-        // Log detallado del error para debugging
-        console.error('Error al actualizar orden de parámetros:', {
-          res1: {
-            status: res1.status,
-            statusText: res1.statusText,
-            url: res1.url,
-            error: errorData1
-          },
-          res2: {
-            status: res2.status,
-            statusText: res2.statusText,
-            url: res2.url,
-            error: errorData2
-          },
-          paramId: param.id,
-          prevParamId: prevParam.id,
-          currentOrden,
-          prevOrden,
-          selectedSystemId
-        })
-        
-        const errorMsg = errorData1.msg || errorData2.msg || 
-                        errorData1.message || errorData2.message ||
-                        `Error HTTP: ${res1.status} / ${res2.status}`
-        throw new Error(errorMsg)
-      }
-
-      // Recargar los parámetros para reflejar el nuevo orden
-      await fetchParameters()
-    } catch (e: any) {
-      setError(`Error al mover parámetro: ${e.message}`)
-      console.error('Error al mover parámetro hacia arriba:', e)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Función para mover un parámetro hacia abajo
-  const handleMoveParameterDown = async (param: Parameter) => {
-    const currentIndex = parameters.findIndex(p => p.id === param.id)
-    if (currentIndex >= parameters.length - 1) return // Ya está en la última posición
-
-    const nextParam = parameters[currentIndex + 1]
-    
-    // Usar los valores reales de orden, si no existen, usar el índice como fallback
-    const currentOrden = param.orden ?? currentIndex
-    const nextOrden = nextParam.orden ?? currentIndex + 1
-
-    setLoading(true)
-    setError(null)
-    try {
-      // Intercambiar los órdenes
-      const [res1, res2] = await Promise.all([
-        fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE_ORDER(param.id, selectedSystemId!)}`, {
-          method: 'PATCH',
-          headers: { 
-            'Content-Type': 'application/json', 
-            Authorization: `Bearer ${token}` 
-          },
-          body: JSON.stringify({ orden: nextOrden }),
-        }),
-        fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_UPDATE_ORDER(nextParam.id, selectedSystemId!)}`, {
-          method: 'PATCH',
-          headers: { 
-            'Content-Type': 'application/json', 
-            Authorization: `Bearer ${token}` 
-          },
-          body: JSON.stringify({ orden: currentOrden }),
-        }),
-      ])
-
-      if (!res1.ok || !res2.ok) {
-        const errorData1 = await res1.json().catch(() => ({}))
-        const errorData2 = await res2.json().catch(() => ({}))
-        
-        // Log detallado del error para debugging
-        console.error('Error al actualizar orden de parámetros:', {
-          res1: {
-            status: res1.status,
-            statusText: res1.statusText,
-            url: res1.url,
-            error: errorData1
-          },
-          res2: {
-            status: res2.status,
-            statusText: res2.statusText,
-            url: res2.url,
-            error: errorData2
-          },
-          paramId: param.id,
-          nextParamId: nextParam.id,
-          currentOrden,
-          nextOrden,
-          selectedSystemId
-        })
-        
-        const errorMsg = errorData1.msg || errorData2.msg || 
-                        errorData1.message || errorData2.message ||
-                        `Error HTTP: ${res1.status} / ${res2.status}`
-        throw new Error(errorMsg)
-      }
-
-      // Recargar los parámetros para reflejar el nuevo orden
-      await fetchParameters()
-    } catch (e: any) {
-      setError(`Error al mover parámetro: ${e.message}`)
-      console.error('Error al mover parámetro hacia abajo:', e)
     } finally {
       setLoading(false)
     }
@@ -2286,6 +2220,100 @@ export default function ParameterManager() {
                       </div>
                     )}
 
+                    {/* Orden de parámetros de la planta (pestaña expandible, antes del desglose de sistemas) */}
+                    {selectedPlant && (
+                      <Collapsible open={ordenParametrosOpen} onOpenChange={setOrdenParametrosOpen} className="mt-4">
+                        <div className="rounded-xl border-2 border-slate-200 bg-slate-50/80 overflow-hidden">
+                          <CollapsibleTrigger asChild>
+                            <button
+                              type="button"
+                              className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-slate-100/80 transition-colors"
+                              aria-expanded={ordenParametrosOpen}
+                              aria-label={ordenParametrosOpen ? "Cerrar orden de parámetros" : "Abrir orden de parámetros"}
+                            >
+                              <span className="text-sm font-semibold text-slate-800">Orden de parámetros de la planta</span>
+                              {ordenParametrosOpen ? (
+                                <ChevronDown className="h-4 w-4 shrink-0 text-slate-600" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 shrink-0 text-slate-600" />
+                              )}
+                            </button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="border-t border-slate-200 p-4">
+                              <p className="text-xs text-slate-600 mb-3">
+                                Define el orden en que se mostrarán los parámetros en reportes y dashboards para esta planta. Usa las flechas para reordenar.
+                              </p>
+                              {errorOrdenVariables && (
+                                <p className="text-sm text-red-600 mb-2" role="alert">{errorOrdenVariables}</p>
+                              )}
+                              {loadingOrdenVariables ? (
+                                <p className="text-sm text-slate-500">Cargando orden...</p>
+                              ) : plantOrderVariables.length === 0 ? (
+                                <p className="text-sm text-slate-500">No hay parámetros en los sistemas de esta planta. Añade parámetros a algún sistema para configurar el orden.</p>
+                              ) : (
+                                <>
+                                  <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow className="bg-slate-100">
+                                          <TableHead className="w-12">#</TableHead>
+                                          <TableHead>Nombre</TableHead>
+                                          <TableHead>Unidad</TableHead>
+                                          <TableHead className="w-24 text-center">Orden</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {plantOrderVariables.map((v, index) => (
+                                          <TableRow key={v.id}>
+                                            <TableCell className="font-mono text-slate-500">{index + 1}</TableCell>
+                                            <TableCell>{v.nombre}</TableCell>
+                                            <TableCell>{v.unidad || "—"}</TableCell>
+                                            <TableCell>
+                                              <div className="flex items-center justify-center gap-1">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleMoveOrdenVariableUp(index)}
+                                                  disabled={index === 0}
+                                                  className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                  aria-label={`Subir ${v.nombre}`}
+                                                >
+                                                  <ChevronUp className="h-4 w-4" />
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleMoveOrdenVariableDown(index)}
+                                                  disabled={index === plantOrderVariables.length - 1}
+                                                  className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                  aria-label={`Bajar ${v.nombre}`}
+                                                >
+                                                  <ChevronDown className="h-4 w-4" />
+                                                </button>
+                                              </div>
+                                            </TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+                                  <div className="mt-3 flex justify-end">
+                                    <Button
+                                      type="button"
+                                      onClick={handleSaveOrdenVariables}
+                                      disabled={savingOrdenVariables}
+                                      className="bg-slate-700 hover:bg-slate-800 text-white"
+                                    >
+                                      {savingOrdenVariables ? "Guardando…" : "Guardar orden"}
+                                    </Button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </CollapsibleContent>
+                        </div>
+                      </Collapsible>
+                    )}
+
                     {/* Sistema */}
                     {selectedPlant && (
                       <div>
@@ -2408,7 +2436,6 @@ export default function ParameterManager() {
                        </div>
                      )}
 
-                    
                     {/* Edit System Dialog */}
                     <Dialog open={showEditSystemDialog} onOpenChange={setShowEditSystemDialog}>
                       <DialogContent className="bg-[#f6f6f6] text-gray-900">
@@ -2741,42 +2768,23 @@ export default function ParameterManager() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {parameters.map((param) => {
+                            {(() => {
+                              // Orden según planta: solo parámetros de este sistema, en el orden de plantOrderVariables (si no está en el orden, al final por nombre)
+                              const orderMap = new Map(plantOrderVariables.map((v, i) => [v.id, i]));
+                              const sorted = [...parameters].sort((a, b) => {
+                                const ia = orderMap.get(a.id) ?? 99999;
+                                const ib = orderMap.get(b.id) ?? 99999;
+                                if (ia !== ib) return ia - ib;
+                                return (a.nombre || "").localeCompare(b.nombre || "");
+                              });
+                              return sorted;
+                            })().map((param) => {
                               const usarLimiteMin = !!tolerancias[param.id]?.usar_limite_min;
                               const usarLimiteMax = !!tolerancias[param.id]?.usar_limite_max;
                               return (
                                 <TableRow key={param.id}>
                                   <TableCell className="font-medium">
-                                    <div className="flex items-center gap-2">
-                                      {/* Botones de orden */}
-                                      <div className="flex flex-col gap-1">
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleMoveParameterUp(param);
-                                          }}
-                                          disabled={parameters.findIndex(p => p.id === param.id) === 0 || loading}
-                                          className="px-2 py-1 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                                          aria-label={`Mover ${param.nombre} hacia arriba`}
-                                          title="Mover hacia arriba"
-                                        >
-                                          <ChevronUp className="h-3 w-3" />
-                                        </button>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleMoveParameterDown(param);
-                                          }}
-                                          disabled={parameters.findIndex(p => p.id === param.id) === parameters.length - 1 || loading}
-                                          className="px-2 py-1 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                                          aria-label={`Mover ${param.nombre} hacia abajo`}
-                                          title="Mover hacia abajo"
-                                        >
-                                          <ChevronDown className="h-3 w-3" />
-                                        </button>
-                                      </div>
-                                      <span>{param.nombre}</span>
-                                    </div>
+                                    <span>{param.nombre}</span>
                                   </TableCell>
                                   <TableCell>{param.unidad}</TableCell>
                                   <TableCell className="text-right">

@@ -40,12 +40,16 @@ interface Plant {
 
 interface ChartsDashboardProps {
   plants: Plant[];
-  // historicalData[systemId][paramId] = [{ timestamp, value }, ...]
   historicalData: Record<string, Record<string, HistoricalDataPoint[]>>;
   getStatusColor: (status: string) => string;
   startDate: string;
   endDate: string;
   loading?: boolean;
+  reportCount?: number;
+  /** Año mostrado (ej. 2025) para etiqueta en la sección de reportes gráficos */
+  yearLabel?: number;
+  /** Si true, los datos se basan en los últimos 10 reportes por planta (admin/user/analista) */
+  last10PerPlant?: boolean;
 }
 
 export function getDatePosition(dateStr: string, minDate: number, maxDate: number) {
@@ -61,6 +65,9 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
   startDate,
   endDate,
   loading = false,
+  reportCount,
+  yearLabel,
+  last10PerPlant = false,
 }) => {
   const [activePlant, setActivePlant] = useState<string | null>(null);
   const [activeSystem, setActiveSystem] = useState<string | null>(null);
@@ -107,6 +114,9 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
             <h5 className="mb-0">
               <i className="material-icons me-2">analytics</i>
               Gráficos Históricos de Sistemas
+              {yearLabel != null && (
+                <span className="badge bg-secondary ms-2">Año {yearLabel}</span>
+              )}
             </h5>
             <div className="btn-group" role="group">
               <button
@@ -140,40 +150,38 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
               </div>
             ) : (
               <>
-                {/* Plant Tabs */}
-                <div className="border-bottom">
-                  <div className="nav nav-tabs nav-fill" role="tablist">
-                    {plants.slice(0, 4).map((plant) => (
-                      <button
-                        key={plant.id}
-                        className={`nav-link ${activePlant === plant.id ? 'active' : ''}`}
-                        onClick={() => {
-                          setActivePlant(plant.id);
-                          setActiveSystem(null);
-                        }}
-                        disabled={loading}
-                      >
-                        <i className="material-icons me-1">factory</i>
-                        {plant.nombre}
-                        <span className={`badge ms-2 ${getStatusColor(plant.status || "active")}`}>
-                          {plant.systems?.length || 0}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                {/* Selector de planta: etiqueta fuera del droplist; el dropdown solo muestra plantas */}
+                <div className="border-bottom p-2 bg-light">
+                  <label htmlFor="plant-select" className="form-label small mb-0 me-2 fw-semibold">
+                    Seleccionar planta:
+                  </label>
+                  <select
+                    id="plant-select"
+                    className="form-select form-select-sm d-inline-block"
+                    value={activePlant ?? ""}
+                    onChange={(e) => {
+                      const id = e.target.value || null;
+                      setActivePlant(id);
+                      setActiveSystem(null);
+                    }}
+                    disabled={loading}
+                    style={{ minWidth: "220px", maxWidth: "400px" }}
+                    aria-label="Seleccionar planta"
+                  >
+                    {plants.length === 0 ? (
+                      <option value="" disabled>Ninguna planta disponible</option>
+                    ) : (
+                      plants.map((plant) => (
+                        <option key={plant.id} value={plant.id}>
+                          {plant.nombre} ({plant.systems?.length ?? 0} sistemas)
+                        </option>
+                      ))
+                    )}
+                  </select>
                 </div>
 
                 {selectedPlant && (
               <div className="p-3">
-                {/* Debug Info */}
-                <div className="alert alert-info mb-3">
-                  <small>
-                    <strong>Debug Info:</strong> Planta: {selectedPlant.nombre} | 
-                    Sistemas: {selectedPlant.systems?.length || 0} | 
-                    Datos históricos: {Object.values(historicalData).reduce((sum, sys) => sum + Object.keys(sys || {}).length, 0)} parámetros
-                  </small>
-                </div>
-                
                 {/* Loading Indicator */}
                 {loading && (
                   <div className="text-center py-5 mb-4">
@@ -282,10 +290,10 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                               const adjustedMax = maxValue + valueRange * 0.1;
                               const adjustedRange = adjustedMax - adjustedMin;
                               
-                              // Dimensiones mejoradas con mejor proporción
-                              const padding = { top: 12, right: 12, bottom: 12, left: 12 };
-                              const chartHeight = 160; // Reducido para mejor proporción
-                              const chartWidth = 100; // Ancho del viewBox
+                              // Dimensiones: padding horizontal mínimo para que la curva use todo el ancho
+                              const padding = { top: 16, right: -20, bottom: 24, left: -10 };
+                              const chartHeight = 200;
+                              const chartWidth = 120;
                               const plotWidth = chartWidth - padding.left - padding.right;
                               const plotHeight = chartHeight - padding.top - padding.bottom;
 
@@ -308,15 +316,15 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
 
                               return (
                                 <div key={param.id} className="col-md-6 col-lg-4">
-                                  <div className="card h-100">
-                                    <div className="card-header py-2">
+                                  <div className="card h-100 shadow-sm">
+                                    <div className="card-header py-2 px-3">
                                       <div className="d-flex justify-content-between align-items-center">
-                                        <h6 className="mb-0 text-primary">{param.name}</h6>
+                                        <h6 className="mb-0 text-primary fw-semibold">{param.name}</h6>
                                         <small className="text-muted">{param.unit}</small>
                                       </div>
                                     </div>
-                                    <div className="card-body py-2">
-                                      {/* Enhanced Interactive Chart */}
+                                    <div className="card-body py-3 px-3">
+                                      {/* Gráfico con mejor proporción y etiquetas legibles */}
                                       <div className="mb-2 position-relative" style={{ height: `${chartHeight}px`, minHeight: `${chartHeight}px`, width: '100%' }}>
                                         <svg 
                                           width="100%" 
@@ -371,41 +379,85 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                             />
                                           )}
                                           
-                                          {/* Data points más visibles */}
-                                          {chartPoints.map((point, i) => (
-                                            <circle
-                                              key={i}
-                                              cx={point.x}
-                                              cy={point.y}
-                                              r="3"
-                                              fill="#007bff"
-                                              stroke="white"
-                                              strokeWidth="1.5"
-                                              className="data-point"
-                                              style={{ cursor: 'pointer' }}
-                                            />
-                                          ))}
+                                          {/* Data points más visibles con tooltip x (fecha) y y (valor) */}
+                                          {chartPoints.map((point, i) => {
+                                            const fechaLabel = point.timestamp
+                                              ? new Date(point.timestamp).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })
+                                              : "";
+                                            return (
+                                              <g key={i}>
+                                                <title>{`x (fecha): ${fechaLabel} · y (valor): ${point.value.toFixed(2)} ${param.unit}`}</title>
+                                                <circle
+                                                  cx={point.x}
+                                                  cy={point.y}
+                                                  r="3.5"
+                                                  fill="#007bff"
+                                                  stroke="white"
+                                                  strokeWidth="1.5"
+                                                  className="data-point"
+                                                  style={{ cursor: "pointer" }}
+                                                />
+                                              </g>
+                                            );
+                                          })}
+                                          {/* Etiquetas eje Y (valor) - 3 marcas, tamaño legible */}
+                                          {[adjustedMin, (adjustedMin + adjustedMax) / 2, adjustedMax].map((val, i) => {
+                                            const y = padding.top + ((adjustedMax - val) / adjustedRange) * plotHeight;
+                                            return (
+                                              <text
+                                                key={`y-${i}`}
+                                                x={padding.left - 4}
+                                                y={y + 4}
+                                                textAnchor="end"
+                                                fontSize="9"
+                                                fill="#374151"
+                                                fontWeight="500"
+                                              >
+                                                {val.toFixed(1)}
+                                              </text>
+                                            );
+                                          })}
+                                          {/* Etiquetas eje X (fecha) - primera, central, última */}
+                                          {chartPoints.length > 0 && [0, Math.floor(chartPoints.length / 2), chartPoints.length - 1].filter((i) => i >= 0 && i < chartPoints.length).map((idx) => {
+                                            const p = chartPoints[idx];
+                                            const fechaLabel = p.timestamp
+                                              ? new Date(p.timestamp).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })
+                                              : "";
+                                            return (
+                                              <text
+                                                key={`x-${idx}`}
+                                                x={p.x}
+                                                y={chartHeight - 6}
+                                                textAnchor="middle"
+                                                fontSize="8"
+                                                fill="#374151"
+                                                fontWeight="500"
+                                              >
+                                                {fechaLabel}
+                                              </text>
+                                            );
+                                          })}
                                         </svg>
                                       </div>
                                       
-                                      {/* Enhanced Stats with Better Contrast - Reduced Size */}
-                                      <div className="row g-1 text-center mt-2">
+                                      {/* Resumen Alto / Prom / Bajo con tipografía más legible */}
+                                      <div className="row g-2 text-center mt-2">
                                         <div className="col-4">
-                                          <div className="p-1 rounded shadow-sm" style={{ backgroundColor: '#d4edda', border: '1px solid #c3e6cb' }}>
-                                            <div className="fw-bold text-dark" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>{maxValue.toFixed(1)}</div>
-                                            <div className="text-muted" style={{ fontSize: '0.55rem', lineHeight: '1' }}>Alto</div>
+                                          <div className="p-2 rounded shadow-sm" style={{ backgroundColor: '#d4edda', border: '1px solid #c3e6cb' }}>
+                                            <div className="fw-bold text-dark" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>{maxValue.toFixed(1)}</div>
+                                            <div className="text-muted" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>Alto</div>
                                           </div>
                                         </div>
                                         <div className="col-4">
-                                          <div className="p-1 rounded shadow-sm" style={{ backgroundColor: '#cce5ff', border: '1px solid #b3d9ff' }}>
-                                            <div className="fw-bold text-dark" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>{avgValue.toFixed(1)}</div>
-                                            <div className="text-muted" style={{ fontSize: '0.55rem', lineHeight: '1' }}>Prom</div>
+                                          <div className="p-2 rounded shadow-sm" style={{ backgroundColor: '#cce5ff', border: '1px solid #b3d9ff' }}>
+                                            <div className="fw-bold text-dark" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>{avgValue.toFixed(1)}</div>
+                                            <div className="text-muted" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>Prom</div>
                                           </div>
                                         </div>
                                         <div className="col-4">
-                                          <div className="p-1 rounded shadow-sm" style={{ backgroundColor: '#f8d7da', border: '1px solid #f5c6cb' }}>
-                                            <div className="fw-bold text-dark" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>{minValue.toFixed(1)}</div>
-                                            <div className="text-muted" style={{ fontSize: '0.55rem', lineHeight: '1' }}>Bajo</div>
+                                          <div className="p-2 rounded shadow-sm" style={{ backgroundColor: '#f8d7da', border: '1px solid #f5c6cb' }}>
+                                            <div className="fw-bold text-dark" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>{minValue.toFixed(1)}</div>
+                                            <div className="text-muted" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>Bajo</div>
                                           </div>
                                         </div>
                                       </div>

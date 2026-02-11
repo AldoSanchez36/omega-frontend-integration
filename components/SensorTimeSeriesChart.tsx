@@ -38,6 +38,12 @@ interface PivotData {
   [sensor: string]: string | number | undefined
 }
 
+export interface MedicionFromReporte {
+  fecha: string
+  sistema: string
+  valor: number
+}
+
 interface Props {
   variable: string             // p.ej. "Cloro Libre"
   startDate: string            // "2025-04-04"
@@ -48,6 +54,8 @@ interface Props {
   processName?: string         // Nombre del proceso para verificar datos primero
   clientName?: string          // Nombre del cliente para la lógica de cascada
   userId?: string              // ID del usuario para filtrado específico
+  /** Si se proporciona, se usan estos datos (p. ej. de reportes.datos) en lugar de la API de mediciones */
+  medicionesFromReportes?: MedicionFromReporte[] | null
 }
 
 export interface ChartExportRef {
@@ -56,7 +64,7 @@ export interface ChartExportRef {
 }
 
 export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
-  variable, startDate, endDate, apiBase, unidades, hideXAxisLabels, processName, clientName, userId
+  variable, startDate, endDate, apiBase, unidades, hideXAxisLabels, processName, clientName, userId, medicionesFromReportes
 }, ref) => {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   // Paleta de colores fija para evitar problemas de hidratación
@@ -80,26 +88,65 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
   const token = authService.getToken();
   const encodedVar = encodeURIComponent(variable)
 
+  // Formatear fecha para etiqueta del eje X sin desfase por zona horaria (Mexico)
+  const formatDateLabel = (fechaStr: string): string => {
+    const m = String(fechaStr).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) {
+      const [, y, mo, d] = m;
+      const date = new Date(parseInt(y, 10), parseInt(mo, 10) - 1, parseInt(d, 10));
+      return date.toLocaleDateString("es-MX", { day: "2-digit", month: "short", timeZone: "America/Mexico_City" });
+    }
+    return new Date(fechaStr).toLocaleDateString("es-MX", { day: "2-digit", month: "short", timeZone: "America/Mexico_City" });
+  }
+
   useEffect(() => {
+    const normalizeDate = (dateStr: string): string => {
+      if (!dateStr) return ''
+      if (dateStr.includes('T')) return dateStr.split('T')[0]
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr
+      const date = new Date(dateStr)
+      return !isNaN(date.getTime()) ? date.toISOString().split('T')[0] : dateStr
+    }
+
     async function load() {
       setLoading(true)
       setError(null)
-      
+
       try {
-        let finalData: RawMeasurement[] = [];
-        
-        // Normalizar fechas para comparación (solo YYYY-MM-DD)
-        const normalizeDate = (dateStr: string): string => {
-          if (!dateStr) return ''
-          if (dateStr.includes('T')) return dateStr.split('T')[0]
-          if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr
-          const date = new Date(dateStr)
-          return !isNaN(date.getTime()) ? date.toISOString().split('T')[0] : dateStr
-        }
-        
         const startDateNormalized = normalizeDate(startDate)
         const endDateNormalized = normalizeDate(endDate)
-        
+
+        // Si se pasan datos desde reportes.datos, usarlos en lugar de la API de mediciones
+        if (medicionesFromReportes !== undefined && medicionesFromReportes !== null) {
+          const list = Array.isArray(medicionesFromReportes) ? medicionesFromReportes : [];
+          const filtered = list.filter(m => {
+            const fechaNorm = normalizeDate(m.fecha)
+            return fechaNorm >= startDateNormalized && fechaNorm <= endDateNormalized
+          })
+          const normalizeSistema = (s: string) => (s || "").trim()
+          const sensorSet = new Set(filtered.map(m => normalizeSistema(m.sistema)).filter(Boolean))
+          const sensorList = Array.from(sensorSet).sort()
+          const dateSet = new Set(filtered.map(m => normalizeDate(m.fecha)))
+          const dateList = Array.from(dateSet).sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+          const pivotData: PivotData[] = dateList.map(fecha => {
+            const row: PivotData = {
+              fecha,
+              fechaEtiqueta: formatDateLabel(fecha)
+            }
+            sensorList.forEach(sensor => {
+              const meas = filtered.find(m => normalizeDate(m.fecha) === fecha && normalizeSistema(m.sistema) === sensor)
+              row[sensor] = meas ? meas.valor : undefined
+            })
+            return row
+          })
+          setSensors(sensorList)
+          setData(pivotData)
+          setLoading(false)
+          return
+        }
+
+        let finalData: RawMeasurement[] = [];
+
         console.log(`📊 [SensorTimeSeriesChart] Buscando datos para:`, {
           variable,
           clientName,
@@ -229,12 +276,13 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
            return fechaNormalizada >= startDateNormalized && fechaNormalizada <= endDateNormalized
          });
 
-         // Detectar sensores únicos
-         const sensorSet = new Set(filtered.map(m => m.sistema as string));
+         const normalizeSistema = (s: string) => (s || "").trim();
+         // Detectar sensores únicos (nombres normalizados para evitar duplicados por espacios)
+         const sensorSet = new Set(filtered.map(m => normalizeSistema(m.sistema as string)).filter(Boolean));
          const sensorList = Array.from(sensorSet).sort();
 
-         // Detectar fechas únicas y ordenarlas
-         const dateSet = new Set(filtered.map(m => m.fecha));
+         // Fechas únicas normalizadas (evita dos filas para el mismo día si la API devuelve formatos distintos)
+         const dateSet = new Set(filtered.map(m => normalizeDate(m.fecha)));
          const dateList = Array.from(dateSet).sort(
            (a, b) => new Date(a).getTime() - new Date(b).getTime()
          );
@@ -243,10 +291,10 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
          const pivotData: PivotData[] = dateList.map(fecha => {
            const row: PivotData = {
              fecha,
-             fechaEtiqueta: new Date(fecha).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
+             fechaEtiqueta: formatDateLabel(fecha)
            };
            sensorList.forEach(sensor => {
-             const meas = filtered.find(m => m.fecha === fecha && m.sistema === sensor);
+             const meas = filtered.find(m => normalizeDate(m.fecha) === fecha && normalizeSistema(m.sistema as string) === sensor);
              row[sensor] = meas ? meas.valor : undefined;
            });
            return row;
@@ -263,7 +311,7 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
        }
      }
     load()
-  }, [variable, startDate, endDate, apiBase, token, processName, clientName, userId])
+  }, [variable, startDate, endDate, apiBase, token, processName, clientName, userId, medicionesFromReportes])
 
   // Función para exportar como SVG (debe estar antes de los returns condicionales)
   const exportAsSVG = (): string | null => {
@@ -379,6 +427,26 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
     </div>
   );
 
+  // Calcular intervalo para el eje X basado en el número de datos
+  const calculateXAxisInterval = (dataLength: number): number | "preserveStartEnd" => {
+    if (dataLength <= 15) {
+      // Para pocos datos, mostrar todos
+      return 0;
+    } else if (dataLength <= 30) {
+      // Para datos intermedios, mostrar cada 2
+      return 1;
+    } else if (dataLength <= 50) {
+      // Para 40-46 datos, mostrar aproximadamente 8-12 etiquetas
+      // Intervalo de 4-5 para tener ~10 etiquetas visibles
+      return Math.floor(dataLength / 10);
+    } else {
+      // Para muchos datos, usar preserveStartEnd para mostrar primera y última
+      return "preserveStartEnd";
+    }
+  };
+
+  const xAxisInterval = calculateXAxisInterval(data.length);
+
   // Config dinámico de líneas
   const chartConfig = sensors.reduce((cfg, sensor, i) => ({
     ...cfg,
@@ -398,8 +466,8 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div ref={chartContainerRef}>
-          <ChartContainer config={chartConfig}>
+        <div ref={chartContainerRef} className="w-full" style={{ height: '384px' }}>
+          <ChartContainer config={chartConfig} className="h-full w-full">
             <LineChart
               data={data}
               margin={{ left: 12, right: 12 }}
@@ -409,14 +477,23 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
                 tickLine={false}
                 axisLine={false}
                 label={{ value: `${variable} (${unidades})`, angle: -90, position: 'insideLeft' }}
+                tickFormatter={(value) => {
+                  if (typeof value === 'number') {
+                    return value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 10 });
+                  }
+                  return String(value);
+                }}
               />
               <XAxis
                 dataKey="fechaEtiqueta"
-                interval={0}
+                interval={hideXAxisLabels ? undefined : xAxisInterval}
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
                 tick={hideXAxisLabels ? false : undefined}
+                angle={data.length > 30 ? -45 : 0}
+                textAnchor={data.length > 30 ? "end" : "middle"}
+                height={data.length > 30 ? 60 : 30}
               />
               <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
 

@@ -297,19 +297,49 @@ export default function ReportList() {
     }
   };
 
-  // Función para manejar la vista del reporte
-  const handleViewReport = (report: any) => {
+  // Función para manejar la vista del reporte (obtiene orden de parámetros y sistemas para que /reports muestre la tabla en el orden correcto también para cliente)
+  const handleViewReport = async (report: any) => {
     try {
       console.log("👁️ Visualizando reporte desde dashboard-reportList:", report);
       
-      // Validar que tenemos los datos mínimos necesarios
       if (!report.planta_id) {
         console.error("❌ Error: No se encontró planta_id en los datos del reporte");
         alert("Error: No se pueden visualizar reportes sin datos de planta completos");
         return;
       }
+
+      const plantId = report.datosJsonb?.plant?.id || report.planta_id;
+      const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null;
+      let parameterOrder: string[] | undefined;
+      let systemOrder: string[] | undefined;
+
+      if (token) {
+        try {
+          const [ordenRes, sistemasRes] = await Promise.all([
+            fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ORDEN_VARIABLES(plantId)}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }),
+            fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(plantId)}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }),
+          ]);
+          if (ordenRes.ok) {
+            const ordenData = await ordenRes.json();
+            if (ordenData.ok && Array.isArray(ordenData.variables)) {
+              parameterOrder = ordenData.variables.map((v: { nombre?: string }) => v.nombre).filter(Boolean);
+            }
+          }
+          if (sistemasRes.ok) {
+            const sistemasData = await sistemasRes.json();
+            const procesos = sistemasData.procesos || sistemasData || [];
+            const sorted = [...procesos].sort((a: { orden?: number }, b: { orden?: number }) => (a.orden ?? 999999) - (b.orden ?? 999999));
+            systemOrder = sorted.map((s: { nombre?: string }) => s.nombre).filter(Boolean);
+          }
+        } catch (_) {
+          // Si falla, /reports usará fallback
+        }
+      }
       
-      // Reconstruir reportSelection desde los datos JSONB completos (igual que dashboard-reportmanager)
       const reportSelection = {
         user: {
           id: report.datosJsonb?.user?.id || report.usuario_id,
@@ -328,26 +358,19 @@ export default function ReportList() {
         systemName: report.datosJsonb?.systemName || report.systemName,
         parameters: report.datosJsonb?.parameters || {},
         variablesTolerancia: report.datosJsonb?.variablesTolerancia || {},
-        parameterComments: report.datosJsonb?.parameterComments || {}, // Comentarios por parámetro
-        mediciones: [], // Los datos de mediciones se reconstruirán en la página reports
+        parameterComments: report.datosJsonb?.parameterComments || {},
+        mediciones: [],
         fecha: report.datosJsonb?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
         comentarios: report.datosJsonb?.comentarios || report.observaciones || "",
         generatedDate: report.datosJsonb?.generatedDate || report.created_at || new Date().toISOString(),
-        cliente_id: report.datosJsonb?.user?.cliente_id || null
+        cliente_id: report.datosJsonb?.user?.cliente_id || null,
+        ...(parameterOrder?.length && { parameterOrder }),
+        ...(systemOrder?.length && { systemOrder }),
       };
 
       console.log("📄 reportSelection reconstruido desde dashboard-reportList:", reportSelection);
-      console.log("🔍 Validación plant.id:", reportSelection.plant.id);
-      console.log("🏭 Datos de planta:", {
-        planta_id: report.planta_id,
-        planta_nombre: report.plantName,
-        systemName: report.systemName
-      });
       
-      // Guardar en localStorage
       localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
-      
-      // Redirigir a la página de reports
       localStorage.setItem("viewMode", "preview");
       router.push("/reports");
       
