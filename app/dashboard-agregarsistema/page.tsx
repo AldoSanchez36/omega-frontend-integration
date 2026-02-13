@@ -417,55 +417,31 @@ export default function ParameterManager() {
     
     let variableProcesoId = param.variable_proceso_id
     
-    // Log para debugging
-    console.log(`🔍 Guardando tolerancia para ${param.nombre}:`, {
-      variableId,
-      variable_proceso_id: variableProcesoId,
-      selectedSystemId,
-      param: {
-        id: param.id,
-        nombre: param.nombre,
-        proceso_id: param.proceso_id,
-        variable_proceso_id: param.variable_proceso_id
-      }
-    })
-    
     // Si no está en el parámetro, intentar obtenerlo del backend
     if (!variableProcesoId && selectedSystemId) {
       try {
-        console.log(`⚠️ variable_proceso_id no encontrado en parámetro ${param.nombre}, buscando en backend...`)
         const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(selectedSystemId)}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (res.ok) {
           const data = await res.json()
-          console.log(`📥 Respuesta del backend:`, data)
           const paramFromBackend = (data.variables || []).find((p: any) => p.id === variableId)
           if (paramFromBackend) {
             variableProcesoId = paramFromBackend.variable_proceso_id || paramFromBackend.variables_procesos_id || paramFromBackend.id_variables_procesos
-            console.log(`✅ variable_proceso_id encontrado:`, variableProcesoId)
             // Actualizar el parámetro en el estado local
             if (variableProcesoId) {
               setParameters(prev => prev.map(p => 
                 p.id === variableId ? { ...p, variable_proceso_id: variableProcesoId } : p
               ))
             }
-          } else {
-            console.error(`❌ Parámetro ${param.nombre} no encontrado en la respuesta del backend`)
           }
-        } else {
-          console.error(`❌ Error al obtener variables del backend:`, res.status, res.statusText)
         }
-      } catch (error) {
-        console.error("❌ Error al buscar variable_proceso_id:", error)
-      }
+      } catch (error) {}
     }
     
     // Si aún no tenemos el variable_proceso_id, intentar obtenerlo consultando directamente
     if (!variableProcesoId && selectedSystemId && variableId) {
       try {
-        console.log(`🔄 Intentando obtener variable_proceso_id directamente para ${param.nombre}...`)
-        
         // Método 1: Consultar el endpoint de filtros de tolerancias
         const filterRes = await fetch(
           `${API_BASE_URL}${API_ENDPOINTS.TOLERANCES_FILTERS}?variable_id=${variableId}&proceso_id=${selectedSystemId}`,
@@ -475,14 +451,11 @@ export default function ParameterManager() {
           const filterData = await filterRes.json()
           if (filterData.tolerancias && filterData.tolerancias.length > 0) {
             variableProcesoId = filterData.tolerancias[0].variable_proceso_id
-            console.log(`✅ variable_proceso_id obtenido desde filtros:`, variableProcesoId)
           }
         }
-        
         // Método 2: Si aún no lo tenemos, intentar obtenerlo desde el endpoint de actualización de orden
         // que devuelve la relación completa
         if (!variableProcesoId) {
-          console.log(`🔄 Intentando obtener variable_proceso_id desde endpoint de orden...`)
           // Hacer una petición GET al endpoint de orden (aunque sea PATCH, podemos ver la respuesta de error)
           // O mejor, recargar todas las variables del proceso
           const reloadRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(selectedSystemId)}`, {
@@ -496,7 +469,6 @@ export default function ParameterManager() {
                                  reloadParam.variables_procesos_id || 
                                  reloadParam.id_variables_procesos
               if (variableProcesoId) {
-                console.log(`✅ variable_proceso_id obtenido desde recarga:`, variableProcesoId)
                 // Actualizar el parámetro en el estado local
                 setParameters(prev => prev.map(p => 
                   p.id === variableId ? { ...p, variable_proceso_id: variableProcesoId } : p
@@ -505,43 +477,13 @@ export default function ParameterManager() {
             }
           }
         }
-      } catch (error) {
-        console.error("❌ Error al obtener variable_proceso_id:", error)
-      }
+      } catch (error) {}
     }
     
     if (!variableProcesoId) {
       const errorMsg = `No se encontró la relación variable-proceso para "${param.nombre}". Por favor, recarga la página o contacta al administrador.`
       setTolError((prev) => ({ ...prev, [variableId]: errorMsg }))
       setTolLoading((prev) => ({ ...prev, [variableId]: false }))
-      console.error("❌ Error crítico - variable_proceso_id no encontrado:", { 
-        variableId, 
-        paramNombre: param.nombre,
-        paramId: param.id,
-        paramProcesoId: param.proceso_id,
-        selectedSystemId,
-        allParams: parameters.map(p => ({ 
-          id: p.id, 
-          nombre: p.nombre, 
-          variable_proceso_id: p.variable_proceso_id,
-          proceso_id: p.proceso_id
-        }))
-      })
-      return
-    }
-    
-    // Validar que tenemos el variable_proceso_id antes de continuar
-    if (!variableProcesoId) {
-      const errorMsg = `No se pudo obtener la relación variable-proceso para "${param.nombre}". Por favor, recarga la página.`
-      setTolError((prev) => ({ ...prev, [variableId]: errorMsg }))
-      setTolLoading((prev) => ({ ...prev, [variableId]: false }))
-      console.error("❌ Error: variable_proceso_id es null o undefined", {
-        variableId,
-        paramNombre: param.nombre,
-        paramId: param.id,
-        selectedSystemId,
-        variableProcesoId
-      })
       return
     }
     
@@ -568,16 +510,6 @@ export default function ParameterManager() {
       usar_limite_alto: tolData?.usar_limite_alto || false, // Campo requerido por el backend
     }
     
-    // Log final antes de enviar
-    console.log(`📤 Enviando tolerancia para ${param.nombre}:`, {
-      variables_proceso_id: tol.variables_proceso_id,
-      bien_min: tol.bien_min,
-      bien_max: tol.bien_max,
-      limite_min: tol.limite_min,
-      limite_max: tol.limite_max,
-      tolData: tol
-    })
-    
     try {
       // Primero verificar si ya existe una tolerancia para este variable_proceso_id
       // Usar el formato correcto: { variables_proceso_id: variableProcesoId }
@@ -589,41 +521,16 @@ export default function ParameterManager() {
           { headers: { Authorization: `Bearer ${token}` } }
         )
         
-        console.log(`🔍 Buscando tolerancia existente con:`, {
-          variables_proceso_id: variableProcesoId,
-          url: `${API_BASE_URL}${API_ENDPOINTS.TOLERANCES_FILTERS}?variables_proceso_id=${variableProcesoId}`
-        })
-        
         if (checkRes.ok) {
           const checkData = await checkRes.json()
           if (checkData.tolerancias && checkData.tolerancias.length > 0) {
             toleranciaExistente = checkData.tolerancias[0]
-            console.log(`ℹ️ Tolerancia existente encontrada:`, {
-              id: toleranciaExistente.id,
-              variables_proceso_id: toleranciaExistente.variables_proceso_id || toleranciaExistente.variable_proceso_id,
-              tolerancia: toleranciaExistente
-            })
-          } else {
-            console.log(`ℹ️ No se encontraron tolerancias para variables_proceso_id: ${variableProcesoId}`)
           }
-        } else if (checkRes.status === 404) {
-          // 404 significa que no existe, es normal
-          console.log(`ℹ️ No existe tolerancia previa para variables_proceso_id: ${variableProcesoId}`)
-        } else {
-          const errorData = await checkRes.json().catch(() => ({}))
-          console.warn(`⚠️ Error al verificar tolerancia existente:`, {
-            status: checkRes.status,
-            statusText: checkRes.statusText,
-            error: errorData
-          })
         }
-      } catch (error) {
-        console.warn("No se pudo verificar tolerancia existente, continuando...", error)
-      }
+      } catch (error) {}
       
       // Si existe una tolerancia, actualizarla; si no, crearla
       if (toleranciaExistente) {
-        console.log(`🔄 Actualizando tolerancia existente para ${param.nombre}...`)
         const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCE_UPDATE(toleranciaExistente.id)}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -631,32 +538,14 @@ export default function ParameterManager() {
         })
         
         const responseData = await res.json()
-        
-        // Log detallado de la respuesta del backend
-        console.log(`📥 Respuesta del backend al actualizar tolerancia:`, {
-          status: res.status,
-          ok: res.ok,
-          responseData,
-          sentData: tol
-        })
-        
         if (!res.ok) {
-          // Mostrar el mensaje exacto del backend
           const errorMsg = responseData.msg || responseData.message || `Error ${res.status}: ${res.statusText}`
-          console.error(`❌ Error del backend al actualizar:`, {
-            status: res.status,
-            statusText: res.statusText,
-            msg: errorMsg,
-            responseData,
-            sentData: tol
-          })
           throw new Error(errorMsg)
         }
         // Actualizar el estado con la respuesta del servidor
         setTolerancias((prev) => ({ ...prev, [variableId]: responseData.tolerancia || tol }))
         showSuccessMessage(variableId)
       } else {
-        console.log(`➕ Creando nueva tolerancia para ${param.nombre}...`)
         const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TOLERANCES}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -664,25 +553,8 @@ export default function ParameterManager() {
         })
         
         const responseData = await res.json()
-        
-        // Log detallado de la respuesta del backend
-        console.log(`📥 Respuesta del backend al crear tolerancia:`, {
-          status: res.status,
-          ok: res.ok,
-          responseData,
-          sentData: tol
-        })
-        
         if (!res.ok) {
-          // Mostrar el mensaje exacto del backend
           const errorMsg = responseData.msg || responseData.message || `Error ${res.status}: ${res.statusText}`
-          console.error(`❌ Error del backend al crear:`, {
-            status: res.status,
-            statusText: res.statusText,
-            msg: errorMsg,
-            responseData,
-            sentData: tol
-          })
           throw new Error(errorMsg)
         }
         // Actualizar el estado con la respuesta del servidor (incluye el ID generado)
@@ -765,13 +637,9 @@ export default function ParameterManager() {
     setError(null)
     try {
       const url = `${API_BASE_URL}${API_ENDPOINTS.PLANTS_BY_EMPRESA(empresa.id)}`
-      console.log('🔍 [dashboard-agregarsistema] Fetching plants for empresa:', empresa.id, 'URL:', url)
-      
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      
-      console.log('📡 [dashboard-agregarsistema] Response status:', res.status, 'Content-Type:', res.headers.get("content-type"))
       
       // Check if response is JSON
       const contentType = res.headers.get("content-type")
@@ -780,20 +648,14 @@ export default function ParameterManager() {
           throw new Error("El endpoint de plantas por empresa no está disponible. Por favor, verifica que el backend tenga implementado el endpoint /api/plantas/empresa/:empresaId")
         }
         const text = await res.text()
-        console.error('❌ [dashboard-agregarsistema] Non-JSON response:', text.substring(0, 200))
         throw new Error(`El servidor devolvió una respuesta no válida (${res.status}). El endpoint /api/plantas/empresa/:empresaId puede no estar implementado.`)
       }
       
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}))
-        console.error('❌ [dashboard-agregarsistema] Error response:', errorData)
         throw new Error(errorData.msg || errorData.message || `Error ${res.status}: No se pudieron cargar las plantas para la empresa.`)
       }
       const data = await res.json()
-      console.log('✅ [dashboard-agregarsistema] Plants data received:', data)
-      console.log('📊 [dashboard-agregarsistema] Plants array:', data.plantas)
-      console.log('📊 [dashboard-agregarsistema] Plants count:', data.plantas?.length || 0)
-      
       const plantasArray = data.plantas || data || []
       setPlants(plantasArray)
       
@@ -802,9 +664,6 @@ export default function ParameterManager() {
         handleSelectPlant(firstPlant.id)
       } else {
         setSelectedPlant(null)
-        if (plantasArray.length === 0) {
-          console.warn('⚠️ [dashboard-agregarsistema] No se encontraron plantas para la empresa:', empresa.nombre)
-        }
       }
     } catch (e: any) {
       setError(`Error al cargar plantas: ${e.message}`)
@@ -908,8 +767,6 @@ export default function ParameterManager() {
         estatus: newEmpresaEstatus || 'activa',
       }
       
-      console.log("🏢 Datos de empresa a crear:", empresaData)
-      
       const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESA_CREATE}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -917,12 +774,9 @@ export default function ParameterManager() {
       })
       if (!res.ok) {
         const errorData = await res.json()
-        console.error("❌ Error del servidor al crear empresa:", errorData)
         throw new Error(errorData.msg || errorData.message || "No se pudo crear la empresa.")
       }
-      
       const responseData = await res.json()
-      console.log("✅ Respuesta del servidor al crear empresa:", responseData)
       
       setShowCreateEmpresa(false)
       setNewEmpresaName("")
@@ -973,9 +827,6 @@ export default function ParameterManager() {
         nombre: editEmpresaName.trim(),
         estatus: editEmpresaEstatus || 'activa',
       }
-      
-      console.log("🏢 Datos de empresa a actualizar:", updateData)
-      
       const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESA_UPDATE(editingEmpresa.id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -984,12 +835,9 @@ export default function ParameterManager() {
       
       if (!res.ok) {
         const errorData = await res.json()
-        console.error("❌ Error del servidor al actualizar empresa:", errorData)
         throw new Error(errorData.msg || errorData.message || "No se pudo actualizar la empresa.")
       }
-      
       const responseData = await res.json()
-      console.log("✅ Respuesta del servidor al actualizar empresa:", responseData)
       
       setShowEditEmpresaDialog(false)
       setEditingEmpresa(null)
@@ -1034,9 +882,6 @@ export default function ParameterManager() {
         mensaje_cliente: newPlantMessage.trim() || null, // Enviar null si está vacío
         empresa_id: selectedEmpresa.id,
       }
-      
-      console.log("🌱 Datos de planta a crear:", plantData)
-      
       const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_CREATE}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -1044,12 +889,9 @@ export default function ParameterManager() {
       })
       if (!res.ok) {
         const errorData = await res.json()
-        console.error("❌ Error del servidor al crear planta:", errorData)
         throw new Error(errorData.message || "No se pudo crear la planta.")
       }
-      
       const responseData = await res.json()
-      console.log("✅ Respuesta del servidor al crear planta:", responseData)
       
       setShowCreatePlant(false)
       setNewPlantName("")
@@ -1087,9 +929,6 @@ export default function ParameterManager() {
         dirigido_a: editPlantRecipient,
         mensaje_cliente: editPlantMessage.trim() || null, // Enviar null si está vacío
       }
-      
-      console.log("🌱 Datos de planta a actualizar:", updateData)
-      
       const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_UPDATE(editingPlant.id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -1098,12 +937,9 @@ export default function ParameterManager() {
       
       if (!res.ok) {
         const errorData = await res.json()
-        console.error("❌ Error del servidor al actualizar planta:", errorData)
         throw new Error(errorData.message || "No se pudo actualizar la planta.")
       }
-      
       const responseData = await res.json()
-      console.log("✅ Respuesta del servidor al actualizar planta:", responseData)
       
       setShowEditPlantDialog(false)
       setEditPlantName("")
@@ -1187,22 +1023,6 @@ export default function ParameterManager() {
         throw new Error(errorData.message || "No se pudieron cargar los parámetros para el sistema.")
       }
       const data = await res.json()
-      
-      // Log completo de la respuesta del backend para debugging
-      console.log(`📥 Respuesta completa del backend para proceso ${selectedSystemId}:`, {
-        data,
-        variables: data.variables,
-        firstVariable: data.variables?.[0],
-        firstVariableKeys: data.variables?.[0] ? Object.keys(data.variables[0]) : [],
-        allVariablesWithIds: data.variables?.map((v: any) => ({
-          nombre: v.nombre,
-          id: v.id,
-          variable_proceso_id: v.variable_proceso_id,
-          variables_procesos_id: v.variables_procesos_id,
-          id_variables_procesos: v.id_variables_procesos
-        }))
-      })
-      
       // Mapea cada variable para añadir campos de límites con valores predeterminados.
       let mappedParams =
         (data.variables || []).map((p: any) => {
@@ -1213,22 +1033,6 @@ export default function ParameterManager() {
                                     p.variable_proceso?.id ??
                                     p.variables_proceso_id ??
                                     null
-          
-          // Log para debugging si no se encuentra el variable_proceso_id
-          if (!variableProcesoId) {
-            console.error(`❌ variable_proceso_id NO encontrado para variable ${p.nombre} (id: ${p.id})`, {
-              variable: p,
-              availableFields: Object.keys(p),
-              allFieldValues: {
-                variable_proceso_id: p.variable_proceso_id,
-                variables_procesos_id: p.variables_procesos_id,
-                id_variables_procesos: p.id_variables_procesos,
-                variable_proceso: p.variable_proceso
-              }
-            })
-          } else {
-            console.log(`✅ variable_proceso_id encontrado para ${p.nombre}:`, variableProcesoId)
-          }
           
           return {
             ...p,
@@ -1260,10 +1064,7 @@ export default function ParameterManager() {
         }
       })
       
-      // Si hay duplicados, reasignar órdenes únicos
       if (paramsWithDuplicates.length > 0) {
-        console.log(`⚠️ Detectados ${paramsWithDuplicates.length} parámetros con órdenes duplicados. Corrigiendo automáticamente...`)
-        
         // Ordenar primero por orden actual (o por índice si no tiene orden)
         const sortedParams = mappedParams.sort((a: Parameter, b: Parameter) => {
           const ordenA = a.orden ?? 999999
@@ -1303,18 +1104,15 @@ export default function ParameterManager() {
               )
               
               if (!updateRes.ok) {
-                console.error(`Error actualizando orden del parámetro ${param.id}:`, updateRes.status)
                 return false
               }
               return true
             } catch (error) {
-              console.error(`Error actualizando orden del parámetro ${param.id}:`, error)
               return false
             }
           })
         
         await Promise.all(updatePromises)
-        console.log('✅ Órdenes duplicados corregidos automáticamente')
         
         // Usar los parámetros actualizados
         mappedParams = updatedParams
@@ -1323,7 +1121,6 @@ export default function ParameterManager() {
         // Verificar si hay parámetros sin variable_proceso_id y recargar si es necesario
         const paramsSinId = mappedParams.filter(p => !p.variable_proceso_id)
         if (paramsSinId.length > 0) {
-          console.warn(`⚠️ ${paramsSinId.length} parámetros sin variable_proceso_id. Intentando recargar...`)
           // Intentar recargar una vez más después de un breve delay
           setTimeout(async () => {
             try {
@@ -1349,10 +1146,8 @@ export default function ParameterManager() {
                   return ordenA - ordenB
                 })
                 setParameters(retrySorted)
-                console.log(`✅ Parámetros recargados con variable_proceso_id`)
               }
             } catch (error) {
-              console.error("❌ Error al recargar parámetros:", error)
             }
           }, 500)
         }
@@ -1456,12 +1251,6 @@ export default function ParameterManager() {
           })
           
           if (param && tolVariablesProcesoId) {
-            console.log(`✅ Tolerancia encontrada para ${param.nombre}:`, {
-              param_id: param.id,
-              param_nombre: param.nombre,
-              variables_proceso_id: tolVariablesProcesoId,
-              tolerancia: tol
-            })
             map[param.id] = tol
           }
         })
@@ -1643,7 +1432,6 @@ export default function ParameterManager() {
       await handleSelectPlant(selectedPlant!.id)
     } catch (e: any) {
       setError(`Error al mover sistema: ${e.message}`)
-      console.error('Error al mover sistema hacia arriba:', e)
     } finally {
       setLoading(false)
     }
@@ -1693,7 +1481,6 @@ export default function ParameterManager() {
       await handleSelectPlant(selectedPlant!.id)
     } catch (e: any) {
       setError(`Error al mover sistema: ${e.message}`)
-      console.error('Error al mover sistema hacia abajo:', e)
     } finally {
       setLoading(false)
     }
@@ -1715,11 +1502,6 @@ export default function ParameterManager() {
     if (!confirmDelete) return;
 
     try {
-      console.log("🗑️ Eliminando relación variable-proceso:", {
-        variableId: idToDelete,
-        processId: selectedSystemId
-      });
-
       const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_DELETE_BY_PROCESS(idToDelete, selectedSystemId)}`, {
         method: "DELETE",
         headers: {
@@ -1727,17 +1509,8 @@ export default function ParameterManager() {
           "Content-Type": "application/json"
         },
       });
-
-      console.log("🗑️ Eliminando relación variable-proceso:", {
-        url: `${API_BASE_URL}${API_ENDPOINTS.VARIABLE_DELETE_BY_PROCESS(idToDelete, selectedSystemId)}`,
-        variableId: idToDelete,
-        processId: selectedSystemId
-      });
-
       if (!res.ok) {
         const errorData = await res.json();
-        console.error("❌ Error al eliminar relación:", errorData);
-        
         if (res.status === 400) {
           alert(errorData.msg || "No se puede eliminar la variable porque tiene mediciones asociadas");
         } else if (res.status === 404) {
@@ -1748,8 +1521,6 @@ export default function ParameterManager() {
         return;
       }
 
-      console.log("✅ Relación variable-proceso eliminada exitosamente");
-
       // Actualizar el estado local - eliminar solo del sistema actual
       setParameters((prev) => prev.filter((p) => p.id !== idToDelete));
       
@@ -1757,7 +1528,6 @@ export default function ParameterManager() {
       alert("Parámetro eliminado del sistema exitosamente");
       
     } catch (error) {
-      console.error("❌ Error en la solicitud:", error);
       alert("Error de conexión al eliminar el parámetro");
     }
   };
@@ -1867,9 +1637,7 @@ export default function ParameterManager() {
       const paramsData = await paramsRes.json();
       const parameters = paramsData.variables || [];
       setSourceSystemParameters(parameters);
-      console.log(`📋 Parámetros cargados del sistema ${systemId}:`, parameters);
     } catch (error) {
-      console.error("Error cargando datos del sistema fuente:", error);
       setSourceSystemParameters([]);
     }
   };
@@ -1937,7 +1705,6 @@ export default function ParameterManager() {
     setSourceSystemParameters([]);
     
     alert(`✅ Se importaron ${newParameters.length} parámetros del sistema fuente.`);
-    console.log(`📥 Parámetros importados:`, newParameters);
   };
 
   const handleSaveParameters = async (e: React.FormEvent) => {
@@ -1951,7 +1718,6 @@ export default function ParameterManager() {
     setError(null)
     try {
       // 1. Guardar parámetros primero
-      console.log("💾 Guardando parámetros...");
       for (const param of newParamsToSave) {
         const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_CREATE}`, {
           method: "POST",
@@ -1968,13 +1734,10 @@ export default function ParameterManager() {
           throw new Error(errorData.message || `Error guardando el parámetro ${param.nombre}`)
         }
       }
-      console.log("✅ Parámetros guardados exitosamente");
-
       // 2. Refetch parámetros para obtener los IDs del servidor (incluyendo variable_proceso_id)
       await fetchParameters();
 
       // 3. Guardar tolerancias automáticamente
-      console.log("💾 Guardando tolerancias...");
       const tolerancePromises = Object.entries(tolerancias).map(async ([variableId, tolerance]) => {
         // Solo guardar tolerancias de parámetros nuevos
         // Buscar por nombre ya que el ID puede haber cambiado después del refetch
@@ -1983,10 +1746,7 @@ export default function ParameterManager() {
 
         // Buscar el parámetro actualizado por nombre para obtener su variable_proceso_id
         const param = parameters.find(p => p.nombre === paramOriginal.nombre && p.proceso_id === selectedSystemId);
-        if (!param?.variable_proceso_id) {
-          console.warn(`⚠️ No se encontró variable_proceso_id para el parámetro ${paramOriginal.nombre}`);
-          return;
-        }
+        if (!param?.variable_proceso_id) return;
 
         const toleranceData = {
           ...tolerance,
@@ -2003,18 +1763,13 @@ export default function ParameterManager() {
           if (!res.ok) {
             throw new Error(`Error guardando tolerancia para ${variableId}`);
           }
-          
-          console.log(`✅ Tolerancia guardada para ${variableId}`);
         } catch (error) {
-          console.error(`❌ Error guardando tolerancia para ${variableId}:`, error);
           throw error;
         }
       });
 
       // Esperar a que todas las tolerancias se guarden
       await Promise.all(tolerancePromises);
-      console.log("✅ Todas las tolerancias guardadas exitosamente");
-
       alert("✅ Parámetros y tolerancias guardados exitosamente.")
     } catch (e: any) {
       setError(`Error al guardar cambios: ${e.message}`)

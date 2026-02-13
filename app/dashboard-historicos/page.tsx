@@ -90,6 +90,13 @@ export default function HistoricosPage() {
   const router = useRouter()
   const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
 
+  // Función helper para formatear números a 2 decimales
+  const formatNumber = (value: number | null | undefined): string => {
+    if (value == null || value === undefined) return "—"
+    if (typeof value !== "number" || Number.isNaN(value)) return "—"
+    return value.toFixed(2)
+  }
+
   // Use the reusable hook for empresas access
   const {
     empresas,
@@ -170,7 +177,6 @@ export default function HistoricosPage() {
         }
       } else {
         if (!cancelled) {
-          console.log('🔄 [dashboard-historicos] Updating displayedPlants from hook:', plants.length, 'plants')
           setDisplayedPlants(plants);
         }
       }
@@ -659,7 +665,9 @@ export default function HistoricosPage() {
                           {sortedParameters.map((param) => (
                             <th key={param.id} className="border px-1 py-2 text-center font-semibold">
                               <div className="text-xs">{param.nombre}</div>
-                              <div className="text-xs font-normal">({param.unidad})</div>
+                              {param.unidad != null && String(param.unidad).trim() !== "" && (
+                                <div className="text-xs font-normal">({param.unidad})</div>
+                              )}
                             </th>
                           ))}
                           <th className="border px-2 py-2 text-left font-semibold w-32">COMENTARIOS</th>
@@ -742,7 +750,7 @@ export default function HistoricosPage() {
                                       isOutOfRange ? "bg-yellow-300 font-semibold" : ""
                                     }`}
                                   >
-                                    {valor !== undefined ? valor.toFixed(2) : "—"}
+                                    {formatNumber(valor)}
                                   </td>
                                 )
                               })}

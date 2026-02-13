@@ -6,7 +6,6 @@ import { Card, CardContent} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Navbar } from "@/components/Navbar"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { useDebugLogger } from "@/hooks/useDebugLogger"
 import ProtectedRoute from "@/components/ProtectedRoute"
 
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
@@ -77,6 +76,12 @@ import { useRef } from "react"
 
 
 export default function ReportManager() {
+  // Función helper para formatear números a 2 decimales
+  const formatNumber = (value: number | null | undefined): string => {
+    if (value == null || value === undefined) return "—"
+    if (typeof value !== "number" || Number.isNaN(value)) return "—"
+    return value.toFixed(2)
+  }
   const router = useRouter()
   
   // Calcular fechas para los últimos 12 meses desde hoy
@@ -94,7 +99,6 @@ export default function ReportManager() {
   
   const { startDate, endDate } = getLast12MonthsDates()
   
-  const { addDebugLog } = useDebugLogger()
   const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
   const [globalFecha, setGlobalFecha] = useState<string>("");
   const [globalComentarios, setGlobalComentarios] = useState<string>("");
@@ -153,8 +157,6 @@ export default function ReportManager() {
         } catch (error) {
           console.error('❌ Error parsing user data:', error);
         }
-      } else {
-        console.warn('⚠️ No se encontró usuario en localStorage');
       }
     }
   }, []);
@@ -276,24 +278,6 @@ export default function ReportManager() {
   // Estado para el estado de los límites del sistema actual
   const limitsState = getCurrentSystemLimits(selectedSystem || '');
   
-  // Debug: Log del estado por sistema
-  useEffect(() => {
-    if (selectedSystem) {
-      //console.log(`🔍 Estado del sistema ${selectedSystem}:`, {
-      //  parameterValues: parameterValues,
-      //  limitsState: limitsState,
-      //  tolerances: getCurrentSystemTolerances(selectedSystem)
-      //});
-      
-      // Log de todos los sistemas para verificar independencia
-      //console.log(`📊 Estado completo por sistemas:`, {
-      //  parameterValuesBySystem,
-      //  limitsStateBySystem,
-      //  tolerancesBySystem
-      //});
-    }
-  }, [selectedSystem, parameterValues, limitsState, parameterValuesBySystem, limitsStateBySystem, tolerancesBySystem]);
-
   // Custom handlers that extend the hook functionality
   const handleSelectEmpresaWithReset = useCallback(async (empresaId: string) => {
     setParameters([])
@@ -334,14 +318,12 @@ export default function ReportManager() {
       }
       const data = await res.json()
       setParameters(data.variables || [])
-      addDebugLog("success", `Cargados ${data.variables?.length || 0} parámetros para sistema ${selectedSystem}`)
     } catch (e: any) {
       setLocalError(`Error al cargar parámetros: ${e.message}`)
-      addDebugLog("error", `Error al cargar parámetros: ${e.message}`)
     } finally {
       setLocalLoading(false)
     }
-  }, [selectedSystem, token, addDebugLog, router])
+  }, [selectedSystem, token, router])
 
   const isGenerateDisabled = !showPreview || !savedReportData;
 
@@ -797,8 +779,6 @@ export default function ReportManager() {
   };
 
   const handleGenerateReport = async () => {
-    addDebugLog("info", "Generando reporte")
-
     // Verificar si hay datos guardados previamente
     const savedReportData = localStorage.getItem("reportSelection");
     
@@ -1066,7 +1046,7 @@ export default function ReportManager() {
                                 const paramData = systemData[variable];
                                 return (
                                   <td key={systemName} className="border px-4 py-2 text-center">
-                                    {paramData ? paramData.valor : '—'}
+                                    {paramData ? formatNumber(paramData.valor) : '—'}
                                   </td>
                                 );
                               })}

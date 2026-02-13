@@ -233,6 +233,13 @@ export default function Reporte() {
     },
   })
 
+  // Función helper para formatear números a 2 decimales en todo el frontend
+  const formatNumber = (value: number | null | undefined): string => {
+    if (value == null || value === undefined) return "—"
+    if (typeof value !== "number" || Number.isNaN(value)) return "—"
+    return value.toFixed(2)
+  }
+
   // Evalúa condiciones de color de celda por parámetro
   const evalCondition = (value: number, condition: string): boolean => {
     if (condition.includes(">")) return value > Number.parseFloat(condition.replace(">", ""))
@@ -319,15 +326,12 @@ export default function Reporte() {
     
     // FALLBACK: Si no hay tolerancias en localStorage, obtenerlas del backend usando variable_proceso_id
     if (parsedReportSelection && (!parsedReportSelection.variablesTolerancia || Object.keys(parsedReportSelection.variablesTolerancia).length === 0)) {
-      console.warn("⚠️ [Reports] No se encontraron tolerancias en localStorage, obteniendo desde el backend...");
-      
       // Función async para obtener tolerancias
       const fetchTolerancesFromBackend = async () => {
         const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
         const plantName = parsedReportSelection?.plant?.nombre;
         
         if (!token || !plantName || !parsedReportSelection.parameters) {
-          console.warn("⚠️ [Reports] No se pueden obtener tolerancias: faltan token, plantName o parameters");
           return;
         }
         
@@ -339,7 +343,6 @@ export default function Reporte() {
           );
           
           if (!systemsResponse.ok) {
-            console.error("❌ [Reports] Error obteniendo sistemas de la planta");
             return;
           }
           
@@ -360,7 +363,6 @@ export default function Reporte() {
             );
             
             if (!varsResponse.ok) {
-              console.warn(`⚠️ [Reports] Error obteniendo variables para sistema ${systemName}`);
               continue;
             }
             
@@ -409,7 +411,7 @@ export default function Reporte() {
                   // No hay tolerancia para esta variable, continuar
                 }
               } catch (error) {
-                console.error(`❌ [Reports] Error obteniendo tolerancia para ${variableName}:`, error);
+                // Continuar con la siguiente variable
               }
             }
           }
@@ -421,11 +423,9 @@ export default function Reporte() {
             };
             setReportSelection(updatedReportSelection);
             localStorage.setItem("reportSelection", JSON.stringify(updatedReportSelection));
-          } else {
-            console.warn("⚠️ [Reports] No se obtuvieron tolerancias del backend");
           }
         } catch (error) {
-          console.error("❌ [Reports] Error obteniendo tolerancias del backend:", error);
+          // Continuar sin tolerancias si falla
         }
       };
       
@@ -433,7 +433,6 @@ export default function Reporte() {
       fetchTolerancesFromBackend();
     }
     } catch (error) {
-      console.error("Error parsing report selection:", error)
     }
 
     // Obtener fecha actual (solo en cliente para evitar diferencias de hidratación)
@@ -925,20 +924,10 @@ export default function Reporte() {
   const exportChartFromComponent = async (variableName: string): Promise<string | null> => {
     try {
       const chartRef = chartRefs.current.get(variableName);
-      if (!chartRef) {
-        console.warn(`⚠️ No se encontró ref para el gráfico: ${variableName}`);
-        return null;
-      }
-      
+      if (!chartRef) return null;
       const imageData = await chartRef.exportAsImage();
-      if (imageData) {
-          } else {
-        console.warn(`⚠️ No se pudo exportar el gráfico: ${variableName}`);
-      }
-      
-      return imageData;
+      return imageData ?? null;
     } catch (error) {
-      console.error(`❌ Error exportando gráfico ${variableName}:`, error);
       return null;
     }
   };
@@ -1006,12 +995,8 @@ export default function Reporte() {
           // Usar la fuente por defecto
           pdf.setFont('DejaVuSans', 'normal');
           pdfFontName = 'DejaVuSans';
-          console.log('✅ Fuente DejaVu Sans cargada exitosamente');
-        } else {
-          console.warn('⚠️ No se pudo cargar DejaVu Sans desde CDN, usando fuente por defecto');
         }
       } catch (error) {
-        console.warn('⚠️ Error cargando fuente DejaVu Sans:', error);
         // Continuar con fuente por defecto si hay error
       }
       
@@ -1046,16 +1031,16 @@ export default function Reporte() {
           headerData = await loadImageAsBase64(headerImg.src);
         }
       } catch (error) {
-        console.warn("⚠️ No se pudo cargar header:", error);
+        // Header no disponible
       }
 
       try {
         const footerImg = document.querySelector('#footer-img img') as HTMLImageElement;
         if (footerImg?.src) {
           footerData = await loadImageAsBase64(footerImg.src);
-          }
-        } catch (error) {
-        console.warn("⚠️ No se pudo cargar footer:", error);
+        }
+      } catch (error) {
+        // Footer no disponible
       }
 
       // Agregar header
@@ -1201,8 +1186,8 @@ export default function Reporte() {
           systemNames.forEach((systemName: string) => {
             const systemData = reportSelection.parameters[systemName];
             const paramData = systemData?.[variable];
-            // Mostrar solo el valor sin la unidad
-            const value = paramData ? String(paramData.valor) : "—";
+            // Mostrar solo el valor sin la unidad (formateado a 2 decimales)
+            const value = paramData && paramData.valor != null ? formatNumber(paramData.valor) : "—";
             row.push(value);
           });
           return row;
@@ -1298,7 +1283,6 @@ export default function Reporte() {
                         data.cell.text = [processedText];
                       }
                     } catch (error) {
-                      console.warn('Error dividiendo texto problemático en PDF:', error);
                       data.cell.text = [processedText];
                     }
                   } else {
@@ -1316,7 +1300,6 @@ export default function Reporte() {
                         data.cell.text = [cleanText];
                       }
                     } catch (error) {
-                      console.warn('Error dividiendo texto en PDF:', error);
                       data.cell.text = [cleanText];
                     }
                   }
@@ -1556,14 +1539,9 @@ export default function Reporte() {
                 
                 resolve(null);
               };
-              chartImg.onerror = () => {
-                console.error(`❌ Error cargando imagen del gráfico ${i + 1}`);
-                resolve(null);
-              };
+              chartImg.onerror = () => resolve(null);
             });
-      } else {
-            console.warn(`⚠️ No se pudo exportar el gráfico ${i + 1}: ${chartTitle}`);
-          }
+      }
         }
       }
 
@@ -2062,17 +2040,6 @@ export default function Reporte() {
         const variableNameNorm = (variableName || "").trim();
         if (!variableNameNorm) return;
         
-        // Debug para pH: verificar si tiene unidad
-        if (variableNameNorm.toLowerCase() === "ph") {
-          console.log(`🔍 [Reports] Variable pH encontrada en sistema ${systemName}:`, {
-            tieneUnidad: !!paramData?.unidad,
-            unidad: paramData?.unidad,
-            tieneValor: paramData?.valor != null,
-            valor: paramData?.valor,
-            paramDataCompleto: paramData
-          });
-        }
-        
         // Si tiene unidad, agregarla a variablesDisponibles
         // Si no tiene unidad pero tiene valor, usar unidad vacía para que aparezca en gráficos
         const unidadParaGrafico = paramData?.unidad || "";
@@ -2120,15 +2087,6 @@ export default function Reporte() {
         unidad: data.unidad,
         sistemas: data.sistemas // Lista de sistemas donde aparece esta variable
       };
-    });
-    
-    // Debug: verificar si pH está en variablesDisponibles
-    const tienePH = resultado.some(v => v.nombre.toLowerCase() === "ph");
-    console.log(`📊 [Reports] variablesDisponibles construido:`, {
-      totalVariables: resultado.length,
-      nombresVariables: resultado.map(v => v.nombre),
-      tienePH,
-      pHDetalle: resultado.find(v => v.nombre.toLowerCase() === "ph")
     });
     
     return resultado;
@@ -2218,40 +2176,8 @@ export default function Reporte() {
               if (!byVariable[variableNameNorm]) byVariable[variableNameNorm] = [];
               byVariable[variableNameNorm].push({ fecha, sistema: sistemaNorm, valor: valorNum });
               
-              // Debug específico para pH
-              if (variableNameNorm.toLowerCase() === "ph") {
-                console.log(`🔍 [Reports] pH encontrado en chartDataFromReportes construcción:`, {
-                  sistema: sistemaNorm,
-                  fecha,
-                  valor,
-                  valorNum,
-                  variableNameOriginal: variableName,
-                  variableNameNorm
-                });
-              }
             });
           });
-        });
-
-        // Debug: verificar si hay datos para pH
-        const clavesPH = Object.keys(byVariable).filter(k => k.toLowerCase().trim() === "ph");
-        if (clavesPH.length > 0 || byVariable["pH"] || byVariable["pH "]) {
-          console.log("📊 [Reports] Datos encontrados para pH desde reportes.datos:", {
-            "pH": byVariable["pH"]?.length || 0,
-            "pH ": byVariable["pH "]?.length || 0,
-            todasLasClaves: Object.keys(byVariable).filter(k => k.toLowerCase().includes("ph")),
-            clavesPHExactas: clavesPH,
-            datosPH: clavesPH.length > 0 ? byVariable[clavesPH[0]] : null,
-            fuente: "SOLO tabla reportes (columna datos), NO tabla mediciones"
-          });
-        } else {
-          console.log("⚠️ [Reports] NO se encontraron datos para pH en chartDataFromReportes. Claves disponibles:", Object.keys(byVariable));
-        }
-
-        console.log(`📊 [Reports] chartDataFromReportes construido desde SOLO tabla reportes:`, {
-          totalVariables: Object.keys(byVariable).length,
-          variablesConDatos: Object.keys(byVariable).filter(k => byVariable[k].length > 0),
-          fuente: "reportes.datos (NO mediciones)"
         });
 
         setChartDataFromReportes(byVariable);
@@ -2279,7 +2205,6 @@ export default function Reporte() {
       )
       
       if (!systemsResponse.ok) {
-        console.error(`Error obteniendo sistemas para planta ${plantName}`)
         return []
       }
       
@@ -2289,7 +2214,6 @@ export default function Reporte() {
       // Buscar el sistema por nombre
       const systemInfo = systemsList.find((sys: any) => sys.nombre === systemName)
       if (!systemInfo || !systemInfo.id) {
-        console.warn(`Sistema "${systemName}" no encontrado`)
         return []
       }
       
@@ -2302,7 +2226,6 @@ export default function Reporte() {
       )
       
       if (!varsResponse.ok) {
-        console.error(`Error obteniendo variables del sistema ${systemName}`)
         return []
       }
       
@@ -2820,7 +2743,7 @@ export default function Reporte() {
                                           aria-label={`Valor ${variable} en ${systemName}`}
                                         />
                                       ) : (
-                                        paramData?.valor != null ? paramData.valor : "—"
+                                        formatNumber(paramData?.valor)
                                       )}
                                     </td>
                                   );
@@ -2934,10 +2857,6 @@ export default function Reporte() {
                         
                         if (datosDesdeReportSelection.length > 0) {
                           medicionesData = datosDesdeReportSelection;
-                          console.log(`📊 [Reports] Usando FALLBACK: datos de reportSelection.parameters para ${variable.nombre}:`, {
-                            cantidad: medicionesData.length,
-                            sistemas: medicionesData.map(d => d.sistema)
-                          });
                         }
                       }
                       
@@ -2946,22 +2865,6 @@ export default function Reporte() {
                         medicionesData = [];
                       }
                       
-                      // Debug para pH
-                      if (variable.nombre.toLowerCase().includes("ph")) {
-                        console.log(`📊 [Reports] Gráfico ${variable.nombre} - Datos desde SOLO tabla reportes:`, {
-                          nombre: variable.nombre,
-                          nombreTrimmed: nombreNormalizado,
-                          tieneDatos: medicionesData.length > 0,
-                          cantidadDatos: medicionesData.length,
-                          clavesDisponibles: Object.keys(chartDataFromReportes || {}).filter(k => k.toLowerCase().includes("ph")),
-                          datosPrimeros: medicionesData.slice(0, 3),
-                          fuente: medicionesData.length > 0 ? "chartDataFromReportes o reportSelection.parameters (SOLO reportes.datos, NO mediciones)" : "sin datos",
-                          chartDataFromReportesVacio: Object.keys(chartDataFromReportes || {}).length === 0,
-                          reportSelectionTieneFecha: !!reportSelection?.fecha,
-                          reportSelectionTieneParameters: !!reportSelection?.parameters
-                        });
-                      }
-
                       return (
                         <div key={variable.id} className="border rounded-lg p-4 bg-white">
                         <div>
@@ -3185,7 +3088,7 @@ export default function Reporte() {
                                               isOutOfRange ? "bg-yellow-300 font-semibold" : ""
                                             }`}
                                           >
-                                            {valor !== undefined ? valor.toFixed(2) : "—"}
+                                            {formatNumber(valor)}
                                           </td>
                                         )
                                       })}

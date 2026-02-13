@@ -115,7 +115,6 @@ export default function Dashboard() {
         setUserRole(userData.puesto || "user")
         /* addDebugLog(`Usuario cargado: ${userData.username}`) */
       } else {
-        addDebugLog("No se encontró usuario en localStorage")
         router.push("/login")
       }
     }
@@ -145,7 +144,6 @@ export default function Dashboard() {
           !mobileButton.contains(target) &&
           mobileMenu.style.display === 'block') {
         mobileMenu.style.display = 'none'
-        addDebugLog("Menú móvil cerrado por clic externo")
       }
       
       // Close user dropdown
@@ -189,9 +187,7 @@ export default function Dashboard() {
               /* addDebugLog("Componentes Bootstrap inicializados") */
             }
           }
-          script.onerror = () => {
-            addDebugLog("Error cargando Bootstrap JavaScript")
-          }
+          script.onerror = () => {}
           document.head.appendChild(script)
         } else {
           /* addDebugLog("Bootstrap JavaScript ya está cargado") */
@@ -230,12 +226,9 @@ export default function Dashboard() {
             const data = await res.json();
             const list = data.plantas || data || [];
             todasLasPlantas = Array.isArray(list) ? list : [];
-            console.log(`✅ Admin: todas las plantas cargadas: ${todasLasPlantas.length}`);
             return todasLasPlantas;
           }
-        } catch (error) {
-          console.error("Error obteniendo todas las plantas (admin):", error);
-        }
+        } catch (error) {}
       }
       
       // 1. Obtener plantas con permisos específicos (usuarios_plantas)
@@ -248,11 +241,8 @@ export default function Dashboard() {
           const data = await res.json();
           const plantasEspecificas = data.plantas || [];
           todasLasPlantas.push(...plantasEspecificas);
-          console.log(`✅ Plantas con permisos específicos: ${plantasEspecificas.length} plantas`);
         }
-      } catch (error) {
-        console.error("Error obteniendo plantas con permisos específicos:", error);
-      }
+      } catch (error) {}
 
       // 2. Obtener plantas de empresas con acceso completo (usuarios_empresas)
       const userId = user?.id || user?._id;
@@ -265,8 +255,6 @@ export default function Dashboard() {
           if (empresasRes.ok) {
             const empresasData = await empresasRes.json();
             const empresas = empresasData.empresas || empresasData || [];
-            console.log(`🏢 Empresas con acceso completo encontradas: ${empresas.length}`);
-            
             // Para cada empresa con acceso, obtener todas sus plantas
             for (const empresa of empresas) {
               const empresaId = empresa.empresa_id || empresa.id;
@@ -287,20 +275,12 @@ export default function Dashboard() {
                       todasLasPlantas.push(planta);
                     }
                   });
-                  
-                  console.log(`🏭 Plantas de empresa ${empresa.empresa_nombre || empresaId}: ${plantasEmpresa.length} plantas`);
                 }
-              } catch (error) {
-                console.error(`Error obteniendo plantas de empresa ${empresaId}:`, error);
-              }
+              } catch (error) {}
             }
           }
-        } catch (error) {
-          console.error("Error obteniendo empresas con acceso:", error);
-        }
+        } catch (error) {}
       }
-      
-      console.log(`✅ Total de plantas accesibles cargadas: ${todasLasPlantas.length} plantas`, todasLasPlantas.map((p: any) => ({ id: p.id || p._id, nombre: p.nombre })));
       return todasLasPlantas;
     };
 
@@ -348,9 +328,8 @@ export default function Dashboard() {
           }
         }
         setPlants(plantas);
-      } catch (error) {
-        console.error("Error cargando plantas/procesos/variables:", error);
-      } finally {
+      } catch (error) {}
+      finally {
         setDataLoading(false);
       }
     };
@@ -392,10 +371,7 @@ export default function Dashboard() {
   // Función para manejar la vista del reporte desde el dashboard (obtiene orden de parámetros y sistemas para que /reports muestre la tabla en el orden correcto también para cliente)
   const handleViewReport = async (report: any) => {
     try {
-      console.log("👁️ Visualizando reporte desde dashboard:", report);
-      
       if (!report.planta_id) {
-        console.error("❌ Error: No se encontró planta_id en los datos del reporte");
         alert("Error: No se pueden visualizar reportes sin datos de planta completos");
         return;
       }
@@ -468,14 +444,10 @@ export default function Dashboard() {
         ...(systemOrder?.length && { systemOrder }),
       };
 
-      console.log("📄 reportSelection reconstruido desde dashboard:", reportSelection);
-      console.log("🔍 Validación plant.id:", reportSelection.plant.id);
-      
       localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
       router.push("/reports");
       
     } catch (error) {
-      console.error("❌ Error al preparar vista del reporte desde dashboard:", error);
       alert("Error al preparar la vista del reporte");
     }
   };
@@ -528,21 +500,12 @@ export default function Dashboard() {
     const fetchResumen = async () => {
       // Obtener token
       const token = authService.getToken()
-      if (!token) {
-        console.error("❌ No hay token de autenticación")
-        return
-      }
+      if (!token) return
       
       // Obtener el puesto del usuario
       const currentUser = authService.getCurrentUser()
-      if (!currentUser) {
-        console.error("❌ No se pudo obtener información del usuario")
-        return
-      }
-      
+      if (!currentUser) return
       const puesto = currentUser.puesto
-      /* console.log("👤 Puesto del usuario:", puesto) */
-      
       // Determinar el endpoint según el puesto
       const endpoint = puesto === "admin" 
         ? API_ENDPOINTS.DASHBOARD_RESUMEN_ADMIN 
@@ -557,13 +520,8 @@ export default function Dashboard() {
         }) as { ok?: boolean; resumen?: any }
         if (res && res.ok && res.resumen) {
           setDashboardResumen(res.resumen);
-          addDebugLog(`Resumen del dashboard cargado desde API (${puesto})`);
-        } else {
-          addDebugLog("Respuesta inesperada al cargar resumen del dashboard");
         }
-      } catch (error) {
-        addDebugLog("Error al cargar resumen del dashboard: " + error);
-      }
+      } catch (error) {}
     };
 
     const fetchReportes = async () => {
@@ -583,7 +541,6 @@ export default function Dashboard() {
               const plantasData = await plantasRes.json()
               const plantasEspecificas = (plantasData.plantas || []).map((p: any) => p.id || p._id).filter(Boolean)
               plantasAccesiblesIds.push(...plantasEspecificas)
-              console.log("🔐 Plantas con permisos específicos:", plantasEspecificas)
             }
 
             // 2. Obtener empresas con acceso completo (usuarios_empresas)
@@ -596,8 +553,6 @@ export default function Dashboard() {
                 if (empresasRes.ok) {
                   const empresasData = await empresasRes.json()
                   const empresas = empresasData.empresas || empresasData || []
-                  console.log("🏢 Empresas con acceso completo:", empresas.map((e: any) => ({ id: e.empresa_id || e.id, nombre: e.empresa_nombre || e.nombre })))
-                  
                   // 3. Para cada empresa con acceso, obtener todas sus plantas
                   const empresasIds = empresas.map((e: any) => e.empresa_id || e.id).filter(Boolean)
                   
@@ -611,24 +566,14 @@ export default function Dashboard() {
                         const plantasEmpresa = plantasEmpresaData.plantas || plantasEmpresaData || []
                         const plantasIds = plantasEmpresa.map((p: any) => p.id || p._id).filter(Boolean)
                         plantasAccesiblesIds.push(...plantasIds)
-                        console.log(`🏭 Plantas de empresa ${empresaId}:`, plantasIds)
                       }
-                    } catch (error) {
-                      console.error(`Error obteniendo plantas de empresa ${empresaId}:`, error)
-                    }
+                    } catch (error) {}
                   }
                 }
-              } catch (error) {
-                console.error("Error obteniendo empresas con acceso:", error)
-              }
+              } catch (error) {}
             }
-
-            // Eliminar duplicados
             plantasAccesiblesIds = [...new Set(plantasAccesiblesIds)]
-            console.log("✅ Total de plantas accesibles (específicas + empresas):", plantasAccesiblesIds)
-          } catch (error) {
-            console.error("Error obteniendo plantas accesibles:", error)
-          }
+          } catch (error) {}
         }
 
         // Pedir todos los reportes del año para la sección de reportes gráficos (rango startDate–endDate).
@@ -646,29 +591,12 @@ export default function Dashboard() {
         
         if (response.ok) {
           const data = await response.json()
-          //console.log('📊 Respuesta del backend:', data)
           reportesData = Array.isArray(data.reportes) ? data.reportes : []
-          //console.log('📋 Reportes recibidos:', reportesData.length, reportesData)
-        } else {
-          console.error("Error en la respuesta de reportes:", response.status, response.statusText)
         }
         
         // Convertir formato de reportes para el dashboard (extraer datos del JSONB)
         let formattedReports = reportesData.map((report: any) => {
-          // Extraer datos del JSONB
           const datosJsonb = report.datos || {};
-          
-          console.log("🔍 Dashboard - Procesando reporte:", {
-            id: report.id,
-            titulo: report.titulo,
-            datosJsonb: datosJsonb,
-            plantName_from_jsonb: datosJsonb.plant?.nombre,
-            systemName_from_jsonb: datosJsonb.systemName,
-            generatedDate_from_jsonb: datosJsonb.generatedDate,
-            user_from_jsonb: datosJsonb.user?.username,
-            planta_id: report.planta_id
-          });
-          
           return {
             id: report.id?.toString() || report.id,
             title: report.titulo || report.nombre || `Reporte ${report.id}`,
@@ -696,17 +624,9 @@ export default function Dashboard() {
           formattedReports = formattedReports.filter((report: any) => {
             const reportPlantaId = report.planta_id
             const tieneAcceso = plantasAccesiblesIds.includes(reportPlantaId)
-            
-            if (!tieneAcceso) {
-              console.log(`🚫 Reporte ${report.id} filtrado - Planta ${reportPlantaId} no accesible`)
-            }
-            
             return tieneAcceso
           })
-          console.log(`✅ Reportes filtrados: ${formattedReports.length} de ${reportesData.length} reportes mostrados`)
         } else if ((userRole === "client" || userRole === "user" || userRole === "analista" || userRole === "guest") && plantasAccesiblesIds.length === 0) {
-          // Si no tiene plantas accesibles, no mostrar ningún reporte
-          console.log("⚠️ Usuario no tiene plantas accesibles, no se mostrarán reportes")
           formattedReports = []
         }
         
@@ -724,12 +644,7 @@ export default function Dashboard() {
         })
         
         setReports(sortedReports)
-        
-        addDebugLog(`Reportes cargados: ${sortedReports.length} reportes (rol: ${userRole})`)
-        
       } catch (error) {
-        console.error("Error cargando reportes:", error)
-        // En caso de error, no mostrar reportes
         setReports([])
       }
     }
@@ -765,24 +680,20 @@ export default function Dashboard() {
         return /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s).getTime() : new Date(raw).getTime();
       };
 
-      // Para admin/user/analista: usar solo los últimos 10 reportes por planta (por fecha del reporte)
-      // Para cliente: usar todos los reportes del rango de fechas
+      // Todos los roles: usar solo los últimos 10 reportes por planta (por fecha del reporte) en gráficos
       const REPORTS_PER_PLANT_LIMIT = 10;
-      let reportsToUse = reports;
-      if (userRole !== "client") {
-        const byPlant = new Map<string, any[]>();
-        for (const r of reports) {
-          const plantId = r.planta_id || r.datos?.plant?.id;
-          if (!plantId || !plantIds.has(plantId)) continue;
-          if (!byPlant.has(plantId)) byPlant.set(plantId, []);
-          byPlant.get(plantId)!.push(r);
-        }
-        reportsToUse = [];
-        byPlant.forEach((list) => {
-          const sorted = [...list].sort((a, b) => getReportDate(b) - getReportDate(a));
-          reportsToUse.push(...sorted.slice(0, REPORTS_PER_PLANT_LIMIT));
-        });
+      const byPlant = new Map<string, any[]>();
+      for (const r of reports) {
+        const plantId = r.planta_id || r.datos?.plant?.id;
+        if (!plantId || !plantIds.has(plantId)) continue;
+        if (!byPlant.has(plantId)) byPlant.set(plantId, []);
+        byPlant.get(plantId)!.push(r);
       }
+      const reportsToUse: any[] = [];
+      byPlant.forEach((list) => {
+        const sorted = [...list].sort((a, b) => getReportDate(b) - getReportDate(a));
+        reportsToUse.push(...sorted.slice(0, REPORTS_PER_PLANT_LIMIT));
+      });
 
       try {
         // Inicializar estructura por sistema y parámetro
@@ -808,15 +719,13 @@ export default function Dashboard() {
           const fechaDate = new Date(fechaStr);
           if (isNaN(fechaDate.getTime())) continue;
 
-          // Para cliente: filtrar por rango de fechas; para otros roles ya se limitó por últimos 10 por planta
-          if (userRole === "client") {
-            const start = new Date(startDate + "T00:00:00");
-            const end = new Date(endDate + "T23:59:59");
-            const fechaOnly = new Date(fechaDate.getFullYear(), fechaDate.getMonth(), fechaDate.getDate());
-            const startOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-            const endOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-            if (fechaOnly < startOnly || fechaOnly > endOnly) continue;
-          }
+          // Filtrar por rango de fechas (reportsToUse ya está limitado a últimos 10 por planta)
+          const start = new Date(startDate + "T00:00:00");
+          const end = new Date(endDate + "T23:59:59");
+          const fechaOnly = new Date(fechaDate.getFullYear(), fechaDate.getMonth(), fechaDate.getDate());
+          const startOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+          const endOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+          if (fechaOnly < startOnly || fechaOnly > endOnly) continue;
 
           const reportPlantaId = report.planta_id || datos?.plant?.id;
           if (!reportPlantaId || !plantIds.has(reportPlantaId)) continue;
@@ -873,12 +782,8 @@ export default function Dashboard() {
           return sum + systemTotal;
         }, 0);
         setTotalHistoricos(total);
-        console.log(
-          `📊 Datos históricos desde reportes: ${total} puntos (rango ${startDate} - ${endDate})`
-        );
-      } catch (error) {
-        console.error("❌ Error construyendo datos históricos desde reportes:", error);
-      } finally {
+      } catch (error) {}
+      finally {
         setHistoricalDataLoading(false);
       }
     };
@@ -944,7 +849,7 @@ export default function Dashboard() {
         <div className="row mb-4">
           
           <RecentReportsTable
-            reports={reports.slice(0, 20)}
+            reports={reports.slice(0, 10)}
             dataLoading={dataLoading}
             getStatusColor={getStatusColor}
             onTableClick={getClientReports}
@@ -954,7 +859,7 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* System Charts - Historical Data: clientes ven todos los reportes del rango; admin/user/analista ven últimos 10 por planta */}
+        {/* System Charts - Historical Data: últimos 10 datos por planta en gráficos y tabla */}
         {(userRole === "client" || userRole === "admin" || userRole === "user" || userRole === "analista") && (
           <div className="row mb-4">
             <ChartsDashboard
@@ -966,7 +871,7 @@ export default function Dashboard() {
               loading={historicalDataLoading}
               reportCount={reports.length}
               yearLabel={HISTORICAL_YEAR}
-              last10PerPlant={userRole !== "client"}
+              last10PerPlant={true}
             />
           </div>
         )}
