@@ -90,6 +90,13 @@ export default function HistoricosPage() {
   const router = useRouter()
   const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
 
+  // Función helper para formatear números a 2 decimales
+  const formatNumber = (value: number | null | undefined): string => {
+    if (value == null || value === undefined) return "—"
+    if (typeof value !== "number" || Number.isNaN(value)) return "—"
+    return value.toFixed(2)
+  }
+
   // Use the reusable hook for empresas access
   const {
     empresas,
@@ -141,32 +148,44 @@ export default function HistoricosPage() {
 
   // Load all plants if no empresa selected
   useEffect(() => {
+    let cancelled = false;
     async function loadPlants() {
       if (!selectedEmpresa) {
         try {
           const res = await fetch(`${API_BASE_URL}/api/plantas/all`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
           });
+          if (cancelled) return;
           if (res.ok) {
             const data = await res.json();
-            setDisplayedPlants(data.plantas || data);
+            if (!cancelled) {
+              setDisplayedPlants(data.plantas || data);
+            }
           } else if (res.status === 401) {
-            authService.logout();
-            localStorage.removeItem('Organomex_user');
-            router.push('/logout');
+            if (!cancelled) {
+              authService.logout();
+              localStorage.removeItem('Organomex_user');
+              router.push('/logout');
+            }
             return;
           }
         } catch (err) {
-          console.error('Error al cargar todas las plantas:', err);
-          setDisplayedPlants([]);
+          if (!cancelled) {
+            console.error('Error al cargar todas las plantas:', err);
+            setDisplayedPlants([]);
+          }
         }
       } else {
-        console.log('🔄 [dashboard-historicos] Updating displayedPlants from hook:', plants.length, 'plants')
-        setDisplayedPlants(plants);
+        if (!cancelled) {
+          setDisplayedPlants(plants);
+        }
       }
     }
     loadPlants();
-  }, [selectedEmpresa, plants, token, router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEmpresa, plants, token]);
 
   // Load empresas - siempre mostrar todas las empresas disponibles
   useEffect(() => {
@@ -197,7 +216,7 @@ export default function HistoricosPage() {
     } catch (e: any) {
       console.error(`Error al cargar parámetros: ${e.message}`)
     }
-  }, [selectedSystem, token, router])
+  }, [selectedSystem, token])
 
   // Fetch tolerances
   const fetchTolerances = useCallback(async () => {
@@ -368,7 +387,7 @@ export default function HistoricosPage() {
     } finally {
       setHistoricalLoading(false)
     }
-  }, [selectedSystem, startDate, endDate, parameters, systems, token, router])
+  }, [selectedSystem, startDate, endDate, parameters, systems, token])
 
   useEffect(() => {
     if (selectedSystem && startDate && endDate && parameters.length > 0) {
@@ -646,7 +665,9 @@ export default function HistoricosPage() {
                           {sortedParameters.map((param) => (
                             <th key={param.id} className="border px-1 py-2 text-center font-semibold">
                               <div className="text-xs">{param.nombre}</div>
-                              <div className="text-xs font-normal">({param.unidad})</div>
+                              {param.unidad != null && String(param.unidad).trim() !== "" && (
+                                <div className="text-xs font-normal">({param.unidad})</div>
+                              )}
                             </th>
                           ))}
                           <th className="border px-2 py-2 text-left font-semibold w-32">COMENTARIOS</th>
@@ -729,7 +750,7 @@ export default function HistoricosPage() {
                                       isOutOfRange ? "bg-yellow-300 font-semibold" : ""
                                     }`}
                                   >
-                                    {valor !== undefined ? valor.toFixed(2) : "—"}
+                                    {formatNumber(valor)}
                                   </td>
                                 )
                               })}

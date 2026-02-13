@@ -117,8 +117,10 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
         const endDateNormalized = normalizeDate(endDate)
 
         // Si se pasan datos desde reportes.datos, usarlos en lugar de la API de mediciones
-        if (medicionesFromReportes !== undefined && medicionesFromReportes !== null) {
-          const list = Array.isArray(medicionesFromReportes) ? medicionesFromReportes : [];
+        // Si medicionesFromReportes está definido (incluso si es array vacío), usar solo esos datos y no hacer llamadas a API
+        // Esto evita llamadas 404 innecesarias cuando los datos vienen de reportes.datos
+        if (medicionesFromReportes !== undefined && medicionesFromReportes !== null && Array.isArray(medicionesFromReportes)) {
+          const list = medicionesFromReportes;
           const filtered = list.filter(m => {
             const fechaNorm = normalizeDate(m.fecha)
             return fechaNorm >= startDateNormalized && fechaNorm <= endDateNormalized
@@ -142,26 +144,19 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
           setSensors(sensorList)
           setData(pivotData)
           setLoading(false)
+          // IMPORTANTE: Si medicionesFromReportes está definido (incluso array vacío), NO hacer llamadas a API de mediciones
+          // Los datos vienen SOLO de reportes.datos (tabla reportes), NO de tabla mediciones
           return
         }
 
+        // Solo hacer llamadas a API si medicionesFromReportes NO fue proporcionado
+        // Si fue proporcionado (incluso como array vacío), ya se procesó arriba y se hizo return
         let finalData: RawMeasurement[] = [];
-
-        console.log(`📊 [SensorTimeSeriesChart] Buscando datos para:`, {
-          variable,
-          clientName,
-          processName,
-          userId,
-          startDate: startDateNormalized,
-          endDate: endDateNormalized
-        });
         
         // Lógica de cascada: primero verificar por cliente, luego por proceso
         if (clientName) {
           // 1. Primera llamada: MEASUREMENTS_BY_VARIABLE_AND_CLIENT
           const clientUrl = `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_CLIENT(variable, clientName)}`;
-          console.log(`🔍 [SensorTimeSeriesChart] Intentando buscar por cliente: ${clientUrl}`);
-          
           const clientRes = await fetch(
             clientUrl,
             { headers: token ? { Authorization: `Bearer ${token}` } : {} }
@@ -170,29 +165,20 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
           if (clientRes.ok) {
             const clientResult = await clientRes.json();
             const clientData = clientResult.mediciones || [];
-            console.log(`✅ [SensorTimeSeriesChart] Datos encontrados por cliente: ${clientData.length} registros`);
-            
             // Filtrar datos del cliente por fecha
             const filteredClientData = clientData.filter((m: any) => {
               const fechaNormalizada = normalizeDate(m.fecha)
               return fechaNormalizada >= startDateNormalized && fechaNormalizada <= endDateNormalized
             });
-            
-            console.log(`📅 [SensorTimeSeriesChart] Datos filtrados por fecha: ${filteredClientData.length} registros`);
-            
             if (filteredClientData.length > 0) {
               finalData = filteredClientData;
             }
-          } else {
-            console.log(`❌ [SensorTimeSeriesChart] Error al buscar por cliente: ${clientRes.status} ${clientRes.statusText}`);
           }
         }
         
         // 2. Si no hay datos por cliente, verificar por usuario y proceso (más específico)
         if (finalData.length === 0 && userId && processName) {
           const userProcessUrl = `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_USER_AND_PROCESS(variable, userId, processName)}`;
-          console.log(`🔍 [SensorTimeSeriesChart] Intentando buscar por usuario y proceso: ${userProcessUrl}`);
-          
           const userProcessRes = await fetch(
             userProcessUrl,
             { headers: token ? { Authorization: `Bearer ${token}` } : {} }
@@ -201,29 +187,20 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
           if (userProcessRes.ok) {
             const userProcessResult = await userProcessRes.json();
             const userProcessData = userProcessResult.mediciones || [];
-            console.log(`✅ [SensorTimeSeriesChart] Datos encontrados por usuario y proceso: ${userProcessData.length} registros`);
-            
             // Filtrar datos por fecha
             const filteredUserProcessData = userProcessData.filter((m: any) => {
               const fechaNormalizada = normalizeDate(m.fecha)
               return fechaNormalizada >= startDateNormalized && fechaNormalizada <= endDateNormalized
             });
-            
-            console.log(`📅 [SensorTimeSeriesChart] Datos filtrados por fecha: ${filteredUserProcessData.length} registros`);
-            
             if (filteredUserProcessData.length > 0) {
               finalData = filteredUserProcessData;
             }
-          } else {
-            console.log(`❌ [SensorTimeSeriesChart] Error al buscar por usuario y proceso: ${userProcessRes.status} ${userProcessRes.statusText}`);
           }
         }
         
         // 3. Si no hay datos por usuario y proceso, verificar por proceso
         if (finalData.length === 0 && processName) {
           const processUrl = `${apiBase}${API_ENDPOINTS.MEASUREMENTS_BY_VARIABLE_AND_PROCESS(variable, processName)}`;
-          console.log(`🔍 [SensorTimeSeriesChart] Intentando buscar por proceso: ${processUrl}`);
-          
           const processRes = await fetch(
             processUrl,
             { headers: token ? { Authorization: `Bearer ${token}` } : {} }
@@ -232,43 +209,25 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
           if (processRes.ok) {
             const processResult = await processRes.json();
             const processData = processResult.mediciones || [];
-            console.log(`✅ [SensorTimeSeriesChart] Datos encontrados por proceso: ${processData.length} registros`);
-            
             // Filtrar datos del proceso por fecha
             const filteredProcessData = processData.filter((m: any) => {
               const fechaNormalizada = normalizeDate(m.fecha)
               return fechaNormalizada >= startDateNormalized && fechaNormalizada <= endDateNormalized
             });
-            
-            console.log(`📅 [SensorTimeSeriesChart] Datos filtrados por fecha: ${filteredProcessData.length} registros`);
-            
             if (filteredProcessData.length > 0) {
               finalData = filteredProcessData;
             }
-          } else {
-            console.log(`❌ [SensorTimeSeriesChart] Error al buscar por proceso: ${processRes.status} ${processRes.statusText}`);
           }
         }
         
-        // 3. Si no hay datos por cliente ni por proceso, NO mostrar datos generales
+        // Si no hay datos por cliente ni por proceso, NO mostrar datos generales
         // Solo mostrar datos específicos para el usuario/proceso seleccionado
         if (finalData.length === 0) {
-          console.log(`⚠️ [SensorTimeSeriesChart] No se encontraron datos específicos para ${variable} en el proceso/cliente seleccionado`);
-          console.log(`📋 [SensorTimeSeriesChart] Parámetros de búsqueda:`, {
-            variable,
-            clientName,
-            processName,
-            userId,
-            startDate: startDateNormalized,
-            endDate: endDateNormalized
-          });
           setData([]);
           setSensors([]);
           setLoading(false);
           return;
         }
-        
-        console.log(`✅ [SensorTimeSeriesChart] Total de datos encontrados: ${finalData.length} registros`);
          
          // Filtrar registros por fecha (ya normalizado arriba)
          const filtered = finalData.filter(m => {
@@ -476,12 +435,17 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
               <YAxis
                 tickLine={false}
                 axisLine={false}
-                label={{ value: `${variable} (${unidades})`, angle: -90, position: 'insideLeft' }}
+                // Sin label - el nombre del parámetro y la unidad ya vienen en el título del gráfico
                 tickFormatter={(value) => {
                   if (typeof value === 'number') {
                     return value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 10 });
                   }
                   return String(value);
+                }}
+                tick={{ 
+                  fill: '#000000', // Negro sólido para los números del eje Y
+                  fontWeight: 'bold', // Negrita
+                  fontSize: '11px'
                 }}
               />
               <XAxis
@@ -490,7 +454,11 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
-                tick={hideXAxisLabels ? false : undefined}
+                tick={hideXAxisLabels ? false : {
+                  fill: '#000000', // Negro sólido para las fechas del eje X
+                  fontWeight: 'bold', // Negrita
+                  fontSize: '11px'
+                }}
                 angle={data.length > 30 ? -45 : 0}
                 textAnchor={data.length > 30 ? "end" : "middle"}
                 height={data.length > 30 ? 60 : 30}

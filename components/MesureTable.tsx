@@ -120,14 +120,12 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
             
             if (filteredProcessData.length > 0) {
               finalData = filteredProcessData;
-              //console.log(`[MesureTable] Datos encontrados por proceso: ${filteredProcessData.length} registros`);
             }
           }
         }
         
         // Si no hay datos específicos, no mostrar nada
         if (finalData.length === 0) {
-          //console.log(`[MesureTable] No se encontraron datos específicos para ${variable} en el proceso/cliente seleccionado`);
           setData([]);
           setSensors([]);
           setLoading(false);
@@ -189,13 +187,13 @@ export function MesureTable({ variable, startDate, endDate, apiBase, unidades, i
     // Calcular promedio
     let promedio = ''
     if (values.length > 0) {
-      promedio = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(3)
+      promedio = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2)
     }
     return {
       sensor,
-      alto: values.length ? Math.max(...values) : "",
+      alto: values.length ? Math.max(...values).toFixed(2) : "",
       promedio,
-      bajo: values.length ? Math.min(...values) : "",
+      bajo: values.length ? Math.min(...values).toFixed(2) : "",
     }
   })
 

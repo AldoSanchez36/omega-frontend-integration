@@ -233,6 +233,13 @@ export default function Reporte() {
     },
   })
 
+  // Función helper para formatear números a 2 decimales en todo el frontend
+  const formatNumber = (value: number | null | undefined): string => {
+    if (value == null || value === undefined) return "—"
+    if (typeof value !== "number" || Number.isNaN(value)) return "—"
+    return value.toFixed(2)
+  }
+
   // Evalúa condiciones de color de celda por parámetro
   const evalCondition = (value: number, condition: string): boolean => {
     if (condition.includes(">")) return value > Number.parseFloat(condition.replace(">", ""))
@@ -319,15 +326,12 @@ export default function Reporte() {
     
     // FALLBACK: Si no hay tolerancias en localStorage, obtenerlas del backend usando variable_proceso_id
     if (parsedReportSelection && (!parsedReportSelection.variablesTolerancia || Object.keys(parsedReportSelection.variablesTolerancia).length === 0)) {
-      console.warn("⚠️ [Reports] No se encontraron tolerancias en localStorage, obteniendo desde el backend...");
-      
       // Función async para obtener tolerancias
       const fetchTolerancesFromBackend = async () => {
         const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
         const plantName = parsedReportSelection?.plant?.nombre;
         
         if (!token || !plantName || !parsedReportSelection.parameters) {
-          console.warn("⚠️ [Reports] No se pueden obtener tolerancias: faltan token, plantName o parameters");
           return;
         }
         
@@ -339,7 +343,6 @@ export default function Reporte() {
           );
           
           if (!systemsResponse.ok) {
-            console.error("❌ [Reports] Error obteniendo sistemas de la planta");
             return;
           }
           
@@ -360,7 +363,6 @@ export default function Reporte() {
             );
             
             if (!varsResponse.ok) {
-              console.warn(`⚠️ [Reports] Error obteniendo variables para sistema ${systemName}`);
               continue;
             }
             
@@ -409,7 +411,7 @@ export default function Reporte() {
                   // No hay tolerancia para esta variable, continuar
                 }
               } catch (error) {
-                console.error(`❌ [Reports] Error obteniendo tolerancia para ${variableName}:`, error);
+                // Continuar con la siguiente variable
               }
             }
           }
@@ -421,11 +423,9 @@ export default function Reporte() {
             };
             setReportSelection(updatedReportSelection);
             localStorage.setItem("reportSelection", JSON.stringify(updatedReportSelection));
-          } else {
-            console.warn("⚠️ [Reports] No se obtuvieron tolerancias del backend");
           }
         } catch (error) {
-          console.error("❌ [Reports] Error obteniendo tolerancias del backend:", error);
+          // Continuar sin tolerancias si falla
         }
       };
       
@@ -433,7 +433,6 @@ export default function Reporte() {
       fetchTolerancesFromBackend();
     }
     } catch (error) {
-      console.error("Error parsing report selection:", error)
     }
 
     // Obtener fecha actual (solo en cliente para evitar diferencias de hidratación)
@@ -925,20 +924,10 @@ export default function Reporte() {
   const exportChartFromComponent = async (variableName: string): Promise<string | null> => {
     try {
       const chartRef = chartRefs.current.get(variableName);
-      if (!chartRef) {
-        console.warn(`⚠️ No se encontró ref para el gráfico: ${variableName}`);
-        return null;
-      }
-      
+      if (!chartRef) return null;
       const imageData = await chartRef.exportAsImage();
-      if (imageData) {
-          } else {
-        console.warn(`⚠️ No se pudo exportar el gráfico: ${variableName}`);
-      }
-      
-      return imageData;
+      return imageData ?? null;
     } catch (error) {
-      console.error(`❌ Error exportando gráfico ${variableName}:`, error);
       return null;
     }
   };
@@ -974,9 +963,46 @@ export default function Reporte() {
 
       // Crear PDF
       const pdf = new jsPDF("p", "mm", "a4");
+      
+      // Cargar y registrar fuente DejaVu Sans con soporte Unicode para caracteres especiales como Ω
+      let pdfFontName = 'helvetica'; // Por defecto; se actualiza si se carga DejaVu Sans
+      try {
+        // Usar DejaVu Sans desde jsdelivr CDN (fuente con excelente soporte Unicode)
+        // Nota: jsPDF necesita el archivo TTF en formato base64
+        const dejaVuSansUrl = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/fonts/DejaVuSans.ttf';
+        
+        // Cargar la fuente como ArrayBuffer y convertir a base64
+        const fontResponse = await fetch(dejaVuSansUrl);
+        if (fontResponse.ok) {
+          const fontArrayBuffer = await fontResponse.arrayBuffer();
+          const fontBytes = new Uint8Array(fontArrayBuffer);
+          
+          // Convertir a base64 de manera más eficiente
+          let binary = '';
+          const len = fontBytes.byteLength;
+          for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(fontBytes[i]);
+          }
+          const fontBase64 = btoa(binary);
+          
+          // Agregar al sistema de archivos virtual de jsPDF
+          pdf.addFileToVFS('DejaVuSans.ttf', fontBase64);
+          
+          // Registrar la fuente con diferentes estilos
+          pdf.addFont('DejaVuSans.ttf', 'DejaVuSans', 'normal');
+          pdf.addFont('DejaVuSans.ttf', 'DejaVuSans', 'bold');
+          
+          // Usar la fuente por defecto
+          pdf.setFont('DejaVuSans', 'normal');
+          pdfFontName = 'DejaVuSans';
+        }
+      } catch (error) {
+        // Continuar con fuente por defecto si hay error
+      }
+      
       const pageWidthMM = pdf.internal.pageSize.getWidth(); // 210mm
       const pageHeightMM = pdf.internal.pageSize.getHeight(); // 297mm
-      const contentWidthMM = pageWidthMM * 0.7; // 70% del ancho: ~147mm
+      const contentWidthMM = pageWidthMM * 0.9; // 90% del ancho: ~189mm (aumentado para mejor legibilidad)
       const marginLeft = (pageWidthMM - contentWidthMM) / 2; // Centrar el contenido
       const marginTop = 20;
       const marginBottom = 20;
@@ -1005,16 +1031,16 @@ export default function Reporte() {
           headerData = await loadImageAsBase64(headerImg.src);
         }
       } catch (error) {
-        console.warn("⚠️ No se pudo cargar header:", error);
+        // Header no disponible
       }
 
       try {
         const footerImg = document.querySelector('#footer-img img') as HTMLImageElement;
         if (footerImg?.src) {
           footerData = await loadImageAsBase64(footerImg.src);
-          }
-        } catch (error) {
-        console.warn("⚠️ No se pudo cargar footer:", error);
+        }
+      } catch (error) {
+        // Footer no disponible
       }
 
       // Agregar header
@@ -1037,7 +1063,7 @@ export default function Reporte() {
       const reportInfo = [
         `Dirigido a: ${reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING."}`,
         `Asunto: ${reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente || `REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE ${reportSelection?.plant?.nombre || "NOMBRE DE LA PLANTA"}`}`,
-        `Sistema Evaluado: ${reportNotes["sistema"] || reportSelection?.systemName || "Todos los sistemas"}`,
+        `Planta Evaluada: ${reportSelection?.plant?.nombre || "Planta no especificada"}`,
         `Fecha de muestra: ${reportSelection?.fecha || currentDate}`,
       ];
 
@@ -1124,28 +1150,44 @@ export default function Reporte() {
           : Array.from(allVariables);
         
         const systemNames = orderedSystemNames.length > 0 ? orderedSystemNames : Object.keys(reportSelection.parameters);
-        const previewTableHeaders = ["Variable", ...systemNames];
+        // Normalizar los nombres de sistemas para evitar problemas de renderizado
+        const normalizedSystemNames = systemNames.map(name => (name || '').trim().replace(/\s+/g, ' '));
+        const previewTableHeaders = ["Variable", ...normalizedSystemNames];
         const previewTableData = orderedVariableList.map(variable => {
-          // Obtener la unidad del primer sistema que tenga datos para esta variable
-          let unidad = '';
-          for (const systemName of systemNames) {
-            const systemData = reportSelection.parameters[systemName];
-            const paramData = systemData[variable];
-            if (paramData && paramData.unidad) {
-              unidad = paramData.unidad;
-              break;
+          // Normalizar el nombre de la variable
+          const variableNormalized = (variable || '').trim().replace(/\s+/g, ' ');
+          
+          // ESPECIAL: Para "Resistividad", no mostrar la unidad de medida en el PDF
+          // (probablemente se está almacenando incorrectamente en la base de datos)
+          const isResistividad = variableNormalized.toLowerCase() === 'resistividad';
+          
+          let variableWithUnit: string;
+          if (isResistividad) {
+            // Para Resistividad: solo mostrar el nombre sin unidad
+            variableWithUnit = variableNormalized;
+          } else {
+            // Para todas las demás variables: obtener y mostrar la unidad
+            let unidad = '';
+            for (const systemName of systemNames) {
+              const systemData = reportSelection.parameters[systemName];
+              const paramData = systemData[variable];
+              if (paramData && paramData.unidad) {
+                unidad = paramData.unidad;
+                break;
+              }
             }
+            
+            const unidadNormalized = unidad ? unidad.trim().replace(/\s+/g, ' ') : '';
+            variableWithUnit = unidadNormalized ? `${variableNormalized} (${unidadNormalized})` : variableNormalized;
           }
           
-          // Mostrar la unidad junto al nombre del parámetro
-          const variableWithUnit = unidad ? `${variable} (${unidad})` : variable;
           const row: string[] = [variableWithUnit];
           
           systemNames.forEach((systemName: string) => {
             const systemData = reportSelection.parameters[systemName];
             const paramData = systemData?.[variable];
-            // Mostrar solo el valor sin la unidad
-            const value = paramData ? String(paramData.valor) : "—";
+            // Mostrar solo el valor sin la unidad (formateado a 2 decimales)
+            const value = paramData && paramData.valor != null ? formatNumber(paramData.valor) : "—";
             row.push(value);
           });
           return row;
@@ -1157,13 +1199,126 @@ export default function Reporte() {
           body: previewTableData,
           startY: currentY,
           theme: "grid",
-          headStyles: { fillColor: [66, 139, 202] },
           margin: { left: marginLeft, right: marginLeft },
-          styles: { fontSize: 9 },
+          styles: { 
+            fontSize: 9,
+            font: pdfFontName, // Misma fuente que el resto del reporte
+            cellPadding: 2 // Padding consistente
+          },
+          headStyles: { 
+            fillColor: [66, 139, 202],
+            fontSize: 9,
+            font: pdfFontName, // Misma fuente que el resto del reporte
+            fontStyle: 'bold',
+            cellPadding: 3, // Padding ligeramente mayor para encabezados
+            overflow: 'linebreak' // Permitir división de texto largo en encabezados
+          },
+          columnStyles: {
+            0: { 
+              cellWidth: 45, // Ancho reducido para la primera columna (Variable) - era 60mm
+              overflow: 'linebreak', // Dividir texto largo en múltiples líneas
+              fontSize: 9,
+              font: pdfFontName, // Misma fuente que el resto del reporte
+              halign: 'left' // Alinear a la izquierda para mejor legibilidad
+            }
+          },
           didParseCell: (data: any) => {
+            // Manejar texto en la primera columna para evitar desbordamiento y espaciado incorrecto
+            if (data.column.index === 0) {
+              // Obtener el texto original del array de datos
+              const originalText = data.section === 'head' 
+                ? previewTableHeaders[data.column.index]
+                : previewTableData[data.row.index]?.[0];
+              
+              if (originalText && typeof originalText === 'string') {
+                // Limpiar el texto: eliminar espacios múltiples y normalizar
+                // IMPORTANTE: No dividir el texto carácter por carácter, mantenerlo como string completo
+                const cleanText = originalText.trim().replace(/\s+/g, ' '); // Reemplazar múltiples espacios con uno solo
+                
+                // Para el cuerpo de la tabla, dividir solo si es necesario (texto muy largo)
+                if (data.section === 'body') {
+                  const maxWidth = 43; // mm (un poco menos que cellWidth de 45mm para margen)
+                  
+                  // OPCIÓN 1: Para "Resistividad", mantener el texto en una sola línea SIN dividir
+                  // Si el texto es "Resistividad" o contiene caracteres especiales problemáticos, mantenerlo como una sola línea
+                  const isResistividad = cleanText.toLowerCase().includes('resistividad');
+                  
+                  if (isResistividad) {
+                    // Asegurar que se use la misma fuente del reporte
+                    data.cell.styles = data.cell.styles || {};
+                    data.cell.styles.font = pdfFontName;
+                    data.cell.styles.overflow = 'visible'; // Permitir que el texto se extienda si es necesario
+                    
+                    // Reemplazar caracteres problemáticos pero NO dividir el texto
+                    let processedText = cleanText
+                      .replace(/©/g, 'Ω') // Reemplazar © mal renderizado con Ω
+                      .replace(/\s+/g, ' '); // Asegurar un solo espacio entre palabras
+                    
+                    // IMPORTANTE: Mantener el texto en una sola línea sin dividir
+                    data.cell.text = [processedText];
+                  } else if (cleanText.includes('Ω') || cleanText.includes('©') || cleanText.length > 30) {
+                    // Para otros textos problemáticos, usar la misma fuente del reporte pero permitir división
+                    data.cell.styles = data.cell.styles || {};
+                    data.cell.styles.font = pdfFontName;
+                    
+                    let processedText = cleanText
+                      .replace(/©/g, 'Ω')
+                      .replace(/\s+/g, ' ');
+                    
+                    try {
+                      pdf.setFont(pdfFontName);
+                      const lines = pdf.splitTextToSize(processedText, maxWidth);
+                      if (Array.isArray(lines) && lines.length > 0) {
+                        const validLines = lines.filter(line => 
+                          typeof line === 'string' && 
+                          line.trim().length > 0 &&
+                          line.trim().length > 1
+                        );
+                        if (validLines.length > 0) {
+                          data.cell.text = validLines;
+                        } else {
+                          data.cell.text = [processedText];
+                        }
+                      } else {
+                        data.cell.text = [processedText];
+                      }
+                    } catch (error) {
+                      data.cell.text = [processedText];
+                    }
+                  } else {
+                    // Para texto normal, usar el proceso estándar
+                    try {
+                      const lines = pdf.splitTextToSize(cleanText, maxWidth);
+                      if (Array.isArray(lines) && lines.length > 0) {
+                        const validLines = lines.filter(line => typeof line === 'string' && line.trim().length > 0);
+                        if (validLines.length > 0) {
+                          data.cell.text = validLines;
+                        } else {
+                          data.cell.text = [cleanText];
+                        }
+                      } else {
+                        data.cell.text = [cleanText];
+                      }
+                    } catch (error) {
+                      data.cell.text = [cleanText];
+                    }
+                  }
+                } else {
+                  // Para el encabezado, usar el texto limpio directamente
+                  data.cell.text = [cleanText];
+                }
+              } else if (Array.isArray(originalText)) {
+                // Si ya es un array, asegurar que sea un array de strings válidos
+                const validText = originalText.filter(t => typeof t === 'string' && t.length > 0);
+                if (validText.length > 0) {
+                  data.cell.text = validText;
+                }
+              }
+            }
             // Solo aplicar colores a las celdas del cuerpo (no al encabezado)
             if (data.section === 'body' && data.column.index > 0) {
               // Obtener el nombre de la variable (primera columna)
+              // TEMPORALMENTE: Ya no incluye unidad, así que usar directamente el nombre
               const variableName = previewTableData[data.row.index]?.[0];
               // Extraer el nombre sin la unidad (si tiene formato "Variable (unidad)")
               const variableNameClean = variableName ? variableName.split(' (')[0].trim() : '';
@@ -1235,44 +1390,81 @@ export default function Reporte() {
         
         currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
         
-        // Agregar sección de comentarios (siempre visible)
-        currentY = checkSpaceAndAddPage(20, currentY);
-        pdf.setFontSize(12);
-        pdf.text("Comentarios:", marginLeft, currentY);
-        currentY += 8;
-        
+        // Agregar sección de comentarios SOLO si hay comentarios registrados
         if (reportSelection.comentarios && reportSelection.comentarios.trim()) {
+          currentY = checkSpaceAndAddPage(20, currentY);
+          pdf.setFontSize(12);
+          pdf.text("Comentarios:", marginLeft, currentY);
+          currentY += 8;
           pdf.setFontSize(10);
           const commentLines = pdf.splitTextToSize(reportSelection.comentarios, contentWidthMM);
           pdf.text(commentLines, marginLeft, currentY);
           currentY += commentLines.length * 4 + spacingMM;
-        } else {
-          pdf.setFontSize(10);
-          pdf.setTextColor(128, 128, 128); // Gris
-          pdf.setFont('helvetica', 'italic');
-          pdf.text("No hay comentarios registrados.", marginLeft, currentY);
-          pdf.setTextColor(0, 0, 0); // Volver a negro
-          pdf.setFont('helvetica', 'normal');
-          currentY += 8;
         }
       }
 
       // Capturar y agregar gráficos
       // Calcular variables disponibles para verificar si hay gráficos
+      // USAR LA MISMA LÓGICA QUE LA PÁGINA WEB: incluir variables aunque no tengan unidad si tienen valor
       const variablesDisponibles = (() => {
-        const variablesMap = new Map<string, string>();
-        Object.values(reportSelection?.parameters || {}).forEach((systemData: any) => {
+        const variablesMap = new Map<string, { unidad: string; sistemas: string[] }>();
+        const sysNames = orderedSystemNames.length > 0 ? orderedSystemNames : Object.keys(reportSelection?.parameters || {});
+        
+        sysNames.forEach((systemName: string) => {
+          const systemData = reportSelection?.parameters?.[systemName] || {};
           Object.entries(systemData).forEach(([variableName, paramData]: [string, any]) => {
-            if (!variablesMap.has(variableName) && paramData?.unidad) {
-              variablesMap.set(variableName, paramData.unidad);
+            // Normalizar nombre de variable para consistencia
+            const variableNameNorm = (variableName || "").trim();
+            if (!variableNameNorm) return;
+            
+            // Si tiene unidad, agregarla a variablesDisponibles
+            // Si no tiene unidad pero tiene valor, usar unidad vacía para que aparezca en gráficos
+            const unidadParaGrafico = paramData?.unidad || "";
+            if (paramData?.valor != null || paramData?.unidad) {
+              if (!variablesMap.has(variableNameNorm)) {
+                variablesMap.set(variableNameNorm, { unidad: unidadParaGrafico, sistemas: [systemName] });
+              } else {
+                // Si la variable ya existe, agregar el sistema si no está ya incluido
+                const existing = variablesMap.get(variableNameNorm)!;
+                if (!existing.sistemas.includes(systemName)) {
+                  existing.sistemas.push(systemName);
+                }
+                // Actualizar unidad si la nueva tiene unidad y la existente no
+                if (unidadParaGrafico && !existing.unidad) {
+                  existing.unidad = unidadParaGrafico;
+                }
+              }
             }
           });
         });
-        return Array.from(variablesMap.entries()).map(([nombre, unidad]) => ({
-          id: nombre,
-          nombre: nombre,
-          unidad: unidad
-        }));
+        
+        const allVariableNames = Array.from(variablesMap.keys());
+        
+        // Aplicar el mismo orden que la tabla: primero plantOrderVariables, luego parameterOrder, luego alfabético
+        let orderedVariableNames: string[];
+        if (plantOrderVariables.length > 0) {
+          orderedVariableNames = [
+            ...plantOrderVariables.map((v) => v.nombre).filter((n) => allVariableNames.includes(n)),
+            ...allVariableNames.filter((n) => !plantOrderVariables.some((v) => v.nombre === n)),
+          ];
+        } else if (reportSelection?.parameterOrder?.length) {
+          orderedVariableNames = [
+            ...reportSelection.parameterOrder.filter((n) => allVariableNames.includes(n)),
+            ...allVariableNames.filter((n) => !reportSelection.parameterOrder!.includes(n)),
+          ];
+        } else {
+          orderedVariableNames = allVariableNames.sort((a, b) => a.localeCompare(b));
+        }
+        
+        return orderedVariableNames.map((nombre) => {
+          const data = variablesMap.get(nombre)!;
+          return {
+            id: nombre,
+            nombre: nombre,
+            unidad: data.unidad,
+            sistemas: data.sistemas
+          };
+        });
       })();
       
       // Usar las fechas del estado o calcular si no están disponibles
@@ -1307,7 +1499,9 @@ export default function Reporte() {
         for (let i = 0; i < variablesDisponibles.length; i++) {
           const variable = variablesDisponibles[i];
           const variableName = variable.nombre;
-          const chartTitle = `${variableName} (${variable.unidad})`;
+          // En PDF: para Resistividad no mostrar unidad (evitar problemas de caracteres especiales)
+          const isResistividad = variableName.trim().toLowerCase() === 'resistividad';
+          const chartTitle = isResistividad ? variableName : (variable.unidad ? `${variableName} (${variable.unidad})` : variableName);
 
           // Exportar gráfico desde el componente usando ref
           const chartData = await exportChartFromComponent(variableName);
@@ -1345,14 +1539,9 @@ export default function Reporte() {
                 
                 resolve(null);
               };
-              chartImg.onerror = () => {
-                console.error(`❌ Error cargando imagen del gráfico ${i + 1}`);
-                resolve(null);
-              };
+              chartImg.onerror = () => resolve(null);
             });
-      } else {
-            console.warn(`⚠️ No se pudo exportar el gráfico ${i + 1}: ${chartTitle}`);
-          }
+      }
         }
       }
 
@@ -1473,6 +1662,27 @@ export default function Reporte() {
           
           if (parameters.length === 0) continue;
           
+          // Ordenar parámetros igual que el resto del reporte: plantOrderVariables, luego parameterOrder, luego orden API
+          const paramNames = parameters.map(p => p.nombre);
+          let orderedParamNames: string[];
+          if (plantOrderVariables.length > 0) {
+            orderedParamNames = [
+              ...plantOrderVariables.map(v => v.nombre).filter(n => paramNames.includes(n)),
+              ...paramNames.filter(n => !plantOrderVariables.some(v => v.nombre === n))
+            ];
+          } else if (reportSelection?.parameterOrder?.length) {
+            orderedParamNames = [
+              ...reportSelection.parameterOrder.filter(n => paramNames.includes(n)),
+              ...paramNames.filter(n => !reportSelection!.parameterOrder!.includes(n))
+            ];
+          } else {
+            orderedParamNames = [...paramNames].sort((a, b) => a.localeCompare(b));
+          }
+          const parametersOrdered = orderedParamNames
+            .map(nombre => parameters.find(p => p.nombre === nombre))
+            .filter((p): p is { id: string; nombre: string; unidad: string } => p != null);
+          parameters = parametersOrdered;
+          
           // Título del sistema
           currentY = checkSpaceAndAddPage(15, currentY);
           pdf.setFontSize(12);
@@ -1506,7 +1716,8 @@ export default function Reporte() {
           );
           
           // Preparar datos de la tabla (incluyendo columna de COMENTARIOS)
-          const tableHeaders = ["PARAMETROS", ...parameters.map(p => `${p.nombre}\n(${p.unidad})`), "COMENTARIOS"];
+          // Si el parámetro no tiene unidad (ej. pH), no mostrar paréntesis vacíos
+          const tableHeaders = ["PARAMETROS", ...parameters.map(p => (p.unidad && String(p.unidad).trim()) ? `${p.nombre}\n(${p.unidad})` : p.nombre), "COMENTARIOS"];
           
           // Fila ALTO
           const altoRow = ["ALTO", ...parameters.map(p => 
@@ -1580,19 +1791,17 @@ export default function Reporte() {
           // Crear tabla con AutoTable
           const tableData = [altoRow, bajoRow, rangosRow, ...dataRows];
           
-          // Reducir el tamaño de la tabla en un 35% (65% del tamaño original)
-          // Si el tamaño original era 95%, ahora será: 95% * 0.65 = 61.75%
-          const tableWidthMM = pageWidthMM * 0.6175; // 65% del tamaño original (95% * 0.65)
-          // Alinear la tabla a la izquierda con un margen pequeño
-          const tableMarginLeft = 10; // Margen izquierdo pequeño para pegar la tabla a la izquierda
-          const tableMarginRight = pageWidthMM - tableWidthMM - tableMarginLeft; // El resto del espacio a la derecha
+          // Mismo ancho que los gráficos (contentWidthMM) para consistencia visual
+          const tableWidthMM = contentWidthMM;
+          const tableMarginLeft = marginLeft;
+          const tableMarginRight = marginLeft; // Mismos márgenes que el resto del contenido
           
           autoTable(pdf, {
             head: [tableHeaders],
             body: tableData,
             startY: currentY,
             theme: "grid",
-            tableWidth: tableWidthMM, // Especificar el ancho de la tabla explícitamente
+            tableWidth: tableWidthMM,
             headStyles: { 
               fillColor: [31, 78, 121], // Azul oscuro
               textColor: [255, 255, 255],
@@ -1662,12 +1871,15 @@ export default function Reporte() {
         currentY += commentLines.length * 5 + spacingMM;
       }
 
-      // Pie de página: Planta (dato del sistema) y fecha de generación
+      // Pie de página: solo fecha de generación (no mostrar "Planta" si no hay nombre válido o es "Sistema no especificado")
       currentY = checkSpaceAndAddPage(30, currentY);
       pdf.setFontSize(10);
-      const plantaLabel = reportSelection?.systemName ?? reportSelection?.plant?.nombre ?? "";
-      pdf.text(`Planta: ${plantaLabel}`, marginLeft, currentY);
-      currentY += 5;
+      const plantaNombre = (reportSelection?.plant?.nombre ?? "").trim();
+      const plantaLabelInvalido = !plantaNombre || plantaNombre.toLowerCase().includes("sistema no especificado");
+      if (!plantaLabelInvalido) {
+        pdf.text(`Planta: ${plantaNombre}`, marginLeft, currentY);
+        currentY += 5;
+      }
       pdf.text(`Fecha de generación: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleString('es-ES')}`, marginLeft, currentY);
       currentY += spacingMM;
 
@@ -1817,32 +2029,67 @@ export default function Reporte() {
   }
 
   // Obtener variables disponibles para gráficos desde parameters con sus unidades y sistemas
+  // Ordenar según el mismo orden que la tabla (plantOrderVariables o parameterOrder)
   const variablesDisponibles = (() => {
     const variablesMap = new Map<string, { unidad: string; sistemas: string[] }>(); // Map<variableName, {unidad, sistemas[]}>
     const sysNames = orderedSystemNames.length > 0 ? orderedSystemNames : Object.keys(reportSelection?.parameters || {});
     sysNames.forEach((systemName: string) => {
       const systemData = reportSelection?.parameters?.[systemName] || {};
       Object.entries(systemData).forEach(([variableName, paramData]: [string, any]) => {
-        if (paramData?.unidad) {
-          if (!variablesMap.has(variableName)) {
-            variablesMap.set(variableName, { unidad: paramData.unidad, sistemas: [systemName] });
+        // Normalizar nombre de variable para consistencia
+        const variableNameNorm = (variableName || "").trim();
+        if (!variableNameNorm) return;
+        
+        // Si tiene unidad, agregarla a variablesDisponibles
+        // Si no tiene unidad pero tiene valor, usar unidad vacía para que aparezca en gráficos
+        const unidadParaGrafico = paramData?.unidad || "";
+        if (paramData?.valor != null || paramData?.unidad) {
+          if (!variablesMap.has(variableNameNorm)) {
+            variablesMap.set(variableNameNorm, { unidad: unidadParaGrafico, sistemas: [systemName] });
           } else {
             // Si la variable ya existe, agregar el sistema si no está ya incluido
-            const existing = variablesMap.get(variableName)!;
+            const existing = variablesMap.get(variableNameNorm)!;
             if (!existing.sistemas.includes(systemName)) {
               existing.sistemas.push(systemName);
+            }
+            // Actualizar unidad si la nueva tiene unidad y la existente no
+            if (unidadParaGrafico && !existing.unidad) {
+              existing.unidad = unidadParaGrafico;
             }
           }
         }
       });
     });
     
-    return Array.from(variablesMap.entries()).map(([nombre, data]) => ({
-      id: nombre, // Usar el nombre como ID para los gráficos
-      nombre: nombre,
-      unidad: data.unidad,
-      sistemas: data.sistemas // Lista de sistemas donde aparece esta variable
-    }));
+    const allVariableNames = Array.from(variablesMap.keys());
+    
+    // Aplicar el mismo orden que la tabla: primero plantOrderVariables, luego parameterOrder, luego alfabético
+    let orderedVariableNames: string[];
+    if (plantOrderVariables.length > 0) {
+      orderedVariableNames = [
+        ...plantOrderVariables.map((v) => v.nombre).filter((n) => allVariableNames.includes(n)),
+        ...allVariableNames.filter((n) => !plantOrderVariables.some((v) => v.nombre === n)),
+      ];
+    } else if (reportSelection?.parameterOrder?.length) {
+      orderedVariableNames = [
+        ...reportSelection.parameterOrder.filter((n) => allVariableNames.includes(n)),
+        ...allVariableNames.filter((n) => !reportSelection.parameterOrder!.includes(n)),
+      ];
+    } else {
+      orderedVariableNames = allVariableNames.sort((a, b) => a.localeCompare(b));
+    }
+    
+    const resultado = orderedVariableNames.map((nombre) => {
+      const data = variablesMap.get(nombre)!;
+      return {
+        id: nombre, // Usar el nombre como ID para los gráficos
+        nombre: nombre,
+        unidad: data.unidad,
+        sistemas: data.sistemas // Lista de sistemas donde aparece esta variable
+      };
+    });
+    
+    return resultado;
   })();
   
   // Calcular fechas para los últimos 12 meses (solo en cliente)
@@ -1900,6 +2147,8 @@ export default function Reporte() {
         };
         
         reportes.forEach((report: any) => {
+          // SOLO usar report.datos (columna JSON de tabla reportes), NO usar tabla mediciones
+          // report.reportSelection es solo fallback por compatibilidad, pero la fuente principal es report.datos
           const datos = report.datos || report.reportSelection || {};
           const fechaRaw = datos.fecha || report.fecha || report.created_at;
           if (!fechaRaw) return;
@@ -1908,15 +2157,25 @@ export default function Reporte() {
           const plantaId = report.planta_id || datos.plant?.id;
           if (plantaId !== reportSelection.plant.id) return;
 
+          // Extraer parámetros SOLO desde datos.parameters (que viene de report.datos)
+          // NO usar ninguna otra fuente como mediciones o report.mediciones
           const parametersData = datos.parameters || {};
           Object.entries(parametersData).forEach(([sistema, params]: [string, any]) => {
             if (!params || typeof params !== "object") return;
             const sistemaNorm = (sistema || "").trim();
             Object.entries(params).forEach(([variableName, paramData]: [string, any]) => {
               const valor = paramData?.valor ?? paramData?.value;
-              if (valor == null || Number.isNaN(Number(valor))) return;
-              if (!byVariable[variableName]) byVariable[variableName] = [];
-              byVariable[variableName].push({ fecha, sistema: sistemaNorm, valor: Number(valor) });
+              // Permitir 0 y valores negativos (pH puede ser < 7, otros parámetros pueden ser 0)
+              // Validación mejorada: solo excluir null, undefined, string vacío, o NaN
+              if (valor == null || valor === "" || (typeof valor !== "number" && Number.isNaN(Number(valor)))) return;
+              const valorNum = typeof valor === "number" ? valor : Number(valor);
+              if (Number.isNaN(valorNum)) return;
+              // Normalizar nombre de variable: trim y usar como clave consistente
+              const variableNameNorm = (variableName || "").trim();
+              if (!variableNameNorm) return;
+              if (!byVariable[variableNameNorm]) byVariable[variableNameNorm] = [];
+              byVariable[variableNameNorm].push({ fecha, sistema: sistemaNorm, valor: valorNum });
+              
             });
           });
         });
@@ -1946,7 +2205,6 @@ export default function Reporte() {
       )
       
       if (!systemsResponse.ok) {
-        console.error(`Error obteniendo sistemas para planta ${plantName}`)
         return []
       }
       
@@ -1956,7 +2214,6 @@ export default function Reporte() {
       // Buscar el sistema por nombre
       const systemInfo = systemsList.find((sys: any) => sys.nombre === systemName)
       if (!systemInfo || !systemInfo.id) {
-        console.warn(`Sistema "${systemName}" no encontrado`)
         return []
       }
       
@@ -1969,7 +2226,6 @@ export default function Reporte() {
       )
       
       if (!varsResponse.ok) {
-        console.error(`Error obteniendo variables del sistema ${systemName}`)
         return []
       }
       
@@ -2286,15 +2542,12 @@ export default function Reporte() {
                     </p>
 
                     <p>
-                      <strong>Sistema Evaluado: </strong>
+                      <strong>Planta Evaluada: </strong>
                       <span
-                        contentEditable={isEditing && userRole !== "client"}
-                        suppressContentEditableWarning={true}
-                        onBlur={(e) => userRole !== "client" && handleNoteChange("sistema", e.currentTarget.innerText)}
                         className="border-bottom"
-                        style={{ minWidth: "300px", display: "inline-block", cursor: userRole === "client" ? "default" : "text" }}
+                        style={{ minWidth: "300px", display: "inline-block" }}
                       >
-                        {reportNotes["sistema"] || (reportSelection?.systemName ?? "Todos los sistemas")}
+                        {reportSelection?.plant?.nombre || "Planta no especificada"}
                       </span>
                     </p>
 
@@ -2490,7 +2743,7 @@ export default function Reporte() {
                                           aria-label={`Valor ${variable} en ${systemName}`}
                                         />
                                       ) : (
-                                        paramData?.valor != null ? paramData.valor : "—"
+                                        formatNumber(paramData?.valor)
                                       )}
                                     </td>
                                   );
@@ -2554,8 +2807,66 @@ export default function Reporte() {
                         ? variable.sistemas[0] 
                         : undefined;
 
+                      // Buscar datos normalizando el nombre (por si hay diferencias de espacios)
+                      // IMPORTANTE: Siempre pasar un array (incluso vacío) para que SensorTimeSeriesChart NO haga llamadas a API de mediciones
+                      // Los datos vienen SOLO de reportes.datos (tabla reportes), NO de tabla mediciones
+                      const nombreNormalizado = variable.nombre.trim();
+                      let medicionesData: Array<{ fecha: string; sistema: string; valor: number }> = [];
+                      
+                      // Buscar en chartDataFromReportes (que viene SOLO de reportes.datos de reportes guardados)
+                      if (chartDataFromReportes && typeof chartDataFromReportes === 'object') {
+                        medicionesData = chartDataFromReportes[nombreNormalizado] || [];
+                        
+                        // Si no se encuentra con el nombre exacto, buscar variaciones (espacios, mayúsculas)
+                        if (medicionesData.length === 0) {
+                          const posiblesClaves = Object.keys(chartDataFromReportes).filter(k => 
+                            k.trim().toLowerCase() === nombreNormalizado.toLowerCase()
+                          );
+                          if (posiblesClaves.length > 0) {
+                            medicionesData = chartDataFromReportes[posiblesClaves[0]] || [];
+                          }
+                        }
+                      }
+                      
+                      // FALLBACK: Si chartDataFromReportes no tiene datos para esta variable, usar reportSelection.parameters
+                      // (misma fuente que la tabla, para que el gráfico muestre datos aunque el reporte no esté guardado aún)
+                      if (medicionesData.length === 0 && reportSelection?.parameters && reportSelection?.fecha) {
+                        const fechaReporte = reportSelection.fecha.includes("T") 
+                          ? reportSelection.fecha.split("T")[0] 
+                          : reportSelection.fecha;
+                        const datosDesdeReportSelection: Array<{ fecha: string; sistema: string; valor: number }> = [];
+                        
+                        // Recorrer todos los sistemas en orderedSystemNames
+                        orderedSystemNames.forEach((systemName: string) => {
+                          const systemData = reportSelection.parameters[systemName];
+                          const paramData = systemData?.[variable.nombre] || systemData?.[nombreNormalizado];
+                          // Usar solo paramData?.valor (no existe .value en el tipo)
+                          const valor = paramData?.valor;
+                          
+                          // Permitir 0 y valores negativos (pH puede ser < 7)
+                          // valor es number | null | undefined, así que solo verificar que sea un número válido
+                          if (valor != null && typeof valor === "number" && !Number.isNaN(valor)) {
+                            const valorNum = valor; // Ya es number, no necesita conversión
+                            datosDesdeReportSelection.push({
+                              fecha: fechaReporte,
+                              sistema: systemName.trim(),
+                              valor: valorNum
+                            });
+                          }
+                        });
+                        
+                        if (datosDesdeReportSelection.length > 0) {
+                          medicionesData = datosDesdeReportSelection;
+                        }
+                      }
+                      
+                      // Asegurar que siempre sea un array válido (nunca undefined/null) para evitar llamadas a API
+                      if (!Array.isArray(medicionesData)) {
+                        medicionesData = [];
+                      }
+                      
                       return (
-                      <div key={variable.id} className="border rounded-lg p-4 bg-white">
+                        <div key={variable.id} className="border rounded-lg p-4 bg-white">
                         <div>
                           {chartStartDate && chartEndDate && (
                             <div className="w-full">
@@ -2573,7 +2884,9 @@ export default function Reporte() {
                                 clientName={reportSelection?.plant?.nombre}
                                 processName={primarySystemName}
                                 userId={reportSelection?.user?.id}
-                                medicionesFromReportes={chartDataFromReportes[variable.nombre] || []}
+                                medicionesFromReportes={medicionesData}
+                                // IMPORTANTE: medicionesData siempre es un array (incluso vacío) para que SensorTimeSeriesChart
+                                // NO haga llamadas a API de mediciones. Los datos vienen SOLO de reportes.datos
                               />
                             </div>
                           )}
@@ -2597,8 +2910,8 @@ export default function Reporte() {
                             />
                           </div>
                         )}
-                      </div>
-                      )
+                        </div>
+                      );
                     })}
                   </div>
                 </div>
@@ -2629,7 +2942,29 @@ export default function Reporte() {
                   )}
                   
                   {orderedSystemNames.map((systemName) => {
-                    const parameters = systemParameters[systemName] || []
+                    const parametersRaw = systemParameters[systemName] || []
+                    // Ordenar parámetros igual que el resto del reporte: plantOrderVariables, luego parameterOrder
+                    const parameters = (() => {
+                      if (parametersRaw.length === 0) return []
+                      const paramNames = parametersRaw.map(p => p.nombre)
+                      let orderedNames: string[]
+                      if (plantOrderVariables.length > 0) {
+                        orderedNames = [
+                          ...plantOrderVariables.map(v => v.nombre).filter(n => paramNames.includes(n)),
+                          ...paramNames.filter(n => !plantOrderVariables.some(v => v.nombre === n))
+                        ]
+                      } else if (reportSelection?.parameterOrder?.length) {
+                        orderedNames = [
+                          ...reportSelection.parameterOrder.filter(n => paramNames.includes(n)),
+                          ...paramNames.filter(n => !reportSelection.parameterOrder!.includes(n))
+                        ]
+                      } else {
+                        return parametersRaw
+                      }
+                      return orderedNames
+                        .map(nombre => parametersRaw.find(p => p.nombre === nombre))
+                        .filter((p): p is { id: string; nombre: string; unidad: string } => p != null)
+                    })()
                     const historicalData = historicalDataBySystem[systemName] || {}
                     const isLoading = historicalLoading[systemName] || false
                     const error = historicalError[systemName]
@@ -2681,7 +3016,9 @@ export default function Reporte() {
                                   {parameters.map((param) => (
                                     <th key={param.id} className="border px-1 py-2 text-center font-semibold">
                                       <div className="text-xs">{param.nombre}</div>
-                                      <div className="text-xs font-normal">({param.unidad})</div>
+                                      {param.unidad && String(param.unidad).trim() ? (
+                                        <div className="text-xs font-normal">({param.unidad})</div>
+                                      ) : null}
                                     </th>
                                   ))}
                                   <th className="border px-2 py-2 text-left font-semibold w-32">COMENTARIOS</th>
@@ -2751,7 +3088,7 @@ export default function Reporte() {
                                               isOutOfRange ? "bg-yellow-300 font-semibold" : ""
                                             }`}
                                           >
-                                            {valor !== undefined ? valor.toFixed(2) : "—"}
+                                            {formatNumber(valor)}
                                           </td>
                                         )
                                       })}

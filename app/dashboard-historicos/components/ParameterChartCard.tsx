@@ -15,6 +15,7 @@ interface ParameterChartCardProps {
 
 /** Tarjeta con gráfico de línea (valor vs fecha del reporte) y resumen Alto/Prom/Bajo para un parámetro */
 export function ParameterChartCard({ param, data }: ParameterChartCardProps) {
+  // Todos los hooks deben estar al principio, antes de cualquier early return
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const [tooltip, setTooltip] = useState<{
     point: ParameterChartDataPoint
@@ -22,27 +23,10 @@ export function ParameterChartCard({ param, data }: ParameterChartCardProps) {
     top: number
   } | null>(null)
 
-  if (data.length === 0) {
-    return (
-      <Card className="h-full shadow-sm">
-        <CardHeader className="py-2 px-3">
-          <div className="flex justify-between items-center">
-            <h6 className="mb-0 text-primary font-semibold">{param.nombre}</h6>
-            <small className="text-muted">{param.unidad}</small>
-          </div>
-        </CardHeader>
-        <CardContent className="py-3 px-3">
-          <div className="flex items-center justify-center py-8 text-muted text-sm">
-            No hay datos en el rango seleccionado
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  const maxValue = Math.max(...data.map((d) => d.value))
-  const minValue = Math.min(...data.map((d) => d.value))
-  const avgValue = data.reduce((sum, d) => sum + d.value, 0) / data.length
+  // Calcular valores solo si hay datos, pero los hooks ya están declarados
+  const maxValue = data.length > 0 ? Math.max(...data.map((d) => d.value)) : 0
+  const minValue = data.length > 0 ? Math.min(...data.map((d) => d.value)) : 0
+  const avgValue = data.length > 0 ? data.reduce((sum, d) => sum + d.value, 0) / data.length : 0
   const valueRange = maxValue - minValue || Math.abs(maxValue) * 0.1 || 1
   const adjustedMin = minValue - valueRange * 0.1
   const adjustedMax = maxValue + valueRange * 0.1
@@ -55,11 +39,13 @@ export function ParameterChartCard({ param, data }: ParameterChartCardProps) {
   const plotWidth = chartWidth - padding.left - padding.right
   const plotHeight = chartHeight - padding.top - padding.bottom
 
-  const chartPoints = data.map((d, i) => {
-    const x = padding.left + (i / Math.max(data.length - 1, 1)) * plotWidth
-    const y = padding.top + ((adjustedMax - d.value) / adjustedRange) * plotHeight
-    return { x, y, value: d.value, timestamp: d.timestamp }
-  })
+  const chartPoints = data.length > 0
+    ? data.map((d, i) => {
+        const x = padding.left + (i / Math.max(data.length - 1, 1)) * plotWidth
+        const y = padding.top + ((adjustedMax - d.value) / adjustedRange) * plotHeight
+        return { x, y, value: d.value, timestamp: d.timestamp }
+      })
+    : []
 
   const areaPath =
     chartPoints.length > 0
@@ -69,6 +55,7 @@ export function ParameterChartCard({ param, data }: ParameterChartCardProps) {
 
   const gradientId = `hist-gradient-${param.id}`
 
+  // Los useCallback deben estar después de todos los otros hooks pero antes del early return
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const el = chartContainerRef.current
@@ -99,6 +86,25 @@ export function ParameterChartCard({ param, data }: ParameterChartCardProps) {
   const handleMouseLeave = useCallback(() => {
     setTooltip(null)
   }, [])
+
+  // Ahora sí podemos hacer el early return después de todos los hooks
+  if (data.length === 0) {
+    return (
+      <Card className="h-full shadow-sm">
+        <CardHeader className="py-2 px-3">
+          <div className="flex justify-between items-center">
+            <h6 className="mb-0 text-primary font-semibold">{param.nombre}</h6>
+            <small className="text-muted">{param.unidad}</small>
+          </div>
+        </CardHeader>
+        <CardContent className="py-3 px-3">
+          <div className="flex items-center justify-center py-8 text-muted text-sm">
+            No hay datos en el rango seleccionado
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <Card className="h-full shadow-sm">
@@ -219,7 +225,7 @@ export function ParameterChartCard({ param, data }: ParameterChartCardProps) {
                   fill="#374151"
                   fontWeight="500"
                 >
-                  {val.toFixed(1)}
+                  {val.toFixed(2)}
                 </text>
               )
             })}
@@ -255,21 +261,21 @@ export function ParameterChartCard({ param, data }: ParameterChartCardProps) {
             className="p-2 rounded shadow-sm"
             style={{ backgroundColor: "#d4edda", border: "1px solid #c3e6cb" }}
           >
-            <div className="font-bold text-dark text-sm">{maxValue.toFixed(1)}</div>
+            <div className="font-bold text-dark text-sm">{maxValue.toFixed(2)}</div>
             <div className="text-muted text-xs">Alto</div>
           </div>
           <div
             className="p-2 rounded shadow-sm"
             style={{ backgroundColor: "#cce5ff", border: "1px solid #b3d9ff" }}
           >
-            <div className="font-bold text-dark text-sm">{avgValue.toFixed(1)}</div>
+            <div className="font-bold text-dark text-sm">{avgValue.toFixed(2)}</div>
             <div className="text-muted text-xs">Prom</div>
           </div>
           <div
             className="p-2 rounded shadow-sm"
             style={{ backgroundColor: "#f8d7da", border: "1px solid #f5c6cb" }}
           >
-            <div className="font-bold text-dark text-sm">{minValue.toFixed(1)}</div>
+            <div className="font-bold text-dark text-sm">{minValue.toFixed(2)}</div>
             <div className="text-muted text-xs">Bajo</div>
           </div>
         </div>

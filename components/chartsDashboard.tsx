@@ -100,12 +100,6 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
     }
   }, [selectedPlant, activeSystem]);
 
-  // Debug logging
-  // console.log("ChartsDashboard - Plants:", plants.length);
-  // console.log("ChartsDashboard - Historical Data Keys:", Object.keys(historicalData));
-  // console.log("ChartsDashboard - Selected Plant:", selectedPlant?.nombre);
-  // console.log("ChartsDashboard - Selected System:", selectedSystem?.name);
-
   return (
     <div className="row mb-4">
       <div className="col-12">
@@ -413,7 +407,7 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                                 fill="#374151"
                                                 fontWeight="500"
                                               >
-                                                {val.toFixed(1)}
+                                                {val.toFixed(2)}
                                               </text>
                                             );
                                           })}
@@ -444,19 +438,19 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                       <div className="row g-2 text-center mt-2">
                                         <div className="col-4">
                                           <div className="p-2 rounded shadow-sm" style={{ backgroundColor: '#d4edda', border: '1px solid #c3e6cb' }}>
-                                            <div className="fw-bold text-dark" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>{maxValue.toFixed(1)}</div>
+                                            <div className="fw-bold text-dark" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>{maxValue.toFixed(2)}</div>
                                             <div className="text-muted" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>Alto</div>
                                           </div>
                                         </div>
                                         <div className="col-4">
                                           <div className="p-2 rounded shadow-sm" style={{ backgroundColor: '#cce5ff', border: '1px solid #b3d9ff' }}>
-                                            <div className="fw-bold text-dark" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>{avgValue.toFixed(1)}</div>
+                                            <div className="fw-bold text-dark" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>{avgValue.toFixed(2)}</div>
                                             <div className="text-muted" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>Prom</div>
                                           </div>
                                         </div>
                                         <div className="col-4">
                                           <div className="p-2 rounded shadow-sm" style={{ backgroundColor: '#f8d7da', border: '1px solid #f5c6cb' }}>
-                                            <div className="fw-bold text-dark" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>{minValue.toFixed(1)}</div>
+                                            <div className="fw-bold text-dark" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>{minValue.toFixed(2)}</div>
                                             <div className="text-muted" style={{ fontSize: '0.7rem', lineHeight: '1.2' }}>Bajo</div>
                                           </div>
                                         </div>
@@ -542,7 +536,7 @@ const ChartsDashboard: React.FC<ChartsDashboardProps> = ({
                                     <div className="card-body">
                                       <h6 className="card-title">Estadísticas Generales</h6>
                                       <p className="mb-1"><strong>Total de Puntos:</strong> {selectedSystem.parameters.reduce((sum, p) => sum + (historicalData[selectedSystem.id]?.[p.id]?.length || 0), 0)}</p>
-                                      <p className="mb-1"><strong>Promedio por Parámetro:</strong> {(selectedSystem.parameters.reduce((sum, p) => sum + (historicalData[selectedSystem.id]?.[p.id]?.length || 0), 0) / selectedSystem.parameters.length).toFixed(1)}</p>
+                                      <p className="mb-1"><strong>Promedio por Parámetro:</strong> {(selectedSystem.parameters.reduce((sum, p) => sum + (historicalData[selectedSystem.id]?.[p.id]?.length || 0), 0) / selectedSystem.parameters.length).toFixed(2)}</p>
                                       <p className="mb-0"><strong>Estado:</strong> <span className="badge bg-success">Activo</span></p>
                                     </div>
                                   </div>

@@ -14,6 +14,8 @@ interface Reporte {
   usuario: string;
   fecha: string;
   estado: string;
+  /** Habilitado para que se pueda ver el reporte (solo se listan los que tienen estatus true) */
+  estatus?: boolean;
   // Datos resumen
   totalParametros: number;
   totalTolerancias: number;
@@ -79,6 +81,13 @@ export default function ReportList() {
   const [sortField, setSortField] = useState<string>("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   
+  // Función helper para formatear números a 2 decimales
+  const formatNumber = (value: number | null | undefined): string => {
+    if (value == null || value === undefined) return "—"
+    if (typeof value !== "number" || Number.isNaN(value)) return "—"
+    return value.toFixed(2)
+  }
+  
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedUser = localStorage.getItem('Organomex_user');
@@ -101,90 +110,58 @@ export default function ReportList() {
         return;
       }
 
-      console.log("📊 ReportList - Cargando reportes desde:", `${API_BASE_URL}${API_ENDPOINTS.REPORTS}`);
-      
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+      const params = new URLSearchParams();
+      params.set("limit", "5000");
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-
-      console.log("📊 ReportList - Respuesta de API:", response.status, response.statusText);
 
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
-      console.log("📊 ReportList - Datos recibidos:", data);
-      console.log("📊 ReportList - Cantidad de reportes:", data.reportes?.length || 0);
-      
-      if (data.reportes && data.reportes.length > 0) {
-        console.log("🔍 Primer reporte recibido:", {
-          id: data.reportes[0].id,
-          planta_id: data.reportes[0].planta_id,
-          proceso_id: data.reportes[0].proceso_id,
-          usuario_id: data.reportes[0].usuario_id,
-          cliente_id: data.reportes[0].cliente_id
-        });
-      }
 
       if (data.ok && data.reportes) {
-        const reportesFormateados = data.reportes.map((reporte: any) => {
-          // Extraer datos del JSONB (igual que dashboard)
-          const datosJsonb = reporte.datos || {};
-          
-          console.log("🔍 ReportList - Procesando reporte:", {
-            id: reporte.id,
-            titulo: reporte.titulo,
-            datosJsonb: datosJsonb,
-            plantName_from_jsonb: datosJsonb.plant?.nombre,
-            systemName_from_jsonb: datosJsonb.systemName,
-            user_from_jsonb: datosJsonb.user?.username,
-            fecha_from_jsonb: datosJsonb.fecha
-          });
-          
-          const titulo = reporte.titulo || reporte.nombre || `Reporte ${reporte.id}`;
-          const planta = datosJsonb.plant?.nombre || reporte.planta || reporte.plantName || "Planta no especificada";
-          const sistema = datosJsonb.systemName || reporte.sistema || reporte.systemName || "Sistema no especificado";
-          const usuario = datosJsonb.user?.username || reporte.usuario || "Usuario desconocido";
-          const fecha = datosJsonb.fecha || reporte.fecha || new Date().toISOString().split('T')[0];
-          const estado = reporte.estado || "Completado";
-          
-          // Contar parámetros y tolerancias desde datos JSONB
-          const totalParametros = datosJsonb.parameters ? 
-            Object.values(datosJsonb.parameters).reduce((acc: number, sistema: any) => 
-              acc + Object.keys(sistema).length, 0) : 0;
-          const totalTolerancias = datosJsonb.variablesTolerancia ? 
-            Object.keys(datosJsonb.variablesTolerancia).length : 0;
-          
-          return {
-            id: reporte.id,
-            titulo,
-            planta,
-            sistema,
-            usuario,
-            fecha,
-            estado,
-            // Datos resumen
-            totalParametros,
-            totalTolerancias,
-            comentarios: reporte.comentarios || reporte.observaciones || "",
-            fechaGeneracion: reporte.fechaGeneracion || reporte.fecha_creacion || reporte.created_at || new Date().toISOString(),
-            usuario_id: reporte.usuario_id || "",
-            // Incluir planta_id de la tabla reportes
-            planta_id: reporte.planta_id || "",
-            // Incluir datos JSONB completos para análisis (igual que dashboard)
-            datosJsonb: reporte.datos || {}
-          };
-        });
+        const reportesFormateados = data.reportes
+          .map((reporte: any) => {
+            const datosJsonb = reporte.datos || {};
+            const titulo = reporte.titulo || reporte.nombre || `Reporte ${reporte.id}`;
+            const planta = datosJsonb.plant?.nombre || reporte.planta || reporte.plantName || "Planta no especificada";
+            const sistema = datosJsonb.systemName || reporte.sistema || reporte.systemName || "Sistema no especificado";
+            const usuario = datosJsonb.user?.username || reporte.usuario || "Usuario desconocido";
+            const fecha = datosJsonb.fecha || reporte.fecha || new Date().toISOString().split('T')[0];
+            const estado = reporte.estado || "Completado";
+            const estatus = typeof reporte.estatus === "boolean" ? reporte.estatus : false;
+            const totalParametros = datosJsonb.parameters
+              ? Object.values(datosJsonb.parameters).reduce((acc: number, s: any) => acc + Object.keys(s).length, 0)
+              : 0;
+            const totalTolerancias = datosJsonb.variablesTolerancia ? Object.keys(datosJsonb.variablesTolerancia).length : 0;
+            return {
+              id: reporte.id,
+              titulo,
+              planta,
+              sistema,
+              usuario,
+              fecha,
+              estado,
+              estatus,
+              totalParametros,
+              totalTolerancias,
+              comentarios: reporte.comentarios || reporte.observaciones || "",
+              fechaGeneracion: reporte.fechaGeneracion || reporte.fecha_creacion || reporte.created_at || new Date().toISOString(),
+              usuario_id: reporte.usuario_id || "",
+              planta_id: reporte.planta_id || "",
+              datosJsonb: reporte.datos || {}
+            };
+          })
+          .filter((r: Reporte) => r.estatus === true);
 
-        console.log("📊 ReportList - Reportes formateados:", reportesFormateados.length);
         setReportes(reportesFormateados);
       } else {
-        console.log("📊 ReportList - No hay reportes en la respuesta");
         setReportes([]);
       }
     } catch (err: any) {
-      console.error("📊 ReportList - Error cargando reportes:", err);
       setError(`Error al cargar reportes: ${err.message}`);
       setReportes([]);
     } finally {
@@ -300,10 +277,7 @@ export default function ReportList() {
   // Función para manejar la vista del reporte (obtiene orden de parámetros y sistemas para que /reports muestre la tabla en el orden correcto también para cliente)
   const handleViewReport = async (report: any) => {
     try {
-      console.log("👁️ Visualizando reporte desde dashboard-reportList:", report);
-      
       if (!report.planta_id) {
-        console.error("❌ Error: No se encontró planta_id en los datos del reporte");
         alert("Error: No se pueden visualizar reportes sin datos de planta completos");
         return;
       }
@@ -368,14 +342,11 @@ export default function ReportList() {
         ...(systemOrder?.length && { systemOrder }),
       };
 
-      console.log("📄 reportSelection reconstruido desde dashboard-reportList:", reportSelection);
-      
       localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
       localStorage.setItem("viewMode", "preview");
       router.push("/reports");
       
     } catch (error) {
-      console.error("❌ Error al preparar vista del reporte desde dashboard-reportList:", error);
       alert("Error al preparar la vista del reporte");
     }
   };
@@ -383,32 +354,8 @@ export default function ReportList() {
   // Función para manejar la descarga del PDF
   const handleDownloadPDF = async (reporte: Reporte) => {
     try {
-      console.log("📥 ===== INICIANDO DESCARGA DE PDF =====");
-      console.log("📥 Reporte completo recibido:", reporte);
-      console.log("📥 Datos básicos del reporte:", {
-        id: reporte.id,
-        titulo: reporte.titulo,
-        planta: reporte.planta,
-        sistema: reporte.sistema,
-        usuario: reporte.usuario,
-        fecha: reporte.fecha,
-        estado: reporte.estado,
-        planta_id: reporte.planta_id,
-        usuario_id: reporte.usuario_id
-      });
-      console.log("📥 Datos JSONB disponibles:", reporte.datosJsonb);
-      console.log("📥 Parámetros en JSONB:", reporte.datosJsonb?.parameters);
-      console.log("📥 Variables de tolerancia:", reporte.datosJsonb?.variablesTolerancia);
-      console.log("📥 Usuario en JSONB:", reporte.datosJsonb?.user);
-      console.log("📥 Planta en JSONB:", reporte.datosJsonb?.plant);
-      console.log("📥 SystemName en JSONB:", reporte.datosJsonb?.systemName);
-      console.log("📥 Comentarios:", reporte.comentarios);
-      console.log("📥 Fecha de generación:", reporte.fechaGeneracion);
-      console.log("📥 ===== FIN DE DATOS DISPONIBLES =====");
-      
       // Validar que tenemos los datos mínimos necesarios
       if (!reporte.planta_id) {
-        console.error("❌ Error: No se encontró planta_id en los datos del reporte");
         alert("Error: No se pueden descargar reportes sin datos de planta completos");
         return;
       }
@@ -440,48 +387,10 @@ export default function ReportList() {
         cliente_id: reporte.datosJsonb?.user?.cliente_id || null
       };
 
-      console.log("📄 ===== REPORT SELECTION RECONSTRUIDO =====");
-      console.log("📄 reportSelection completo:", reportSelection);
-      console.log("📊 Datos de parámetros:", reportSelection.parameters);
-      console.log("📊 Datos de tolerancias:", reportSelection.variablesTolerancia);
-      console.log("📊 Datos JSONB originales:", reporte.datosJsonb);
-      console.log("📄 Estructura del reportSelection:", {
-        user: {
-          id: reportSelection.user.id,
-          username: reportSelection.user.username,
-          email: reportSelection.user.email,
-          puesto: reportSelection.user.puesto,
-          cliente_id: reportSelection.user.cliente_id
-        },
-        plant: {
-          id: reportSelection.plant.id,
-          nombre: reportSelection.plant.nombre,
-          systemName: reportSelection.plant.systemName
-        },
-        systemName: reportSelection.systemName,
-        parameters_count: Object.keys(reportSelection.parameters).length,
-        mediciones_count: reportSelection.mediciones.length,
-        fecha: reportSelection.fecha,
-        comentarios: reportSelection.comentarios,
-        generatedDate: reportSelection.generatedDate,
-        cliente_id: reportSelection.cliente_id
-      });
-      console.log("📄 Parámetros detallados:", reportSelection.parameters);
-      console.log("📄 Validación plant.id:", reportSelection.plant.id);
-      console.log("📄 ===== FIN REPORT SELECTION =====");
-
-      // Guardar temporalmente en localStorage
-      console.log("💾 Guardando reportSelection en localStorage...");
       localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
-      console.log("✅ reportSelection guardado exitosamente");
-      
-      // Redirigir a reports para generar el PDF
-      console.log("🚀 Redirigiendo a /reports?download=true");
       router.push("/reports?download=true");
-      console.log("✅ Redirección completada");
       
     } catch (error) {
-      console.error("❌ Error al preparar descarga del PDF:", error);
       alert("Error al preparar la descarga del PDF");
     }
   };
@@ -499,7 +408,7 @@ export default function ReportList() {
                 Lista de Reportes
               </h1>
               <p className="text-gray-600">
-                Gestiona y visualiza todos los reportes generados del sistema
+                Se muestran los reportes a los que tienes permiso de acceso y que están habilitados para visualización.
               </p>
             </div>
             <button
@@ -762,9 +671,9 @@ export default function ReportList() {
                         <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                         <p className="text-lg font-medium">No hay reportes disponibles</p>
                         <p className="text-sm mt-1">
-                          {fechaInicio || fechaFin || plantaFiltro 
-                            ? "No se encontraron reportes con los filtros aplicados" 
-                            : "No se han generado reportes aún"}
+                          {fechaInicio || fechaFin || plantaFiltro
+                            ? "No se encontraron reportes con los filtros aplicados"
+                            : "No hay reportes habilitados para visualización o no tienes permiso para ver ninguno."}
                         </p>
                         {(fechaInicio || fechaFin || plantaFiltro) && (
                           <button
@@ -869,7 +778,7 @@ export default function ReportList() {
                                 <tr key={`${sistema}-${parametro}`} className="border-b border-purple-100">
                                   <td className="py-2">{sistema}</td>
                                   <td className="py-2">{parametro}</td>
-                                  <td className="py-2">{data.valor}</td>
+                                  <td className="py-2">{formatNumber(data.valor)}</td>
                                   <td className="py-2">{data.unidad}</td>
                                 </tr>
                               ))

@@ -264,7 +264,7 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
         });
 
         // Ordenar por fecha (más reciente primero)
-        formattedReports.sort((a, b) => {
+        formattedReports.sort((a: Report, b: Report) => {
           const dateA = new Date(a.created_at || 0).getTime();
           const dateB = new Date(b.created_at || 0).getTime();
           return dateB - dateA;
