@@ -141,32 +141,45 @@ export default function HistoricosPage() {
 
   // Load all plants if no empresa selected
   useEffect(() => {
+    let cancelled = false;
     async function loadPlants() {
       if (!selectedEmpresa) {
         try {
           const res = await fetch(`${API_BASE_URL}/api/plantas/all`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
           });
+          if (cancelled) return;
           if (res.ok) {
             const data = await res.json();
-            setDisplayedPlants(data.plantas || data);
+            if (!cancelled) {
+              setDisplayedPlants(data.plantas || data);
+            }
           } else if (res.status === 401) {
-            authService.logout();
-            localStorage.removeItem('Organomex_user');
-            router.push('/logout');
+            if (!cancelled) {
+              authService.logout();
+              localStorage.removeItem('Organomex_user');
+              router.push('/logout');
+            }
             return;
           }
         } catch (err) {
-          console.error('Error al cargar todas las plantas:', err);
-          setDisplayedPlants([]);
+          if (!cancelled) {
+            console.error('Error al cargar todas las plantas:', err);
+            setDisplayedPlants([]);
+          }
         }
       } else {
-        console.log('🔄 [dashboard-historicos] Updating displayedPlants from hook:', plants.length, 'plants')
-        setDisplayedPlants(plants);
+        if (!cancelled) {
+          console.log('🔄 [dashboard-historicos] Updating displayedPlants from hook:', plants.length, 'plants')
+          setDisplayedPlants(plants);
+        }
       }
     }
     loadPlants();
-  }, [selectedEmpresa, plants, token, router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEmpresa, plants, token]);
 
   // Load empresas - siempre mostrar todas las empresas disponibles
   useEffect(() => {
@@ -197,7 +210,7 @@ export default function HistoricosPage() {
     } catch (e: any) {
       console.error(`Error al cargar parámetros: ${e.message}`)
     }
-  }, [selectedSystem, token, router])
+  }, [selectedSystem, token])
 
   // Fetch tolerances
   const fetchTolerances = useCallback(async () => {
@@ -368,7 +381,7 @@ export default function HistoricosPage() {
     } finally {
       setHistoricalLoading(false)
     }
-  }, [selectedSystem, startDate, endDate, parameters, systems, token, router])
+  }, [selectedSystem, startDate, endDate, parameters, systems, token])
 
   useEffect(() => {
     if (selectedSystem && startDate && endDate && parameters.length > 0) {

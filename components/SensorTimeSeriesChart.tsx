@@ -117,8 +117,15 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
         const endDateNormalized = normalizeDate(endDate)
 
         // Si se pasan datos desde reportes.datos, usarlos en lugar de la API de mediciones
-        if (medicionesFromReportes !== undefined && medicionesFromReportes !== null) {
-          const list = Array.isArray(medicionesFromReportes) ? medicionesFromReportes : [];
+        // Si medicionesFromReportes está definido (incluso si es array vacío), usar solo esos datos y no hacer llamadas a API
+        // Esto evita llamadas 404 innecesarias cuando los datos vienen de reportes.datos
+        if (medicionesFromReportes !== undefined && medicionesFromReportes !== null && Array.isArray(medicionesFromReportes)) {
+          const list = medicionesFromReportes;
+          console.log(`📊 [SensorTimeSeriesChart] Usando medicionesFromReportes para ${variable}:`, {
+            cantidad: list.length,
+            datos: list.slice(0, 3), // Primeros 3 para debug
+            usandoAPI: false
+          });
           const filtered = list.filter(m => {
             const fechaNorm = normalizeDate(m.fecha)
             return fechaNorm >= startDateNormalized && fechaNorm <= endDateNormalized
@@ -142,18 +149,23 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
           setSensors(sensorList)
           setData(pivotData)
           setLoading(false)
+          // IMPORTANTE: Si medicionesFromReportes está definido (incluso array vacío), NO hacer llamadas a API de mediciones
+          // Los datos vienen SOLO de reportes.datos (tabla reportes), NO de tabla mediciones
           return
         }
 
+        // Solo hacer llamadas a API si medicionesFromReportes NO fue proporcionado
+        // Si fue proporcionado (incluso como array vacío), ya se procesó arriba y se hizo return
         let finalData: RawMeasurement[] = [];
 
-        console.log(`📊 [SensorTimeSeriesChart] Buscando datos para:`, {
+        console.log(`📊 [SensorTimeSeriesChart] Buscando datos por API para ${variable}:`, {
           variable,
           clientName,
           processName,
           userId,
           startDate: startDateNormalized,
-          endDate: endDateNormalized
+          endDate: endDateNormalized,
+          medicionesFromReportes: medicionesFromReportes === undefined ? "undefined" : medicionesFromReportes === null ? "null" : Array.isArray(medicionesFromReportes) ? `array[${medicionesFromReportes.length}]` : typeof medicionesFromReportes
         });
         
         // Lógica de cascada: primero verificar por cliente, luego por proceso
@@ -476,12 +488,17 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
               <YAxis
                 tickLine={false}
                 axisLine={false}
-                label={{ value: `${variable} (${unidades})`, angle: -90, position: 'insideLeft' }}
+                // Sin label - el nombre del parámetro y la unidad ya vienen en el título del gráfico
                 tickFormatter={(value) => {
                   if (typeof value === 'number') {
                     return value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 10 });
                   }
                   return String(value);
+                }}
+                tick={{ 
+                  fill: '#000000', // Negro sólido para los números del eje Y
+                  fontWeight: 'bold', // Negrita
+                  fontSize: '11px'
                 }}
               />
               <XAxis
@@ -490,7 +507,11 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
-                tick={hideXAxisLabels ? false : undefined}
+                tick={hideXAxisLabels ? false : {
+                  fill: '#000000', // Negro sólido para las fechas del eje X
+                  fontWeight: 'bold', // Negrita
+                  fontSize: '11px'
+                }}
                 angle={data.length > 30 ? -45 : 0}
                 textAnchor={data.length > 30 ? "end" : "middle"}
                 height={data.length > 30 ? 60 : 30}
