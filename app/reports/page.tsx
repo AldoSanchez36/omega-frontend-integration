@@ -1000,23 +1000,29 @@ export default function Reporte() {
         // Continuar con fuente por defecto si hay error
       }
       
-      const pageWidthMM = pdf.internal.pageSize.getWidth(); // 210mm
-      const pageHeightMM = pdf.internal.pageSize.getHeight(); // 297mm
-      const contentWidthMM = pageWidthMM * 0.9; // 90% del ancho: ~189mm (aumentado para mejor legibilidad)
-      const marginLeft = (pageWidthMM - contentWidthMM) / 2; // Centrar el contenido
+      const pageWidthMM = pdf.internal.pageSize.getWidth();
+      const pageHeightMM = pdf.internal.pageSize.getHeight();
+      const marginLeft = 20;
+      const marginRight = 20;
       const marginTop = 20;
       const marginBottom = 20;
+      const contentWidthMM = pageWidthMM - marginLeft - marginRight;
       let currentY = marginTop;
       const spacingMM = 8;
 
-      // Función para verificar espacio y agregar nueva página
+      let headerHeight = 0;
+      const drawHeaderOnCurrentPage = () => {
+        if (headerData && headerHeight > 0) {
+          pdf.addImage(headerData, "JPEG", 0, 0, pageWidthMM, headerHeight);
+        }
+      };
+
       const checkSpaceAndAddPage = (elementHeightMM: number, currentY: number): number => {
-        const margin = 10;
-        const availableSpace = pageHeightMM - currentY - marginBottom - margin;
-        
+        const availableSpace = pageHeightMM - currentY - marginBottom;
         if (elementHeightMM > availableSpace) {
           pdf.addPage();
-          return marginTop;
+          drawHeaderOnCurrentPage();
+          return headerHeight + marginTop;
         }
         return currentY;
       };
@@ -1043,15 +1049,13 @@ export default function Reporte() {
         // Footer no disponible
       }
 
-      // Agregar header
       if (headerData) {
         const headerImg = new window.Image();
         headerImg.src = headerData;
         await new Promise((resolve) => {
           headerImg.onload = () => {
-            const headerHeightMM = (headerImg.height / headerImg.width) * pageWidthMM;
-            pdf.addImage(headerData!, "JPEG", 0, 0, pageWidthMM, headerHeightMM);
-            currentY = headerHeightMM + spacingMM;
+            headerHeight = (headerImg.height / headerImg.width) * pageWidthMM;
+            currentY = headerHeight + marginTop;
             resolve(null);
           };
           headerImg.onerror = () => resolve(null);
@@ -1059,7 +1063,7 @@ export default function Reporte() {
       }
 
       // Información del reporte
-      pdf.setFontSize(12);
+      pdf.setFontSize(10);
       const reportInfo = [
         `Dirigido a: ${reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING."}`,
         `Asunto: ${reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente || `REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE ${reportSelection?.plant?.nombre || "NOMBRE DE LA PLANTA"}`}`,
@@ -1094,6 +1098,9 @@ export default function Reporte() {
         body: legendData.slice(1),
         startY: currentY,
         theme: "grid",
+        tableWidth: contentWidthMM,
+        margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop },
+        didDrawPage: () => drawHeaderOnCurrentPage(),
         headStyles: { fillColor: [66, 139, 202] },
         didParseCell: (data: any) => {
           if (data.section === 'body' && data.row.index !== undefined) {
@@ -1106,8 +1113,7 @@ export default function Reporte() {
             }
           }
         },
-        margin: { left: marginLeft, right: marginLeft },
-        styles: { fontSize: 10 },
+        styles: { fontSize: 9 },
       });
 
       currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
@@ -1199,7 +1205,9 @@ export default function Reporte() {
           body: previewTableData,
           startY: currentY,
           theme: "grid",
-          margin: { left: marginLeft, right: marginLeft },
+          tableWidth: contentWidthMM,
+          margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop },
+          didDrawPage: () => drawHeaderOnCurrentPage(),
           styles: { 
             fontSize: 9,
             font: pdfFontName, // Misma fuente que el resto del reporte
@@ -1788,70 +1796,57 @@ export default function Reporte() {
             dataRows.push(row);
           });
           
-          // Crear tabla con AutoTable
           const tableData = [altoRow, bajoRow, rangosRow, ...dataRows];
-          
-          // Mismo ancho que los gráficos (contentWidthMM) para consistencia visual
-          const tableWidthMM = contentWidthMM;
-          const tableMarginLeft = marginLeft;
-          const tableMarginRight = marginLeft; // Mismos márgenes que el resto del contenido
-          
+
           autoTable(pdf, {
             head: [tableHeaders],
             body: tableData,
             startY: currentY,
             theme: "grid",
-            tableWidth: tableWidthMM,
+            tableWidth: contentWidthMM,
+            margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop },
+            didDrawPage: () => drawHeaderOnCurrentPage(),
             headStyles: { 
-              fillColor: [31, 78, 121], // Azul oscuro
+              fillColor: [31, 78, 121],
               textColor: [255, 255, 255],
-              fontSize: 5.85, // Reducido 35% (9 * 0.65)
+              fontSize: 8,
               halign: 'center',
-              cellPadding: 0.975 // Reducido 35% (1.5 * 0.65)
+              cellPadding: 1
             },
             bodyStyles: {
-              fontSize: 4.875, // Reducido 35% (7.5 * 0.65)
+              fontSize: 8,
               halign: 'center',
-              cellPadding: 0.975 // Reducido 35% (1.5 * 0.65)
+              cellPadding: 1
             },
             columnStyles: {
-              0: { halign: 'left', cellWidth: 18.2 }, // Reducido 35% (28 * 0.65)
+              0: { halign: 'left', cellWidth: 18 },
             },
             didParseCell: (data: any) => {
-              // Aplicar cellWidth: 9.1 a todas las columnas excepto la primera (reducido 35%)
               if (data.column.index > 0) {
-                data.cell.styles.cellWidth = 9.1; // Reducido 35% (14 * 0.65)
+                data.cell.styles.cellWidth = 9;
               }
-              
-              // Alinear columna de COMENTARIOS a la izquierda
               if (data.column.index === tableHeaders.length - 1) {
                 data.cell.styles.halign = 'left';
               }
-              
-              // Colorear filas ALTO y BAJO en verde claro
               if (data.section === 'body' && data.row.index !== undefined) {
                 if (data.row.index === 0 || data.row.index === 1) {
-                  // Filas ALTO y BAJO
-                  data.cell.styles.fillColor = [220, 255, 220]; // Verde claro
+                  data.cell.styles.fillColor = [220, 255, 220];
                 } else if (data.row.index === 2) {
-                  // Fila FECHA/RANGOS
-                  data.cell.styles.fillColor = [31, 78, 121]; // Azul oscuro
+                  data.cell.styles.fillColor = [31, 78, 121];
                   data.cell.styles.textColor = [255, 255, 255];
                 } else {
-                  // Filas de datos históricos - alternar colores
-                  const dataIndex = data.row.index - 3; // Restar 3 por ALTO, BAJO, RANGOS
+                  const dataIndex = data.row.index - 3;
                   if (dataIndex % 2 === 0) {
-                    data.cell.styles.fillColor = [245, 255, 245]; // Verde muy claro
+                    data.cell.styles.fillColor = [245, 255, 245];
                   } else {
-                    data.cell.styles.fillColor = [255, 240, 245]; // Rosa claro
+                    data.cell.styles.fillColor = [255, 240, 245];
                   }
                 }
               }
             },
-            margin: { left: tableMarginLeft, right: tableMarginRight },
             styles: { 
-              fontSize: 4.875, // Reducido 35% (7.5 * 0.65)
-              cellPadding: 0.975 // Reducido 35% (1.5 * 0.65)
+              fontSize: 8,
+              cellPadding: 1
             },
           });
           
@@ -1883,17 +1878,18 @@ export default function Reporte() {
       pdf.text(`Fecha de generación: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleString('es-ES')}`, marginLeft, currentY);
       currentY += spacingMM;
 
-    // Agregar footer a la última página
       if (footerData) {
-    const totalPages = pdf.internal.pages.length;
-    pdf.setPage(totalPages);
         const footerImg = new window.Image();
         footerImg.src = footerData;
         await new Promise((resolve) => {
           footerImg.onload = () => {
-            const footerHeightMM = (footerImg.height / footerImg.width) * pageWidthMM;
-            const footerY = pageHeightMM - footerHeightMM - marginBottom;
-            pdf.addImage(footerData!, "JPEG", 0, footerY, pageWidthMM, footerHeightMM);
+            const footerHeight = (footerImg.height / footerImg.width) * pageWidthMM;
+            const footerY = pageHeightMM - footerHeight;
+            const totalPages = (pdf.internal as { getNumberOfPages?: () => number }).getNumberOfPages?.() ?? pdf.internal.pages.length;
+            for (let i = 1; i <= totalPages; i++) {
+              pdf.setPage(i);
+              pdf.addImage(footerData!, "JPEG", 0, footerY, pageWidthMM, footerHeight);
+            }
             resolve(null);
           };
           footerImg.onerror = () => resolve(null);
