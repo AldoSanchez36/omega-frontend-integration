@@ -601,7 +601,7 @@ export default function Reporte() {
       if (plantaValue) {
         doc.text(`Planta: ${plantaValue}`, 20, 85)
       }
-      doc.text(`Fecha de generación: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleString('es-ES')}`, 20, 95)
+      doc.text(`Fecha de generación: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}`, 20, 95)
 
       let currentY = 105
 
@@ -1014,6 +1014,17 @@ export default function Reporte() {
       const drawHeaderOnCurrentPage = () => {
         if (headerData && headerHeight > 0) {
           pdf.addImage(headerData, "JPEG", 0, 0, pageWidthMM, headerHeight);
+          if (reportSelection?.generatedDate) {
+            const genDateStr = new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            });
+            pdf.setFontSize(9);
+            pdf.setTextColor(60, 60, 60);
+            const dateY = headerHeight + marginTop - 5;
+            pdf.text(`Fecha de generación: ${genDateStr}`, pageWidthMM - marginRight, dateY, { align: "right" });
+          }
         }
       };
 
@@ -1047,6 +1058,14 @@ export default function Reporte() {
         }
       } catch (error) {
         // Footer no disponible
+      }
+
+      // Firma: cargar desde ruta (sin depender del DOM)
+      let firmaData: string | null = null;
+      try {
+        firmaData = await loadImageAsBase64("/images/Firma.jpeg");
+      } catch (error) {
+        console.warn("Signature image could not be loaded:", error);
       }
 
       if (headerData) {
@@ -1866,17 +1885,121 @@ export default function Reporte() {
         currentY += commentLines.length * 5 + spacingMM;
       }
 
-      // Pie de página: solo fecha de generación (no mostrar "Planta" si no hay nombre válido o es "Sistema no especificado")
-      currentY = checkSpaceAndAddPage(30, currentY);
-      pdf.setFontSize(10);
-      const plantaNombre = (reportSelection?.plant?.nombre ?? "").trim();
-      const plantaLabelInvalido = !plantaNombre || plantaNombre.toLowerCase().includes("sistema no especificado");
-      if (!plantaLabelInvalido) {
-        pdf.text(`Planta: ${plantaNombre}`, marginLeft, currentY);
-        currentY += 5;
+      // Tabla de límites (Alto/Bajo) por parámetro y sistema - parte inferior del PDF
+      if (reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
+        const limitsAllVars = new Set<string>();
+        Object.values(reportSelection.parameters).forEach((systemData: Record<string, unknown>) => {
+          Object.keys(systemData).forEach((variable) => limitsAllVars.add(variable));
+        });
+        const limitsOrderedVars = plantOrderVariables.length > 0
+          ? [
+              ...plantOrderVariables.map((v) => v.nombre).filter((n) => limitsAllVars.has(n)),
+              ...Array.from(limitsAllVars).filter((n) => !plantOrderVariables.some((v) => v.nombre === n)),
+            ]
+          : reportSelection.parameterOrder?.length
+            ? [
+                ...reportSelection.parameterOrder.filter((n) => limitsAllVars.has(n)),
+                ...Array.from(limitsAllVars).filter((n) => !reportSelection.parameterOrder!.includes(n)),
+              ]
+            : Array.from(limitsAllVars);
+        const limitsSystemNames = orderedSystemNames.length > 0 ? orderedSystemNames : Object.keys(reportSelection.parameters);
+        const limitsTolerances = reportSelection?.variablesTolerancia || {};
+        const getLimitsTolerance = (variable: string) => {
+          const t = limitsTolerances as Record<string, { nombre?: string; bien_min?: number | null; bien_max?: number | null }>;
+          if (t[variable]) return t[variable];
+          const byName = Object.values(t).find((tol) => tol && typeof tol === "object" && tol.nombre === variable);
+          if (byName) return byName;
+          return Object.values(t).find(
+            (tol) =>
+              tol &&
+              typeof tol === "object" &&
+              tol.nombre?.trim().toLowerCase() === variable.trim().toLowerCase()
+          );
+        };
+        const limitsHeaders = [
+          "Parámetro",
+          "Unidad",
+          ...limitsSystemNames.flatMap((name) => [`${name} Bajo`, `${name} Alto`]),
+        ];
+        const limitsBody = limitsOrderedVars.map((variable) => {
+          let unidad = "";
+          for (const systemName of limitsSystemNames) {
+            const paramData = reportSelection.parameters[systemName]?.[variable];
+            if (paramData?.unidad) {
+              unidad = paramData.unidad;
+              break;
+            }
+          }
+          const tol = getLimitsTolerance(variable);
+          const bajo = tol?.bien_min != null ? Number(tol.bien_min).toFixed(2) : "—";
+          const alto = tol?.bien_max != null ? Number(tol.bien_max).toFixed(2) : "—";
+          return [
+            variable,
+            unidad || "—",
+            ...limitsSystemNames.flatMap(() => [bajo, alto]),
+          ];
+        });
+        currentY = checkSpaceAndAddPage(40, currentY);
+        pdf.setFontSize(12);
+        pdf.text("Límites recomendados (Alto y Bajo) por parámetro y sistema", marginLeft, currentY);
+        currentY += 6;
+        pdf.setFontSize(9);
+        pdf.text("Valores de referencia para interpretar los resultados de cada sistema.", marginLeft, currentY);
+        currentY += 8;
+        autoTable(pdf, {
+          head: [limitsHeaders],
+          body: limitsBody,
+          startY: currentY,
+          theme: "grid",
+          tableWidth: contentWidthMM,
+          margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop },
+          didDrawPage: () => drawHeaderOnCurrentPage(),
+          styles: { fontSize: 8, font: pdfFontName, cellPadding: 1 },
+          headStyles: {
+            fillColor: [66, 139, 202],
+            textColor: [255, 255, 255],
+            fontSize: 8,
+            font: pdfFontName,
+            cellPadding: 2,
+          },
+          columnStyles: {
+            0: { cellWidth: 35, halign: "left", font: pdfFontName },
+            1: { cellWidth: 18, halign: "center", font: pdfFontName },
+          },
+        });
+        currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
+
+        // Imagen Firma: justo después de la tabla de límites; antes del footer, sin solaparlo
+        if (firmaData) {
+          const firmaWidthMM = 50;
+          const firmaMaxHeightMM = 25;
+          const firmaImg = new window.Image();
+          firmaImg.src = firmaData;
+          await new Promise<void>((resolve) => {
+            firmaImg.onload = () => {
+              const aspect = firmaImg.height / firmaImg.width;
+              const firmaHeightMM = Math.min(firmaMaxHeightMM, firmaWidthMM * aspect);
+              if (currentY + firmaHeightMM > pageHeightMM - marginBottom) {
+                pdf.addPage();
+                currentY = headerHeight + marginTop;
+              }
+              currentY += 5;
+              const firmaFormat = firmaData!.startsWith("data:image/png") ? "PNG" : "JPEG";
+              pdf.addImage(
+                firmaData!,
+                firmaFormat,
+                pageWidthMM / 2 - firmaWidthMM / 2,
+                currentY,
+                firmaWidthMM,
+                firmaHeightMM
+              );
+              currentY += firmaHeightMM + spacingMM;
+              resolve();
+            };
+            firmaImg.onerror = () => resolve();
+          });
+        }
       }
-      pdf.text(`Fecha de generación: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleString('es-ES')}`, marginLeft, currentY);
-      currentY += spacingMM;
 
       if (footerData) {
         const footerImg = new window.Image();
@@ -2472,7 +2595,7 @@ export default function Reporte() {
               <div className="mt-2">
                 <small>
                   <strong>Planta:</strong> {reportSelection.systemName ?? reportSelection.plant?.nombre ?? "—"} | 
-                  <strong> Fecha de generación:</strong> {reportSelection.generatedDate ? new Date(reportSelection.generatedDate).toLocaleString('es-ES') : currentDate}
+                  <strong> Fecha de generación:</strong> {reportSelection.generatedDate ? new Date(reportSelection.generatedDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : currentDate}
                 </small>
               </div>
             )}
@@ -2506,6 +2629,23 @@ export default function Reporte() {
                       </div>
                     </div>
                   )}
+                </div>
+                {/* Fecha de generación (igual que en el PDF: debajo del header, derecha, sin hora) */}
+                <div className="ml-10 mr-10 mb-2 text-end">
+                  <p className="mb-0 small text-muted">
+                    <strong>Fecha de generación:</strong>{" "}
+                    {reportSelection?.generatedDate
+                      ? new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })
+                      : new Date().toLocaleDateString("es-ES", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                  </p>
                 </div>
                 <div className="mb-4 ml-10 mr-10">
                   <div className="row">
@@ -3105,7 +3245,119 @@ export default function Reporte() {
                   })}
                 </div>
               )}
+
+              {/* Tabla de límites Alto/Bajo por parámetro (parte inferior del reporte) */}
+              {reportSelection && (
+                <div className="mt-4 pt-4 border-t ml-10 mr-10 mb-4">
+                  <h5 className="mb-3 text-gray-800">
+                    <strong>Límites recomendados (Alto y Bajo) por parámetro y sistema</strong>
+                  </h5>
+                  <p className="text-sm text-muted mb-3">
+                    Valores de referencia para interpretar los resultados de cada sistema.
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border border-gray-300 bg-white text-sm">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="border px-3 py-2 text-left font-semibold align-middle" rowSpan={2}>
+                            Parámetro
+                          </th>
+                          <th className="border px-2 py-1 text-center font-semibold align-middle" rowSpan={2}>
+                            Unidad
+                          </th>
+                          {orderedSystemNames.map((systemName) => (
+                            <th
+                              key={systemName}
+                              colSpan={2}
+                              className="border px-2 py-1 text-center font-semibold bg-gray-200"
+                            >
+                              {systemName}
+                            </th>
+                          ))}
+                        </tr>
+                        <tr className="bg-gray-100">
+                          {orderedSystemNames.flatMap((systemName) => [
+                            <th key={`${systemName}-bajo`} className="border px-2 py-1 text-center font-medium text-gray-700">
+                              Bajo
+                            </th>,
+                            <th key={`${systemName}-alto`} className="border px-2 py-1 text-center font-medium text-gray-700">
+                              Alto
+                            </th>,
+                          ])}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const allVariables = new Set<string>();
+                          Object.values(reportSelection.parameters).forEach((systemData: Record<string, unknown>) => {
+                            Object.keys(systemData).forEach((variable) => allVariables.add(variable));
+                          });
+                          let orderedVariableList: string[];
+                          if (plantOrderVariables.length > 0) {
+                            orderedVariableList = [
+                              ...plantOrderVariables.map((v) => v.nombre).filter((n) => allVariables.has(n)),
+                              ...Array.from(allVariables).filter((n) => !plantOrderVariables.some((v) => v.nombre === n)),
+                            ];
+                          } else if (reportSelection.parameterOrder?.length) {
+                            orderedVariableList = [
+                              ...reportSelection.parameterOrder.filter((n) => allVariables.has(n)),
+                              ...Array.from(allVariables).filter((n) => !reportSelection.parameterOrder!.includes(n)),
+                            ];
+                          } else {
+                            orderedVariableList = Array.from(allVariables);
+                          }
+                          const tolerances = reportSelection?.variablesTolerancia || {};
+                          const getTolerance = (variable: string) => {
+                            if (tolerances[variable]) return tolerances[variable] as { bien_min?: number | null; bien_max?: number | null };
+                            const byName = Object.values(tolerances).find(
+                              (tol: unknown) => tol && typeof tol === "object" && (tol as { nombre?: string }).nombre === variable
+                            ) as { bien_min?: number | null; bien_max?: number | null } | undefined;
+                            if (byName) return byName;
+                            return Object.values(tolerances).find(
+                              (tol: unknown) =>
+                                tol &&
+                                typeof tol === "object" &&
+                                (tol as { nombre?: string }).nombre?.trim().toLowerCase() === variable.trim().toLowerCase()
+                            ) as { bien_min?: number | null; bien_max?: number | null } | undefined;
+                          };
+                          return orderedVariableList.map((variable) => {
+                            let unidad = "";
+                            for (const systemName of orderedSystemNames) {
+                              const paramData = reportSelection.parameters[systemName]?.[variable];
+                              if (paramData?.unidad) {
+                                unidad = paramData.unidad;
+                                break;
+                              }
+                            }
+                            const tol = getTolerance(variable);
+                            const bajo = tol?.bien_min != null ? Number(tol.bien_min).toFixed(2) : "—";
+                            const alto = tol?.bien_max != null ? Number(tol.bien_max).toFixed(2) : "—";
+                            return (
+                              <tr key={variable} className="hover:bg-gray-50">
+                                <td className="border px-3 py-2 font-medium">{variable}</td>
+                                <td className="border px-2 py-1 text-center text-gray-600">{unidad || "—"}</td>
+                                {orderedSystemNames.flatMap((systemName) => [
+                                  <td key={`${variable}-${systemName}-bajo`} className="border px-2 py-1 text-center">
+                                    {bajo}
+                                  </td>,
+                                  <td key={`${variable}-${systemName}-alto`} className="border px-2 py-1 text-center">
+                                    {alto}
+                                  </td>,
+                                ])}
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
               </div>
+               {/* Firma: solo para PDF, misma ruta que header/footer (/images/) */}
+                <div id="firma-img" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }} aria-hidden="true">
+                  <img src="/images/Firma.jpeg" alt="" />
+                </div>
                {/* Footer Image */}
                 <div id="footer-img" className="text-center">
                   {imagesLoaded ? (
@@ -3142,6 +3394,9 @@ export default function Reporte() {
                         </li>
                         <li>
                           <code>footer-textless.png</code> - Imagen de pie de página
+                        </li>
+                        <li>
+                          <code>Firma.jpeg</code> - Firma (misma carpeta; solo se usa en la descarga PDF)
                         </li>
                       </ul>
                     </li>
