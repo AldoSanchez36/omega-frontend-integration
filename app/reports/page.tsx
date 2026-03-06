@@ -1006,6 +1006,8 @@ export default function Reporte() {
       const marginRight = 20;
       const marginTop = 20;
       const marginBottom = 20;
+      const footerReservedHeight = 25;
+      const usablePageHeight = pageHeightMM - footerReservedHeight - marginBottom;
       const contentWidthMM = pageWidthMM - marginLeft - marginRight;
       let currentY = marginTop;
       const spacingMM = 8;
@@ -1029,7 +1031,7 @@ export default function Reporte() {
       };
 
       const checkSpaceAndAddPage = (elementHeightMM: number, currentY: number): number => {
-        const availableSpace = pageHeightMM - currentY - marginBottom;
+        const availableSpace = usablePageHeight - currentY;
         if (elementHeightMM > availableSpace) {
           pdf.addPage();
           drawHeaderOnCurrentPage();
@@ -1083,7 +1085,10 @@ export default function Reporte() {
 
       // Información del reporte
       pdf.setFontSize(10);
+      const reportGenDate = reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date();
+      const fechaLugarStr = `San Luis Potosí, S.L.P. a ${reportGenDate.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}`;
       const reportInfo = [
+        fechaLugarStr,
         `Dirigido a: ${reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING."}`,
         `Asunto: ${reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente || `REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE ${reportSelection?.plant?.nombre || "NOMBRE DE LA PLANTA"}`}`,
         `Planta Evaluada: ${reportSelection?.plant?.nombre || "Planta no especificada"}`,
@@ -1118,7 +1123,7 @@ export default function Reporte() {
         startY: currentY,
         theme: "grid",
         tableWidth: contentWidthMM,
-        margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop },
+        margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop, bottom: footerReservedHeight + marginBottom },
         didDrawPage: () => drawHeaderOnCurrentPage(),
         headStyles: { fillColor: [66, 139, 202] },
         didParseCell: (data: any) => {
@@ -1225,7 +1230,7 @@ export default function Reporte() {
           startY: currentY,
           theme: "grid",
           tableWidth: contentWidthMM,
-          margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop },
+          margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop, bottom: footerReservedHeight + marginBottom },
           didDrawPage: () => drawHeaderOnCurrentPage(),
           styles: { 
             fontSize: 9,
@@ -1823,9 +1828,9 @@ export default function Reporte() {
             startY: currentY,
             theme: "grid",
             tableWidth: contentWidthMM,
-            margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop },
+            margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop, bottom: footerReservedHeight + marginBottom },
             didDrawPage: () => drawHeaderOnCurrentPage(),
-            headStyles: { 
+            headStyles: {
               fillColor: [31, 78, 121],
               textColor: [255, 255, 255],
               fontSize: 8,
@@ -1952,7 +1957,7 @@ export default function Reporte() {
           startY: currentY,
           theme: "grid",
           tableWidth: contentWidthMM,
-          margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop },
+          margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop, bottom: footerReservedHeight + marginBottom },
           didDrawPage: () => drawHeaderOnCurrentPage(),
           styles: { fontSize: 8, font: pdfFontName, cellPadding: 1 },
           headStyles: {
@@ -1969,54 +1974,52 @@ export default function Reporte() {
         });
         currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
 
-        // Imagen Firma: justo después de la tabla de límites; antes del footer, sin solaparlo
+        // Bloque de firma centrado debajo de la última tabla
         if (firmaData) {
-          const firmaWidthMM = 50;
-          const firmaMaxHeightMM = 25;
-          const firmaImg = new window.Image();
-          firmaImg.src = firmaData;
-          await new Promise<void>((resolve) => {
-            firmaImg.onload = () => {
-              const aspect = firmaImg.height / firmaImg.width;
-              const firmaHeightMM = Math.min(firmaMaxHeightMM, firmaWidthMM * aspect);
-              if (currentY + firmaHeightMM > pageHeightMM - marginBottom) {
-                pdf.addPage();
-                currentY = headerHeight + marginTop;
-              }
-              currentY += 5;
-              const firmaFormat = firmaData!.startsWith("data:image/png") ? "PNG" : "JPEG";
-              pdf.addImage(
-                firmaData!,
-                firmaFormat,
-                pageWidthMM / 2 - firmaWidthMM / 2,
-                currentY,
-                firmaWidthMM,
-                firmaHeightMM
-              );
-              currentY += firmaHeightMM + spacingMM;
-              resolve();
-            };
-            firmaImg.onerror = () => resolve();
-          });
+          const blockHeight = 58;
+          if (currentY + blockHeight > usablePageHeight) {
+            pdf.addPage();
+            drawHeaderOnCurrentPage();
+            currentY = headerHeight + marginTop;
+          }
+          const centerX = pageWidthMM / 2;
+          currentY += 6;
+          pdf.setTextColor(0, 0, 0);
+          pdf.setFontSize(14);
+          pdf.setFont("helvetica", "bold");
+          pdf.text("ATENTAMENTE", centerX, currentY, { align: "center" });
+          currentY += 10;
+          const firmaW = 50;
+          const firmaH = 20;
+          pdf.addImage(
+            firmaData,
+            firmaData.startsWith("data:image/png") ? "PNG" : "JPEG",
+            centerX - firmaW / 2,
+            currentY,
+            firmaW,
+            firmaH
+          );
+          currentY += firmaH + 6;
+          pdf.setDrawColor(0, 0, 0);
+          pdf.setLineWidth(0.25);
+          pdf.line(centerX - 40, currentY, centerX + 40, currentY);
+          currentY += 8;
+          pdf.setFontSize(12);
+          pdf.setFont("helvetica", "bold");
+          pdf.text("Servicio Técnico", centerX, currentY, { align: "center" });
+          currentY += 6;
+          pdf.setFont("helvetica", "normal");
+          pdf.text("Química Organomex S.A. de C.V.", centerX, currentY, { align: "center" });
         }
       }
 
       if (footerData) {
-        const footerImg = new window.Image();
-        footerImg.src = footerData;
-        await new Promise((resolve) => {
-          footerImg.onload = () => {
-            const footerHeight = (footerImg.height / footerImg.width) * pageWidthMM;
-            const footerY = pageHeightMM - footerHeight;
-            const totalPages = (pdf.internal as { getNumberOfPages?: () => number }).getNumberOfPages?.() ?? pdf.internal.pages.length;
-            for (let i = 1; i <= totalPages; i++) {
-              pdf.setPage(i);
-              pdf.addImage(footerData!, "JPEG", 0, footerY, pageWidthMM, footerHeight);
-            }
-            resolve(null);
-          };
-          footerImg.onerror = () => resolve(null);
-        });
+        const totalPages = (pdf.internal as { getNumberOfPages?: () => number }).getNumberOfPages?.() ?? pdf.internal.pages.length;
+        const footerY = pageHeightMM - footerReservedHeight;
+        for (let i = 1; i <= totalPages; i++) {
+          pdf.setPage(i);
+          pdf.addImage(footerData, "JPEG", 0, footerY, pageWidthMM, footerReservedHeight);
+        }
       }
 
       // Descargar PDF
@@ -2650,6 +2653,20 @@ export default function Reporte() {
                 <div className="mb-4 ml-10 mr-10">
                   <div className="row">
                   <div className="col-12">
+                    <p className="mb-2">
+                      San Luis Potosí, S.L.P. a{" "}
+                      {reportSelection?.generatedDate
+                        ? new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })
+                        : new Date().toLocaleDateString("es-ES", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })}
+                    </p>
                     <p>
                       <strong>Dirigido a: </strong>
                       <span
