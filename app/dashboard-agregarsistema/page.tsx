@@ -1119,7 +1119,7 @@ export default function ParameterManager() {
       }
       
         // Verificar si hay parámetros sin variable_proceso_id y recargar si es necesario
-        const paramsSinId = mappedParams.filter(p => !p.variable_proceso_id)
+        const paramsSinId = mappedParams.filter((p: Parameter) => !p.variable_proceso_id)
         if (paramsSinId.length > 0) {
           // Intentar recargar una vez más después de un breve delay
           setTimeout(async () => {
@@ -1245,7 +1245,7 @@ export default function ParameterManager() {
           const tolVariablesProcesoId = tol.variables_proceso_id || tol.variable_proceso_id
           
           const param = parameters.find(p => {
-            const paramVariablesProcesoId = p.variable_proceso_id || p.variables_proceso_id
+            const paramVariablesProcesoId = p.variable_proceso_id || (p as Parameter & { variables_proceso_id?: string }).variables_proceso_id
             // Comparar usando el formato: { variables_proceso_id: variable.variables_proceso_id }
             return paramVariablesProcesoId === tolVariablesProcesoId && paramVariablesProcesoId !== null && paramVariablesProcesoId !== undefined
           })
@@ -2261,7 +2261,7 @@ export default function ParameterManager() {
                           </div>
                           <div className="grid grid-cols-4 items-start gap-4">
                             <Label htmlFor="edit-plant-message" className="text-right pt-2">
-                              Mensaje para el Cliente
+                              Asunto del Reporte
                             </Label>
                             <div className="col-span-3">
                               <Input

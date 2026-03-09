@@ -601,7 +601,7 @@ export default function Reporte() {
       if (plantaValue) {
         doc.text(`Planta: ${plantaValue}`, 20, 85)
       }
-      doc.text(`Fecha de generación: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleString('es-ES')}`, 20, 95)
+      doc.text(`Fecha de generación: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}`, 20, 95)
 
       let currentY = 105
 
@@ -1000,23 +1000,42 @@ export default function Reporte() {
         // Continuar con fuente por defecto si hay error
       }
       
-      const pageWidthMM = pdf.internal.pageSize.getWidth(); // 210mm
-      const pageHeightMM = pdf.internal.pageSize.getHeight(); // 297mm
-      const contentWidthMM = pageWidthMM * 0.9; // 90% del ancho: ~189mm (aumentado para mejor legibilidad)
-      const marginLeft = (pageWidthMM - contentWidthMM) / 2; // Centrar el contenido
+      const pageWidthMM = pdf.internal.pageSize.getWidth();
+      const pageHeightMM = pdf.internal.pageSize.getHeight();
+      const marginLeft = 20;
+      const marginRight = 20;
       const marginTop = 20;
       const marginBottom = 20;
+      const footerReservedHeight = 25;
+      const usablePageHeight = pageHeightMM - footerReservedHeight - marginBottom;
+      const contentWidthMM = pageWidthMM - marginLeft - marginRight;
       let currentY = marginTop;
       const spacingMM = 8;
 
-      // Función para verificar espacio y agregar nueva página
+      let headerHeight = 0;
+      const drawHeaderOnCurrentPage = () => {
+        if (headerData && headerHeight > 0) {
+          pdf.addImage(headerData, "JPEG", 0, 0, pageWidthMM, headerHeight);
+          if (reportSelection?.generatedDate) {
+            const genDateStr = new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            });
+            pdf.setFontSize(9);
+            pdf.setTextColor(60, 60, 60);
+            const dateY = headerHeight + marginTop - 5;
+            pdf.text(`Fecha de generación: ${genDateStr}`, pageWidthMM - marginRight, dateY, { align: "right" });
+          }
+        }
+      };
+
       const checkSpaceAndAddPage = (elementHeightMM: number, currentY: number): number => {
-        const margin = 10;
-        const availableSpace = pageHeightMM - currentY - marginBottom - margin;
-        
+        const availableSpace = usablePageHeight - currentY;
         if (elementHeightMM > availableSpace) {
           pdf.addPage();
-          return marginTop;
+          drawHeaderOnCurrentPage();
+          return headerHeight + marginTop;
         }
         return currentY;
       };
@@ -1043,15 +1062,21 @@ export default function Reporte() {
         // Footer no disponible
       }
 
-      // Agregar header
+      // Firma: cargar desde ruta (sin depender del DOM)
+      let firmaData: string | null = null;
+      try {
+        firmaData = await loadImageAsBase64("/images/Firma.jpeg");
+      } catch (error) {
+        console.warn("Signature image could not be loaded:", error);
+      }
+
       if (headerData) {
         const headerImg = new window.Image();
         headerImg.src = headerData;
         await new Promise((resolve) => {
           headerImg.onload = () => {
-            const headerHeightMM = (headerImg.height / headerImg.width) * pageWidthMM;
-            pdf.addImage(headerData!, "JPEG", 0, 0, pageWidthMM, headerHeightMM);
-            currentY = headerHeightMM + spacingMM;
+            headerHeight = (headerImg.height / headerImg.width) * pageWidthMM;
+            currentY = headerHeight + marginTop;
             resolve(null);
           };
           headerImg.onerror = () => resolve(null);
@@ -1059,8 +1084,11 @@ export default function Reporte() {
       }
 
       // Información del reporte
-      pdf.setFontSize(12);
+      pdf.setFontSize(10);
+      const reportGenDate = reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date();
+      const fechaLugarStr = `San Luis Potosí, S.L.P. a ${reportGenDate.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}`;
       const reportInfo = [
+        fechaLugarStr,
         `Dirigido a: ${reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING."}`,
         `Asunto: ${reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente || `REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE ${reportSelection?.plant?.nombre || "NOMBRE DE LA PLANTA"}`}`,
         `Planta Evaluada: ${reportSelection?.plant?.nombre || "Planta no especificada"}`,
@@ -1094,6 +1122,9 @@ export default function Reporte() {
         body: legendData.slice(1),
         startY: currentY,
         theme: "grid",
+        tableWidth: contentWidthMM,
+        margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop, bottom: footerReservedHeight + marginBottom },
+        didDrawPage: () => drawHeaderOnCurrentPage(),
         headStyles: { fillColor: [66, 139, 202] },
         didParseCell: (data: any) => {
           if (data.section === 'body' && data.row.index !== undefined) {
@@ -1106,8 +1137,7 @@ export default function Reporte() {
             }
           }
         },
-        margin: { left: marginLeft, right: marginLeft },
-        styles: { fontSize: 10 },
+        styles: { fontSize: 9 },
       });
 
       currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
@@ -1199,7 +1229,9 @@ export default function Reporte() {
           body: previewTableData,
           startY: currentY,
           theme: "grid",
-          margin: { left: marginLeft, right: marginLeft },
+          tableWidth: contentWidthMM,
+          margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop, bottom: footerReservedHeight + marginBottom },
+          didDrawPage: () => drawHeaderOnCurrentPage(),
           styles: { 
             fontSize: 9,
             font: pdfFontName, // Misma fuente que el resto del reporte
@@ -1788,70 +1820,57 @@ export default function Reporte() {
             dataRows.push(row);
           });
           
-          // Crear tabla con AutoTable
           const tableData = [altoRow, bajoRow, rangosRow, ...dataRows];
-          
-          // Mismo ancho que los gráficos (contentWidthMM) para consistencia visual
-          const tableWidthMM = contentWidthMM;
-          const tableMarginLeft = marginLeft;
-          const tableMarginRight = marginLeft; // Mismos márgenes que el resto del contenido
-          
+
           autoTable(pdf, {
             head: [tableHeaders],
             body: tableData,
             startY: currentY,
             theme: "grid",
-            tableWidth: tableWidthMM,
-            headStyles: { 
-              fillColor: [31, 78, 121], // Azul oscuro
+            tableWidth: contentWidthMM,
+            margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop, bottom: footerReservedHeight + marginBottom },
+            didDrawPage: () => drawHeaderOnCurrentPage(),
+            headStyles: {
+              fillColor: [31, 78, 121],
               textColor: [255, 255, 255],
-              fontSize: 5.85, // Reducido 35% (9 * 0.65)
+              fontSize: 8,
               halign: 'center',
-              cellPadding: 0.975 // Reducido 35% (1.5 * 0.65)
+              cellPadding: 1
             },
             bodyStyles: {
-              fontSize: 4.875, // Reducido 35% (7.5 * 0.65)
+              fontSize: 8,
               halign: 'center',
-              cellPadding: 0.975 // Reducido 35% (1.5 * 0.65)
+              cellPadding: 1
             },
             columnStyles: {
-              0: { halign: 'left', cellWidth: 18.2 }, // Reducido 35% (28 * 0.65)
+              0: { halign: 'left', cellWidth: 18 },
             },
             didParseCell: (data: any) => {
-              // Aplicar cellWidth: 9.1 a todas las columnas excepto la primera (reducido 35%)
               if (data.column.index > 0) {
-                data.cell.styles.cellWidth = 9.1; // Reducido 35% (14 * 0.65)
+                data.cell.styles.cellWidth = 9;
               }
-              
-              // Alinear columna de COMENTARIOS a la izquierda
               if (data.column.index === tableHeaders.length - 1) {
                 data.cell.styles.halign = 'left';
               }
-              
-              // Colorear filas ALTO y BAJO en verde claro
               if (data.section === 'body' && data.row.index !== undefined) {
                 if (data.row.index === 0 || data.row.index === 1) {
-                  // Filas ALTO y BAJO
-                  data.cell.styles.fillColor = [220, 255, 220]; // Verde claro
+                  data.cell.styles.fillColor = [220, 255, 220];
                 } else if (data.row.index === 2) {
-                  // Fila FECHA/RANGOS
-                  data.cell.styles.fillColor = [31, 78, 121]; // Azul oscuro
+                  data.cell.styles.fillColor = [31, 78, 121];
                   data.cell.styles.textColor = [255, 255, 255];
                 } else {
-                  // Filas de datos históricos - alternar colores
-                  const dataIndex = data.row.index - 3; // Restar 3 por ALTO, BAJO, RANGOS
+                  const dataIndex = data.row.index - 3;
                   if (dataIndex % 2 === 0) {
-                    data.cell.styles.fillColor = [245, 255, 245]; // Verde muy claro
+                    data.cell.styles.fillColor = [245, 255, 245];
                   } else {
-                    data.cell.styles.fillColor = [255, 240, 245]; // Rosa claro
+                    data.cell.styles.fillColor = [255, 240, 245];
                   }
                 }
               }
             },
-            margin: { left: tableMarginLeft, right: tableMarginRight },
             styles: { 
-              fontSize: 4.875, // Reducido 35% (7.5 * 0.65)
-              cellPadding: 0.975 // Reducido 35% (1.5 * 0.65)
+              fontSize: 8,
+              cellPadding: 1
             },
           });
           
@@ -1871,33 +1890,136 @@ export default function Reporte() {
         currentY += commentLines.length * 5 + spacingMM;
       }
 
-      // Pie de página: solo fecha de generación (no mostrar "Planta" si no hay nombre válido o es "Sistema no especificado")
-      currentY = checkSpaceAndAddPage(30, currentY);
-      pdf.setFontSize(10);
-      const plantaNombre = (reportSelection?.plant?.nombre ?? "").trim();
-      const plantaLabelInvalido = !plantaNombre || plantaNombre.toLowerCase().includes("sistema no especificado");
-      if (!plantaLabelInvalido) {
-        pdf.text(`Planta: ${plantaNombre}`, marginLeft, currentY);
-        currentY += 5;
-      }
-      pdf.text(`Fecha de generación: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleString('es-ES')}`, marginLeft, currentY);
-      currentY += spacingMM;
-
-    // Agregar footer a la última página
-      if (footerData) {
-    const totalPages = pdf.internal.pages.length;
-    pdf.setPage(totalPages);
-        const footerImg = new window.Image();
-        footerImg.src = footerData;
-        await new Promise((resolve) => {
-          footerImg.onload = () => {
-            const footerHeightMM = (footerImg.height / footerImg.width) * pageWidthMM;
-            const footerY = pageHeightMM - footerHeightMM - marginBottom;
-            pdf.addImage(footerData!, "JPEG", 0, footerY, pageWidthMM, footerHeightMM);
-            resolve(null);
-          };
-          footerImg.onerror = () => resolve(null);
+      // Tabla de límites (Alto/Bajo) por parámetro y sistema - parte inferior del PDF
+      if (reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
+        const limitsAllVars = new Set<string>();
+        Object.values(reportSelection.parameters).forEach((systemData: Record<string, unknown>) => {
+          Object.keys(systemData).forEach((variable) => limitsAllVars.add(variable));
         });
+        const limitsOrderedVars = plantOrderVariables.length > 0
+          ? [
+              ...plantOrderVariables.map((v) => v.nombre).filter((n) => limitsAllVars.has(n)),
+              ...Array.from(limitsAllVars).filter((n) => !plantOrderVariables.some((v) => v.nombre === n)),
+            ]
+          : reportSelection.parameterOrder?.length
+            ? [
+                ...reportSelection.parameterOrder.filter((n) => limitsAllVars.has(n)),
+                ...Array.from(limitsAllVars).filter((n) => !reportSelection.parameterOrder!.includes(n)),
+              ]
+            : Array.from(limitsAllVars);
+        const limitsSystemNames = orderedSystemNames.length > 0 ? orderedSystemNames : Object.keys(reportSelection.parameters);
+        const limitsTolerances = reportSelection?.variablesTolerancia || {};
+        const getLimitsTolerance = (variable: string) => {
+          const t = limitsTolerances as Record<string, { nombre?: string; bien_min?: number | null; bien_max?: number | null }>;
+          if (t[variable]) return t[variable];
+          const byName = Object.values(t).find((tol) => tol && typeof tol === "object" && tol.nombre === variable);
+          if (byName) return byName;
+          return Object.values(t).find(
+            (tol) =>
+              tol &&
+              typeof tol === "object" &&
+              tol.nombre?.trim().toLowerCase() === variable.trim().toLowerCase()
+          );
+        };
+        const limitsHeaders = [
+          "Parámetro",
+          "Unidad",
+          ...limitsSystemNames.flatMap((name) => [`${name} Bajo`, `${name} Alto`]),
+        ];
+        const limitsBody = limitsOrderedVars.map((variable) => {
+          let unidad = "";
+          for (const systemName of limitsSystemNames) {
+            const paramData = reportSelection.parameters[systemName]?.[variable];
+            if (paramData?.unidad) {
+              unidad = paramData.unidad;
+              break;
+            }
+          }
+          const tol = getLimitsTolerance(variable);
+          const bajo = tol?.bien_min != null ? Number(tol.bien_min).toFixed(2) : "—";
+          const alto = tol?.bien_max != null ? Number(tol.bien_max).toFixed(2) : "—";
+          return [
+            variable,
+            unidad || "—",
+            ...limitsSystemNames.flatMap(() => [bajo, alto]),
+          ];
+        });
+        currentY = checkSpaceAndAddPage(40, currentY);
+        pdf.setFontSize(12);
+        pdf.text("Límites recomendados (Alto y Bajo) por parámetro y sistema", marginLeft, currentY);
+        currentY += 6;
+        pdf.setFontSize(9);
+        pdf.text("Valores de referencia para interpretar los resultados de cada sistema.", marginLeft, currentY);
+        currentY += 8;
+        autoTable(pdf, {
+          head: [limitsHeaders],
+          body: limitsBody,
+          startY: currentY,
+          theme: "grid",
+          tableWidth: contentWidthMM,
+          margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop, bottom: footerReservedHeight + marginBottom },
+          didDrawPage: () => drawHeaderOnCurrentPage(),
+          styles: { fontSize: 8, font: pdfFontName, cellPadding: 1 },
+          headStyles: {
+            fillColor: [66, 139, 202],
+            textColor: [255, 255, 255],
+            fontSize: 8,
+            font: pdfFontName,
+            cellPadding: 2,
+          },
+          columnStyles: {
+            0: { cellWidth: 35, halign: "left", font: pdfFontName },
+            1: { cellWidth: 18, halign: "center", font: pdfFontName },
+          },
+        });
+        currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
+
+        // Bloque de firma centrado debajo de la última tabla
+        if (firmaData) {
+          const blockHeight = 58;
+          if (currentY + blockHeight > usablePageHeight) {
+            pdf.addPage();
+            drawHeaderOnCurrentPage();
+            currentY = headerHeight + marginTop;
+          }
+          const centerX = pageWidthMM / 2;
+          currentY += 6;
+          pdf.setTextColor(0, 0, 0);
+          pdf.setFontSize(14);
+          pdf.setFont("helvetica", "bold");
+          pdf.text("ATENTAMENTE", centerX, currentY, { align: "center" });
+          currentY += 10;
+          const firmaW = 50;
+          const firmaH = 20;
+          pdf.addImage(
+            firmaData,
+            firmaData.startsWith("data:image/png") ? "PNG" : "JPEG",
+            centerX - firmaW / 2,
+            currentY,
+            firmaW,
+            firmaH
+          );
+          currentY += firmaH + 6;
+          pdf.setDrawColor(0, 0, 0);
+          pdf.setLineWidth(0.25);
+          pdf.line(centerX - 40, currentY, centerX + 40, currentY);
+          currentY += 8;
+          pdf.setFontSize(12);
+          pdf.setFont("helvetica", "bold");
+          pdf.text("Servicio Técnico", centerX, currentY, { align: "center" });
+          currentY += 6;
+          pdf.setFont("helvetica", "normal");
+          pdf.text("Química Organomex S.A. de C.V.", centerX, currentY, { align: "center" });
+        }
+      }
+
+      if (footerData) {
+        const totalPages = (pdf.internal as { getNumberOfPages?: () => number }).getNumberOfPages?.() ?? pdf.internal.pages.length;
+        const footerY = pageHeightMM - footerReservedHeight;
+        for (let i = 1; i <= totalPages; i++) {
+          pdf.setPage(i);
+          pdf.addImage(footerData, "JPEG", 0, footerY, pageWidthMM, footerReservedHeight);
+        }
       }
 
       // Descargar PDF
@@ -2476,7 +2598,7 @@ export default function Reporte() {
               <div className="mt-2">
                 <small>
                   <strong>Planta:</strong> {reportSelection.systemName ?? reportSelection.plant?.nombre ?? "—"} | 
-                  <strong> Fecha de generación:</strong> {reportSelection.generatedDate ? new Date(reportSelection.generatedDate).toLocaleString('es-ES') : currentDate}
+                  <strong> Fecha de generación:</strong> {reportSelection.generatedDate ? new Date(reportSelection.generatedDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : currentDate}
                 </small>
               </div>
             )}
@@ -2511,9 +2633,40 @@ export default function Reporte() {
                     </div>
                   )}
                 </div>
+                {/* Fecha de generación (igual que en el PDF: debajo del header, derecha, sin hora) */}
+                <div className="ml-10 mr-10 mb-2 text-end">
+                  <p className="mb-0 small text-muted">
+                    <strong>Fecha de generación:</strong>{" "}
+                    {reportSelection?.generatedDate
+                      ? new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })
+                      : new Date().toLocaleDateString("es-ES", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                  </p>
+                </div>
                 <div className="mb-4 ml-10 mr-10">
                   <div className="row">
                   <div className="col-12">
+                    <p className="mb-2">
+                      San Luis Potosí, S.L.P. a{" "}
+                      {reportSelection?.generatedDate
+                        ? new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })
+                        : new Date().toLocaleDateString("es-ES", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })}
+                    </p>
                     <p>
                       <strong>Dirigido a: </strong>
                       <span
@@ -3109,7 +3262,119 @@ export default function Reporte() {
                   })}
                 </div>
               )}
+
+              {/* Tabla de límites Alto/Bajo por parámetro (parte inferior del reporte) */}
+              {reportSelection && (
+                <div className="mt-4 pt-4 border-t ml-10 mr-10 mb-4">
+                  <h5 className="mb-3 text-gray-800">
+                    <strong>Límites recomendados (Alto y Bajo) por parámetro y sistema</strong>
+                  </h5>
+                  <p className="text-sm text-muted mb-3">
+                    Valores de referencia para interpretar los resultados de cada sistema.
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border border-gray-300 bg-white text-sm">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="border px-3 py-2 text-left font-semibold align-middle" rowSpan={2}>
+                            Parámetro
+                          </th>
+                          <th className="border px-2 py-1 text-center font-semibold align-middle" rowSpan={2}>
+                            Unidad
+                          </th>
+                          {orderedSystemNames.map((systemName) => (
+                            <th
+                              key={systemName}
+                              colSpan={2}
+                              className="border px-2 py-1 text-center font-semibold bg-gray-200"
+                            >
+                              {systemName}
+                            </th>
+                          ))}
+                        </tr>
+                        <tr className="bg-gray-100">
+                          {orderedSystemNames.flatMap((systemName) => [
+                            <th key={`${systemName}-bajo`} className="border px-2 py-1 text-center font-medium text-gray-700">
+                              Bajo
+                            </th>,
+                            <th key={`${systemName}-alto`} className="border px-2 py-1 text-center font-medium text-gray-700">
+                              Alto
+                            </th>,
+                          ])}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const allVariables = new Set<string>();
+                          Object.values(reportSelection.parameters).forEach((systemData: Record<string, unknown>) => {
+                            Object.keys(systemData).forEach((variable) => allVariables.add(variable));
+                          });
+                          let orderedVariableList: string[];
+                          if (plantOrderVariables.length > 0) {
+                            orderedVariableList = [
+                              ...plantOrderVariables.map((v) => v.nombre).filter((n) => allVariables.has(n)),
+                              ...Array.from(allVariables).filter((n) => !plantOrderVariables.some((v) => v.nombre === n)),
+                            ];
+                          } else if (reportSelection.parameterOrder?.length) {
+                            orderedVariableList = [
+                              ...reportSelection.parameterOrder.filter((n) => allVariables.has(n)),
+                              ...Array.from(allVariables).filter((n) => !reportSelection.parameterOrder!.includes(n)),
+                            ];
+                          } else {
+                            orderedVariableList = Array.from(allVariables);
+                          }
+                          const tolerances = reportSelection?.variablesTolerancia || {};
+                          const getTolerance = (variable: string) => {
+                            if (tolerances[variable]) return tolerances[variable] as { bien_min?: number | null; bien_max?: number | null };
+                            const byName = Object.values(tolerances).find(
+                              (tol: unknown) => tol && typeof tol === "object" && (tol as { nombre?: string }).nombre === variable
+                            ) as { bien_min?: number | null; bien_max?: number | null } | undefined;
+                            if (byName) return byName;
+                            return Object.values(tolerances).find(
+                              (tol: unknown) =>
+                                tol &&
+                                typeof tol === "object" &&
+                                (tol as { nombre?: string }).nombre?.trim().toLowerCase() === variable.trim().toLowerCase()
+                            ) as { bien_min?: number | null; bien_max?: number | null } | undefined;
+                          };
+                          return orderedVariableList.map((variable) => {
+                            let unidad = "";
+                            for (const systemName of orderedSystemNames) {
+                              const paramData = reportSelection.parameters[systemName]?.[variable];
+                              if (paramData?.unidad) {
+                                unidad = paramData.unidad;
+                                break;
+                              }
+                            }
+                            const tol = getTolerance(variable);
+                            const bajo = tol?.bien_min != null ? Number(tol.bien_min).toFixed(2) : "—";
+                            const alto = tol?.bien_max != null ? Number(tol.bien_max).toFixed(2) : "—";
+                            return (
+                              <tr key={variable} className="hover:bg-gray-50">
+                                <td className="border px-3 py-2 font-medium">{variable}</td>
+                                <td className="border px-2 py-1 text-center text-gray-600">{unidad || "—"}</td>
+                                {orderedSystemNames.flatMap((systemName) => [
+                                  <td key={`${variable}-${systemName}-bajo`} className="border px-2 py-1 text-center">
+                                    {bajo}
+                                  </td>,
+                                  <td key={`${variable}-${systemName}-alto`} className="border px-2 py-1 text-center">
+                                    {alto}
+                                  </td>,
+                                ])}
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
               </div>
+               {/* Firma: solo para PDF, misma ruta que header/footer (/images/) */}
+                <div id="firma-img" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }} aria-hidden="true">
+                  <img src="/images/Firma.jpeg" alt="" />
+                </div>
                {/* Footer Image */}
                 <div id="footer-img" className="text-center">
                   {imagesLoaded ? (
@@ -3146,6 +3411,9 @@ export default function Reporte() {
                         </li>
                         <li>
                           <code>footer-textless.png</code> - Imagen de pie de página
+                        </li>
+                        <li>
+                          <code>Firma.jpeg</code> - Firma (misma carpeta; solo se usa en la descarga PDF)
                         </li>
                       </ul>
                     </li>

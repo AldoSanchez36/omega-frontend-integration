@@ -435,7 +435,12 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
               <YAxis
                 tickLine={false}
                 axisLine={false}
-                // Sin label - el nombre del parámetro y la unidad ya vienen en el título del gráfico
+                label={unidades ? {
+                  value: unidades,
+                  angle: -90,
+                  position: "insideLeft",
+                  style: { fontSize: 11, fill: "#000000", fontWeight: "bold", textAnchor: "middle" },
+                } : undefined}
                 tickFormatter={(value) => {
                   if (typeof value === 'number') {
                     return value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 10 });
