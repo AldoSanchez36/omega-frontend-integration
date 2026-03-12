@@ -1065,7 +1065,7 @@ export default function Reporte() {
       // Firma: cargar desde ruta (sin depender del DOM)
       let firmaData: string | null = null;
       try {
-        firmaData = await loadImageAsBase64("/images/Firma.jpeg");
+        firmaData = await loadImageAsBase64("/images/Firma_1.jpeg");
       } catch (error) {
         console.warn("Signature image could not be loaded:", error);
       }
