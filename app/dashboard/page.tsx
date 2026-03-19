@@ -86,8 +86,8 @@ export default function Dashboard() {
   const [totalHistoricos, setTotalHistoricos] = useState<number>(0);
   const [historicalDataLoading, setHistoricalDataLoading] = useState<boolean>(false);
   
-  // Ajuste temporal: año a mostrar en gráficos históricos para clientes (cambiar a new Date().getFullYear() para año actual)
-  const HISTORICAL_YEAR = 2025;
+  // Año a mostrar en gráficos/tablas históricas
+  const HISTORICAL_YEAR = new Date().getFullYear();
   const getCurrentYearDates = () => {
     const year = HISTORICAL_YEAR;
     const startDate = `${year}-01-01`;
@@ -653,7 +653,7 @@ export default function Dashboard() {
     fetchReportes();
   }, [user, userRole, startDate, endDate]);
 
-  // Asegurar que las fechas coincidan con HISTORICAL_YEAR (temporal: 2025)
+  // Asegurar que las fechas coincidan con HISTORICAL_YEAR
   useEffect(() => {
     const { startDate: yearStart, endDate: yearEnd } = getCurrentYearDates();
     const startYear = new Date(startDate).getFullYear();
