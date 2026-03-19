@@ -37,18 +37,18 @@ Este directorio contiene scripts de testing individuales para cada página de la
   - `GET /api/variables-tolerancia` - Obtener tolerancias
   - `PATCH /api/variables-tolerancia/{id}` - Actualizar tolerancia
 
-### 📋 Dashboard Report Manager (`/dashboard-reportmanager`)
-- **Archivo**: `test-dashboard-reportmanager.js`
-- **Comando**: `npm run test:dashboard-reportmanager`
+### 📋 Dashboard Report Manager (`/reportmanager`)
+- **Archivo**: `test-reportmanager.js`
+- **Comando**: `npm run test:reportmanager`
 - **Endpoints probados**:
   - `GET /api/plantas/all` - Obtener todas las plantas
   - `GET /api/auth/user-by-plant/{plantId}` - Obtener usuarios por planta
   - `GET /api/variables/proceso/{systemId}` - Obtener variables por sistema
   - `GET /api/mediciones/variable-id/{variableId}` - Obtener mediciones por variable
 
-### ⚙️ Dashboard Agregar Sistema (`/dashboard-agregarsistema`)
-- **Archivo**: `test-dashboard-agregarsistema.js`
-- **Comando**: `npm run test:dashboard-agregarsistema`
+### ⚙️ Dashboard Agregar Sistema (`/agregarsistema`)
+- **Archivo**: `test-agregarsistema.js`
+- **Comando**: `npm run test:agregarsistema`
 - **Endpoints probados**:
   - `PATCH /api/variables/{id}` - Actualizar variable
   - `GET /api/auth/users` - Obtener todos los usuarios
@@ -80,10 +80,10 @@ npm run test:users-management
 npm run test:dashboard-parameters
 
 # Test del report manager
-npm run test:dashboard-reportmanager
+npm run test:reportmanager
 
 # Test de agregar sistema
-npm run test:dashboard-agregarsistema
+npm run test:agregarsistema
 ```
 
 ### Ejecutar directamente con Node
@@ -91,8 +91,8 @@ npm run test:dashboard-agregarsistema
 node testers/test-agregar-formula.js
 node testers/test-users-management.js
 node testers/test-dashboard-parameters.js
-node testers/test-dashboard-reportmanager.js
-node testers/test-dashboard-agregarsistema.js
+node testers/test-reportmanager.js
+node testers/test-agregarsistema.js
 node testers/run-all-page-tests.js
 ```
 
@@ -103,8 +103,8 @@ Cada script genera su propio reporte JSON:
 - `agregar-formula-test-report.json`
 - `users-management-test-report.json`
 - `dashboard-parameters-test-report.json`
-- `dashboard-reportmanager-test-report.json`
-- `dashboard-agregarsistema-test-report.json`
+- `reportmanager-test-report.json`
+- `agregarsistema-test-report.json`
 - `consolidated-page-tests-report.json` (reporte consolidado)
 
 ## 🎯 Características

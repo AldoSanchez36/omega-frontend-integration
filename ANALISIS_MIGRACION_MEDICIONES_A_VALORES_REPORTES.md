@@ -22,7 +22,7 @@ Este documento analiza las **implicaciones** de eliminar la tabla `mediciones` y
    - El backend guarda en `reportes` con `datos` = ese objeto (incluyendo `parameters` con los valores).  
    - **Después**, el frontend hace **N** llamadas `POST /api/mediciones` (una por cada valor por parámetro/sistema) para “replicar” esos valores en la tabla `mediciones`.
 
-2. **Dashboard-reportmanager**  
+2. **reportmanager**  
    - `useMeasurements` solo construye el objeto del reporte (parameters, tolerances) y lo guarda en localStorage / llama `onSaveSuccess`. **No llama a `/api/mediciones`**.
 
 Conclusión: los valores del reporte **ya se guardan en `reportes.datos`**. La tabla `mediciones` se usa como **serie temporal** para consultas por proceso, variable, cliente, usuario, etc. (históricos, gráficos, tablas).
@@ -181,7 +181,7 @@ Impacto: **alto** (guardado + carga de histórico en la misma página).
 
 Impacto: **medio** (solo la parte de datos para gráficos).
 
-### 4.4 app/dashboard-reportmanager/page.tsx
+### 4.4 app/reportmanager/page.tsx
 
 | Uso actual | Ajuste |
 |------------|--------|
@@ -190,7 +190,7 @@ Impacto: **medio** (solo la parte de datos para gráficos).
 
 Impacto: **medio** (origen de “sistemas por parámetro” para el preview).
 
-### 4.5 app/dashboard-historicos/page.tsx
+### 4.5 app/historicos/page.tsx
 
 | Uso actual | Ajuste |
 |------------|--------|
@@ -198,7 +198,7 @@ Impacto: **medio** (origen de “sistemas por parámetro” para el preview).
 
 Impacto: **alto** (toda la tabla histórica depende de ese endpoint).
 
-### 4.6 app/dashboard-reportList/page.tsx
+### 4.6 app/reportList/page.tsx
 
 | Uso actual | Ajuste |
 |------------|--------|
@@ -213,7 +213,7 @@ Impacto: **bajo** (solo representación de cantidad o etiquetas).
 | **components/MesureTable.tsx** | Varios endpoints: `MEASUREMENTS_BY_VARIABLE_AND_USER_AND_PROCESS`, `MEASUREMENTS_BY_VARIABLE_AND_CLIENT`, `MEASUREMENTS_BY_VARIABLE_AND_PROCESS`. Espera `result.mediciones`. | Sustituir llamadas por uno o varios endpoints que devuelvan el mismo formato desde reportes (histórico por variable + proceso/cliente/usuario). |
 | **components/MesureTable-fixed-auth.tsx** | Similar: `MEASUREMENTS_BY_VARIABLE_NAME`, `MEASUREMENTS_BY_VARIABLEID`, `MEASUREMENTS_BY_SYSTEM`, `MEASUREMENTS_BY_PROCESS`. | Igual: nuevos endpoints o agregación desde reportes, misma forma de respuesta. |
 | **components/SensorTimeSeriesChart.tsx** | `MEASUREMENTS_BY_VARIABLE_AND_CLIENT`, `MEASUREMENTS_BY_VARIABLE_AND_USER_AND_PROCESS`, `MEASUREMENTS_BY_VARIABLE_AND_PROCESS`. | Mismo criterio: datos desde “histórico” basado en reportes. |
-| **app/dashboard-reportmanager/components/ParametersList.tsx** | Usa `medicionesPreview` (lista de mediciones) para mostrar preview por parámetro/sistema. El origen de `medicionesPreview` viene del hook/estado que se alimenta con datos de la API de mediciones. | Si `medicionesPreview` pasa a alimentarse desde reportes (por ejemplo “últimos valores por variable/sistema” desde histórico), ajustar solo el origen de datos; la UI puede mantenerse. |
+| **app/reportmanager/components/ParametersList.tsx** | Usa `medicionesPreview` (lista de mediciones) para mostrar preview por parámetro/sistema. El origen de `medicionesPreview` viene del hook/estado que se alimenta con datos de la API de mediciones. | Si `medicionesPreview` pasa a alimentarse desde reportes (por ejemplo “últimos valores por variable/sistema” desde histórico), ajustar solo el origen de datos; la UI puede mantenerse. |
 
 Impacto: **alto** en MesureTable y SensorTimeSeriesChart (varios endpoints); **medio** en ParametersList si se cambia el origen de `medicionesPreview`.
 
@@ -235,9 +235,9 @@ Impacto: **alto** en MesureTable y SensorTimeSeriesChart (varios endpoints); **m
 | **Backend – VariablesSQL / variables controller** | Ajuste | Validación de “variable con datos” basada en reportes en lugar de tabla mediciones. |
 | **Frontend – app/reports** | Alto | Dejar de hacer N POST a mediciones; obtener histórico desde nuevo endpoint. |
 | **Frontend – app/dashboard** | Medio | Gráficos: datos desde nuevo endpoint de histórico. |
-| **Frontend – app/dashboard-reportmanager** | Medio | Origen de “sistemas por parámetro” y, si aplica, preview desde reportes. |
-| **Frontend – app/dashboard-historicos** | Alto | Toda la carga de datos desde “histórico por proceso”. |
-| **Frontend – app/dashboard-reportList** | Bajo | Sustituir uso de `mediciones.length` por lógica sobre parameters/valores. |
+| **Frontend – app/reportmanager** | Medio | Origen de “sistemas por parámetro” y, si aplica, preview desde reportes. |
+| **Frontend – app/historicos** | Alto | Toda la carga de datos desde “histórico por proceso”. |
+| **Frontend – app/reportList** | Bajo | Sustituir uso de `mediciones.length` por lógica sobre parameters/valores. |
 | **Frontend – components (MesureTable, SensorTimeSeriesChart, ParametersList)** | Alto / Medio | Sustituir todos los endpoints de mediciones por histórico basado en reportes. |
 | **Frontend – config/constants.ts** | Bajo | Sustituir/deprecar endpoints de mediciones; añadir nuevos si aplica. |
 
@@ -249,7 +249,7 @@ Impacto: **alto** en MesureTable y SensorTimeSeriesChart (varios endpoints); **m
    Decidir si se usa `reportes.datos.parameters` como “valores” o una columna `reportes.valores` y documentar el formato (por sistema, por variable_id, unidades, comentarios) para no romper PDF ni vistas.
 
 2. **Introducir endpoints de “histórico” desde reportes**  
-   Mantener la misma forma de respuesta (`{ mediciones: [...] }`) donde sea posible para reducir cambios en el frontend (reports, dashboard, dashboard-historicos, componentes).
+   Mantener la misma forma de respuesta (`{ mediciones: [...] }`) donde sea posible para reducir cambios en el frontend (reports, dashboard, historicos, componentes).
 
 3. **Migración de datos**  
    Si se quieren conservar históricos ya guardados en `mediciones`, hace falta un criterio para asociar cada fila a un reporte (por ejemplo por fecha + proceso + usuario) y un script de migración; si no, asumir que el histórico “nuevo” empieza con los reportes que tengan `valores`/`datos`.

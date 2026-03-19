@@ -29,15 +29,15 @@ Este proyecto es un sistema de gestión industrial desarrollado con **Next.js** 
 - `/dashboard`: Página principal tras login, muestra resumen y accesos rápidos según el rol.
   - `/dashboard/buttons/`: Botones de acciones rápidas, modularizados por rol (admin, user, client).
 - `/dashboard-parameters`: Gestión avanzada de parámetros industriales con configuración de tolerancias.
-- `/dashboard-agregarsistema`: Agregar nuevos sistemas industriales.
+- `/agregarsistema`: Agregar nuevos sistemas industriales.
 - `/dashboard-agregarplanta`: Agregar nuevas plantas industriales.
 
 ### 3. **Reportes**
-- `/dashboard-reportList`:  
+- `/reportList`:  
   - Lista de reportes PDF generados.
   - Filtro por fecha.
   - Acciones: ver y descargar (con íconos profesionales).
-- `/dashboard-reportmanager`:  
+- `/reportmanager`:  
   - Gestión avanzada de reportes con entrada manual de mediciones.
   - Visualización de tablas de medidas (`MesureTable`) y gráficos de series temporales (`SensorTimeSeriesChart`).
   - Configuración de tolerancias por parámetro.
@@ -271,7 +271,7 @@ npm run dev -- -p 3001
 - **Login:** http://localhost:3000/login
 - **Dashboard:** http://localhost:3000/dashboard
 - **Gestión de Parámetros:** http://localhost:3000/dashboard-parameters
-- **Gestor de Reportes:** http://localhost:3000/dashboard-reportmanager
+- **Gestor de Reportes:** http://localhost:3000/reportmanager
 - **API Backend:** http://localhost:4000
 
 ---

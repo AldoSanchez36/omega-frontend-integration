@@ -13,7 +13,7 @@ import { authService } from "@/services/authService"
 import { useEmpresasAccess } from "@/hooks/useEmpresasAccess"
 import TabbedSelectorHistoricos from "./components/TabbedSelectorHistoricos"
 import { ParameterChartCard } from "./components/ParameterChartCard"
-import ScrollArrow from "../dashboard-reportmanager/components/ScrollArrow"
+import ScrollArrow from "../reportmanager/components/ScrollArrow"
 
 // Interfaces
 interface Empresa {

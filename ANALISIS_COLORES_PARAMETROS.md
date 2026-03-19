@@ -1,7 +1,7 @@
 # Análisis: Definición de Colores en Dashboard Report Manager
 
 ## Ubicación
-**Archivo:** `app/dashboard-reportmanager/components/ParametersComponents/ParametersVariableList.tsx`
+**Archivo:** `app/reportmanager/components/ParametersComponents/ParametersVariableList.tsx`
 
 ## Función Principal: `getInputColor`
 

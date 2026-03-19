@@ -5,12 +5,12 @@ Las tolerancias **SÍ se obtienen del backend**, pero **NO directamente en `@app
 
 ## Flujo Completo
 
-### 1. En `dashboard-reportmanager` (cuando se guardan datos)
+### 1. En `reportmanager` (cuando se guardan datos)
 
 **Archivo:** `hooks/useMeasurements.ts`
 
 **Proceso:**
-1. Cuando el usuario hace clic en "Guardar Datos" en `dashboard-reportmanager`
+1. Cuando el usuario hace clic en "Guardar Datos" en `reportmanager`
 2. Se ejecuta `handleSaveData()` en `useMeasurements.ts`
 3. **Se hace una llamada al backend** para obtener todas las tolerancias:
    ```typescript
@@ -126,7 +126,7 @@ Si las tolerancias no están en `localStorage` cuando se carga `reports`, se pod
 
 ## Conclusión
 
-**Las tolerancias SÍ vienen del backend**, pero se obtienen en `dashboard-reportmanager` cuando se guardan los datos, y luego se almacenan en `localStorage`. En `reports`, solo se leen desde `localStorage`, no se hace llamada al backend.
+**Las tolerancias SÍ vienen del backend**, pero se obtienen en `reportmanager` cuando se guardan los datos, y luego se almacenan en `localStorage`. En `reports`, solo se leen desde `localStorage`, no se hace llamada al backend.
 
 Si los colores no se aplican, el problema probablemente está en:
 1. Las tolerancias no se están obteniendo correctamente del backend en `useMeasurements`

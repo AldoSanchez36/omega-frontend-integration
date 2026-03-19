@@ -3,7 +3,7 @@
 /**
  * Script de Testing para Dashboard Agregar Sistema
  * 
- * Este script prueba todos los endpoints utilizados en la página /dashboard-agregarsistema
+ * Este script prueba todos los endpoints utilizados en la página /agregarsistema
  * para verificar la conectividad y funcionalidad correcta.
  * 
  * Endpoints probados:
@@ -482,12 +482,12 @@ async function runDashboardAgregarSistemaTests() {
     
     if (typeof window === 'undefined') {
       // Save report to tester-results folder
-      const reportPath = tester.reportHelper.saveJsonReport('dashboard-agregarsistema-test', report);
+      const reportPath = tester.reportHelper.saveJsonReport('agregarsistema-test', report);
       console.log(`📄 Report saved to: ${reportPath}`);
       
       // Also save the old format for backward compatibility
       const fs = require('fs');
-      const legacyPath = './dashboard-agregarsistema-test-report.json';
+      const legacyPath = './agregarsistema-test-report.json';
       fs.writeFileSync(legacyPath, JSON.stringify(report, null, 2));
       console.log(`📄 Legacy report saved to: ${legacyPath}`);
     }

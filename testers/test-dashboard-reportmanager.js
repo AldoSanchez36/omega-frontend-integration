@@ -3,7 +3,7 @@
 /**
  * Script de Testing para Dashboard Report Manager
  * 
- * Este script prueba todos los endpoints utilizados en la página /dashboard-reportmanager
+ * Este script prueba todos los endpoints utilizados en la página /reportmanager
  * para verificar la conectividad y funcionalidad correcta.
  * 
  * Endpoints probados:
@@ -388,12 +388,12 @@ async function runDashboardReportManagerTests() {
     
     if (typeof window === 'undefined') {
       // Save report to tester-results folder
-      const reportPath = tester.reportHelper.saveJsonReport('dashboard-reportmanager-test', report);
+      const reportPath = tester.reportHelper.saveJsonReport('reportmanager-test', report);
       console.log(`📄 Report saved to: ${reportPath}`);
       
       // Also save the old format for backward compatibility
       const fs = require('fs');
-      const legacyPath = './dashboard-reportmanager-test-report.json';
+      const legacyPath = './reportmanager-test-report.json';
       fs.writeFileSync(legacyPath, JSON.stringify(report, null, 2));
       console.log(`📄 Legacy report saved to: ${legacyPath}`);
     }

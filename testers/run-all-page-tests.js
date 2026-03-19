@@ -10,8 +10,8 @@
 const { runAgregarFormulaTests } = require('./test-agregar-formula.js');
 const { runUsersManagementTests } = require('./test-users-management.js');
 const { runDashboardParametersTests } = require('./test-dashboard-parameters.js');
-const { runDashboardReportManagerTests } = require('./test-dashboard-reportmanager.js');
-const { runDashboardAgregarSistemaTests } = require('./test-dashboard-agregarsistema.js');
+const { runDashboardReportManagerTests } = require('./test-reportmanager.js');
+const { runDashboardAgregarSistemaTests } = require('./test-agregarsistema.js');
 const { ReportHelper } = require('./report-helper.js');
 
 const colors = {
@@ -64,12 +64,12 @@ async function runAllPageTests() {
     {
       name: 'Dashboard Report Manager',
       runner: runDashboardReportManagerTests,
-      path: '/dashboard-reportmanager'
+      path: '/reportmanager'
     },
     {
       name: 'Dashboard Agregar Sistema',
       runner: runDashboardAgregarSistemaTests,
-      path: '/dashboard-agregarsistema'
+      path: '/agregarsistema'
     }
   ];
 

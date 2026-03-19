@@ -28,7 +28,7 @@ Usuario selecciona:
 Cuando se selecciona un proceso, se ejecuta `fetchParameters()`:
 
 ```typescript
-// Frontend: app/dashboard-agregarsistema/page.tsx
+// Frontend: app/agregarsistema/page.tsx
 const fetchParameters = async () => {
   // 1. Hace petición al backend
   GET /api/variables/proceso/{selectedSystemId}
