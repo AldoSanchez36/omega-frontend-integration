@@ -331,7 +331,7 @@
     },
     {
       "name": "Dashboard Report Manager",
-      "path": "/dashboard-reportmanager",
+      "path": "/reportmanager",
       "summary": {
         "total": 1,
         "successful": 0,
@@ -366,7 +366,7 @@
     },
     {
       "name": "Dashboard Agregar Sistema",
-      "path": "/dashboard-agregarsistema",
+      "path": "/agregarsistema",
       "summary": {
         "total": 1,
         "successful": 0,

@@ -51,7 +51,7 @@ class FinalSolutionTester {
     this.log('   • The issue is NOT authentication, but missing variables in database', 'warning');
     
     this.log('\n🔧 SOLUTION IMPLEMENTED:', 'info');
-    this.log('   ✅ Updated dashboard-reportmanager/page.tsx to use authService', 'success');
+    this.log('   ✅ Updated reportmanager/page.tsx to use authService', 'success');
     this.log('   ✅ Created SensorTimeSeriesChart-fixed-auth.tsx with httpService', 'success');
     this.log('   ✅ Created MesureTable-fixed-auth.tsx with httpService', 'success');
     this.log('   ✅ Created SensorTimeSeriesChart-enhanced.tsx with better error handling', 'success');
@@ -94,11 +94,11 @@ class FinalSolutionTester {
     const path = require('path');
     
     const filesToCheck = [
-      'app/dashboard-reportmanager/page.tsx',
+      'app/reportmanager/page.tsx',
       'components/SensorTimeSeriesChart-fixed-auth.tsx',
       'components/MesureTable-fixed-auth.tsx',
       'components/SensorTimeSeriesChart-enhanced.tsx',
-      'app/dashboard-reportmanager/components/Charts.tsx'
+      'app/reportmanager/components/Charts.tsx'
     ];
     
     for (const file of filesToCheck) {
@@ -202,7 +202,7 @@ class FinalSolutionTester {
     this.log(`   ✅ Variable suggestions implemented`, 'success');
     
     this.log(`\n🚀 READY FOR TESTING:`, 'info');
-    this.log(`   • Open dashboard-reportmanager in browser`, 'test');
+    this.log(`   • Open reportmanager in browser`, 'test');
     this.log(`   • Check that S1 still works (304/200)`, 'test');
     this.log(`   • Verify helpful error messages for missing variables`, 'test');
     this.log(`   • Confirm available variables are displayed`, 'test');

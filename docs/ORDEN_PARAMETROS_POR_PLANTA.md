@@ -63,7 +63,7 @@ Recomendación: **Opción A** para una primera versión.
 
 ---
 
-### 2. Frontend – `dashboard-agregarsistema` (definir orden por planta)
+### 2. Frontend – `agregarsistema` (definir orden por planta)
 
 - Con una **planta seleccionada**, añadir una sección tipo **“Orden de parámetros de la planta”** (no por sistema).
 - Lista: todas las variables que existen en al menos un sistema de la planta.  
@@ -76,7 +76,7 @@ Recomendación: **Opción A** para una primera versión.
 
 ### 3. Frontend – Cargar datos en el orden de la planta
 
-En **reportes**, **dashboard-reportmanager** y **dashboard-historicos** (y cualquier otra vista que muestre tablas por sistema):
+En **reportes**, **reportmanager** y **historicos** (y cualquier otra vista que muestre tablas por sistema):
 
 1. **Obtener el orden de la planta**  
    - Con el `planta_id` del reporte/contexto, llamar a `GET /api/plantas/:plantaId/orden-variables`.  

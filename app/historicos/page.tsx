@@ -13,7 +13,7 @@ import { authService } from "@/services/authService"
 import { useEmpresasAccess } from "@/hooks/useEmpresasAccess"
 import TabbedSelectorHistoricos from "./components/TabbedSelectorHistoricos"
 import { ParameterChartCard } from "./components/ParameterChartCard"
-import ScrollArrow from "../dashboard-reportmanager/components/ScrollArrow"
+import ScrollArrow from "../reportmanager/components/ScrollArrow"
 
 // Interfaces
 interface Empresa {
@@ -49,6 +49,12 @@ interface Parameter {
   nombre: string
   unidad: string
   proceso_id: string
+  /**
+   * Relación lógica entre variable + proceso (variables_procesos.id).
+   * En este componente, el match de tolerancias se hace exclusivamente con este ID.
+   */
+  variable_proceso_id?: string | null
+  variables_proceso_id?: string | null
   value?: number
   minValue?: number
   maxValue?: number
@@ -56,10 +62,23 @@ interface Parameter {
 
 interface Tolerance {
   id: string
-  variable_id: string
-  proceso_id: string
+  /**
+   * Relación lógica entre variable + proceso (variables_procesos.id).
+   * En este componente, el match de tolerancias se hace exclusivamente con este ID.
+   */
+  variables_proceso_id?: string | null
+  // Compatibilidad con respuestas antiguas
+  variable_id?: string
+  proceso_id?: string
   limite_min?: number
   limite_max?: number
+  bien_min?: number | null
+  bien_max?: number | null
+  usar_limite_min?: boolean
+  usar_limite_max?: boolean
+  // Variantes que podrían venir desde el backend
+  usar_limite_bajo?: boolean
+  usar_limite_alto?: boolean
   unidad?: string
 }
 
@@ -231,9 +250,13 @@ export default function HistoricosPage() {
       if (res.ok) {
         const data = await res.json()
         const toleranceData = Array.isArray(data) ? data : data.tolerancias || []
-        const systemTolerances = toleranceData.filter((tol: Tolerance) => 
-          tol.proceso_id === selectedSystem
-        )
+        // Match de tolerancias contra parámetros: exclusivamente por `variables_proceso_id`.
+        // Este filtro por `proceso_id` solo reduce payload si el backend lo incluye.
+        const systemTolerances = toleranceData.filter((tol: Tolerance) => {
+          if (!selectedSystem) return true
+          if (tol.proceso_id == null) return true
+          return String(tol.proceso_id) === String(selectedSystem)
+        })
         setTolerances(systemTolerances)
       }
     } catch (error) {
@@ -414,16 +437,106 @@ export default function HistoricosPage() {
   }, [setSelectedSystem])
 
   // Helper functions para obtener valores de tolerancia
-  const getToleranceForParameter = (parameterId: string): Tolerance | undefined => {
-    return tolerances.find(tol => tol.variable_id === parameterId)
+  const getTargetVariablesProcesoId = (parameter: Parameter): string | null => {
+    const id = parameter.variable_proceso_id ?? parameter.variables_proceso_id ?? null
+    return id == null || id === "" ? null : String(id)
   }
 
-  const getMinMaxForParameter = (parameterId: string): { min: number | undefined, max: number | undefined } => {
-    const tolerance = getToleranceForParameter(parameterId)
+  const getToleranceForParameter = (parameter: Parameter): Tolerance | undefined => {
+    const targetId = getTargetVariablesProcesoId(parameter)
+    if (!targetId) return undefined
+    // Match exclusivo por `variables_proceso_id`
+    return tolerances.find((tol) => String(tol.variables_proceso_id ?? "") === targetId)
+  }
+
+  const getMinMaxForParameter = (parameter: Parameter): { min: number | undefined, max: number | undefined } => {
+    const tolerance = getToleranceForParameter(parameter)
     return {
       min: tolerance?.limite_min,
       max: tolerance?.limite_max
     }
+  }
+
+  // Función pura: devuelve el color hex según bien/limite y banderas `usar_limite_*`
+  // (misma paleta que `/reports`).
+  function getCellColor(valor: number, param: {
+    bien_min: number | null | undefined
+    bien_max: number | null | undefined
+    limite_min: number | null | undefined
+    limite_max: number | null | undefined
+    usar_limite_min: boolean
+    usar_limite_max: boolean
+  }): string {
+    if (!Number.isFinite(valor)) return ""
+
+    const bien_min = param.bien_min
+    const bien_max = param.bien_max
+    const limite_min = param.limite_min
+    const limite_max = param.limite_max
+    const usar_limite_min = param.usar_limite_min
+    const usar_limite_max = param.usar_limite_max
+
+    // Caso 1: límites críticos (rojo)
+    if (usar_limite_min && limite_min !== null && limite_min !== undefined) {
+      if (valor < limite_min) return "#FFC6CE"
+    }
+    if (usar_limite_max && limite_max !== null && limite_max !== undefined) {
+      if (valor > limite_max) return "#FFC6CE"
+    }
+
+    // Caso 2: sólo bien_max => rojo si excede, verde si no
+    if ((bien_min === null || bien_min === undefined) && bien_max !== null && bien_max !== undefined) {
+      if (valor > bien_max) return "#FFC6CE"
+      return "#C6EFCE"
+    }
+
+    // Caso 3: sólo bien_min => rojo si queda abajo, verde si no
+    if ((bien_max === null || bien_max === undefined) && bien_min !== null && bien_min !== undefined) {
+      if (valor < bien_min) return "#FFC6CE"
+      return "#C6EFCE"
+    }
+
+    // Caso 4: ambos bien_min y bien_max, sin limite => rojo fuera del rango bien
+    if (!usar_limite_min && !usar_limite_max && bien_min !== null && bien_min !== undefined && bien_max !== null && bien_max !== undefined) {
+      if (valor < bien_min || valor > bien_max) return "#FFC6CE"
+      return "#C6EFCE"
+    }
+
+    // Caso 5: amarillo (rango de advertencia)
+    if (usar_limite_min && limite_min !== null && limite_min !== undefined) {
+      if (valor >= limite_min && bien_min !== null && bien_min !== undefined && valor < bien_min) return "#FFEB9C"
+    }
+    if (usar_limite_max && limite_max !== null && limite_max !== undefined) {
+      if (valor <= limite_max && bien_max !== null && bien_max !== undefined && valor > bien_max) return "#FFEB9C"
+    }
+
+    // Caso 6: dentro de rango bien => verde
+    if (bien_min !== null && bien_min !== undefined && bien_max !== null && bien_max !== undefined) {
+      if (valor >= bien_min && valor <= bien_max) return "#C6EFCE"
+    }
+
+    // Caso 7: default => verde
+    return "#C6EFCE"
+  }
+
+  const getHistoricalCellColor = (parameter: Parameter, value: unknown): string => {
+    if (value === undefined || value === null) return ""
+    const valorNum = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN
+    if (!Number.isFinite(valorNum)) return ""
+
+    const tol = getToleranceForParameter(parameter)
+    if (!tol) return ""
+
+    const toleranceParam = {
+      bien_min: tol.bien_min ?? null,
+      bien_max: tol.bien_max ?? null,
+      limite_min: tol.limite_min ?? null,
+      limite_max: tol.limite_max ?? null,
+      usar_limite_min: (tol.usar_limite_min ?? tol.usar_limite_bajo ?? false) === true,
+      usar_limite_max: (tol.usar_limite_max ?? tol.usar_limite_alto ?? false) === true,
+    }
+
+    return getCellColor(valorNum, toleranceParam)
   }
 
   // Calcular valores ALTO y BAJO para cada parámetro
@@ -478,17 +591,9 @@ export default function HistoricosPage() {
 
   const averageValues = getAverageValues()
 
-  // Verificar si un valor está fuera de rango
-  const isValueOutOfRange = (parameterId: string, value: number): boolean => {
-    const { min, max } = getMinMaxForParameter(parameterId)
-    if (min !== undefined && value < min) return true
-    if (max !== undefined && value > max) return true
-    return false
-  }
-
   // Obtener rango aceptable para un parámetro
-  const getAcceptableRange = (parameterId: string): string => {
-    const { min, max } = getMinMaxForParameter(parameterId)
+  const getAcceptableRange = (parameter: Parameter): string => {
+    const { min, max } = getMinMaxForParameter(parameter)
     if (min !== undefined && max !== undefined) {
       return `${min} - ${max}`
     } else if (min !== undefined) {
@@ -679,11 +784,13 @@ export default function HistoricosPage() {
                           <td className="border px-2 py-2 font-semibold bg-green-100">
                             ALTO
                           </td>
-                          {sortedParameters.map((param) => (
-                            <td key={param.id} className="border px-1 py-2 text-center text-xs">
-                              {highLowValues[param.id]?.alto.toFixed(2) || "—"}
-                            </td>
-                          ))}
+                          {sortedParameters.map((param) => {
+                            return (
+                              <td key={param.id} className="border px-1 py-2 text-center text-xs">
+                                {highLowValues[param.id]?.alto.toFixed(2) || "—"}
+                              </td>
+                            )
+                          })}
                           <td className="border px-2 py-2 text-xs">—</td>
                         </tr>
                         {/* Fila BAJO */}
@@ -691,11 +798,13 @@ export default function HistoricosPage() {
                           <td className="border px-2 py-2 font-semibold bg-green-100">
                             BAJO
                           </td>
-                          {sortedParameters.map((param) => (
-                            <td key={param.id} className="border px-1 py-2 text-center text-xs">
-                              {highLowValues[param.id]?.bajo.toFixed(2) || "—"}
-                            </td>
-                          ))}
+                          {sortedParameters.map((param) => {
+                            return (
+                              <td key={param.id} className="border px-1 py-2 text-center text-xs">
+                                {highLowValues[param.id]?.bajo.toFixed(2) || "—"}
+                              </td>
+                            )
+                          })}
                           <td className="border px-2 py-2 text-xs">—</td>
                         </tr>
                         {/* Fila PROMEDIO */}
@@ -703,13 +812,15 @@ export default function HistoricosPage() {
                           <td className="border px-2 py-2 font-semibold bg-green-100">
                             PROMEDIO
                           </td>
-                          {sortedParameters.map((param) => (
-                            <td key={param.id} className="border px-1 py-2 text-center text-xs">
-                              {averageValues[param.id] && averageValues[param.id] > 0 
-                                ? averageValues[param.id].toFixed(2) 
-                                : "—"}
-                            </td>
-                          ))}
+                          {sortedParameters.map((param) => {
+                            return (
+                              <td key={param.id} className="border px-1 py-2 text-center text-xs">
+                                {averageValues[param.id] && averageValues[param.id] > 0
+                                  ? averageValues[param.id].toFixed(2)
+                                  : "—"}
+                              </td>
+                            )
+                          })}
                           <td className="border px-2 py-2 text-xs">—</td>
                         </tr>
                         {/* Fila RANGOS */}
@@ -719,7 +830,7 @@ export default function HistoricosPage() {
                           </td>
                           {sortedParameters.map((param) => (
                             <td key={param.id} className="border px-1 py-2 text-center text-xs">
-                              {getAcceptableRange(param.id)}
+                              {getAcceptableRange(param)}
                             </td>
                           ))}
                           <td className="border px-2 py-2 text-xs">—</td>
@@ -741,14 +852,14 @@ export default function HistoricosPage() {
                               {sortedParameters.map((param) => {
                                 const value = dateData[param.id]
                                 const valor = value && typeof value === 'object' && 'valor' in value ? value.valor : undefined
-                                const isOutOfRange = valor !== undefined && isValueOutOfRange(param.id, valor)
+                                const cellColor = getHistoricalCellColor(param, valor)
+                                const textColor = cellColor === "#FFC6CE" || cellColor === "#FFEB9C" ? "#000000" : undefined
                                 
                                 return (
                                   <td
                                     key={param.id}
-                                    className={`border px-1 py-2 text-center text-xs ${
-                                      isOutOfRange ? "bg-yellow-300 font-semibold" : ""
-                                    }`}
+                                    className="border px-1 py-2 text-center text-xs"
+                                    style={cellColor ? { backgroundColor: cellColor, color: textColor } : undefined}
                                   >
                                     {formatNumber(valor)}
                                   </td>

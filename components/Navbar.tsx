@@ -14,11 +14,11 @@ interface NavbarProps {
 const NAV_LINKS = [
   // Solo para admin
   { path: "/agregar-formula",       label: "Agregar fórmula", icon: "ƒₓ", roles: ["admin"] },
-  { path: "/dashboard-agregarsistema",  label: "Agregar plantas o Sistema", icon: "factory", roles: ["admin"] },
+  { path: "/agregarsistema",  label: "Agregar plantas o Sistema", icon: "factory", roles: ["admin"] },
   // Para admin y user
   { path: "/users-management",      label: "Gestión de usuarios", icon: "people", roles: ["admin", "user"] },
-  { path: "/dashboard-reportmanager",  label: "Reportes", icon: "article", roles: ["admin", "user"] },
-  { path: "/dashboard-agregarvariables",  label: "Gestor de parámetros", icon: "tune", roles: ["admin", "user"] },
+  { path: "/reportmanager",  label: "Reportes", icon: "article", roles: ["admin", "user"] },
+  { path: "/agregarvariables",  label: "Gestor de parámetros", icon: "tune", roles: ["admin", "user"] },
   //{ path: "/reports", label: "Reporte", icon: "assessment", roles: ["admin", "user"/* , "client" */] },
   // Para admin, user y client
 

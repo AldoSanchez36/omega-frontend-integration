@@ -86,8 +86,8 @@ export default function Dashboard() {
   const [totalHistoricos, setTotalHistoricos] = useState<number>(0);
   const [historicalDataLoading, setHistoricalDataLoading] = useState<boolean>(false);
   
-  // Ajuste temporal: año a mostrar en gráficos históricos para clientes (cambiar a new Date().getFullYear() para año actual)
-  const HISTORICAL_YEAR = 2025;
+  // Año a mostrar en gráficos/tablas históricas
+  const HISTORICAL_YEAR = new Date().getFullYear();
   const getCurrentYearDates = () => {
     const year = HISTORICAL_YEAR;
     const startDate = `${year}-01-01`;
@@ -339,17 +339,17 @@ export default function Dashboard() {
 
   const handleNewReport = () => {
     /* addDebugLog("Nuevo Reporte clickeado - redirigiendo a report manager") */
-    router.push("/dashboard-reportmanager")
+    router.push("/reportmanager")
   }
 
   const handleNewVariable = () => {
    /* addDebugLog("Nueva Variable clickeado - redirigiendo a parámetros") */
-    router.push("/dashboard-agregarvariables")
+    router.push("/agregarvariables")
   }
 
   const handleNewSystem = () => {
     /* addDebugLog("Nuevo Sistema clickeado - redirigiendo a agregar sistema") */
-    router.push("/dashboard-agregarsistema")
+    router.push("/agregarsistema")
   }
 
   const handleNewParameters = () => {
@@ -358,14 +358,14 @@ export default function Dashboard() {
   }
 
   const handleNavigateToHistoricos = () => {
-    /* addDebugLog("Históricos clickeado - redirigiendo a dashboard-historicos") */
-    router.push("/dashboard-historicos")
+    /* addDebugLog("Históricos clickeado - redirigiendo a historicos") */
+    router.push("/historicos")
   }
 
   // look repots for client
   const getClientReports = async () => {
     /* addDebugLog("Ver reportes clickeado - redirigiendo a report list") */
-    router.push("/dashboard-reportList")
+    router.push("/reportList")
   }
 
   // Función para manejar la vista del reporte desde el dashboard (obtiene orden de parámetros y sistemas para que /reports muestre la tabla en el orden correcto también para cliente)
@@ -401,7 +401,7 @@ export default function Dashboard() {
             const sistemasData = await sistemasRes.json();
             const procesos = sistemasData.procesos || sistemasData || [];
             const sorted = [...procesos].sort((a: { orden?: number }, b: { orden?: number }) => (a.orden ?? 999999) - (b.orden ?? 999999));
-            systemOrder = sorted.map((s: { nombre?: string }) => s.nombre).filter(Boolean);
+            systemOrder = sorted.map((s: { nombre?: string }) => s.nombre || "").filter(Boolean) as string[];
           }
         } catch (_) {
           // Si falla (ej. cliente sin permiso en backend antiguo), seguimos sin orden; /reports usará fallback
@@ -653,7 +653,7 @@ export default function Dashboard() {
     fetchReportes();
   }, [user, userRole, startDate, endDate]);
 
-  // Asegurar que las fechas coincidan con HISTORICAL_YEAR (temporal: 2025)
+  // Asegurar que las fechas coincidan con HISTORICAL_YEAR
   useEffect(() => {
     const { startDate: yearStart, endDate: yearEnd } = getCurrentYearDates();
     const startYear = new Date(startDate).getFullYear();

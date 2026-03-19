@@ -10,7 +10,7 @@ import autoTable from "jspdf-autotable"
 import Navbar from "@/components/Navbar"
 import { SensorTimeSeriesChart, type ChartExportRef } from "@/components/SensorTimeSeriesChart"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
-import ScrollArrow from "@/app/dashboard-reportmanager/components/ScrollArrow"
+import ScrollArrow from "@/app/reportmanager/components/ScrollArrow"
 
 
 interface SystemData {
@@ -144,7 +144,7 @@ export default function Reporte() {
   // Orden de parámetros por planta (para mostrar tablas en orden configurado)
   const [plantOrderVariables, setPlantOrderVariables] = useState<{ id: string; nombre: string; orden: number }[]>([])
   
-  // Orden de sistemas de la planta (mismo que dashboard-reportmanager: por campo orden)
+  // Orden de sistemas de la planta (mismo que reportmanager: por campo orden)
   const [plantSystemsOrder, setPlantSystemsOrder] = useState<{ id: string; nombre: string; orden?: number }[]>([])
   
   // Estado para controlar si la tabla se incluye en el PDF
@@ -1577,7 +1577,7 @@ export default function Reporte() {
         }
       }
 
-      // Agregar tabla histórica por sistema (igual que dashboard-historicos)
+      // Agregar tabla histórica por sistema (igual que historicos)
       // Solo agregar si el checkbox está seleccionado
       if (includeTableInPDF && reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
         currentY = checkSpaceAndAddPage(20, currentY);
@@ -1721,12 +1721,12 @@ export default function Reporte() {
           pdf.text(`Sistema: ${systemName}`, marginLeft, currentY);
           currentY += 8;
           
-          // Calcular valores ALTO y BAJO usando param.id (igual que dashboard-historicos)
+          // Calcular valores ALTO y BAJO usando param.id (igual que historicos)
           const highLowValues: { [key: string]: { alto: number, bajo: number } } = {};
           parameters.forEach(param => {
             const values = Object.values(historicalData)
               .map(dateData => {
-                // Usar param.id para buscar valores (igual que dashboard-historicos)
+                // Usar param.id para buscar valores (igual que historicos)
                 const paramData = dateData[param.id];
                 return paramData && typeof paramData === 'object' && 'valor' in paramData ? paramData.valor : undefined;
               })
@@ -1760,6 +1760,40 @@ export default function Reporte() {
           const bajoRow = ["BAJO", ...parameters.map(p => 
             highLowValues[p.id]?.bajo.toFixed(2) || "—"
           ), "—"];
+
+          // Fila PROMEDIO (dinámico con los datos actuales del rango en PDF)
+          const promedioValues: Record<string, number | null> = {};
+          parameters.forEach((param) => {
+            let sum = 0;
+            let count = 0;
+            sortedDates.forEach((fecha) => {
+              const dateData = historicalData[fecha];
+              const value = dateData?.[param.id];
+              const valor =
+                value && typeof value === "object" && "valor" in value
+                  ? (value as { valor: unknown }).valor
+                  : undefined;
+              if (typeof valor === "number" && Number.isFinite(valor)) {
+                sum += valor;
+                count += 1;
+              } else if (typeof valor === "string") {
+                const n = Number(valor);
+                if (Number.isFinite(n)) {
+                  sum += n;
+                  count += 1;
+                }
+              }
+            });
+            promedioValues[param.id] = count > 0 ? sum / count : null;
+          });
+
+          const promedioRow = [
+            "PROMEDIO",
+            ...parameters.map((p) =>
+              promedioValues[p.id] != null ? promedioValues[p.id]!.toFixed(2) : "—"
+            ),
+            "—",
+          ];
           
           // Fila FECHA/RANGOS
           const rangosRow = ["FECHA/RANGOS", ...parameters.map(p => {
@@ -1810,7 +1844,7 @@ export default function Reporte() {
             const row = [
               fechaFormateada,
               ...parameters.map((param) => {
-                // Usar param.id para buscar valores (igual que dashboard-historicos)
+                // Usar param.id para buscar valores (igual que historicos)
                 const value = dateData[param.id];
                 const valor = value && typeof value === 'object' && 'valor' in value ? value.valor : undefined;
                 return valor !== undefined ? valor.toFixed(2) : "—";
@@ -1820,7 +1854,29 @@ export default function Reporte() {
             dataRows.push(row);
           });
           
-          const tableData = [altoRow, bajoRow, rangosRow, ...dataRows];
+          const tableData = [altoRow, bajoRow, promedioRow, rangosRow, ...dataRows];
+
+          // Helpers para colorear por límites en el PDF (verde/amarillo/rojo)
+          const tolerancesRecord = reportSelection?.variablesTolerancia || {};
+          const getToleranceForParameterPDF = (param: { id: string; nombre: string }) => {
+            const direct = (tolerancesRecord as any)[param.id] as any | undefined;
+            if (direct) return direct;
+            return Object.values(tolerancesRecord as any).find((tol: any) => {
+              if (!tol || typeof tol !== "object") return false;
+              if (typeof tol.nombre !== "string") return false;
+              return tol.nombre.trim().toLowerCase() === param.nombre.trim().toLowerCase();
+            }) as any | undefined;
+          };
+          const hexToRgb = (hex: string): [number, number, number] | null => {
+            if (!hex || hex === "") return null;
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            if (!result) return null;
+            return [
+              parseInt(result[1], 16),
+              parseInt(result[2], 16),
+              parseInt(result[3], 16),
+            ];
+          };
 
           autoTable(pdf, {
             head: [tableHeaders],
@@ -1853,17 +1909,49 @@ export default function Reporte() {
                 data.cell.styles.halign = 'left';
               }
               if (data.section === 'body' && data.row.index !== undefined) {
-                if (data.row.index === 0 || data.row.index === 1) {
+                // Filas fijas
+                if (data.row.index === 0 || data.row.index === 1 || data.row.index === 2) {
                   data.cell.styles.fillColor = [220, 255, 220];
-                } else if (data.row.index === 2) {
+                } else if (data.row.index === 3) {
                   data.cell.styles.fillColor = [31, 78, 121];
                   data.cell.styles.textColor = [255, 255, 255];
                 } else {
-                  const dataIndex = data.row.index - 3;
-                  if (dataIndex % 2 === 0) {
-                    data.cell.styles.fillColor = [245, 255, 245];
+                  const isDateRow = data.row.index >= 4;
+                  const isParamCell =
+                    data.column.index > 0 && data.column.index < tableHeaders.length - 1;
+
+                  // Zebra SOLO para columna etiqueta/COMENTARIOS, pero para celdas de parámetros aplicamos color por límites
+                  const dateIndex = data.row.index - 4;
+                  const zebraFill = dateIndex % 2 === 0 ? [245, 255, 245] : [255, 240, 245];
+
+                  if (isParamCell && isDateRow) {
+                    const paramIndex = data.column.index - 1;
+                    const param = parameters[paramIndex];
+                    if (param) {
+                      const rawVal = data.cell.raw ?? (data.cell.text?.[0] ?? "");
+                      const valorStr = String(rawVal);
+                      const tol = getToleranceForParameterPDF(param);
+                      const toleranceParam = {
+                        bien_min: tol?.bien_min ?? null,
+                        bien_max: tol?.bien_max ?? null,
+                        limite_min: tol?.limite_min ?? null,
+                        limite_max: tol?.limite_max ?? null,
+                        usar_limite_min: tol?.usar_limite_min ?? false,
+                        usar_limite_max: tol?.usar_limite_max ?? false,
+                      };
+                      const cellColorHex = getCellColor(valorStr, toleranceParam);
+                      if (cellColorHex) {
+                        const rgb = hexToRgb(cellColorHex);
+                        if (rgb) {
+                          data.cell.styles.fillColor = rgb;
+                          if (cellColorHex === "#FFC6CE" || cellColorHex === "#FFEB9C") {
+                            data.cell.styles.textColor = [0, 0, 0];
+                          }
+                        }
+                      }
+                    }
                   } else {
-                    data.cell.styles.fillColor = [255, 240, 245];
+                    data.cell.styles.fillColor = zebraFill;
                   }
                 }
               }
@@ -2061,7 +2149,7 @@ export default function Reporte() {
   }
   
   // Función para obtener el color de celda según los límites
-  // Usa la misma lógica que getInputColor en dashboard-reportmanager
+  // Usa la misma lógica que getInputColor en reportmanager
   function getCellColor(valorStr: string, param: any) {
     if (valorStr === undefined || valorStr === null || valorStr === "") return "";
     const valor = parseFloat(valorStr);
@@ -2308,7 +2396,7 @@ export default function Reporte() {
     return () => { cancelled = true; };
   }, [reportSelection?.plant?.id, chartStartDate, chartEndDate])
   
-  // Función para obtener parámetros de un sistema desde la API (igual que dashboard-historicos)
+  // Función para obtener parámetros de un sistema desde la API (igual que historicos)
   const getSystemParameters = async (systemName: string): Promise<Array<{ id: string; nombre: string; unidad: string }>> => {
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null
@@ -2339,7 +2427,7 @@ export default function Reporte() {
         return []
       }
       
-      // Obtener todos los parámetros del sistema usando el ID (igual que dashboard-historicos)
+      // Obtener todos los parámetros del sistema usando el ID (igual que historicos)
       const varsResponse = await fetch(
         `${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(systemInfo.id)}`,
         {
@@ -2354,7 +2442,7 @@ export default function Reporte() {
       const varsData = await varsResponse.json()
       const variablesList = varsData.variables || varsData || []
       
-      // Mapear a formato esperado (igual que dashboard-historicos)
+      // Mapear a formato esperado (igual que historicos)
       return variablesList.map((v: any) => ({
         id: v.id,
         nombre: v.nombre,
@@ -2463,13 +2551,13 @@ export default function Reporte() {
     })
   }, [reportSelection, chartStartDate, chartEndDate])
   
-  // Helper functions para cálculos de históricos (igual que dashboard-historicos)
+  // Helper functions para cálculos de históricos (igual que historicos)
   const getHighLowValues = (systemName: string, parameters: Array<{ id: string; nombre: string; unidad: string }>) => {
     const historicalData = historicalDataBySystem[systemName] || {}
     const highLow: { [key: string]: { alto: number, bajo: number } } = {}
     
     parameters.forEach(param => {
-      // Usar param.id para buscar valores (igual que dashboard-historicos)
+      // Usar param.id para buscar valores (igual que historicos)
       const values = Object.values(historicalData)
         .map(dateData => {
           const paramData = dateData[param.id]
@@ -2506,7 +2594,7 @@ export default function Reporte() {
     
     if (!tolerance) return "—"
     
-    // Usar limite_min y limite_max (igual que dashboard-historicos)
+    // Usar limite_min y limite_max (igual que historicos)
     const min = tolerance.limite_min
     const max = tolerance.limite_max
     
@@ -2530,13 +2618,45 @@ export default function Reporte() {
     
     if (!tolerance) return false
     
-    // Verificar contra limite_min y limite_max (igual que dashboard-historicos)
+    // Verificar contra limite_min y limite_max (igual que historicos)
     const min = tolerance.limite_min
     const max = tolerance.limite_max
     
     if (min !== undefined && min !== null && value < min) return true
     if (max !== undefined && max !== null && value > max) return true
     return false
+  }
+
+  const getHistoricalCellColor = (parameterId: string, parameterName: string, value: unknown): string => {
+    const valorNum = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN
+    if (!Number.isFinite(valorNum)) return ""
+
+    const tolerances = reportSelection?.variablesTolerancia || {}
+
+    // Intentar por ID directo
+    let tolerance: any = (tolerances as any)[parameterId]
+
+    // Fallback: buscar por nombre (tol.nombre)
+    if (!tolerance) {
+      tolerance = Object.values(tolerances).find((tol: any) => {
+        if (!tol || typeof tol !== "object") return false
+        if (typeof tol.nombre !== "string") return false
+        return tol.nombre.trim().toLowerCase() === parameterName.trim().toLowerCase()
+      })
+    }
+
+    if (!tolerance || typeof tolerance !== "object") return ""
+
+    const toleranceParam = {
+      bien_min: tolerance.bien_min ?? null,
+      bien_max: tolerance.bien_max ?? null,
+      limite_min: tolerance.limite_min ?? null,
+      limite_max: tolerance.limite_max ?? null,
+      usar_limite_min: tolerance.usar_limite_min ?? false,
+      usar_limite_max: tolerance.usar_limite_max ?? false,
+    }
+
+    return getCellColor(String(valorNum), toleranceParam)
   }
   
   const formatDate = (dateStr: string): string => {
@@ -3125,6 +3245,27 @@ export default function Reporte() {
                       new Date(a).getTime() - new Date(b).getTime()
                     )
                     const highLowValues = getHighLowValues(systemName, parameters)
+
+                    // PROMEDIO calculado dinámicamente sobre los valores actuales mostrados en el historial
+                    // (promedio de todos los registros por fecha cargados en el rango seleccionado).
+                    const promedioValues: Record<string, number | null> = {}
+                    parameters.forEach((param) => {
+                      let sum = 0
+                      let count = 0
+                      sortedDates.forEach((fecha) => {
+                        const dateData = historicalData[fecha]
+                        const value = dateData?.[param.id]
+                        const valor =
+                          value && typeof value === "object" && "valor" in value
+                            ? (value as { valor: unknown }).valor
+                            : undefined
+                        if (typeof valor === "number" && !Number.isNaN(valor)) {
+                          sum += valor
+                          count += 1
+                        }
+                      })
+                      promedioValues[param.id] = count > 0 ? sum / count : null
+                    })
                     
                     // Si no hay parámetros y no está cargando, intentar cargarlos
                     if (parameters.length === 0 && !isLoading) {
@@ -3202,6 +3343,18 @@ export default function Reporte() {
                                   ))}
                                   <td className="border px-2 py-2 text-xs">—</td>
                                 </tr>
+                                {/* Fila PROMEDIO */}
+                                <tr className="bg-green-100">
+                                  <td className="border px-2 py-2 font-semibold bg-green-100">
+                                    PROMEDIO
+                                  </td>
+                                  {parameters.map((param) => (
+                                    <td key={param.id} className="border px-1 py-2 text-center text-xs">
+                                      {promedioValues[param.id] != null ? promedioValues[param.id]!.toFixed(2) : "—"}
+                                    </td>
+                                  ))}
+                                  <td className="border px-2 py-2 text-xs">—</td>
+                                </tr>
                                 {/* Fila RANGOS */}
                                 <tr className="bg-blue-800 text-white">
                                   <td className="border px-2 py-2 font-semibold bg-blue-800">
@@ -3229,17 +3382,25 @@ export default function Reporte() {
                                         {formatDate(fecha)}
                                       </td>
                                       {parameters.map((param) => {
-                                        // Usar param.id para buscar valores (igual que dashboard-historicos)
+                                        // Usar param.id para buscar valores (igual que historicos)
                                         const value = dateData[param.id]
                                         const valor = value && typeof value === 'object' && 'valor' in value ? value.valor : undefined
-                                        const isOutOfRange = valor !== undefined && isValueOutOfRange(systemName, param.id, valor)
+                                        const cellColor = getHistoricalCellColor(param.id, param.nombre, valor)
+                                        const textColor =
+                                          cellColor === "#FFC6CE" || cellColor === "#FFEB9C" ? "#000000" : undefined
                                         
                                         return (
                                           <td
                                             key={param.id}
-                                            className={`border px-1 py-2 text-center text-xs ${
-                                              isOutOfRange ? "bg-yellow-300 font-semibold" : ""
-                                            }`}
+                                            className="border px-1 py-2 text-center text-xs"
+                                            style={
+                                              cellColor
+                                                ? {
+                                                    backgroundColor: cellColor,
+                                                    color: textColor,
+                                                  }
+                                                : undefined
+                                            }
                                           >
                                             {formatNumber(valor)}
                                           </td>

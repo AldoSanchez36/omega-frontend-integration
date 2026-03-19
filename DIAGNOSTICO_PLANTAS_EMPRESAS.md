@@ -26,7 +26,7 @@
 
 ## 🔧 Cambios Realizados en el Frontend:
 
-1. ✅ Agregado logging detallado en `useEmpresasAccess.ts` y `dashboard-agregarsistema/page.tsx`
+1. ✅ Agregado logging detallado en `useEmpresasAccess.ts` y `agregarsistema/page.tsx`
 2. ✅ Agregado mensajes informativos cuando no hay plantas disponibles
 3. ✅ Mejorado el manejo de errores para mostrar mensajes más claros
 4. ✅ Agregado verificación de Content-Type antes de parsear JSON

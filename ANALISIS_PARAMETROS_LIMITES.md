@@ -235,7 +235,7 @@ static async eliminarVariable(id) {
 - A veces no puedes editar los límites de parámetros asociados a fórmulas
 
 **Análisis:**
-Revisando el código de `useTolerances.ts` y `dashboard-agregarsistema/page.tsx`:
+Revisando el código de `useTolerances.ts` y `agregarsistema/page.tsx`:
 
 1. **Carga de tolerancias:** Se filtran por `variable_id`, `proceso_id`, `planta_id`, `cliente_id`
 2. **Guardado de tolerancias:** Requiere todos los filtros para encontrar/crear la tolerancia correcta

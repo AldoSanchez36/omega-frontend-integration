@@ -360,7 +360,7 @@ export default function ReportList() {
         return;
       }
       
-      // Reconstruir reportSelection desde los datos JSONB completos (igual que dashboard-reportmanager)
+      // Reconstruir reportSelection desde los datos JSONB completos (igual que reportmanager)
       const reportSelection = {
         user: {
           id: reporte.datosJsonb?.user?.id || reporte.usuario_id,

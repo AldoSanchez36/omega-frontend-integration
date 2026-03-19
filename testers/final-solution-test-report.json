@@ -29,7 +29,7 @@
     },
     {
       "category": "File Check",
-      "test": "Check app/dashboard-reportmanager/page.tsx",
+      "test": "Check app/reportmanager/page.tsx",
       "success": false,
       "status": 404,
       "error": "File not found",
@@ -61,7 +61,7 @@
     },
     {
       "category": "File Check",
-      "test": "Check app/dashboard-reportmanager/components/Charts.tsx",
+      "test": "Check app/reportmanager/components/Charts.tsx",
       "success": false,
       "status": 404,
       "error": "File not found",

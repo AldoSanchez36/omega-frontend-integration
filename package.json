@@ -18,8 +18,8 @@
     "test:agregar-formula": "node testers/test-agregar-formula.js",
     "test:users-management": "node testers/test-users-management.js",
     "test:dashboard-parameters": "node testers/test-dashboard-parameters.js",
-    "test:dashboard-reportmanager": "node testers/test-dashboard-reportmanager.js",
-    "test:dashboard-agregarsistema": "node testers/test-dashboard-agregarsistema.js"
+    "test:reportmanager": "node testers/test-reportmanager.js",
+    "test:agregarsistema": "node testers/test-agregarsistema.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",

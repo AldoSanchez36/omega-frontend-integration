@@ -1,7 +1,7 @@
 # Integración de Fórmulas en el Sistema de Reportes
 
 ## Resumen
-Se ha implementado un sistema completo para aplicar fórmulas matemáticas a los valores de parámetros ingresados en el dashboard-reportmanager, mostrando los resultados calculados en la visualización de reportes.
+Se ha implementado un sistema completo para aplicar fórmulas matemáticas a los valores de parámetros ingresados en el reportmanager, mostrando los resultados calculados en la visualización de reportes.
 
 ## Flujo de Implementación
 
