@@ -11,6 +11,7 @@ import Navbar from "@/components/Navbar"
 import { SensorTimeSeriesChart, type ChartExportRef } from "@/components/SensorTimeSeriesChart"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import ScrollArrow from "@/app/reportmanager/components/ScrollArrow"
+import { formatCalendarDate, normalizeToYmd } from "@/lib/date"
 
 
 interface SystemData {
@@ -148,6 +149,52 @@ function extractEmpresaNombreFromApiResponse(data: unknown): string | null {
         : null
     ) ??
     tryRecord(root)
+  )
+}
+
+interface MedicionParaGrafico {
+  fecha: string
+  sistema: string
+  valor: number
+}
+
+/** Une histórico (reportes guardados) con valores del reporte en edición; mismo día+sistema = gana el actual. */
+function mergeMedicionesHistoricoYPreview(
+  historico: MedicionParaGrafico[],
+  preview: MedicionParaGrafico[]
+): MedicionParaGrafico[] {
+  const toYmd = (raw: string) => {
+    const s = (raw ?? "").trim()
+    if (!s) return ""
+    return s.includes("T") ? s.split("T")[0] : s
+  }
+  const key = (fecha: string, sistema: string) =>
+    `${toYmd(fecha)}__${(sistema ?? "").trim()}`
+
+  const byKey = new Map<string, MedicionParaGrafico>()
+  for (const row of historico) {
+    const ymd = toYmd(row.fecha)
+    const sistema = (row.sistema ?? "").trim()
+    if (!ymd || !sistema) continue
+    byKey.set(key(row.fecha, row.sistema), {
+      fecha: ymd,
+      sistema,
+      valor: row.valor,
+    })
+  }
+  for (const row of preview) {
+    const ymdPrev = toYmd(row.fecha)
+    const sistemaPrev = (row.sistema ?? "").trim()
+    if (!ymdPrev || !sistemaPrev) continue
+    byKey.set(key(row.fecha, row.sistema), {
+      fecha: ymdPrev,
+      sistema: sistemaPrev,
+      valor: row.valor,
+    })
+  }
+  return [...byKey.values()].sort(
+    (a, b) =>
+      a.fecha.localeCompare(b.fecha) || a.sistema.localeCompare(b.sistema)
   )
 }
 
@@ -1648,9 +1695,9 @@ export default function Reporte() {
         const today = new Date();
         const startDateObj = new Date(today);
         startDateObj.setMonth(today.getMonth() - 12);
-        return startDateObj.toISOString().split('T')[0];
+        return normalizeToYmd(startDateObj.toISOString()) || "";
       })();
-      const pdfChartEndDate = chartEndDate || new Date().toISOString().split('T')[0];
+      const pdfChartEndDate = chartEndDate || normalizeToYmd(new Date().toISOString()) || "";
       
       // Agregar título de sección de gráficos
       const hasCharts = variablesDisponibles.length > 0;
@@ -1662,7 +1709,7 @@ export default function Reporte() {
         
         // Agregar período
         pdf.setFontSize(10);
-        const periodText = `Período: ${new Date(pdfChartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - ${new Date(pdfChartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+        const periodText = `Período: ${formatCalendarDate(pdfChartStartDate, { day: "2-digit", month: "short", year: "numeric" })} - ${formatCalendarDate(pdfChartEndDate, { day: "2-digit", month: "short", year: "numeric" })}`;
         pdf.text(periodText, marginLeft, currentY);
         currentY += spacingMM;
       }
@@ -1731,7 +1778,7 @@ export default function Reporte() {
         
         // Agregar período
         pdf.setFontSize(10);
-        const periodText = `Período: ${new Date(pdfChartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - ${new Date(pdfChartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+        const periodText = `Período: ${formatCalendarDate(pdfChartStartDate, { day: "2-digit", month: "short", year: "numeric" })} - ${formatCalendarDate(pdfChartEndDate, { day: "2-digit", month: "short", year: "numeric" })}`;
         pdf.text(periodText, marginLeft, currentY);
         currentY += spacingMM;
         
@@ -2460,10 +2507,17 @@ export default function Reporte() {
     } else {
       // Si no hay fechas en reportSelection, calcular desde hoy (últimos 12 meses)
       const today = new Date()
-      const endDate = today.toISOString().split('T')[0]
+      // Evitar desfases por UTC: construir YYYY-MM-DD desde calendario local
+      const toLocalYmd = (d: Date) => {
+        const y = d.getFullYear()
+        const m = String(d.getMonth() + 1).padStart(2, "0")
+        const day = String(d.getDate()).padStart(2, "0")
+        return `${y}-${m}-${day}`
+      }
+      const endDate = toLocalYmd(today)
       const startDateObj = new Date(today)
       startDateObj.setMonth(today.getMonth() - 12)
-      const startDate = startDateObj.toISOString().split('T')[0]
+      const startDate = toLocalYmd(startDateObj)
       setChartStartDate(startDate)
       setChartEndDate(endDate)
     }
@@ -3216,7 +3270,12 @@ export default function Reporte() {
                   <h5>Gráficos de Series Temporales</h5>
                   {chartStartDate && chartEndDate && (
                     <p className="text-sm text-muted mb-3">
-                      Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      Período: {formatCalendarDate(chartStartDate, { day: "2-digit", month: "short", year: "numeric" })} - {formatCalendarDate(chartEndDate, { day: "2-digit", month: "short", year: "numeric" })}
+                    </p>
+                  )}
+                  {chartStartDate && chartEndDate && (
+                    <p className="text-xs text-muted mb-3">
+                      El eje X muestra únicamente días con datos dentro del período seleccionado.
                     </p>
                   )}
                   
@@ -3237,55 +3296,55 @@ export default function Reporte() {
                       // Buscar datos normalizando el nombre (por si hay diferencias de espacios)
                       // IMPORTANTE: Siempre pasar un array (incluso vacío) para que SensorTimeSeriesChart NO haga llamadas a API de mediciones
                       // Los datos vienen SOLO de reportes.datos (tabla reportes), NO de tabla mediciones
-                      const nombreNormalizado = variable.nombre.trim();
-                      let medicionesData: Array<{ fecha: string; sistema: string; valor: number }> = [];
-                      
-                      // Buscar en chartDataFromReportes (que viene SOLO de reportes.datos de reportes guardados)
-                      if (chartDataFromReportes && typeof chartDataFromReportes === 'object') {
-                        medicionesData = chartDataFromReportes[nombreNormalizado] || [];
-                        
-                        // Si no se encuentra con el nombre exacto, buscar variaciones (espacios, mayúsculas)
-                        if (medicionesData.length === 0) {
-                          const posiblesClaves = Object.keys(chartDataFromReportes).filter(k => 
-                            k.trim().toLowerCase() === nombreNormalizado.toLowerCase()
-                          );
+                      const nombreNormalizado = variable.nombre.trim()
+                      let medicionesHistorico: MedicionParaGrafico[] = []
+
+                      // Histórico: reportes guardados en API (chartDataFromReportes)
+                      if (chartDataFromReportes && typeof chartDataFromReportes === "object") {
+                        medicionesHistorico = chartDataFromReportes[nombreNormalizado] ?? []
+                        if (medicionesHistorico.length === 0) {
+                          const posiblesClaves = Object.keys(chartDataFromReportes).filter(
+                            (k) => k.trim().toLowerCase() === nombreNormalizado.toLowerCase()
+                          )
                           if (posiblesClaves.length > 0) {
-                            medicionesData = chartDataFromReportes[posiblesClaves[0]] || [];
+                            medicionesHistorico = chartDataFromReportes[posiblesClaves[0]] ?? []
                           }
                         }
                       }
-                      
-                      // FALLBACK: Si chartDataFromReportes no tiene datos para esta variable, usar reportSelection.parameters
-                      // (misma fuente que la tabla, para que el gráfico muestre datos aunque el reporte no esté guardado aún)
-                      if (medicionesData.length === 0 && reportSelection?.parameters && reportSelection?.fecha) {
-                        const fechaReporte = reportSelection.fecha.includes("T") 
-                          ? reportSelection.fecha.split("T")[0] 
-                          : reportSelection.fecha;
-                        const datosDesdeReportSelection: Array<{ fecha: string; sistema: string; valor: number }> = [];
-                        
-                        // Recorrer todos los sistemas en orderedSystemNames
-                        orderedSystemNames.forEach((systemName: string) => {
-                          const systemData = reportSelection.parameters[systemName];
-                          const paramData = systemData?.[variable.nombre] || systemData?.[nombreNormalizado];
-                          // Usar solo paramData?.valor (no existe .value en el tipo)
-                          const valor = paramData?.valor;
-                          
-                          // Permitir 0 y valores negativos (pH puede ser < 7)
-                          // valor es number | null | undefined, así que solo verificar que sea un número válido
-                          if (valor != null && typeof valor === "number" && !Number.isNaN(valor)) {
-                            const valorNum = valor; // Ya es number, no necesita conversión
-                            datosDesdeReportSelection.push({
+
+                      let medicionesPreview: MedicionParaGrafico[] = []
+                      if (reportSelection?.parameters && reportSelection?.fecha) {
+                        const fechaReporte = reportSelection.fecha.includes("T")
+                          ? reportSelection.fecha.split("T")[0]
+                          : reportSelection.fecha
+                        const sistemasParaPreview =
+                          orderedSystemNames.length > 0
+                            ? orderedSystemNames
+                            : Object.keys(reportSelection.parameters)
+                        sistemasParaPreview.forEach((systemName: string) => {
+                          const systemData = reportSelection.parameters[systemName]
+                          const paramData =
+                            systemData?.[variable.nombre] ??
+                            systemData?.[nombreNormalizado]
+                          const valor = paramData?.valor
+                          if (
+                            valor != null &&
+                            typeof valor === "number" &&
+                            !Number.isNaN(valor)
+                          ) {
+                            medicionesPreview.push({
                               fecha: fechaReporte,
                               sistema: systemName.trim(),
-                              valor: valorNum
-                            });
+                              valor,
+                            })
                           }
-                        });
-                        
-                        if (datosDesdeReportSelection.length > 0) {
-                          medicionesData = datosDesdeReportSelection;
-                        }
+                        })
                       }
+
+                      let medicionesData = mergeMedicionesHistoricoYPreview(
+                        medicionesHistorico,
+                        medicionesPreview
+                      )
                       
                       // Asegurar que siempre sea un array válido (nunca undefined/null) para evitar llamadas a API
                       if (!Array.isArray(medicionesData)) {
@@ -3365,7 +3424,8 @@ export default function Reporte() {
                   </div>
                   {chartStartDate && chartEndDate && (
                     <p className="text-sm text-muted mb-3">
-                      Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}                    </p>
+                      Período: {formatCalendarDate(chartStartDate, { day: "2-digit", month: "short", year: "numeric" })} - {formatCalendarDate(chartEndDate, { day: "2-digit", month: "short", year: "numeric" })}{" "}
+                    </p>
                   )}
                   
                   {orderedSystemNames.map((systemName) => {
