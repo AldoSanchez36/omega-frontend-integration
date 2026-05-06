@@ -18,17 +18,21 @@ interface Measurement {
 }
 
 interface ReportData {
+  /** ID de empresa (reportmanager pasa selectedEmpresa en selectedUser / selectedUserId) */
+  empresa_id?: string | null;
   user: {
     id: string;
     username: string;
     email?: string;
     puesto?: string;
+    empresa_id?: string | null;
   } | null;
   plant: {
     id: string;
     nombre: string;
     mensaje_cliente?: string;
     dirigido_a?: string;
+    empresa_id?: string | null;
   } | null;
   systemName: string | undefined;
   parameters: {
@@ -116,20 +120,38 @@ export function useMeasurements(
     setSaveError(null);
 
     try {
+      const idFromSlot =
+        selectedUserId != null && String(selectedUserId).trim() !== ""
+          ? String(selectedUserId).trim()
+          : null
+      const idFromSelected =
+        selectedUser && typeof selectedUser === "object" && "id" in selectedUser
+          ? String((selectedUser as { id?: string }).id ?? "").trim() || null
+          : null
+      const empresaIdTrimmed = idFromSlot ?? idFromSelected
+
       // Crear el objeto de datos del reporte con la nueva estructura GLOBAL
       const reportData: ReportData = {
-        user: selectedUser ? { 
-          id: selectedUser.id, 
-          username: selectedUser.username, 
-          email: selectedUser.email, 
-          puesto: selectedUser.puesto 
-        } : null,
-        plant: selectedPlant ? { 
-          id: selectedPlant.id, 
-          nombre: selectedPlant.nombre,
-          mensaje_cliente: selectedPlant.mensaje_cliente,
-          dirigido_a: selectedPlant.dirigido_a
-        } : null,
+        empresa_id: empresaIdTrimmed,
+        user: selectedUser
+          ? {
+              id: selectedUser.id,
+              username: selectedUser.username ?? "",
+              email: selectedUser.email ?? "",
+              puesto: selectedUser.puesto ?? "",
+              empresa_id: empresaIdTrimmed,
+            }
+          : null,
+        plant: selectedPlant
+          ? {
+              id: selectedPlant.id,
+              nombre: selectedPlant.nombre,
+              mensaje_cliente: selectedPlant.mensaje_cliente,
+              dirigido_a: selectedPlant.dirigido_a,
+              empresa_id:
+                (selectedPlant as { empresa_id?: string | null }).empresa_id ?? empresaIdTrimmed,
+            }
+          : null,
         systemName: selectedPlant?.nombre, // Cambiar a nombre de la planta en lugar del sistema
         parameters: {},
         variablesTolerancia: {},
@@ -327,7 +349,7 @@ export function useMeasurements(
     } finally {
       setIsSaving(false);
     }
-  }, [token, selectedUser, selectedPlant, selectedSystemData, parameters, medicionesPreview, tolerancias, globalFecha, globalComentarios, limitsState, allSystems, allParameters, parameterValuesBySystem, chartStartDate, chartEndDate, onSaveSuccess]);
+  }, [token, selectedUserId, selectedUser, selectedPlant, selectedSystemData, parameters, medicionesPreview, tolerancias, globalFecha, globalComentarios, limitsState, allSystems, allParameters, parameterValuesBySystem, chartStartDate, chartEndDate, onSaveSuccess]);
 
   return {
     medicionesPreview,

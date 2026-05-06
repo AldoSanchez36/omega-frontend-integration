@@ -1,7 +1,7 @@
 "use client"
 
 import ProtectedRoute from "@/components/ProtectedRoute"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -66,6 +66,7 @@ interface Plant {
   nombre: string;
   dirigido_a?: string;
   mensaje_cliente?: string;
+  empresa_id?: string | null;
 }
 
 // Interfaz para los parámetros en el reporte
@@ -124,6 +125,32 @@ interface ReportSelection {
   systemOrder?: string[];
 }
 
+/** Texto display del nombre de empresa según distintas formas de respuesta del backend */
+function extractEmpresaNombreFromApiResponse(data: unknown): string | null {
+  const tryRecord = (obj: unknown): string | null => {
+    if (!obj || typeof obj !== "object") return null
+    const o = obj as Record<string, unknown>
+    const keys = ["nombre", "razon_social", "razón_social", "name"] as const
+    for (const k of keys) {
+      const v = o[k]
+      if (typeof v === "string" && v.trim() !== "") return v.trim()
+    }
+    return null
+  }
+  if (data == null || typeof data !== "object") return null
+  const root = data as Record<string, unknown>
+  return (
+    tryRecord(root.empresa) ??
+    tryRecord(root.data) ??
+    tryRecord(
+      root.data && typeof root.data === "object"
+        ? (root.data as Record<string, unknown>).empresa
+        : null
+    ) ??
+    tryRecord(root)
+  )
+}
+
 export default function Reporte() {
   const router = useRouter()
   const [reportNotes, setReportNotes] = useState<{ [key: string]: string }>({})
@@ -147,6 +174,9 @@ export default function Reporte() {
   // Orden de sistemas de la planta (mismo que reportmanager: por campo orden)
   const [plantSystemsOrder, setPlantSystemsOrder] = useState<{ id: string; nombre: string; orden?: number }[]>([])
   
+  /** Nombre de la empresa desde GET /api/empresas/:id (opción backend); usar en UI cuando indiques dónde mostrarlo */
+  const [empresaNombre, setEmpresaNombre] = useState<string | null>(null)
+
   // Estado para controlar si la tabla se incluye en el PDF
   const [includeTableInPDF, setIncludeTableInPDF] = useState<boolean>(false)
   
@@ -447,6 +477,121 @@ export default function Reporte() {
 
   // Cargar orden de variables de la planta cuando hay reporte con planta (cliente y admin/user deben ver el mismo orden)
   const plantIdForOrder = reportSelection?.plant?.id ?? (reportSelection?.plant as { _id?: string })?._id
+
+  const empresaIdFromReport = useMemo(() => {
+    if (!reportSelection) return null
+    return (
+      reportSelection.empresa_id ??
+      reportSelection.user?.empresa_id ??
+      reportSelection.plant?.empresa_id ??
+      null
+    )
+  }, [reportSelection])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    let cancelled = false
+
+    const resolveEmpresaIdFromPlantList = async (
+      plantId: string,
+      token: string
+    ): Promise<string | null> => {
+      const findInList = (list: unknown): string | null => {
+        if (!Array.isArray(list)) return null
+        const plant = list.find(
+          (p: { id?: string; _id?: string; empresa_id?: string; empresaId?: string }) =>
+            p && (p.id === plantId || p._id === plantId)
+        )
+        if (!plant || typeof plant !== "object") return null
+        const eid = (plant as { empresa_id?: string; empresaId?: string }).empresa_id ??
+          (plant as { empresaId?: string }).empresaId
+        return eid != null && String(eid).trim() !== "" ? String(eid).trim() : null
+      }
+
+      for (const endpoint of [
+        API_ENDPOINTS.PLANTS_ACCESSIBLE,
+        API_ENDPOINTS.PLANTS_ALL,
+      ]) {
+        try {
+          const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (!res.ok) continue
+          const data = await res.json()
+          const list = data.plantas ?? data.plants ?? data
+          const found = findInList(list)
+          if (found) return found
+        } catch {
+          continue
+        }
+      }
+      return null
+    }
+
+    ;(async () => {
+      let empresaId = empresaIdFromReport
+
+      if (!empresaId) {
+        try {
+          const raw = localStorage.getItem("Organomex_user")
+          if (raw) {
+            const u = JSON.parse(raw) as { empresa_id?: string | null }
+            if (u?.empresa_id != null && String(u.empresa_id).trim() !== "") {
+              empresaId = String(u.empresa_id).trim()
+            }
+          }
+        } catch {
+          // ignorar
+        }
+      }
+
+      const token = localStorage.getItem("Organomex_token")
+
+      if (!empresaId && plantIdForOrder && token) {
+        empresaId = await resolveEmpresaIdFromPlantList(plantIdForOrder, token)
+      }
+
+      if (cancelled) return
+
+      if (!empresaId) {
+        setEmpresaNombre(null)
+        return
+      }
+
+      if (!token) {
+        setEmpresaNombre(null)
+        return
+      }
+
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}${API_ENDPOINTS.EMPRESA_BY_ID(empresaId)}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        if (cancelled) return
+        if (res.status === 401) {
+          localStorage.removeItem("Organomex_token")
+          localStorage.removeItem("Organomex_user")
+          router.push("/logout")
+          return
+        }
+        if (!res.ok) {
+          setEmpresaNombre(null)
+          return
+        }
+        const data = await res.json()
+        const nombre = extractEmpresaNombreFromApiResponse(data)
+        if (!cancelled) setEmpresaNombre(nombre)
+      } catch {
+        if (!cancelled) setEmpresaNombre(null)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [empresaIdFromReport, plantIdForOrder, router])
+
   useEffect(() => {
     const plantId = plantIdForOrder
     if (!plantId) {
@@ -591,19 +736,20 @@ export default function Reporte() {
 
       doc.setFontSize(12)
       doc.text(`Fecha: ${currentDate}`, 20, 35)
-      doc.text(`Dirigido a: ${reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING. "}`, 20, 45)
-      doc.text(`Asunto: ${reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente || "REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS"}`, 20, 55)
-      doc.text(`Sistema Evaluado: ${reportNotes["sistema"] || (reportSelection ? reportSelection.systemName : "Todos los sistemas") || "Todos los sistemas"}`, 20, 65)
-      doc.text(`Ubicación: ${reportNotes["ubicacion"] || "San Luis Potosí, S.L.P."}`, 20, 75)
+      doc.text(`Empresa: ${empresaNombre ?? "—"}`, 20, 42)
+      doc.text(`Dirigido a: ${reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING. "}`, 20, 49)
+      doc.text(`Asunto: ${reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente || "REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS"}`, 20, 59)
+      doc.text(`Sistema Evaluado: ${reportNotes["sistema"] || (reportSelection ? reportSelection.systemName : "Todos los sistemas") || "Todos los sistemas"}`, 20, 69)
+      doc.text(`Ubicación: ${reportNotes["ubicacion"] || "San Luis Potosí, S.L.P."}`, 20, 79)
       
       // Planta (valor del sistema) y fecha
       const plantaValue = reportSelection?.systemName ?? reportSelection?.plant?.nombre ?? "";
       if (plantaValue) {
-        doc.text(`Planta: ${plantaValue}`, 20, 85)
+        doc.text(`Planta: ${plantaValue}`, 20, 89)
       }
-      doc.text(`Fecha de generación: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}`, 20, 95)
+      doc.text(`Fecha: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}`, 20, 99)
 
-      let currentY = 105
+      let currentY = 109
 
       // Leyenda de colores
       doc.setFontSize(14)
@@ -1016,17 +1162,17 @@ export default function Reporte() {
       const drawHeaderOnCurrentPage = () => {
         if (headerData && headerHeight > 0) {
           pdf.addImage(headerData, "JPEG", 0, 0, pageWidthMM, headerHeight);
-          if (reportSelection?.generatedDate) {
-            const genDateStr = new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            });
-            pdf.setFontSize(9);
-            pdf.setTextColor(60, 60, 60);
-            const dateY = headerHeight + marginTop - 5;
-            pdf.text(`Fecha de generación: ${genDateStr}`, pageWidthMM - marginRight, dateY, { align: "right" });
-          }
+          const genDateForHeader = reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date();
+          const genDateStr = genDateForHeader.toLocaleDateString("es-ES", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          });
+          const lugarFechaHeaderStr = `San Luis Potosí, S.L.P. a ${genDateStr}`;
+          pdf.setFontSize(9);
+          pdf.setTextColor(60, 60, 60);
+          const dateY = headerHeight + marginTop - 5;
+          pdf.text(lugarFechaHeaderStr, pageWidthMM - marginRight, dateY, { align: "right" });
         }
       };
 
@@ -1085,10 +1231,8 @@ export default function Reporte() {
 
       // Información del reporte
       pdf.setFontSize(10);
-      const reportGenDate = reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date();
-      const fechaLugarStr = `San Luis Potosí, S.L.P. a ${reportGenDate.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}`;
       const reportInfo = [
-        fechaLugarStr,
+        `Empresa: ${empresaNombre ?? "—"}`,
         `Dirigido a: ${reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING."}`,
         `Asunto: ${reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente || `REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE ${reportSelection?.plant?.nombre || "NOMBRE DE LA PLANTA"}`}`,
         `Planta Evaluada: ${reportSelection?.plant?.nombre || "Planta no especificada"}`,
@@ -2701,6 +2845,16 @@ export default function Reporte() {
     return String(value)
   }
 
+  const headerPlantaDisplay = reportSelection
+    ? (() => {
+        const sys = reportSelection.systemName?.trim()
+        const plantNombre = reportSelection.plant?.nombre?.trim()
+        if (sys && sys !== "Sistema no especificado") return sys
+        if (plantNombre) return plantNombre
+        return sys || "—"
+      })()
+    : "—"
+
   return (
     <ProtectedRoute>
       <div className="min-vh-100 bg-light">
@@ -2711,14 +2865,19 @@ export default function Reporte() {
         <div className="container-fluid bg-primary text-white py-3">
           <div className="container">
             <h1 className="h4 mb-0">Vista Previa del Reporte</h1>
-            <p className="mb-0">
-              <strong>Fecha:</strong> {currentDate}
-            </p>
             {reportSelection && (
               <div className="mt-2">
                 <small>
-                  <strong>Planta:</strong> {reportSelection.systemName ?? reportSelection.plant?.nombre ?? "—"} | 
-                  <strong> Fecha de generación:</strong> {reportSelection.generatedDate ? new Date(reportSelection.generatedDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : currentDate}
+                  <strong>Empresa:</strong> {empresaNombre ?? "—"} |{" "}
+                  <strong>Planta:</strong> {headerPlantaDisplay} |{" "}
+                  <strong>Fecha:</strong>{" "}
+                  {reportSelection.generatedDate
+                    ? new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })
+                    : currentDate}
                 </small>
               </div>
             )}
@@ -2753,10 +2912,9 @@ export default function Reporte() {
                     </div>
                   )}
                 </div>
-                {/* Fecha de generación (igual que en el PDF: debajo del header, derecha, sin hora) */}
                 <div className="ml-10 mr-10 mb-2 text-end">
                   <p className="mb-0 small text-muted">
-                    <strong>Fecha de generación:</strong>{" "}
+                    San Luis Potosí, S.L.P. a{" "}
                     {reportSelection?.generatedDate
                       ? new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
                           day: "numeric",
@@ -2773,20 +2931,16 @@ export default function Reporte() {
                 <div className="mb-4 ml-10 mr-10">
                   <div className="row">
                   <div className="col-12">
-                    <p className="mb-2">
-                      San Luis Potosí, S.L.P. a{" "}
-                      {reportSelection?.generatedDate
-                        ? new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          })
-                        : new Date().toLocaleDateString("es-ES", {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          })}
+                    <p>
+                      <strong>Empresa: </strong>
+                      <span
+                        className="border-bottom"
+                        style={{ minWidth: "300px", display: "inline-block" }}
+                      >
+                        {empresaNombre ?? "—"}
+                      </span>
                     </p>
+
                     <p>
                       <strong>Dirigido a: </strong>
                       <span

@@ -431,7 +431,13 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
               data={data}
               margin={{ left: 12, right: 12 }}
             >
-              <CartesianGrid vertical={false} />
+              <CartesianGrid
+                horizontal
+                vertical
+                stroke="#d1d5db"
+                strokeOpacity={0.85}
+                strokeDasharray="4 4"
+              />
               <YAxis
                 tickLine={false}
                 axisLine={false}
