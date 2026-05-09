@@ -14,6 +14,18 @@ import ScrollArrow from "@/app/reportmanager/components/ScrollArrow"
 import { formatCalendarDate, normalizeToYmd } from "@/lib/date"
 
 
+/**
+ * Clave especial usada dentro de `parameterComments` para almacenar el
+ * comentario que se muestra entre la "Leyenda de colores" y la tabla de
+ * mediciones. Se reutiliza el mecanismo de `parameterComments` para que el
+ * dato se persista junto con el resto de comentarios y se cargue de la misma
+ * forma desde el JSON guardado en `reportSelection.comentarios`.
+ *
+ * Se usa un nombre con doble guion bajo para que no colisione con ningún
+ * nombre real de parámetro (ej. "pH", "Conductividad").
+ */
+const LEGEND_COMMENT_KEY = "__legend_comment__"
+
 interface SystemData {
   [systemName: string]: Array<{
     name: string
@@ -1333,6 +1345,18 @@ export default function Reporte() {
 
       currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
 
+      // Comentario opcional asociado a la leyenda de colores.
+      // Sólo se imprime si fue capturado por el usuario (mismo criterio que las
+      // demás cajas de comentarios: si está vacío no se incluye en el PDF).
+      const legendComment = parameterComments[LEGEND_COMMENT_KEY]?.trim();
+      if (legendComment) {
+        currentY = checkSpaceAndAddPage(20, currentY);
+        pdf.setFontSize(10);
+        const legendCommentLines = pdf.splitTextToSize(legendComment, contentWidthMM);
+        pdf.text(legendCommentLines, marginLeft, currentY);
+        currentY += legendCommentLines.length * 4 + spacingMM;
+      }
+
       // Agregar tabla de Previsualización de Datos Guardados
       if (reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
         currentY = checkSpaceAndAddPage(30, currentY);
@@ -2157,17 +2181,9 @@ export default function Reporte() {
         }
       }
 
-      // Comentarios globales
-      if (reportSelection.comentarios) {
-        currentY = checkSpaceAndAddPage(20, currentY);
-        pdf.setFontSize(12);
-        pdf.text("Comentarios globales:", marginLeft, currentY);
-        currentY += 6;
-        const commentLines = pdf.splitTextToSize(reportSelection.comentarios, contentWidthMM);
-        pdf.setFontSize(10);
-        pdf.text(commentLines, marginLeft, currentY);
-        currentY += commentLines.length * 5 + spacingMM;
-      }
+      // Nota: El recuadro de "Comentarios globales" se renderiza una sola vez,
+      // justo después de la tabla de mediciones (ver bloque "Comentarios:" arriba).
+      // Se eliminó el duplicado que aparecía aquí, en la parte inferior del PDF.
 
       // Tabla de límites (Alto/Bajo) por parámetro y sistema - parte inferior del PDF
       if (reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
@@ -3085,6 +3101,38 @@ export default function Reporte() {
                     </tbody>
                   </table>
                 </div>
+
+                {/*
+                  Comentario opcional entre la leyenda de colores y la tabla de mediciones.
+                  - Para no-clientes: siempre se muestra el textarea para permitir capturarlo.
+                  - Para clientes: sólo se renderiza si ya hay contenido guardado.
+                  - En el PDF este bloque se omite cuando el campo está vacío.
+                */}
+                {(userRole !== "client" ||
+                  (parameterComments[LEGEND_COMMENT_KEY] &&
+                    parameterComments[LEGEND_COMMENT_KEY].trim() !== "")) && (
+                  <div className="mt-4 pt-4 border-t">
+                    <label
+                      htmlFor="comment-legend"
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                    
+                    </label>
+                    <textarea
+                      id="comment-legend"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      rows={3}
+                      placeholder="Agregar comentarios relacionados con la leyenda o los rangos..."
+                      value={parameterComments[LEGEND_COMMENT_KEY] || ""}
+                      onChange={(e) =>
+                        userRole !== "client" &&
+                        handleParameterCommentChange(LEGEND_COMMENT_KEY, e.target.value)
+                      }
+                      disabled={userRole === "client"}
+                      readOnly={userRole === "client"}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Previsualización de Datos Guardados */}
