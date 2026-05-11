@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import ProtectedRoute from "@/components/ProtectedRoute"
 
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
+import { resolveReportUsuarioDisplay } from "@/lib/report-usuario-display"
 import { authService } from "@/services/authService"
 import { httpService } from "@/services/httpService"
 import { useEmpresasAccess } from "@/hooks/useEmpresasAccess"
@@ -735,15 +736,31 @@ export default function ReportManager() {
         selectedEmpresa?.id ??  // Usar empresa preseleccionada como fallback
         null;
 
+      const datosForUser = report?.datos || {}
+      const resolvedUser = resolveReportUsuarioDisplay(report, datosForUser, {
+        missingDisplayName: "Usuario",
+        missingPuesto: "client",
+      })
+      const usuarioStringFallback =
+        typeof report.usuario === "string" && report.usuario.trim() !== "" ? report.usuario.trim() : ""
+      const puestoStringFallback =
+        typeof report.puesto === "string" && report.puesto.trim() !== "" ? report.puesto.trim() : ""
+
       // Reconstruir reportSelection desde los datos JSONB completos
       const reportSelection = {
         user: {
-          id: report.datos?.user?.id || report.usuario_id,
-          username: report.datos?.user?.username || report.usuario,
-          email: report.datos?.user?.email || "",
-          puesto: report.datos?.user?.puesto || "client",
-          cliente_id: report.datos?.user?.cliente_id || null,
-          empresa_id: empresaId
+          id: resolvedUser.usuario_id || datosForUser.user?.id || report.usuario_id,
+          username:
+            resolvedUser.usuario !== "Usuario"
+              ? resolvedUser.usuario
+              : datosForUser.user?.username || usuarioStringFallback || "Usuario",
+          email: resolvedUser.email || datosForUser.user?.email || "",
+          puesto:
+            resolvedUser.puesto !== "client"
+              ? resolvedUser.puesto
+              : datosForUser.user?.puesto || puestoStringFallback || "client",
+          cliente_id: datosForUser.user?.cliente_id || report.datos?.user?.cliente_id || null,
+          empresa_id: empresaId,
         },
         plant: {
           id: plantaId,  // Asegurar que siempre tengamos el ID correcto

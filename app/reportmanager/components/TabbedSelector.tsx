@@ -8,8 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants";
+import { mergeDatosJsonbWithUsuario, resolveReportUsuarioDisplay } from "@/lib/report-usuario-display";
 import CargaReportesTab from "./CargaReportesTab";
 import { parseComentariosForDisplay } from "../utils";
+
+const pendingReportsUsuarioOpts = { missingDisplayName: "Usuario", missingPuesto: "" } as const;
 
 interface Empresa {
   id: string;
@@ -236,7 +239,15 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
         // Formatear reportes similar al dashboard
         let formattedReports = reportesData.map((report: any) => {
           const datosJsonb = report.datos || {};
-          
+          const resolved = resolveReportUsuarioDisplay(report, datosJsonb, pendingReportsUsuarioOpts);
+          const datosMerged = mergeDatosJsonbWithUsuario(
+            {
+              ...(report.reportSelection || report.datos || {}),
+              fecha: datosJsonb.fecha || report.fecha || (report.reportSelection?.fecha) || (report.datos?.fecha),
+            },
+            resolved
+          );
+
           return {
             id: report.id?.toString() || report.id,
             title: report.titulo || report.nombre || `Reporte ${report.id}`,
@@ -244,17 +255,14 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
             systemName: datosJsonb.systemName || report.sistema || report.systemName || "Sistema no especificado",
             status: report.estado || report.status || "completed",
             created_at: datosJsonb.generatedDate || report.fechaGeneracion || report.fecha_creacion || report.created_at || new Date().toISOString(),
-            usuario_id: report.usuario_id || "",
+            usuario_id: resolved.usuario_id,
             planta_id: report.planta_id || datosJsonb.plant?.id || "planta-unknown",
             proceso_id: report.proceso_id || "sistema-unknown",
             estatus: typeof report.estatus === "boolean" ? report.estatus : false,
-            datos: {
-              ...(report.reportSelection || report.datos || {}),
-              fecha: datosJsonb.fecha || report.fecha || (report.reportSelection?.fecha) || (report.datos?.fecha)
-            },
+            datos: datosMerged,
             observaciones: parseComentariosForDisplay(datosJsonb.comentarios || report.comentarios || report.observaciones || ""),
-            usuario: datosJsonb.user?.username || report.usuario || "",
-            puesto: datosJsonb.user?.puesto || report.puesto || ""
+            usuario: resolved.usuario,
+            puesto: resolved.puesto,
           };
         });
 

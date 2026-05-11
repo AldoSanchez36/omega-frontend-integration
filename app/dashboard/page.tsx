@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { authService } from "@/services/authService"
 import { httpService } from "@/services/httpService"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
+import { mergeDatosJsonbWithUsuario, resolveReportUsuarioDisplay } from "@/lib/report-usuario-display"
 
 import Navbar from "@/components/Navbar"
 import { QuickActions as AdminQuickActions } from "@/app/dashboard/buttons/admin"
@@ -57,6 +58,8 @@ interface HistoricalDataPoint {
   timestamp: string
   value: number
 }
+
+const reportUsuarioPlaceholder = { missingDisplayName: "Default", missingPuesto: "Default" } as const
 
 interface Report {
   id: string
@@ -414,13 +417,27 @@ export default function Dashboard() {
         report?.datos?.user?.empresa_id ??
         null;
 
+      const datosForUser = report?.datos || {};
+      const resolvedUser = resolveReportUsuarioDisplay(report, datosForUser, reportUsuarioPlaceholder);
+
+      const usuarioStringFallback =
+        typeof report.usuario === "string" && report.usuario.trim() !== "" ? report.usuario.trim() : "";
+      const puestoStringFallback =
+        typeof report.puesto === "string" && report.puesto.trim() !== "" ? report.puesto.trim() : "";
+
       const reportSelection = {
         user: {
-          id: report.datos?.user?.id || report.usuario_id,
-          username: report.datos?.user?.username || report.usuario,
-          email: report.datos?.user?.email || "",
-          puesto: report.datos?.user?.puesto || "client",
-          cliente_id: report.datos?.user?.cliente_id || null,
+          id: resolvedUser.usuario_id || datosForUser.user?.id || report.usuario_id,
+          username:
+            resolvedUser.usuario !== "Default"
+              ? resolvedUser.usuario
+              : datosForUser.user?.username || usuarioStringFallback || "Default",
+          email: resolvedUser.email || datosForUser.user?.email || "",
+          puesto:
+            resolvedUser.puesto !== "Default"
+              ? resolvedUser.puesto
+              : datosForUser.user?.puesto || puestoStringFallback || "client",
+          cliente_id: datosForUser.user?.cliente_id || null,
           empresa_id: empresaId
         },
         plant: {
@@ -597,6 +614,14 @@ export default function Dashboard() {
         // Convertir formato de reportes para el dashboard (extraer datos del JSONB)
         let formattedReports = reportesData.map((report: any) => {
           const datosJsonb = report.datos || {};
+          const resolved = resolveReportUsuarioDisplay(report, datosJsonb, reportUsuarioPlaceholder);
+          const datosMerged = mergeDatosJsonbWithUsuario(
+            {
+              ...(report.reportSelection || report.datos || {}),
+              fecha: datosJsonb.fecha || report.fecha || (report.reportSelection?.fecha) || (report.datos?.fecha),
+            },
+            resolved
+          );
           return {
             id: report.id?.toString() || report.id,
             title: report.titulo || report.nombre || `Reporte ${report.id}`,
@@ -604,18 +629,17 @@ export default function Dashboard() {
             systemName: datosJsonb.systemName || report.sistema || report.systemName || "Sistema no especificado",
             status: report.estado || report.status || "completed",
             created_at: datosJsonb.generatedDate || report.fechaGeneracion || report.fecha_creacion || report.created_at || new Date().toISOString(),
-            usuario_id: report.usuario_id || user.id,
+            // Tomar siempre el creador real del reporte. NO se usa el id del usuario
+            // loggeado como fallback para no contaminar los datos al re-guardar.
+            usuario_id: resolved.usuario_id,
             planta_id: report.planta_id || datosJsonb.plant?.id || "planta-unknown",
             proceso_id: report.proceso_id || "sistema-unknown",
             estatus: typeof report.estatus === "boolean" ? report.estatus : false,
-            datos: {
-              ...(report.reportSelection || report.datos || {}),
-              // Asegurar que la fecha del reporte esté disponible en datos.fecha
-              fecha: datosJsonb.fecha || report.fecha || (report.reportSelection?.fecha) || (report.datos?.fecha)
-            },
+            datos: datosMerged,
             observaciones: datosJsonb.comentarios || report.comentarios || report.observaciones || "",
-            usuario: datosJsonb.user?.username || report.usuario || user.username,
-            puesto: datosJsonb.user?.puesto || report.puesto || user.puesto
+            // Prioridad: JOIN/vista/API (resolver) → JSONB `datos.user` → "Default".
+            usuario: resolved.usuario,
+            puesto: resolved.puesto
           };
         })
         

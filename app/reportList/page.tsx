@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { Eye, Download, Calendar, Filter, RefreshCw, ChevronUp, ChevronDown } from "lucide-react";
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants";
+import { mergeDatosJsonbWithUsuario, resolveReportUsuarioDisplay } from "@/lib/report-usuario-display";
 
 interface Reporte {
   id: string;
@@ -26,8 +27,9 @@ interface Reporte {
   // Datos JSONB reconstruidos
   datosJsonb?: {
     user?: {
-      id: string;
-      username: string;
+      id?: string;
+      username?: string;
+      nombre?: string;
       email?: string;
       puesto?: string;
       cliente_id?: string;
@@ -62,6 +64,16 @@ interface Reporte {
     comentarios?: string;
     generatedDate?: string;
   };
+}
+
+/** Usuario en datos JSONB (puede venir solo del JOIN / merge). */
+interface ReporteUsuarioMerged {
+  id?: string;
+  username?: string;
+  nombre?: string;
+  email?: string;
+  puesto?: string;
+  cliente_id?: string | null;
 }
 
 export default function ReportList() {
@@ -126,10 +138,12 @@ export default function ReportList() {
         const reportesFormateados = data.reportes
           .map((reporte: any) => {
             const datosJsonb = reporte.datos || {};
+            const resolved = resolveReportUsuarioDisplay(reporte, datosJsonb);
+            const datosJsonbMerged = mergeDatosJsonbWithUsuario(datosJsonb, resolved);
             const titulo = reporte.titulo || reporte.nombre || `Reporte ${reporte.id}`;
             const planta = datosJsonb.plant?.nombre || reporte.planta || reporte.plantName || "Planta no especificada";
             const sistema = datosJsonb.systemName || reporte.sistema || reporte.systemName || "Sistema no especificado";
-            const usuario = datosJsonb.user?.username || reporte.usuario || "Usuario desconocido";
+            const usuario = resolved.usuario;
             const fecha = datosJsonb.fecha || reporte.fecha || new Date().toISOString().split('T')[0];
             const estado = reporte.estado || "Completado";
             const estatus = typeof reporte.estatus === "boolean" ? reporte.estatus : false;
@@ -150,9 +164,9 @@ export default function ReportList() {
               totalTolerancias,
               comentarios: reporte.comentarios || reporte.observaciones || "",
               fechaGeneracion: reporte.fechaGeneracion || reporte.fecha_creacion || reporte.created_at || new Date().toISOString(),
-              usuario_id: reporte.usuario_id || "",
+              usuario_id: resolved.usuario_id,
               planta_id: reporte.planta_id || "",
-              datosJsonb: reporte.datos || {}
+              datosJsonb: datosJsonbMerged as Reporte["datosJsonb"]
             };
           })
           .filter((r: Reporte) => r.estatus === true);
@@ -307,20 +321,24 @@ export default function ReportList() {
             const sistemasData = await sistemasRes.json();
             const procesos = sistemasData.procesos || sistemasData || [];
             const sorted = [...procesos].sort((a: { orden?: number }, b: { orden?: number }) => (a.orden ?? 999999) - (b.orden ?? 999999));
-            systemOrder = sorted.map((s: { nombre?: string }) => s.nombre).filter(Boolean);
+            systemOrder = sorted
+              .map((s: { nombre?: string }) => s.nombre)
+              .filter((n): n is string => typeof n === "string" && n.length > 0);
           }
         } catch (_) {
           // Si falla, /reports usará fallback
         }
       }
       
+      const dj = report.datosJsonb || {};
+      const u: ReporteUsuarioMerged = (dj.user ?? {}) as ReporteUsuarioMerged;
       const reportSelection = {
         user: {
-          id: report.datosJsonb?.user?.id || report.usuario_id,
-          username: report.datosJsonb?.user?.username || report.usuario,
-          email: report.datosJsonb?.user?.email || "",
-          puesto: report.datosJsonb?.user?.puesto || "client",
-          cliente_id: report.datosJsonb?.user?.cliente_id || null
+          id: u.id || report.usuario_id,
+          username: u.username || u.nombre || report.usuario,
+          email: u.email || "",
+          puesto: u.puesto || "client",
+          cliente_id: u.cliente_id || null,
         },
         plant: {
           id: report.datosJsonb?.plant?.id || report.planta_id,
@@ -361,13 +379,15 @@ export default function ReportList() {
       }
       
       // Reconstruir reportSelection desde los datos JSONB completos (igual que reportmanager)
+      const dj = reporte.datosJsonb || {};
+      const u: ReporteUsuarioMerged = (dj.user ?? {}) as ReporteUsuarioMerged;
       const reportSelection = {
         user: {
-          id: reporte.datosJsonb?.user?.id || reporte.usuario_id,
-          username: reporte.datosJsonb?.user?.username || reporte.usuario,
-          email: reporte.datosJsonb?.user?.email || "",
-          puesto: reporte.datosJsonb?.user?.puesto || "client",
-          cliente_id: reporte.datosJsonb?.user?.cliente_id || null
+          id: u.id || reporte.usuario_id,
+          username: u.username || u.nombre || reporte.usuario,
+          email: u.email || "",
+          puesto: u.puesto || "client",
+          cliente_id: u.cliente_id || null,
         },
         plant: {
           id: reporte.datosJsonb?.plant?.id || reporte.planta_id,
@@ -718,23 +738,31 @@ export default function ReportList() {
             <div className="p-6 overflow-y-auto max-h-[70vh]">
               {selectedReporte.datosJsonb ? (
                 <div className="space-y-6">
-                  {/* Información del Usuario */}
-                  {selectedReporte.datosJsonb.user && (
+                  {/* Información del Usuario (JSONB enriquecido con JOIN cuando aplica) */}
+                  {(selectedReporte.datosJsonb?.user?.id ||
+                    selectedReporte.datosJsonb?.user?.username ||
+                    selectedReporte.usuario_id) && (
                     <div className="bg-blue-50 rounded-xl p-4">
                       <h4 className="font-medium text-blue-900 mb-3">Usuario</h4>
                       <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-blue-600 font-medium">ID:</span> {selectedReporte.datosJsonb.user.id}
-                        </div>
-                        <div>
-                          <span className="text-blue-600 font-medium">Username:</span> {selectedReporte.datosJsonb.user.username}
-                        </div>
-                        {selectedReporte.datosJsonb.user.email && (
+                        {(selectedReporte.datosJsonb?.user?.id || selectedReporte.usuario_id) && (
+                          <div>
+                            <span className="text-blue-600 font-medium">ID:</span>{" "}
+                            {selectedReporte.datosJsonb?.user?.id || selectedReporte.usuario_id}
+                          </div>
+                        )}
+                        {(selectedReporte.datosJsonb?.user?.username || selectedReporte.usuario) && (
+                          <div>
+                            <span className="text-blue-600 font-medium">Nombre / usuario:</span>{" "}
+                            {selectedReporte.datosJsonb?.user?.username || selectedReporte.usuario}
+                          </div>
+                        )}
+                        {selectedReporte.datosJsonb?.user?.email && (
                           <div>
                             <span className="text-blue-600 font-medium">Email:</span> {selectedReporte.datosJsonb.user.email}
                           </div>
                         )}
-                        {selectedReporte.datosJsonb.user.puesto && (
+                        {selectedReporte.datosJsonb?.user?.puesto && (
                           <div>
                             <span className="text-blue-600 font-medium">Puesto:</span> {selectedReporte.datosJsonb.user.puesto}
                           </div>
