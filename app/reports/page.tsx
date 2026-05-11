@@ -1962,19 +1962,19 @@ export default function Reporte() {
             new Date(a).getTime() - new Date(b).getTime()
           );
           
-          // Preparar datos de la tabla (incluyendo columna de COMENTARIOS)
+          // Preparar datos de la tabla (solo parámetros; sin columna de comentarios)
           // Si el parámetro no tiene unidad (ej. pH), no mostrar paréntesis vacíos
-          const tableHeaders = ["PARAMETROS", ...parameters.map(p => (p.unidad && String(p.unidad).trim()) ? `${p.nombre}\n(${p.unidad})` : p.nombre), "COMENTARIOS"];
+          const tableHeaders = ["PARAMETROS", ...parameters.map(p => (p.unidad && String(p.unidad).trim()) ? `${p.nombre}\n(${p.unidad})` : p.nombre)];
           
           // Fila ALTO
           const altoRow = ["ALTO", ...parameters.map(p => 
             highLowValues[p.id]?.alto.toFixed(2) || "—"
-          ), "—"];
+          )];
           
           // Fila BAJO
           const bajoRow = ["BAJO", ...parameters.map(p => 
             highLowValues[p.id]?.bajo.toFixed(2) || "—"
-          ), "—"];
+          )];
 
           // Fila PROMEDIO (dinámico con los datos actuales del rango en PDF)
           const promedioValues: Record<string, number | null> = {};
@@ -2007,11 +2007,10 @@ export default function Reporte() {
             ...parameters.map((p) =>
               promedioValues[p.id] != null ? promedioValues[p.id]!.toFixed(2) : "—"
             ),
-            "—",
           ];
           
-          // Fila FECHA/RANGOS
-          const rangosRow = ["FECHA/RANGOS", ...parameters.map(p => {
+          // Fila FECHA/RANGO (salto explícito en PDF para igualar la vista web)
+          const rangosRow = ["FECHA/\nRANGO", ...parameters.map((p) => {
             const tolerances = (reportSelection?.variablesTolerancia?.[systemName] || {}) as unknown as Record<string, { limite_min?: number | null; limite_max?: number | null }>;
             let tolerance = tolerances[p.id];
             
@@ -2032,7 +2031,7 @@ export default function Reporte() {
               return `Max ${max}`;
             }
             return "—";
-          }), "—"];
+          })];
           
           // Filas de datos históricos
           const dataRows: string[][] = [];
@@ -2064,7 +2063,6 @@ export default function Reporte() {
                 const valor = value && typeof value === 'object' && 'valor' in value ? value.valor : undefined;
                 return valor !== undefined ? valor.toFixed(2) : "—";
               }),
-              parseCommentDisplay(dateData.comentarios_globales)
             ];
             dataRows.push(row);
           });
@@ -2120,9 +2118,6 @@ export default function Reporte() {
               if (data.column.index > 0) {
                 data.cell.styles.cellWidth = 9;
               }
-              if (data.column.index === tableHeaders.length - 1) {
-                data.cell.styles.halign = 'left';
-              }
               if (data.section === 'body' && data.row.index !== undefined) {
                 // Filas fijas
                 if (data.row.index === 0 || data.row.index === 1 || data.row.index === 2) {
@@ -2132,10 +2127,9 @@ export default function Reporte() {
                   data.cell.styles.textColor = [255, 255, 255];
                 } else {
                   const isDateRow = data.row.index >= 4;
-                  const isParamCell =
-                    data.column.index > 0 && data.column.index < tableHeaders.length - 1;
+                  const isParamCell = data.column.index > 0;
 
-                  // Zebra SOLO para columna etiqueta/COMENTARIOS, pero para celdas de parámetros aplicamos color por límites
+                  // Primera columna (fecha): zebra; columnas de parámetros: color por límites
                   const dateIndex = data.row.index - 4;
                   const zebraFill = dateIndex % 2 === 0 ? [245, 255, 245] : [255, 240, 245];
 
@@ -2216,29 +2210,37 @@ export default function Reporte() {
               tol.nombre?.trim().toLowerCase() === variable.trim().toLowerCase()
           );
         };
-        const limitsHeaders = [
-          "Parámetro",
-          "Unidad",
-          ...limitsSystemNames.flatMap((name) => [`${name} Bajo`, `${name} Alto`]),
-        ];
-        const limitsBody = limitsOrderedVars.map((variable) => {
-          let unidad = "";
-          for (const systemName of limitsSystemNames) {
-            const paramData = reportSelection.parameters[systemName]?.[variable];
-            if (paramData?.unidad) {
-              unidad = paramData.unidad;
-              break;
-            }
+        /** Máx. 8 columnas por tabla: Parámetro + Unidad + 6 dinámicas (3 sistemas × Bajo/Alto). */
+        const LIMITS_MAX_SYSTEMS_PER_TABLE = 3;
+        const limitsSystemChunks: string[][] = [];
+        if (limitsSystemNames.length === 0) {
+          limitsSystemChunks.push([]);
+        } else {
+          for (let i = 0; i < limitsSystemNames.length; i += LIMITS_MAX_SYSTEMS_PER_TABLE) {
+            limitsSystemChunks.push(limitsSystemNames.slice(i, i + LIMITS_MAX_SYSTEMS_PER_TABLE));
           }
-          const tol = getLimitsTolerance(variable);
-          const bajo = tol?.bien_min != null ? Number(tol.bien_min).toFixed(2) : "—";
-          const alto = tol?.bien_max != null ? Number(tol.bien_max).toFixed(2) : "—";
-          return [
-            variable,
-            unidad || "—",
-            ...limitsSystemNames.flatMap(() => [bajo, alto]),
-          ];
-        });
+        }
+
+        const buildLimitsBodyForSystems = (systemChunk: string[]) =>
+          limitsOrderedVars.map((variable) => {
+            let unidad = "";
+            for (const systemName of limitsSystemNames) {
+              const paramData = reportSelection.parameters[systemName]?.[variable];
+              if (paramData?.unidad) {
+                unidad = paramData.unidad;
+                break;
+              }
+            }
+            const tol = getLimitsTolerance(variable);
+            const bajo = tol?.bien_min != null ? Number(tol.bien_min).toFixed(2) : "—";
+            const alto = tol?.bien_max != null ? Number(tol.bien_max).toFixed(2) : "—";
+            return [
+              variable,
+              unidad || "—",
+              ...systemChunk.flatMap(() => [bajo, alto]),
+            ];
+          });
+
         currentY = checkSpaceAndAddPage(40, currentY);
         pdf.setFontSize(12);
         pdf.text("Límites recomendados (Alto y Bajo) por parámetro y sistema", marginLeft, currentY);
@@ -2246,28 +2248,56 @@ export default function Reporte() {
         pdf.setFontSize(9);
         pdf.text("Valores de referencia para interpretar los resultados de cada sistema.", marginLeft, currentY);
         currentY += 8;
-        autoTable(pdf, {
-          head: [limitsHeaders],
-          body: limitsBody,
-          startY: currentY,
-          theme: "grid",
-          tableWidth: contentWidthMM,
-          margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop, bottom: footerReservedHeight + marginBottom },
-          didDrawPage: () => drawHeaderOnCurrentPage(),
-          styles: { fontSize: 8, font: pdfFontName, cellPadding: 1 },
-          headStyles: {
-            fillColor: [66, 139, 202],
-            textColor: [255, 255, 255],
-            fontSize: 8,
-            font: pdfFontName,
-            cellPadding: 2,
-          },
-          columnStyles: {
-            0: { cellWidth: 35, halign: "left", font: pdfFontName },
-            1: { cellWidth: 18, halign: "center", font: pdfFontName },
-          },
+
+        limitsSystemChunks.forEach((systemChunk, chunkIndex) => {
+          const limitsHeaders = [
+            "Parámetro",
+            "Unidad",
+            ...systemChunk.flatMap((name) => [`${name} Bajo`, `${name} Alto`]),
+          ];
+          const limitsBody = buildLimitsBodyForSystems(systemChunk);
+
+          if (chunkIndex > 0) {
+            currentY = checkSpaceAndAddPage(35, currentY);
+            pdf.setFontSize(10);
+            pdf.setFont("helvetica", "bold");
+            pdf.text(
+              `Continuación — sistemas: ${systemChunk.join(", ")}`,
+              marginLeft,
+              currentY
+            );
+            currentY += 7;
+            pdf.setFont("helvetica", "normal");
+          }
+
+          autoTable(pdf, {
+            head: [limitsHeaders],
+            body: limitsBody,
+            startY: currentY,
+            theme: "grid",
+            tableWidth: contentWidthMM,
+            margin: {
+              left: marginLeft,
+              right: marginRight,
+              top: headerHeight + marginTop,
+              bottom: footerReservedHeight + marginBottom,
+            },
+            didDrawPage: () => drawHeaderOnCurrentPage(),
+            styles: { fontSize: 8, font: pdfFontName, cellPadding: 1 },
+            headStyles: {
+              fillColor: [66, 139, 202],
+              textColor: [255, 255, 255],
+              fontSize: 8,
+              font: pdfFontName,
+              cellPadding: 2,
+            },
+            columnStyles: {
+              0: { cellWidth: 35, halign: "left", font: pdfFontName },
+              1: { cellWidth: 18, halign: "center", font: pdfFontName },
+            },
+          });
+          currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
         });
-        currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
 
         // Bloque de firma centrado debajo de la última tabla
         if (firmaData) {
@@ -2892,27 +2922,6 @@ export default function Reporte() {
       month: '2-digit',
       year: '2-digit'
     });
-  }
-
-  // Extraer texto de comentario: si viene como JSON {"global":"..."} mostrar solo el valor
-  const parseCommentDisplay = (value: unknown): string => {
-    if (value === null || value === undefined) return "—"
-    if (typeof value === "object" && value !== null && "global" in value && typeof (value as { global?: string }).global === "string") {
-      return (value as { global: string }).global
-    }
-    if (typeof value === "string") {
-      const trimmed = value.trim()
-      if (trimmed.startsWith("{")) {
-        try {
-          const parsed = JSON.parse(trimmed) as { global?: string }
-          if (typeof parsed?.global === "string") return parsed.global
-        } catch {
-          /* no es JSON válido, devolver tal cual */
-        }
-      }
-      return trimmed || "—"
-    }
-    return String(value)
   }
 
   const headerPlantaDisplay = reportSelection
@@ -3562,22 +3571,27 @@ export default function Reporte() {
                             No se encontraron datos históricos para el rango de fechas seleccionado.
                           </div>
                         ) : (
-                          <div className="w-full overflow-x-auto">
-                            <table className="w-full border border-gray-300 bg-white text-xs table-fixed">
+                          <div className="w-full max-w-none overflow-x-auto">
+                            <table className="w-full border-collapse border border-gray-300 bg-white text-[11px] leading-tight table-auto">
                               <thead>
                                 <tr className="bg-blue-800 text-white">
-                                  <th className="border px-2 py-2 text-left font-semibold w-24">
-                                    PARAMETROS
+                                  <th className="border px-2 py-2 text-left font-semibold whitespace-nowrap text-xs min-w-[6.5rem]">
+                                    PARÁMETROS
                                   </th>
-                                  {parameters.map((param) => (
-                                    <th key={param.id} className="border px-1 py-2 text-center font-semibold">
-                                      <div className="text-xs">{param.nombre}</div>
-                                      {param.unidad && String(param.unidad).trim() ? (
-                                        <div className="text-xs font-normal">({param.unidad})</div>
-                                      ) : null}
-                                    </th>
-                                  ))}
-                                  <th className="border px-2 py-2 text-left font-semibold w-32">COMENTARIOS</th>
+                                  {parameters.map((param) => {
+                                    const u = param.unidad && String(param.unidad).trim();
+                                    return (
+                                      <th
+                                        key={param.id}
+                                        className="border px-1.5 py-2 text-center font-semibold text-xs leading-snug max-w-none"
+                                      >
+                                        <div className="whitespace-nowrap">{param.nombre}</div>
+                                        {u ? (
+                                          <div className="whitespace-nowrap font-normal">({u})</div>
+                                        ) : null}
+                                      </th>
+                                    );
+                                  })}
                                 </tr>
                               </thead>
                               <tbody>
@@ -3591,7 +3605,6 @@ export default function Reporte() {
                                       {highLowValues[param.id]?.alto.toFixed(2) || "—"}
                                     </td>
                                   ))}
-                                  <td className="border px-2 py-2 text-xs">—</td>
                                 </tr>
                                 {/* Fila BAJO */}
                                 <tr className="bg-green-100">
@@ -3603,7 +3616,6 @@ export default function Reporte() {
                                       {highLowValues[param.id]?.bajo.toFixed(2) || "—"}
                                     </td>
                                   ))}
-                                  <td className="border px-2 py-2 text-xs">—</td>
                                 </tr>
                                 {/* Fila PROMEDIO */}
                                 <tr className="bg-green-100">
@@ -3615,19 +3627,18 @@ export default function Reporte() {
                                       {promedioValues[param.id] != null ? promedioValues[param.id]!.toFixed(2) : "—"}
                                     </td>
                                   ))}
-                                  <td className="border px-2 py-2 text-xs">—</td>
                                 </tr>
-                                {/* Fila RANGOS */}
+                                {/* Fila RANGOS — salto explícito para no cortar la palabra */}
                                 <tr className="bg-blue-800 text-white">
-                                  <td className="border px-2 py-2 font-semibold bg-blue-800">
-                                    FECHA/RANGOS
+                                  <td className="border px-2 py-2 font-semibold bg-blue-800 text-center align-middle leading-tight whitespace-normal">
+                                    <span className="block">FECHA/</span>
+                                    <span className="block">RANGO</span>
                                   </td>
                                   {parameters.map((param) => (
                                     <td key={param.id} className="border px-1 py-2 text-center text-xs">
                                       {getAcceptableRange(systemName, param.id)}
                                     </td>
                                   ))}
-                                  <td className="border px-2 py-2 text-xs">—</td>
                                 </tr>
                                 {/* Filas de datos por fecha */}
                                 {sortedDates.map((fecha, index) => {
@@ -3668,11 +3679,6 @@ export default function Reporte() {
                                           </td>
                                         )
                                       })}
-                                      <td className={`border px-2 py-2 text-xs ${
-                                        isEven ? "bg-green-50" : "bg-pink-50"
-                                      }`}>
-                                        {parseCommentDisplay(dateData.comentarios_globales)}
-                                      </td>
                                     </tr>
                                   )
                                 })}
