@@ -26,6 +26,7 @@ import {
 import { API_ENDPOINTS } from '@/config/constants'
 import { authService } from '@/services/authService'
 import { httpService } from '@/services/httpService'
+import { formatCalendarDate } from "@/lib/date"
 
 interface RawMeasurement {
   fecha: string
@@ -421,7 +422,8 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
       <CardHeader>
         <CardTitle>{variable}</CardTitle>
         <CardDescription>
-          {startDate} – {endDate}
+          {formatCalendarDate(startDate, { locale: "es-ES" })} –{" "}
+          {formatCalendarDate(endDate, { locale: "es-ES" })}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -431,7 +433,13 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
               data={data}
               margin={{ left: 12, right: 12 }}
             >
-              <CartesianGrid vertical={false} />
+              <CartesianGrid
+                horizontal
+                vertical
+                stroke="#d1d5db"
+                strokeOpacity={0.85}
+                strokeDasharray="4 4"
+              />
               <YAxis
                 tickLine={false}
                 axisLine={false}

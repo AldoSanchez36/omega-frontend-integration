@@ -1,7 +1,7 @@
 "use client"
 
 import ProtectedRoute from "@/components/ProtectedRoute"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -11,7 +11,20 @@ import Navbar from "@/components/Navbar"
 import { SensorTimeSeriesChart, type ChartExportRef } from "@/components/SensorTimeSeriesChart"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import ScrollArrow from "@/app/reportmanager/components/ScrollArrow"
+import { formatCalendarDate, normalizeToYmd } from "@/lib/date"
 
+
+/**
+ * Clave especial usada dentro de `parameterComments` para almacenar el
+ * comentario que se muestra entre la "Leyenda de colores" y la tabla de
+ * mediciones. Se reutiliza el mecanismo de `parameterComments` para que el
+ * dato se persista junto con el resto de comentarios y se cargue de la misma
+ * forma desde el JSON guardado en `reportSelection.comentarios`.
+ *
+ * Se usa un nombre con doble guion bajo para que no colisione con ningún
+ * nombre real de parámetro (ej. "pH", "Conductividad").
+ */
+const LEGEND_COMMENT_KEY = "__legend_comment__"
 
 interface SystemData {
   [systemName: string]: Array<{
@@ -66,6 +79,7 @@ interface Plant {
   nombre: string;
   dirigido_a?: string;
   mensaje_cliente?: string;
+  empresa_id?: string | null;
 }
 
 // Interfaz para los parámetros en el reporte
@@ -124,6 +138,78 @@ interface ReportSelection {
   systemOrder?: string[];
 }
 
+/** Texto display del nombre de empresa según distintas formas de respuesta del backend */
+function extractEmpresaNombreFromApiResponse(data: unknown): string | null {
+  const tryRecord = (obj: unknown): string | null => {
+    if (!obj || typeof obj !== "object") return null
+    const o = obj as Record<string, unknown>
+    const keys = ["nombre", "razon_social", "razón_social", "name"] as const
+    for (const k of keys) {
+      const v = o[k]
+      if (typeof v === "string" && v.trim() !== "") return v.trim()
+    }
+    return null
+  }
+  if (data == null || typeof data !== "object") return null
+  const root = data as Record<string, unknown>
+  return (
+    tryRecord(root.empresa) ??
+    tryRecord(root.data) ??
+    tryRecord(
+      root.data && typeof root.data === "object"
+        ? (root.data as Record<string, unknown>).empresa
+        : null
+    ) ??
+    tryRecord(root)
+  )
+}
+
+interface MedicionParaGrafico {
+  fecha: string
+  sistema: string
+  valor: number
+}
+
+/** Une histórico (reportes guardados) con valores del reporte en edición; mismo día+sistema = gana el actual. */
+function mergeMedicionesHistoricoYPreview(
+  historico: MedicionParaGrafico[],
+  preview: MedicionParaGrafico[]
+): MedicionParaGrafico[] {
+  const toYmd = (raw: string) => {
+    const s = (raw ?? "").trim()
+    if (!s) return ""
+    return s.includes("T") ? s.split("T")[0] : s
+  }
+  const key = (fecha: string, sistema: string) =>
+    `${toYmd(fecha)}__${(sistema ?? "").trim()}`
+
+  const byKey = new Map<string, MedicionParaGrafico>()
+  for (const row of historico) {
+    const ymd = toYmd(row.fecha)
+    const sistema = (row.sistema ?? "").trim()
+    if (!ymd || !sistema) continue
+    byKey.set(key(row.fecha, row.sistema), {
+      fecha: ymd,
+      sistema,
+      valor: row.valor,
+    })
+  }
+  for (const row of preview) {
+    const ymdPrev = toYmd(row.fecha)
+    const sistemaPrev = (row.sistema ?? "").trim()
+    if (!ymdPrev || !sistemaPrev) continue
+    byKey.set(key(row.fecha, row.sistema), {
+      fecha: ymdPrev,
+      sistema: sistemaPrev,
+      valor: row.valor,
+    })
+  }
+  return [...byKey.values()].sort(
+    (a, b) =>
+      a.fecha.localeCompare(b.fecha) || a.sistema.localeCompare(b.sistema)
+  )
+}
+
 export default function Reporte() {
   const router = useRouter()
   const [reportNotes, setReportNotes] = useState<{ [key: string]: string }>({})
@@ -147,6 +233,9 @@ export default function Reporte() {
   // Orden de sistemas de la planta (mismo que reportmanager: por campo orden)
   const [plantSystemsOrder, setPlantSystemsOrder] = useState<{ id: string; nombre: string; orden?: number }[]>([])
   
+  /** Nombre de la empresa desde GET /api/empresas/:id (opción backend); usar en UI cuando indiques dónde mostrarlo */
+  const [empresaNombre, setEmpresaNombre] = useState<string | null>(null)
+
   // Estado para controlar si la tabla se incluye en el PDF
   const [includeTableInPDF, setIncludeTableInPDF] = useState<boolean>(false)
   
@@ -447,6 +536,121 @@ export default function Reporte() {
 
   // Cargar orden de variables de la planta cuando hay reporte con planta (cliente y admin/user deben ver el mismo orden)
   const plantIdForOrder = reportSelection?.plant?.id ?? (reportSelection?.plant as { _id?: string })?._id
+
+  const empresaIdFromReport = useMemo(() => {
+    if (!reportSelection) return null
+    return (
+      reportSelection.empresa_id ??
+      reportSelection.user?.empresa_id ??
+      reportSelection.plant?.empresa_id ??
+      null
+    )
+  }, [reportSelection])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    let cancelled = false
+
+    const resolveEmpresaIdFromPlantList = async (
+      plantId: string,
+      token: string
+    ): Promise<string | null> => {
+      const findInList = (list: unknown): string | null => {
+        if (!Array.isArray(list)) return null
+        const plant = list.find(
+          (p: { id?: string; _id?: string; empresa_id?: string; empresaId?: string }) =>
+            p && (p.id === plantId || p._id === plantId)
+        )
+        if (!plant || typeof plant !== "object") return null
+        const eid = (plant as { empresa_id?: string; empresaId?: string }).empresa_id ??
+          (plant as { empresaId?: string }).empresaId
+        return eid != null && String(eid).trim() !== "" ? String(eid).trim() : null
+      }
+
+      for (const endpoint of [
+        API_ENDPOINTS.PLANTS_ACCESSIBLE,
+        API_ENDPOINTS.PLANTS_ALL,
+      ]) {
+        try {
+          const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (!res.ok) continue
+          const data = await res.json()
+          const list = data.plantas ?? data.plants ?? data
+          const found = findInList(list)
+          if (found) return found
+        } catch {
+          continue
+        }
+      }
+      return null
+    }
+
+    ;(async () => {
+      let empresaId = empresaIdFromReport
+
+      if (!empresaId) {
+        try {
+          const raw = localStorage.getItem("Organomex_user")
+          if (raw) {
+            const u = JSON.parse(raw) as { empresa_id?: string | null }
+            if (u?.empresa_id != null && String(u.empresa_id).trim() !== "") {
+              empresaId = String(u.empresa_id).trim()
+            }
+          }
+        } catch {
+          // ignorar
+        }
+      }
+
+      const token = localStorage.getItem("Organomex_token")
+
+      if (!empresaId && plantIdForOrder && token) {
+        empresaId = await resolveEmpresaIdFromPlantList(plantIdForOrder, token)
+      }
+
+      if (cancelled) return
+
+      if (!empresaId) {
+        setEmpresaNombre(null)
+        return
+      }
+
+      if (!token) {
+        setEmpresaNombre(null)
+        return
+      }
+
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}${API_ENDPOINTS.EMPRESA_BY_ID(empresaId)}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        if (cancelled) return
+        if (res.status === 401) {
+          localStorage.removeItem("Organomex_token")
+          localStorage.removeItem("Organomex_user")
+          router.push("/logout")
+          return
+        }
+        if (!res.ok) {
+          setEmpresaNombre(null)
+          return
+        }
+        const data = await res.json()
+        const nombre = extractEmpresaNombreFromApiResponse(data)
+        if (!cancelled) setEmpresaNombre(nombre)
+      } catch {
+        if (!cancelled) setEmpresaNombre(null)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [empresaIdFromReport, plantIdForOrder, router])
+
   useEffect(() => {
     const plantId = plantIdForOrder
     if (!plantId) {
@@ -591,19 +795,20 @@ export default function Reporte() {
 
       doc.setFontSize(12)
       doc.text(`Fecha: ${currentDate}`, 20, 35)
-      doc.text(`Dirigido a: ${reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING. "}`, 20, 45)
-      doc.text(`Asunto: ${reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente || "REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS"}`, 20, 55)
-      doc.text(`Sistema Evaluado: ${reportNotes["sistema"] || (reportSelection ? reportSelection.systemName : "Todos los sistemas") || "Todos los sistemas"}`, 20, 65)
-      doc.text(`Ubicación: ${reportNotes["ubicacion"] || "San Luis Potosí, S.L.P."}`, 20, 75)
+      doc.text(`Empresa: ${empresaNombre ?? "—"}`, 20, 42)
+      doc.text(`Dirigido a: ${reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING. "}`, 20, 49)
+      doc.text(`Asunto: ${reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente || "REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS"}`, 20, 59)
+      doc.text(`Sistema Evaluado: ${reportNotes["sistema"] || (reportSelection ? reportSelection.systemName : "Todos los sistemas") || "Todos los sistemas"}`, 20, 69)
+      doc.text(`Ubicación: ${reportNotes["ubicacion"] || "San Luis Potosí, S.L.P."}`, 20, 79)
       
       // Planta (valor del sistema) y fecha
       const plantaValue = reportSelection?.systemName ?? reportSelection?.plant?.nombre ?? "";
       if (plantaValue) {
-        doc.text(`Planta: ${plantaValue}`, 20, 85)
+        doc.text(`Planta: ${plantaValue}`, 20, 89)
       }
-      doc.text(`Fecha de generación: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}`, 20, 95)
+      doc.text(`Fecha: ${(reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date()).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}`, 20, 99)
 
-      let currentY = 105
+      let currentY = 109
 
       // Leyenda de colores
       doc.setFontSize(14)
@@ -1016,17 +1221,17 @@ export default function Reporte() {
       const drawHeaderOnCurrentPage = () => {
         if (headerData && headerHeight > 0) {
           pdf.addImage(headerData, "JPEG", 0, 0, pageWidthMM, headerHeight);
-          if (reportSelection?.generatedDate) {
-            const genDateStr = new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            });
-            pdf.setFontSize(9);
-            pdf.setTextColor(60, 60, 60);
-            const dateY = headerHeight + marginTop - 5;
-            pdf.text(`Fecha de generación: ${genDateStr}`, pageWidthMM - marginRight, dateY, { align: "right" });
-          }
+          const genDateForHeader = reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date();
+          const genDateStr = genDateForHeader.toLocaleDateString("es-ES", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          });
+          const lugarFechaHeaderStr = `San Luis Potosí, S.L.P. a ${genDateStr}`;
+          pdf.setFontSize(9);
+          pdf.setTextColor(60, 60, 60);
+          const dateY = headerHeight + marginTop - 5;
+          pdf.text(lugarFechaHeaderStr, pageWidthMM - marginRight, dateY, { align: "right" });
         }
       };
 
@@ -1062,10 +1267,36 @@ export default function Reporte() {
         // Footer no disponible
       }
 
-      // Firma: cargar desde ruta (sin depender del DOM)
+      // Firma: cargar desde ruta (sin depender del DOM); tamaño en PDF respeta proporción natural
       let firmaData: string | null = null;
+      let firmaNaturalW = 0;
+      let firmaNaturalH = 0;
+      let firmaDisplayWMM = 50;
+      let firmaDisplayHMM = 20;
       try {
-        firmaData = await loadImageAsBase64("/images/Firma_1.jpeg");
+        firmaData = await loadImageAsBase64("/images/Firma.png");
+        if (firmaData) {
+          const firmaProbe = new window.Image();
+          firmaProbe.src = firmaData;
+          await new Promise((resolve) => {
+            firmaProbe.onload = () => {
+              firmaNaturalW = firmaProbe.naturalWidth;
+              firmaNaturalH = firmaProbe.naturalHeight;
+              resolve(null);
+            };
+            firmaProbe.onerror = () => resolve(null);
+          });
+          if (firmaNaturalW > 0 && firmaNaturalH > 0) {
+            const maxFirmaWMM = 50;
+            const maxFirmaHMM = 32;
+            firmaDisplayWMM = maxFirmaWMM;
+            firmaDisplayHMM = (maxFirmaWMM * firmaNaturalH) / firmaNaturalW;
+            if (firmaDisplayHMM > maxFirmaHMM) {
+              firmaDisplayHMM = maxFirmaHMM;
+              firmaDisplayWMM = (maxFirmaHMM * firmaNaturalW) / firmaNaturalH;
+            }
+          }
+        }
       } catch (error) {
         console.warn("Signature image could not be loaded:", error);
       }
@@ -1085,10 +1316,8 @@ export default function Reporte() {
 
       // Información del reporte
       pdf.setFontSize(10);
-      const reportGenDate = reportSelection?.generatedDate ? new Date(reportSelection.generatedDate) : new Date();
-      const fechaLugarStr = `San Luis Potosí, S.L.P. a ${reportGenDate.toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}`;
       const reportInfo = [
-        fechaLugarStr,
+        `Empresa: ${empresaNombre ?? "—"}`,
         `Dirigido a: ${reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING."}`,
         `Asunto: ${reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente || `REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE ${reportSelection?.plant?.nombre || "NOMBRE DE LA PLANTA"}`}`,
         `Planta Evaluada: ${reportSelection?.plant?.nombre || "Planta no especificada"}`,
@@ -1141,6 +1370,18 @@ export default function Reporte() {
       });
 
       currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
+
+      // Comentario opcional asociado a la leyenda de colores.
+      // Sólo se imprime si fue capturado por el usuario (mismo criterio que las
+      // demás cajas de comentarios: si está vacío no se incluye en el PDF).
+      const legendComment = parameterComments[LEGEND_COMMENT_KEY]?.trim();
+      if (legendComment) {
+        currentY = checkSpaceAndAddPage(20, currentY);
+        pdf.setFontSize(10);
+        const legendCommentLines = pdf.splitTextToSize(legendComment, contentWidthMM);
+        pdf.text(legendCommentLines, marginLeft, currentY);
+        currentY += legendCommentLines.length * 4 + spacingMM;
+      }
 
       // Agregar tabla de Previsualización de Datos Guardados
       if (reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
@@ -1504,9 +1745,9 @@ export default function Reporte() {
         const today = new Date();
         const startDateObj = new Date(today);
         startDateObj.setMonth(today.getMonth() - 12);
-        return startDateObj.toISOString().split('T')[0];
+        return normalizeToYmd(startDateObj.toISOString()) || "";
       })();
-      const pdfChartEndDate = chartEndDate || new Date().toISOString().split('T')[0];
+      const pdfChartEndDate = chartEndDate || normalizeToYmd(new Date().toISOString()) || "";
       
       // Agregar título de sección de gráficos
       const hasCharts = variablesDisponibles.length > 0;
@@ -1518,7 +1759,7 @@ export default function Reporte() {
         
         // Agregar período
         pdf.setFontSize(10);
-        const periodText = `Período: ${new Date(pdfChartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - ${new Date(pdfChartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+        const periodText = `Período: ${formatCalendarDate(pdfChartStartDate, { day: "2-digit", month: "short", year: "numeric" })} - ${formatCalendarDate(pdfChartEndDate, { day: "2-digit", month: "short", year: "numeric" })}`;
         pdf.text(periodText, marginLeft, currentY);
         currentY += spacingMM;
       }
@@ -1587,7 +1828,7 @@ export default function Reporte() {
         
         // Agregar período
         pdf.setFontSize(10);
-        const periodText = `Período: ${new Date(pdfChartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - ${new Date(pdfChartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+        const periodText = `Período: ${formatCalendarDate(pdfChartStartDate, { day: "2-digit", month: "short", year: "numeric" })} - ${formatCalendarDate(pdfChartEndDate, { day: "2-digit", month: "short", year: "numeric" })}`;
         pdf.text(periodText, marginLeft, currentY);
         currentY += spacingMM;
         
@@ -1747,19 +1988,19 @@ export default function Reporte() {
             new Date(a).getTime() - new Date(b).getTime()
           );
           
-          // Preparar datos de la tabla (incluyendo columna de COMENTARIOS)
+          // Preparar datos de la tabla (solo parámetros; sin columna de comentarios)
           // Si el parámetro no tiene unidad (ej. pH), no mostrar paréntesis vacíos
-          const tableHeaders = ["PARAMETROS", ...parameters.map(p => (p.unidad && String(p.unidad).trim()) ? `${p.nombre}\n(${p.unidad})` : p.nombre), "COMENTARIOS"];
+          const tableHeaders = ["PARAMETROS", ...parameters.map(p => (p.unidad && String(p.unidad).trim()) ? `${p.nombre}\n(${p.unidad})` : p.nombre)];
           
           // Fila ALTO
           const altoRow = ["ALTO", ...parameters.map(p => 
             highLowValues[p.id]?.alto.toFixed(2) || "—"
-          ), "—"];
+          )];
           
           // Fila BAJO
           const bajoRow = ["BAJO", ...parameters.map(p => 
             highLowValues[p.id]?.bajo.toFixed(2) || "—"
-          ), "—"];
+          )];
 
           // Fila PROMEDIO (dinámico con los datos actuales del rango en PDF)
           const promedioValues: Record<string, number | null> = {};
@@ -1792,11 +2033,10 @@ export default function Reporte() {
             ...parameters.map((p) =>
               promedioValues[p.id] != null ? promedioValues[p.id]!.toFixed(2) : "—"
             ),
-            "—",
           ];
           
-          // Fila FECHA/RANGOS
-          const rangosRow = ["FECHA/RANGOS", ...parameters.map(p => {
+          // Fila FECHA/RANGO (salto explícito en PDF para igualar la vista web)
+          const rangosRow = ["FECHA/\nRANGO", ...parameters.map((p) => {
             const tolerances = (reportSelection?.variablesTolerancia?.[systemName] || {}) as unknown as Record<string, { limite_min?: number | null; limite_max?: number | null }>;
             let tolerance = tolerances[p.id];
             
@@ -1817,7 +2057,7 @@ export default function Reporte() {
               return `Max ${max}`;
             }
             return "—";
-          }), "—"];
+          })];
           
           // Filas de datos históricos
           const dataRows: string[][] = [];
@@ -1849,7 +2089,6 @@ export default function Reporte() {
                 const valor = value && typeof value === 'object' && 'valor' in value ? value.valor : undefined;
                 return valor !== undefined ? valor.toFixed(2) : "—";
               }),
-              parseCommentDisplay(dateData.comentarios_globales)
             ];
             dataRows.push(row);
           });
@@ -1905,9 +2144,6 @@ export default function Reporte() {
               if (data.column.index > 0) {
                 data.cell.styles.cellWidth = 9;
               }
-              if (data.column.index === tableHeaders.length - 1) {
-                data.cell.styles.halign = 'left';
-              }
               if (data.section === 'body' && data.row.index !== undefined) {
                 // Filas fijas
                 if (data.row.index === 0 || data.row.index === 1 || data.row.index === 2) {
@@ -1917,10 +2153,9 @@ export default function Reporte() {
                   data.cell.styles.textColor = [255, 255, 255];
                 } else {
                   const isDateRow = data.row.index >= 4;
-                  const isParamCell =
-                    data.column.index > 0 && data.column.index < tableHeaders.length - 1;
+                  const isParamCell = data.column.index > 0;
 
-                  // Zebra SOLO para columna etiqueta/COMENTARIOS, pero para celdas de parámetros aplicamos color por límites
+                  // Primera columna (fecha): zebra; columnas de parámetros: color por límites
                   const dateIndex = data.row.index - 4;
                   const zebraFill = dateIndex % 2 === 0 ? [245, 255, 245] : [255, 240, 245];
 
@@ -1966,17 +2201,9 @@ export default function Reporte() {
         }
       }
 
-      // Comentarios globales
-      if (reportSelection.comentarios) {
-        currentY = checkSpaceAndAddPage(20, currentY);
-        pdf.setFontSize(12);
-        pdf.text("Comentarios globales:", marginLeft, currentY);
-        currentY += 6;
-        const commentLines = pdf.splitTextToSize(reportSelection.comentarios, contentWidthMM);
-        pdf.setFontSize(10);
-        pdf.text(commentLines, marginLeft, currentY);
-        currentY += commentLines.length * 5 + spacingMM;
-      }
+      // Nota: El recuadro de "Comentarios globales" se renderiza una sola vez,
+      // justo después de la tabla de mediciones (ver bloque "Comentarios:" arriba).
+      // Se eliminó el duplicado que aparecía aquí, en la parte inferior del PDF.
 
       // Tabla de límites (Alto/Bajo) por parámetro y sistema - parte inferior del PDF
       if (reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0) {
@@ -2009,29 +2236,37 @@ export default function Reporte() {
               tol.nombre?.trim().toLowerCase() === variable.trim().toLowerCase()
           );
         };
-        const limitsHeaders = [
-          "Parámetro",
-          "Unidad",
-          ...limitsSystemNames.flatMap((name) => [`${name} Bajo`, `${name} Alto`]),
-        ];
-        const limitsBody = limitsOrderedVars.map((variable) => {
-          let unidad = "";
-          for (const systemName of limitsSystemNames) {
-            const paramData = reportSelection.parameters[systemName]?.[variable];
-            if (paramData?.unidad) {
-              unidad = paramData.unidad;
-              break;
-            }
+        /** Máx. 8 columnas por tabla: Parámetro + Unidad + 6 dinámicas (3 sistemas × Bajo/Alto). */
+        const LIMITS_MAX_SYSTEMS_PER_TABLE = 3;
+        const limitsSystemChunks: string[][] = [];
+        if (limitsSystemNames.length === 0) {
+          limitsSystemChunks.push([]);
+        } else {
+          for (let i = 0; i < limitsSystemNames.length; i += LIMITS_MAX_SYSTEMS_PER_TABLE) {
+            limitsSystemChunks.push(limitsSystemNames.slice(i, i + LIMITS_MAX_SYSTEMS_PER_TABLE));
           }
-          const tol = getLimitsTolerance(variable);
-          const bajo = tol?.bien_min != null ? Number(tol.bien_min).toFixed(2) : "—";
-          const alto = tol?.bien_max != null ? Number(tol.bien_max).toFixed(2) : "—";
-          return [
-            variable,
-            unidad || "—",
-            ...limitsSystemNames.flatMap(() => [bajo, alto]),
-          ];
-        });
+        }
+
+        const buildLimitsBodyForSystems = (systemChunk: string[]) =>
+          limitsOrderedVars.map((variable) => {
+            let unidad = "";
+            for (const systemName of limitsSystemNames) {
+              const paramData = reportSelection.parameters[systemName]?.[variable];
+              if (paramData?.unidad) {
+                unidad = paramData.unidad;
+                break;
+              }
+            }
+            const tol = getLimitsTolerance(variable);
+            const bajo = tol?.bien_min != null ? Number(tol.bien_min).toFixed(2) : "—";
+            const alto = tol?.bien_max != null ? Number(tol.bien_max).toFixed(2) : "—";
+            return [
+              variable,
+              unidad || "—",
+              ...systemChunk.flatMap(() => [bajo, alto]),
+            ];
+          });
+
         currentY = checkSpaceAndAddPage(40, currentY);
         pdf.setFontSize(12);
         pdf.text("Límites recomendados (Alto y Bajo) por parámetro y sistema", marginLeft, currentY);
@@ -2039,32 +2274,60 @@ export default function Reporte() {
         pdf.setFontSize(9);
         pdf.text("Valores de referencia para interpretar los resultados de cada sistema.", marginLeft, currentY);
         currentY += 8;
-        autoTable(pdf, {
-          head: [limitsHeaders],
-          body: limitsBody,
-          startY: currentY,
-          theme: "grid",
-          tableWidth: contentWidthMM,
-          margin: { left: marginLeft, right: marginRight, top: headerHeight + marginTop, bottom: footerReservedHeight + marginBottom },
-          didDrawPage: () => drawHeaderOnCurrentPage(),
-          styles: { fontSize: 8, font: pdfFontName, cellPadding: 1 },
-          headStyles: {
-            fillColor: [66, 139, 202],
-            textColor: [255, 255, 255],
-            fontSize: 8,
-            font: pdfFontName,
-            cellPadding: 2,
-          },
-          columnStyles: {
-            0: { cellWidth: 35, halign: "left", font: pdfFontName },
-            1: { cellWidth: 18, halign: "center", font: pdfFontName },
-          },
+
+        limitsSystemChunks.forEach((systemChunk, chunkIndex) => {
+          const limitsHeaders = [
+            "Parámetro",
+            "Unidad",
+            ...systemChunk.flatMap((name) => [`${name} Bajo`, `${name} Alto`]),
+          ];
+          const limitsBody = buildLimitsBodyForSystems(systemChunk);
+
+          if (chunkIndex > 0) {
+            currentY = checkSpaceAndAddPage(35, currentY);
+            pdf.setFontSize(10);
+            pdf.setFont("helvetica", "bold");
+            pdf.text(
+              `Continuación — sistemas: ${systemChunk.join(", ")}`,
+              marginLeft,
+              currentY
+            );
+            currentY += 7;
+            pdf.setFont("helvetica", "normal");
+          }
+
+          autoTable(pdf, {
+            head: [limitsHeaders],
+            body: limitsBody,
+            startY: currentY,
+            theme: "grid",
+            tableWidth: contentWidthMM,
+            margin: {
+              left: marginLeft,
+              right: marginRight,
+              top: headerHeight + marginTop,
+              bottom: footerReservedHeight + marginBottom,
+            },
+            didDrawPage: () => drawHeaderOnCurrentPage(),
+            styles: { fontSize: 8, font: pdfFontName, cellPadding: 1 },
+            headStyles: {
+              fillColor: [66, 139, 202],
+              textColor: [255, 255, 255],
+              fontSize: 8,
+              font: pdfFontName,
+              cellPadding: 2,
+            },
+            columnStyles: {
+              0: { cellWidth: 35, halign: "left", font: pdfFontName },
+              1: { cellWidth: 18, halign: "center", font: pdfFontName },
+            },
+          });
+          currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
         });
-        currentY = ((pdf as any).lastAutoTable.finalY as number) + spacingMM;
 
         // Bloque de firma centrado debajo de la última tabla
         if (firmaData) {
-          const blockHeight = 58;
+          const blockHeight = 44 + firmaDisplayHMM + 14;
           if (currentY + blockHeight > usablePageHeight) {
             pdf.addPage();
             drawHeaderOnCurrentPage();
@@ -2077,17 +2340,15 @@ export default function Reporte() {
           pdf.setFont("helvetica", "bold");
           pdf.text("ATENTAMENTE", centerX, currentY, { align: "center" });
           currentY += 10;
-          const firmaW = 50;
-          const firmaH = 20;
           pdf.addImage(
             firmaData,
             firmaData.startsWith("data:image/png") ? "PNG" : "JPEG",
-            centerX - firmaW / 2,
+            centerX - firmaDisplayWMM / 2,
             currentY,
-            firmaW,
-            firmaH
+            firmaDisplayWMM,
+            firmaDisplayHMM
           );
-          currentY += firmaH + 6;
+          currentY += firmaDisplayHMM + 6;
           pdf.setDrawColor(0, 0, 0);
           pdf.setLineWidth(0.25);
           pdf.line(centerX - 40, currentY, centerX + 40, currentY);
@@ -2316,10 +2577,17 @@ export default function Reporte() {
     } else {
       // Si no hay fechas en reportSelection, calcular desde hoy (últimos 12 meses)
       const today = new Date()
-      const endDate = today.toISOString().split('T')[0]
+      // Evitar desfases por UTC: construir YYYY-MM-DD desde calendario local
+      const toLocalYmd = (d: Date) => {
+        const y = d.getFullYear()
+        const m = String(d.getMonth() + 1).padStart(2, "0")
+        const day = String(d.getDate()).padStart(2, "0")
+        return `${y}-${m}-${day}`
+      }
+      const endDate = toLocalYmd(today)
       const startDateObj = new Date(today)
       startDateObj.setMonth(today.getMonth() - 12)
-      const startDate = startDateObj.toISOString().split('T')[0]
+      const startDate = toLocalYmd(startDateObj)
       setChartStartDate(startDate)
       setChartEndDate(endDate)
     }
@@ -2680,26 +2948,15 @@ export default function Reporte() {
     });
   }
 
-  // Extraer texto de comentario: si viene como JSON {"global":"..."} mostrar solo el valor
-  const parseCommentDisplay = (value: unknown): string => {
-    if (value === null || value === undefined) return "—"
-    if (typeof value === "object" && value !== null && "global" in value && typeof (value as { global?: string }).global === "string") {
-      return (value as { global: string }).global
-    }
-    if (typeof value === "string") {
-      const trimmed = value.trim()
-      if (trimmed.startsWith("{")) {
-        try {
-          const parsed = JSON.parse(trimmed) as { global?: string }
-          if (typeof parsed?.global === "string") return parsed.global
-        } catch {
-          /* no es JSON válido, devolver tal cual */
-        }
-      }
-      return trimmed || "—"
-    }
-    return String(value)
-  }
+  const headerPlantaDisplay = reportSelection
+    ? (() => {
+        const sys = reportSelection.systemName?.trim()
+        const plantNombre = reportSelection.plant?.nombre?.trim()
+        if (sys && sys !== "Sistema no especificado") return sys
+        if (plantNombre) return plantNombre
+        return sys || "—"
+      })()
+    : "—"
 
   return (
     <ProtectedRoute>
@@ -2711,14 +2968,19 @@ export default function Reporte() {
         <div className="container-fluid bg-primary text-white py-3">
           <div className="container">
             <h1 className="h4 mb-0">Vista Previa del Reporte</h1>
-            <p className="mb-0">
-              <strong>Fecha:</strong> {currentDate}
-            </p>
             {reportSelection && (
               <div className="mt-2">
                 <small>
-                  <strong>Planta:</strong> {reportSelection.systemName ?? reportSelection.plant?.nombre ?? "—"} | 
-                  <strong> Fecha de generación:</strong> {reportSelection.generatedDate ? new Date(reportSelection.generatedDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : currentDate}
+                  <strong>Empresa:</strong> {empresaNombre ?? "—"} |{" "}
+                  <strong>Planta:</strong> {headerPlantaDisplay} |{" "}
+                  <strong>Fecha:</strong>{" "}
+                  {reportSelection.generatedDate
+                    ? new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })
+                    : currentDate}
                 </small>
               </div>
             )}
@@ -2753,10 +3015,9 @@ export default function Reporte() {
                     </div>
                   )}
                 </div>
-                {/* Fecha de generación (igual que en el PDF: debajo del header, derecha, sin hora) */}
                 <div className="ml-10 mr-10 mb-2 text-end">
                   <p className="mb-0 small text-muted">
-                    <strong>Fecha de generación:</strong>{" "}
+                    San Luis Potosí, S.L.P. a{" "}
                     {reportSelection?.generatedDate
                       ? new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
                           day: "numeric",
@@ -2773,20 +3034,16 @@ export default function Reporte() {
                 <div className="mb-4 ml-10 mr-10">
                   <div className="row">
                   <div className="col-12">
-                    <p className="mb-2">
-                      San Luis Potosí, S.L.P. a{" "}
-                      {reportSelection?.generatedDate
-                        ? new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          })
-                        : new Date().toLocaleDateString("es-ES", {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          })}
+                    <p>
+                      <strong>Empresa: </strong>
+                      <span
+                        className="border-bottom"
+                        style={{ minWidth: "300px", display: "inline-block" }}
+                      >
+                        {empresaNombre ?? "—"}
+                      </span>
                     </p>
+
                     <p>
                       <strong>Dirigido a: </strong>
                       <span
@@ -2877,6 +3134,38 @@ export default function Reporte() {
                     </tbody>
                   </table>
                 </div>
+
+                {/*
+                  Comentario opcional entre la leyenda de colores y la tabla de mediciones.
+                  - Para no-clientes: siempre se muestra el textarea para permitir capturarlo.
+                  - Para clientes: sólo se renderiza si ya hay contenido guardado.
+                  - En el PDF este bloque se omite cuando el campo está vacío.
+                */}
+                {(userRole !== "client" ||
+                  (parameterComments[LEGEND_COMMENT_KEY] &&
+                    parameterComments[LEGEND_COMMENT_KEY].trim() !== "")) && (
+                  <div className="mt-4 pt-4 border-t">
+                    <label
+                      htmlFor="comment-legend"
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                    
+                    </label>
+                    <textarea
+                      id="comment-legend"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      rows={3}
+                      placeholder="Agregar comentarios relacionados con la leyenda o los rangos..."
+                      value={parameterComments[LEGEND_COMMENT_KEY] || ""}
+                      onChange={(e) =>
+                        userRole !== "client" &&
+                        handleParameterCommentChange(LEGEND_COMMENT_KEY, e.target.value)
+                      }
+                      disabled={userRole === "client"}
+                      readOnly={userRole === "client"}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Previsualización de Datos Guardados */}
@@ -3062,7 +3351,12 @@ export default function Reporte() {
                   <h5>Gráficos de Series Temporales</h5>
                   {chartStartDate && chartEndDate && (
                     <p className="text-sm text-muted mb-3">
-                      Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      Período: {formatCalendarDate(chartStartDate, { day: "2-digit", month: "short", year: "numeric" })} - {formatCalendarDate(chartEndDate, { day: "2-digit", month: "short", year: "numeric" })}
+                    </p>
+                  )}
+                  {chartStartDate && chartEndDate && (
+                    <p className="text-xs text-muted mb-3">
+                      El eje X muestra únicamente días con datos dentro del período seleccionado.
                     </p>
                   )}
                   
@@ -3083,55 +3377,55 @@ export default function Reporte() {
                       // Buscar datos normalizando el nombre (por si hay diferencias de espacios)
                       // IMPORTANTE: Siempre pasar un array (incluso vacío) para que SensorTimeSeriesChart NO haga llamadas a API de mediciones
                       // Los datos vienen SOLO de reportes.datos (tabla reportes), NO de tabla mediciones
-                      const nombreNormalizado = variable.nombre.trim();
-                      let medicionesData: Array<{ fecha: string; sistema: string; valor: number }> = [];
-                      
-                      // Buscar en chartDataFromReportes (que viene SOLO de reportes.datos de reportes guardados)
-                      if (chartDataFromReportes && typeof chartDataFromReportes === 'object') {
-                        medicionesData = chartDataFromReportes[nombreNormalizado] || [];
-                        
-                        // Si no se encuentra con el nombre exacto, buscar variaciones (espacios, mayúsculas)
-                        if (medicionesData.length === 0) {
-                          const posiblesClaves = Object.keys(chartDataFromReportes).filter(k => 
-                            k.trim().toLowerCase() === nombreNormalizado.toLowerCase()
-                          );
+                      const nombreNormalizado = variable.nombre.trim()
+                      let medicionesHistorico: MedicionParaGrafico[] = []
+
+                      // Histórico: reportes guardados en API (chartDataFromReportes)
+                      if (chartDataFromReportes && typeof chartDataFromReportes === "object") {
+                        medicionesHistorico = chartDataFromReportes[nombreNormalizado] ?? []
+                        if (medicionesHistorico.length === 0) {
+                          const posiblesClaves = Object.keys(chartDataFromReportes).filter(
+                            (k) => k.trim().toLowerCase() === nombreNormalizado.toLowerCase()
+                          )
                           if (posiblesClaves.length > 0) {
-                            medicionesData = chartDataFromReportes[posiblesClaves[0]] || [];
+                            medicionesHistorico = chartDataFromReportes[posiblesClaves[0]] ?? []
                           }
                         }
                       }
-                      
-                      // FALLBACK: Si chartDataFromReportes no tiene datos para esta variable, usar reportSelection.parameters
-                      // (misma fuente que la tabla, para que el gráfico muestre datos aunque el reporte no esté guardado aún)
-                      if (medicionesData.length === 0 && reportSelection?.parameters && reportSelection?.fecha) {
-                        const fechaReporte = reportSelection.fecha.includes("T") 
-                          ? reportSelection.fecha.split("T")[0] 
-                          : reportSelection.fecha;
-                        const datosDesdeReportSelection: Array<{ fecha: string; sistema: string; valor: number }> = [];
-                        
-                        // Recorrer todos los sistemas en orderedSystemNames
-                        orderedSystemNames.forEach((systemName: string) => {
-                          const systemData = reportSelection.parameters[systemName];
-                          const paramData = systemData?.[variable.nombre] || systemData?.[nombreNormalizado];
-                          // Usar solo paramData?.valor (no existe .value en el tipo)
-                          const valor = paramData?.valor;
-                          
-                          // Permitir 0 y valores negativos (pH puede ser < 7)
-                          // valor es number | null | undefined, así que solo verificar que sea un número válido
-                          if (valor != null && typeof valor === "number" && !Number.isNaN(valor)) {
-                            const valorNum = valor; // Ya es number, no necesita conversión
-                            datosDesdeReportSelection.push({
+
+                      let medicionesPreview: MedicionParaGrafico[] = []
+                      if (reportSelection?.parameters && reportSelection?.fecha) {
+                        const fechaReporte = reportSelection.fecha.includes("T")
+                          ? reportSelection.fecha.split("T")[0]
+                          : reportSelection.fecha
+                        const sistemasParaPreview =
+                          orderedSystemNames.length > 0
+                            ? orderedSystemNames
+                            : Object.keys(reportSelection.parameters)
+                        sistemasParaPreview.forEach((systemName: string) => {
+                          const systemData = reportSelection.parameters[systemName]
+                          const paramData =
+                            systemData?.[variable.nombre] ??
+                            systemData?.[nombreNormalizado]
+                          const valor = paramData?.valor
+                          if (
+                            valor != null &&
+                            typeof valor === "number" &&
+                            !Number.isNaN(valor)
+                          ) {
+                            medicionesPreview.push({
                               fecha: fechaReporte,
                               sistema: systemName.trim(),
-                              valor: valorNum
-                            });
+                              valor,
+                            })
                           }
-                        });
-                        
-                        if (datosDesdeReportSelection.length > 0) {
-                          medicionesData = datosDesdeReportSelection;
-                        }
+                        })
                       }
+
+                      let medicionesData = mergeMedicionesHistoricoYPreview(
+                        medicionesHistorico,
+                        medicionesPreview
+                      )
                       
                       // Asegurar que siempre sea un array válido (nunca undefined/null) para evitar llamadas a API
                       if (!Array.isArray(medicionesData)) {
@@ -3211,7 +3505,8 @@ export default function Reporte() {
                   </div>
                   {chartStartDate && chartEndDate && (
                     <p className="text-sm text-muted mb-3">
-                      Período: {new Date(chartStartDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(chartEndDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}                    </p>
+                      Período: {formatCalendarDate(chartStartDate, { day: "2-digit", month: "short", year: "numeric" })} - {formatCalendarDate(chartEndDate, { day: "2-digit", month: "short", year: "numeric" })}{" "}
+                    </p>
                   )}
                   
                   {orderedSystemNames.map((systemName) => {
@@ -3300,22 +3595,27 @@ export default function Reporte() {
                             No se encontraron datos históricos para el rango de fechas seleccionado.
                           </div>
                         ) : (
-                          <div className="w-full overflow-x-auto">
-                            <table className="w-full border border-gray-300 bg-white text-xs table-fixed">
+                          <div className="w-full max-w-none overflow-x-auto">
+                            <table className="w-full border-collapse border border-gray-300 bg-white text-[11px] leading-tight table-auto">
                               <thead>
                                 <tr className="bg-blue-800 text-white">
-                                  <th className="border px-2 py-2 text-left font-semibold w-24">
-                                    PARAMETROS
+                                  <th className="border px-2 py-2 text-left font-semibold whitespace-nowrap text-xs min-w-[6.5rem]">
+                                    PARÁMETROS
                                   </th>
-                                  {parameters.map((param) => (
-                                    <th key={param.id} className="border px-1 py-2 text-center font-semibold">
-                                      <div className="text-xs">{param.nombre}</div>
-                                      {param.unidad && String(param.unidad).trim() ? (
-                                        <div className="text-xs font-normal">({param.unidad})</div>
-                                      ) : null}
-                                    </th>
-                                  ))}
-                                  <th className="border px-2 py-2 text-left font-semibold w-32">COMENTARIOS</th>
+                                  {parameters.map((param) => {
+                                    const u = param.unidad && String(param.unidad).trim();
+                                    return (
+                                      <th
+                                        key={param.id}
+                                        className="border px-1.5 py-2 text-center font-semibold text-xs leading-snug max-w-none"
+                                      >
+                                        <div className="whitespace-nowrap">{param.nombre}</div>
+                                        {u ? (
+                                          <div className="whitespace-nowrap font-normal">({u})</div>
+                                        ) : null}
+                                      </th>
+                                    );
+                                  })}
                                 </tr>
                               </thead>
                               <tbody>
@@ -3329,7 +3629,6 @@ export default function Reporte() {
                                       {highLowValues[param.id]?.alto.toFixed(2) || "—"}
                                     </td>
                                   ))}
-                                  <td className="border px-2 py-2 text-xs">—</td>
                                 </tr>
                                 {/* Fila BAJO */}
                                 <tr className="bg-green-100">
@@ -3341,7 +3640,6 @@ export default function Reporte() {
                                       {highLowValues[param.id]?.bajo.toFixed(2) || "—"}
                                     </td>
                                   ))}
-                                  <td className="border px-2 py-2 text-xs">—</td>
                                 </tr>
                                 {/* Fila PROMEDIO */}
                                 <tr className="bg-green-100">
@@ -3353,19 +3651,18 @@ export default function Reporte() {
                                       {promedioValues[param.id] != null ? promedioValues[param.id]!.toFixed(2) : "—"}
                                     </td>
                                   ))}
-                                  <td className="border px-2 py-2 text-xs">—</td>
                                 </tr>
-                                {/* Fila RANGOS */}
+                                {/* Fila RANGOS — salto explícito para no cortar la palabra */}
                                 <tr className="bg-blue-800 text-white">
-                                  <td className="border px-2 py-2 font-semibold bg-blue-800">
-                                    FECHA/RANGOS
+                                  <td className="border px-2 py-2 font-semibold bg-blue-800 text-center align-middle leading-tight whitespace-normal">
+                                    <span className="block">FECHA/</span>
+                                    <span className="block">RANGO</span>
                                   </td>
                                   {parameters.map((param) => (
                                     <td key={param.id} className="border px-1 py-2 text-center text-xs">
                                       {getAcceptableRange(systemName, param.id)}
                                     </td>
                                   ))}
-                                  <td className="border px-2 py-2 text-xs">—</td>
                                 </tr>
                                 {/* Filas de datos por fecha */}
                                 {sortedDates.map((fecha, index) => {
@@ -3406,11 +3703,6 @@ export default function Reporte() {
                                           </td>
                                         )
                                       })}
-                                      <td className={`border px-2 py-2 text-xs ${
-                                        isEven ? "bg-green-50" : "bg-pink-50"
-                                      }`}>
-                                        {parseCommentDisplay(dateData.comentarios_globales)}
-                                      </td>
                                     </tr>
                                   )
                                 })}
@@ -3534,7 +3826,7 @@ export default function Reporte() {
               </div>
                {/* Firma: solo para PDF, misma ruta que header/footer (/images/) */}
                 <div id="firma-img" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }} aria-hidden="true">
-                  <img src="/images/Firma.jpeg" alt="" />
+                  <img src="/images/Firma.png" alt="" />
                 </div>
                {/* Footer Image */}
                 <div id="footer-img" className="text-center">
@@ -3574,7 +3866,7 @@ export default function Reporte() {
                           <code>footer-textless.png</code> - Imagen de pie de página
                         </li>
                         <li>
-                          <code>Firma.jpeg</code> - Firma (misma carpeta; solo se usa en la descarga PDF)
+                          <code>Firma.png</code> - Firma (misma carpeta; solo se usa en la descarga PDF)
                         </li>
                       </ul>
                     </li>
