@@ -1267,10 +1267,36 @@ export default function Reporte() {
         // Footer no disponible
       }
 
-      // Firma: cargar desde ruta (sin depender del DOM)
+      // Firma: cargar desde ruta (sin depender del DOM); tamaño en PDF respeta proporción natural
       let firmaData: string | null = null;
+      let firmaNaturalW = 0;
+      let firmaNaturalH = 0;
+      let firmaDisplayWMM = 50;
+      let firmaDisplayHMM = 20;
       try {
-        firmaData = await loadImageAsBase64("/images/Firma_1.jpeg");
+        firmaData = await loadImageAsBase64("/images/Firma.png");
+        if (firmaData) {
+          const firmaProbe = new window.Image();
+          firmaProbe.src = firmaData;
+          await new Promise((resolve) => {
+            firmaProbe.onload = () => {
+              firmaNaturalW = firmaProbe.naturalWidth;
+              firmaNaturalH = firmaProbe.naturalHeight;
+              resolve(null);
+            };
+            firmaProbe.onerror = () => resolve(null);
+          });
+          if (firmaNaturalW > 0 && firmaNaturalH > 0) {
+            const maxFirmaWMM = 50;
+            const maxFirmaHMM = 32;
+            firmaDisplayWMM = maxFirmaWMM;
+            firmaDisplayHMM = (maxFirmaWMM * firmaNaturalH) / firmaNaturalW;
+            if (firmaDisplayHMM > maxFirmaHMM) {
+              firmaDisplayHMM = maxFirmaHMM;
+              firmaDisplayWMM = (maxFirmaHMM * firmaNaturalW) / firmaNaturalH;
+            }
+          }
+        }
       } catch (error) {
         console.warn("Signature image could not be loaded:", error);
       }
@@ -2301,7 +2327,7 @@ export default function Reporte() {
 
         // Bloque de firma centrado debajo de la última tabla
         if (firmaData) {
-          const blockHeight = 58;
+          const blockHeight = 44 + firmaDisplayHMM + 14;
           if (currentY + blockHeight > usablePageHeight) {
             pdf.addPage();
             drawHeaderOnCurrentPage();
@@ -2314,17 +2340,15 @@ export default function Reporte() {
           pdf.setFont("helvetica", "bold");
           pdf.text("ATENTAMENTE", centerX, currentY, { align: "center" });
           currentY += 10;
-          const firmaW = 50;
-          const firmaH = 20;
           pdf.addImage(
             firmaData,
             firmaData.startsWith("data:image/png") ? "PNG" : "JPEG",
-            centerX - firmaW / 2,
+            centerX - firmaDisplayWMM / 2,
             currentY,
-            firmaW,
-            firmaH
+            firmaDisplayWMM,
+            firmaDisplayHMM
           );
-          currentY += firmaH + 6;
+          currentY += firmaDisplayHMM + 6;
           pdf.setDrawColor(0, 0, 0);
           pdf.setLineWidth(0.25);
           pdf.line(centerX - 40, currentY, centerX + 40, currentY);
@@ -3802,7 +3826,7 @@ export default function Reporte() {
               </div>
                {/* Firma: solo para PDF, misma ruta que header/footer (/images/) */}
                 <div id="firma-img" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, overflow: "hidden" }} aria-hidden="true">
-                  <img src="/images/Firma.jpeg" alt="" />
+                  <img src="/images/Firma.png" alt="" />
                 </div>
                {/* Footer Image */}
                 <div id="footer-img" className="text-center">
@@ -3842,7 +3866,7 @@ export default function Reporte() {
                           <code>footer-textless.png</code> - Imagen de pie de página
                         </li>
                         <li>
-                          <code>Firma.jpeg</code> - Firma (misma carpeta; solo se usa en la descarga PDF)
+                          <code>Firma.png</code> - Firma (misma carpeta; solo se usa en la descarga PDF)
                         </li>
                       </ul>
                     </li>
