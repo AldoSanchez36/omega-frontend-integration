@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { Eye, Download, Calendar, Filter, RefreshCw, ChevronUp, ChevronDown } from "lucide-react";
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants";
-import { mergeDatosJsonbWithUsuario, resolveReportUsuarioDisplay } from "@/lib/report-usuario-display";
+import {
+  collectReportUserIds,
+  enrichUsersMapWithReportIds,
+  fetchUsersByIdMap,
+  mergeDatosJsonbWithUsuario,
+  resolveAndEnrichReportUsuario,
+} from "@/lib/report-usuario-display";
 
 interface Reporte {
   id: string;
@@ -135,13 +141,24 @@ export default function ReportList() {
       const data = await response.json();
 
       if (data.ok && data.reportes) {
+        let usersMap = await fetchUsersByIdMap(API_BASE_URL, API_ENDPOINTS.USERS, token);
+        usersMap = await enrichUsersMapWithReportIds(
+          API_BASE_URL,
+          API_ENDPOINTS.USER_BY_ID,
+          token,
+          collectReportUserIds(data.reportes as Record<string, unknown>[]),
+          usersMap
+        );
+
         const reportesFormateados = data.reportes
           .map((reporte: any) => {
-            const datosJsonb = reporte.datos || {};
-            const resolved = resolveReportUsuarioDisplay(reporte, datosJsonb);
+            const { resolved, datosJsonb } = resolveAndEnrichReportUsuario(
+              reporte as Record<string, unknown>,
+              { usersById: usersMap }
+            );
             const datosJsonbMerged = mergeDatosJsonbWithUsuario(datosJsonb, resolved);
             const titulo = reporte.titulo || reporte.nombre || `Reporte ${reporte.id}`;
-            const planta = datosJsonb.plant?.nombre || reporte.planta || reporte.plantName || "Planta no especificada";
+            const planta = (datosJsonb.plant as { nombre?: string })?.nombre || reporte.planta || reporte.plantName || "Planta no especificada";
             const sistema = datosJsonb.systemName || reporte.sistema || reporte.systemName || "Sistema no especificado";
             const usuario = resolved.usuario;
             const fecha = datosJsonb.fecha || reporte.fecha || new Date().toISOString().split('T')[0];

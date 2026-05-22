@@ -5,7 +5,16 @@ import { useRouter } from "next/navigation"
 import { authService } from "@/services/authService"
 import { httpService } from "@/services/httpService"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
-import { mergeDatosJsonbWithUsuario, resolveReportUsuarioDisplay } from "@/lib/report-usuario-display"
+import {
+  collectReportUserIds,
+  enrichResolvedUsuarioWithUsersMap,
+  enrichUsersMapWithReportIds,
+  fetchUsersByIdMap,
+  mergeDatosJsonbWithUsuario,
+  parseReportDatosJsonb,
+  resolveAndEnrichReportUsuario,
+  resolveReportUsuarioDisplay,
+} from "@/lib/report-usuario-display"
 
 import Navbar from "@/components/Navbar"
 import { QuickActions as AdminQuickActions } from "@/app/dashboard/buttons/admin"
@@ -79,6 +88,7 @@ export default function Dashboard() {
   const router = useRouter()
   const [plants, setPlants] = useState<Plant[]>([])
   const [reports, setReports] = useState<Report[]>([])
+  const [usersByIdMap, setUsersByIdMap] = useState<Map<string, { username: string; puesto: string; email?: string }>>(new Map())
   const [dataLoading, setDataLoading] = useState(false)
   const [debugInfo, setDebugInfo] = useState<string[]>([])
   const [user, setUser] = useState<any>(null)
@@ -417,8 +427,18 @@ export default function Dashboard() {
         report?.datos?.user?.empresa_id ??
         null;
 
-      const datosForUser = report?.datos || {};
-      const resolvedUser = resolveReportUsuarioDisplay(report, datosForUser, reportUsuarioPlaceholder);
+      const datosForUser = parseReportDatosJsonb(report as Record<string, unknown>);
+      const datosUser = (datosForUser.user || {}) as {
+        id?: string;
+        username?: string;
+        email?: string;
+        puesto?: string;
+        cliente_id?: string | null;
+      };
+      let resolvedUser = resolveReportUsuarioDisplay(report as Record<string, unknown>, datosForUser, reportUsuarioPlaceholder);
+      if (usersByIdMap.size) {
+        resolvedUser = enrichResolvedUsuarioWithUsersMap(resolvedUser, usersByIdMap, reportUsuarioPlaceholder);
+      }
 
       const usuarioStringFallback =
         typeof report.usuario === "string" && report.usuario.trim() !== "" ? report.usuario.trim() : "";
@@ -427,17 +447,17 @@ export default function Dashboard() {
 
       const reportSelection = {
         user: {
-          id: resolvedUser.usuario_id || datosForUser.user?.id || report.usuario_id,
+          id: resolvedUser.usuario_id || datosUser.id || report.usuario_id,
           username:
             resolvedUser.usuario !== "Default"
               ? resolvedUser.usuario
-              : datosForUser.user?.username || usuarioStringFallback || "Default",
-          email: resolvedUser.email || datosForUser.user?.email || "",
+              : datosUser.username || usuarioStringFallback || "Default",
+          email: resolvedUser.email || datosUser.email || "",
           puesto:
             resolvedUser.puesto !== "Default"
               ? resolvedUser.puesto
-              : datosForUser.user?.puesto || puestoStringFallback || "client",
-          cliente_id: datosForUser.user?.cliente_id || null,
+              : datosUser.puesto || puestoStringFallback || "client",
+          cliente_id: datosUser.cliente_id || null,
           empresa_id: empresaId
         },
         plant: {
@@ -610,34 +630,44 @@ export default function Dashboard() {
           const data = await response.json()
           reportesData = Array.isArray(data.reportes) ? data.reportes : []
         }
+
+        let usersMap = await fetchUsersByIdMap(API_BASE_URL, API_ENDPOINTS.USERS, token)
+        usersMap = await enrichUsersMapWithReportIds(
+          API_BASE_URL,
+          API_ENDPOINTS.USER_BY_ID,
+          token,
+          collectReportUserIds(reportesData as Record<string, unknown>[]),
+          usersMap
+        )
+        setUsersByIdMap(usersMap)
         
         // Convertir formato de reportes para el dashboard (extraer datos del JSONB)
         let formattedReports = reportesData.map((report: any) => {
-          const datosJsonb = report.datos || {};
-          const resolved = resolveReportUsuarioDisplay(report, datosJsonb, reportUsuarioPlaceholder);
+          const { resolved, datosJsonb: datosParsed } = resolveAndEnrichReportUsuario(
+            report as Record<string, unknown>,
+            { ...reportUsuarioPlaceholder, usersById: usersMap }
+          );
           const datosMerged = mergeDatosJsonbWithUsuario(
             {
-              ...(report.reportSelection || report.datos || {}),
-              fecha: datosJsonb.fecha || report.fecha || (report.reportSelection?.fecha) || (report.datos?.fecha),
+              ...(report.reportSelection || datosParsed || {}),
+              fecha: datosParsed.fecha || report.fecha || (report.reportSelection?.fecha),
             },
             resolved
           );
+          const plantFromDatos = (datosParsed.plant || {}) as { nombre?: string; id?: string };
           return {
             id: report.id?.toString() || report.id,
             title: report.titulo || report.nombre || `Reporte ${report.id}`,
-            plantName: datosJsonb.plant?.nombre || report.planta || report.plantName || "Planta no especificada",
-            systemName: datosJsonb.systemName || report.sistema || report.systemName || "Sistema no especificado",
+            plantName: plantFromDatos.nombre || report.planta || report.plantName || "Planta no especificada",
+            systemName: datosParsed.systemName || report.sistema || report.systemName || "Sistema no especificado",
             status: report.estado || report.status || "completed",
-            created_at: datosJsonb.generatedDate || report.fechaGeneracion || report.fecha_creacion || report.created_at || new Date().toISOString(),
-            // Tomar siempre el creador real del reporte. NO se usa el id del usuario
-            // loggeado como fallback para no contaminar los datos al re-guardar.
+            created_at: datosParsed.generatedDate || report.fechaGeneracion || report.fecha_creacion || report.created_at || new Date().toISOString(),
             usuario_id: resolved.usuario_id,
-            planta_id: report.planta_id || datosJsonb.plant?.id || "planta-unknown",
+            planta_id: report.planta_id || plantFromDatos.id || "planta-unknown",
             proceso_id: report.proceso_id || "sistema-unknown",
             estatus: typeof report.estatus === "boolean" ? report.estatus : false,
             datos: datosMerged,
-            observaciones: datosJsonb.comentarios || report.comentarios || report.observaciones || "",
-            // Prioridad: JOIN/vista/API (resolver) → JSONB `datos.user` → "Default".
+            observaciones: datosParsed.comentarios || report.comentarios || report.observaciones || "",
             usuario: resolved.usuario,
             puesto: resolved.puesto
           };
