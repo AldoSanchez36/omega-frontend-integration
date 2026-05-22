@@ -8,7 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants";
-import { mergeDatosJsonbWithUsuario, resolveReportUsuarioDisplay } from "@/lib/report-usuario-display";
+import {
+  collectReportUserIds,
+  enrichUsersMapWithReportIds,
+  fetchUsersByIdMap,
+  mergeDatosJsonbWithUsuario,
+  resolveAndEnrichReportUsuario,
+} from "@/lib/report-usuario-display";
 import CargaReportesTab from "./CargaReportesTab";
 import { parseComentariosForDisplay } from "../utils";
 
@@ -235,28 +241,40 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
 
         const data = await response.json();
         const reportesData = Array.isArray(data.reportes) ? data.reportes : [];
+
+        let usersMap = await fetchUsersByIdMap(API_BASE_URL, API_ENDPOINTS.USERS, token);
+        usersMap = await enrichUsersMapWithReportIds(
+          API_BASE_URL,
+          API_ENDPOINTS.USER_BY_ID,
+          token,
+          collectReportUserIds(reportesData as Record<string, unknown>[]),
+          usersMap
+        );
         
         // Formatear reportes similar al dashboard
         let formattedReports = reportesData.map((report: any) => {
-          const datosJsonb = report.datos || {};
-          const resolved = resolveReportUsuarioDisplay(report, datosJsonb, pendingReportsUsuarioOpts);
+          const { resolved, datosJsonb } = resolveAndEnrichReportUsuario(
+            report as Record<string, unknown>,
+            { ...pendingReportsUsuarioOpts, usersById: usersMap }
+          );
           const datosMerged = mergeDatosJsonbWithUsuario(
             {
-              ...(report.reportSelection || report.datos || {}),
-              fecha: datosJsonb.fecha || report.fecha || (report.reportSelection?.fecha) || (report.datos?.fecha),
+              ...(report.reportSelection || datosJsonb || {}),
+              fecha: datosJsonb.fecha || report.fecha || (report.reportSelection?.fecha),
             },
             resolved
           );
+          const plantFromDatos = (datosJsonb.plant || {}) as { nombre?: string; id?: string };
 
           return {
             id: report.id?.toString() || report.id,
             title: report.titulo || report.nombre || `Reporte ${report.id}`,
-            plantName: datosJsonb.plant?.nombre || report.planta || report.plantName || "Planta no especificada",
+            plantName: plantFromDatos.nombre || report.planta || report.plantName || "Planta no especificada",
             systemName: datosJsonb.systemName || report.sistema || report.systemName || "Sistema no especificado",
             status: report.estado || report.status || "completed",
             created_at: datosJsonb.generatedDate || report.fechaGeneracion || report.fecha_creacion || report.created_at || new Date().toISOString(),
             usuario_id: resolved.usuario_id,
-            planta_id: report.planta_id || datosJsonb.plant?.id || "planta-unknown",
+            planta_id: report.planta_id || plantFromDatos.id || "planta-unknown",
             proceso_id: report.proceso_id || "sistema-unknown",
             estatus: typeof report.estatus === "boolean" ? report.estatus : false,
             datos: datosMerged,
