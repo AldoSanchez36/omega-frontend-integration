@@ -12,6 +12,11 @@ import { SensorTimeSeriesChart, type ChartExportRef } from "@/components/SensorT
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import ScrollArrow from "@/app/reportmanager/components/ScrollArrow"
 import { formatCalendarDate, normalizeToYmd } from "@/lib/date"
+import { buildReportesQueryParams } from "@/lib/report-api-params"
+import {
+  hydrateReportSelectionFromApi,
+  reportSelectionNeedsFullLoad,
+} from "@/lib/load-report-detail"
 
 
 /**
@@ -219,6 +224,7 @@ export default function Reporte() {
   const [user, setUser] = useState<User | null>(null)
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
   const [reportSelection, setReportSelection] = useState<ReportSelection | null>(null)
+  const [isLoadingReportDetail, setIsLoadingReportDetail] = useState(false)
   
   // Estados de carga para los botones
   const [isSaving, setIsSaving] = useState(false)
@@ -369,6 +375,32 @@ export default function Reporte() {
     const reportSelectionRaw = localStorage.getItem("reportSelection");
     const parsedReportSelection = reportSelectionRaw ? JSON.parse(reportSelectionRaw) : null;
     setReportSelection(parsedReportSelection);
+
+    const applyHydratedSelection = (selection: ReportSelection) => {
+      setReportSelection(selection);
+      localStorage.setItem("reportSelection", JSON.stringify(selection));
+      if (selection.parameterComments) {
+        setParameterComments(selection.parameterComments);
+      }
+    };
+
+    if (
+      parsedReportSelection &&
+      reportSelectionNeedsFullLoad(parsedReportSelection) &&
+      parsedReportSelection.report_id
+    ) {
+      const token = localStorage.getItem("Organomex_token");
+      if (token) {
+        setIsLoadingReportDetail(true);
+        hydrateReportSelectionFromApi(parsedReportSelection, token)
+          .then((full) => {
+            if (full && Object.keys(full.parameters || {}).length > 0) {
+              applyHydratedSelection(full as ReportSelection);
+            }
+          })
+          .finally(() => setIsLoadingReportDetail(false));
+      }
+    }
     
     // Cargar comentarios guardados si existen
     // Primero intentar cargar desde parameterComments (formato antiguo)
@@ -2609,7 +2641,14 @@ export default function Reporte() {
     const startNorm = chartStartDate.includes("T") ? chartStartDate.split("T")[0] : chartStartDate;
     const endNorm = chartEndDate.includes("T") ? chartEndDate.split("T")[0] : chartEndDate;
 
-    fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+    const chartParams = buildReportesQueryParams({
+      view: "full",
+      startDate: startNorm,
+      endDate: endNorm,
+      planta_id: reportSelection.plant.id,
+    });
+
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}?${chartParams.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
@@ -2625,8 +2664,6 @@ export default function Reporte() {
         };
         
         reportes.forEach((report: any) => {
-          // SOLO usar report.datos (columna JSON de tabla reportes), NO usar tabla mediciones
-          // report.reportSelection es solo fallback por compatibilidad, pero la fuente principal es report.datos
           const datos = report.datos || report.reportSelection || {};
           const fechaRaw = datos.fecha || report.fecha || report.created_at;
           if (!fechaRaw) return;
@@ -2741,7 +2778,14 @@ export default function Reporte() {
         return
       }
 
-      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+      const histParams = buildReportesQueryParams({
+        view: "full",
+        startDate: chartStartDate,
+        endDate: chartEndDate,
+        planta_id: plantId,
+      });
+
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}?${histParams.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
@@ -2968,6 +3012,11 @@ export default function Reporte() {
         <div className="container-fluid bg-primary text-white py-3">
           <div className="container">
             <h1 className="h4 mb-0">Vista Previa del Reporte</h1>
+            {isLoadingReportDetail && (
+              <p className="mb-0 mt-2 small opacity-90" role="status" aria-live="polite">
+                Cargando datos del reporte…
+              </p>
+            )}
             {reportSelection && (
               <div className="mt-2">
                 <small>

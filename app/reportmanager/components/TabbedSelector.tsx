@@ -12,9 +12,9 @@ import {
   collectReportUserIds,
   enrichUsersMapWithReportIds,
   fetchUsersByIdMap,
-  mergeDatosJsonbWithUsuario,
-  resolveAndEnrichReportUsuario,
 } from "@/lib/report-usuario-display";
+import { buildReportesQueryParams } from "@/lib/report-api-params";
+import { formatDashboardReportRow } from "@/lib/format-report-from-api";
 import CargaReportesTab from "./CargaReportesTab";
 import { parseComentariosForDisplay } from "../utils";
 
@@ -229,7 +229,8 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
 
       setReportsLoading(true);
       try {
-        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+        const listParams = buildReportesQueryParams({ userRole: "admin", view: "summary" });
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}?${listParams.toString()}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -253,34 +254,10 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
         
         // Formatear reportes similar al dashboard
         let formattedReports = reportesData.map((report: any) => {
-          const { resolved, datosJsonb } = resolveAndEnrichReportUsuario(
-            report as Record<string, unknown>,
-            { ...pendingReportsUsuarioOpts, usersById: usersMap }
-          );
-          const datosMerged = mergeDatosJsonbWithUsuario(
-            {
-              ...(report.reportSelection || datosJsonb || {}),
-              fecha: datosJsonb.fecha || report.fecha || (report.reportSelection?.fecha),
-            },
-            resolved
-          );
-          const plantFromDatos = (datosJsonb.plant || {}) as { nombre?: string; id?: string };
-
+          const row = formatDashboardReportRow(report as Record<string, unknown>, usersMap);
           return {
-            id: report.id?.toString() || report.id,
-            title: report.titulo || report.nombre || `Reporte ${report.id}`,
-            plantName: plantFromDatos.nombre || report.planta || report.plantName || "Planta no especificada",
-            systemName: datosJsonb.systemName || report.sistema || report.systemName || "Sistema no especificado",
-            status: report.estado || report.status || "completed",
-            created_at: datosJsonb.generatedDate || report.fechaGeneracion || report.fecha_creacion || report.created_at || new Date().toISOString(),
-            usuario_id: resolved.usuario_id,
-            planta_id: report.planta_id || plantFromDatos.id || "planta-unknown",
-            proceso_id: report.proceso_id || "sistema-unknown",
-            estatus: typeof report.estatus === "boolean" ? report.estatus : false,
-            datos: datosMerged,
-            observaciones: parseComentariosForDisplay(datosJsonb.comentarios || report.comentarios || report.observaciones || ""),
-            usuario: resolved.usuario,
-            puesto: resolved.puesto,
+            ...row,
+            observaciones: parseComentariosForDisplay(row.observaciones || ""),
           };
         });
 

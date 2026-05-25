@@ -9,7 +9,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import ProtectedRoute from "@/components/ProtectedRoute"
 
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
-import { resolveReportUsuarioDisplay } from "@/lib/report-usuario-display"
+import { buildReportesQueryParams } from "@/lib/report-api-params"
+import { loadFullReportSelection } from "@/lib/load-report-detail"
 import { authService } from "@/services/authService"
 import { httpService } from "@/services/httpService"
 import { useEmpresasAccess } from "@/hooks/useEmpresasAccess"
@@ -430,7 +431,15 @@ export default function ReportManager() {
     const startNorm = chartStartDate.includes("T") ? chartStartDate.split("T")[0] : chartStartDate;
     const endNorm = chartEndDate.includes("T") ? chartEndDate.split("T")[0] : chartEndDate;
 
-    fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+    const chartParams = buildReportesQueryParams({
+      userRole: "admin",
+      view: "full",
+      startDate: startNorm,
+      endDate: endNorm,
+      planta_id: selectedPlant.id,
+    });
+
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}?${chartParams.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
@@ -712,85 +721,47 @@ export default function ReportManager() {
 
   
 
-  // Función para manejar la vista del reporte desde reportes pendientes
-  const handleViewReport = (report: any) => {
+  const handleViewReport = async (report: any) => {
     try {
-      // Obtener planta_id: del reporte primero, luego del contexto actual como fallback
-      const plantaId = 
-        report.datos?.plant?.id || 
-        report.planta_id || 
-        selectedPlant?.id || 
-        null;
-      
+      const plantaId =
+        report.datos?.plant?.id || report.planta_id || selectedPlant?.id || null;
+
       if (!plantaId) {
-        console.error("❌ Error: No se encontró planta_id en los datos del reporte ni en el contexto");
         alert("Error: No se pueden visualizar reportes sin datos de planta completos");
         return;
       }
-      
-      // Obtener empresa_id: del reporte primero, luego del contexto actual como fallback
+
+      const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null;
+      if (!token) {
+        alert("No hay sesión activa");
+        return;
+      }
+
       const empresaId =
         report?.empresa_id ??
         report?.datos?.empresa_id ??
         report?.datos?.user?.empresa_id ??
-        selectedEmpresa?.id ??  // Usar empresa preseleccionada como fallback
+        selectedEmpresa?.id ??
         null;
 
-      const datosForUser = report?.datos || {}
-      const resolvedUser = resolveReportUsuarioDisplay(report, datosForUser, {
-        missingDisplayName: "Usuario",
-        missingPuesto: "client",
-      })
-      const usuarioStringFallback =
-        typeof report.usuario === "string" && report.usuario.trim() !== "" ? report.usuario.trim() : ""
-      const puestoStringFallback =
-        typeof report.puesto === "string" && report.puesto.trim() !== "" ? report.puesto.trim() : ""
-
-      // Reconstruir reportSelection desde los datos JSONB completos
-      const reportSelection = {
-        user: {
-          id: resolvedUser.usuario_id || datosForUser.user?.id || report.usuario_id,
-          username:
-            resolvedUser.usuario !== "Usuario"
-              ? resolvedUser.usuario
-              : datosForUser.user?.username || usuarioStringFallback || "Usuario",
-          email: resolvedUser.email || datosForUser.user?.email || "",
-          puesto:
-            resolvedUser.puesto !== "client"
-              ? resolvedUser.puesto
-              : datosForUser.user?.puesto || puestoStringFallback || "client",
-          cliente_id: datosForUser.user?.cliente_id || report.datos?.user?.cliente_id || null,
+      const reportSelection = await loadFullReportSelection(
+        {
+          ...report,
+          planta_id: plantaId,
           empresa_id: empresaId,
-        },
-        plant: {
-          id: plantaId,  // Asegurar que siempre tengamos el ID correcto
-          nombre: report.datos?.plant?.nombre || report.plantName || selectedPlant?.nombre || "",
-          dirigido_a: report.datos?.plant?.dirigido_a,
-          mensaje_cliente: report.datos?.plant?.mensaje_cliente,
-          systemName: report.datos?.plant?.systemName || report.datos?.systemName || report.systemName
-        },
-        systemName: report.datos?.systemName || report.systemName,
-        parameters: report.datos?.parameters || {},
-        variablesTolerancia: report.datos?.variablesTolerancia || {},
-        mediciones: [],
-        fecha: report.datos?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
-        comentarios: report.datos?.comentarios || report.observaciones || "",
-        generatedDate: report.datos?.generatedDate || report.created_at || new Date().toISOString(),
-        cliente_id: report.datos?.user?.cliente_id || null,
-        empresa_id: empresaId,  // Asegurar que siempre esté presente
-        report_id: report.id || null,  // ID único del reporte para poder actualizarlo después
-        // Asegurar que planta_id esté explícitamente en el objeto para compatibilidad
-        planta_id: plantaId
-      };
+        } as Record<string, unknown>,
+        token
+      );
 
-      // Guardar en localStorage
+      if (!reportSelection || Object.keys(reportSelection.parameters || {}).length === 0) {
+        alert("No se pudieron cargar los datos del reporte. Intenta de nuevo.");
+        return;
+      }
+
       localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
-      
-      // Redirigir a la página de reports
       router.push("/reports");
-      
     } catch (error) {
-      console.error("❌ Error al preparar vista del reporte:", error);
+      console.error("Error al preparar vista del reporte:", error);
       alert("Error al preparar la vista del reporte");
     }
   };

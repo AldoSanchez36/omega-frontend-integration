@@ -9,9 +9,10 @@ import {
   collectReportUserIds,
   enrichUsersMapWithReportIds,
   fetchUsersByIdMap,
-  mergeDatosJsonbWithUsuario,
-  resolveAndEnrichReportUsuario,
 } from "@/lib/report-usuario-display";
+import { buildReportesQueryParams } from "@/lib/report-api-params";
+import { formatDashboardReportRow } from "@/lib/format-report-from-api";
+import { loadFullReportSelection } from "@/lib/load-report-detail";
 
 interface Reporte {
   id: string;
@@ -128,8 +129,11 @@ export default function ReportList() {
         return;
       }
 
-      const params = new URLSearchParams();
-      params.set("limit", "5000");
+      const params = buildReportesQueryParams({
+        userRole: user?.puesto || "user",
+        view: "summary",
+        offset: 0,
+      });
       const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -152,38 +156,23 @@ export default function ReportList() {
 
         const reportesFormateados = data.reportes
           .map((reporte: any) => {
-            const { resolved, datosJsonb } = resolveAndEnrichReportUsuario(
-              reporte as Record<string, unknown>,
-              { usersById: usersMap }
-            );
-            const datosJsonbMerged = mergeDatosJsonbWithUsuario(datosJsonb, resolved);
-            const titulo = reporte.titulo || reporte.nombre || `Reporte ${reporte.id}`;
-            const planta = (datosJsonb.plant as { nombre?: string })?.nombre || reporte.planta || reporte.plantName || "Planta no especificada";
-            const sistema = datosJsonb.systemName || reporte.sistema || reporte.systemName || "Sistema no especificado";
-            const usuario = resolved.usuario;
-            const fecha = datosJsonb.fecha || reporte.fecha || new Date().toISOString().split('T')[0];
-            const estado = reporte.estado || "Completado";
-            const estatus = typeof reporte.estatus === "boolean" ? reporte.estatus : false;
-            const totalParametros = datosJsonb.parameters
-              ? Object.values(datosJsonb.parameters).reduce((acc: number, s: any) => acc + Object.keys(s).length, 0)
-              : 0;
-            const totalTolerancias = datosJsonb.variablesTolerancia ? Object.keys(datosJsonb.variablesTolerancia).length : 0;
+            const row = formatDashboardReportRow(reporte as Record<string, unknown>, usersMap);
             return {
               id: reporte.id,
-              titulo,
-              planta,
-              sistema,
-              usuario,
-              fecha,
-              estado,
-              estatus,
-              totalParametros,
-              totalTolerancias,
-              comentarios: reporte.comentarios || reporte.observaciones || "",
-              fechaGeneracion: reporte.fechaGeneracion || reporte.fecha_creacion || reporte.created_at || new Date().toISOString(),
-              usuario_id: resolved.usuario_id,
-              planta_id: reporte.planta_id || "",
-              datosJsonb: datosJsonbMerged as Reporte["datosJsonb"]
+              titulo: row.title,
+              planta: row.plantName,
+              sistema: row.systemName,
+              usuario: row.usuario,
+              fecha: (row.datos as { fecha?: string })?.fecha || reporte.fecha || new Date().toISOString().split("T")[0],
+              estado: reporte.estado || "Completado",
+              estatus: row.estatus,
+              totalParametros: 0,
+              totalTolerancias: 0,
+              comentarios: row.observaciones,
+              fechaGeneracion: row.created_at,
+              usuario_id: row.usuario_id,
+              planta_id: row.planta_id || "",
+              datosJsonb: row.datos as Reporte["datosJsonb"],
             };
           })
           .filter((r: Reporte) => r.estatus === true);
@@ -315,72 +304,63 @@ export default function ReportList() {
 
       const plantId = report.datosJsonb?.plant?.id || report.planta_id;
       const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null;
+      if (!token) {
+        alert("No hay sesión activa");
+        return;
+      }
+
       let parameterOrder: string[] | undefined;
       let systemOrder: string[] | undefined;
 
-      if (token) {
-        try {
-          const [ordenRes, sistemasRes] = await Promise.all([
-            fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ORDEN_VARIABLES(plantId)}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            }),
-            fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(plantId)}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            }),
-          ]);
-          if (ordenRes.ok) {
-            const ordenData = await ordenRes.json();
-            if (ordenData.ok && Array.isArray(ordenData.variables)) {
-              parameterOrder = ordenData.variables.map((v: { nombre?: string }) => v.nombre).filter(Boolean);
-            }
+      try {
+        const [ordenRes, sistemasRes] = await Promise.all([
+          fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ORDEN_VARIABLES(plantId)}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(plantId)}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+        if (ordenRes.ok) {
+          const ordenData = await ordenRes.json();
+          if (ordenData.ok && Array.isArray(ordenData.variables)) {
+            parameterOrder = ordenData.variables.map((v: { nombre?: string }) => v.nombre).filter(Boolean);
           }
-          if (sistemasRes.ok) {
-            const sistemasData = await sistemasRes.json();
-            const procesos = sistemasData.procesos || sistemasData || [];
-            const sorted = [...procesos].sort((a: { orden?: number }, b: { orden?: number }) => (a.orden ?? 999999) - (b.orden ?? 999999));
-            systemOrder = sorted
-              .map((s: { nombre?: string }) => s.nombre)
-              .filter((n): n is string => typeof n === "string" && n.length > 0);
-          }
-        } catch (_) {
-          // Si falla, /reports usará fallback
         }
+        if (sistemasRes.ok) {
+          const sistemasData = await sistemasRes.json();
+          const procesos = sistemasData.procesos || sistemasData || [];
+          const sorted = [...procesos].sort((a: { orden?: number }, b: { orden?: number }) => (a.orden ?? 999999) - (b.orden ?? 999999));
+          systemOrder = sorted
+            .map((s: { nombre?: string }) => s.nombre)
+            .filter((n): n is string => typeof n === "string" && n.length > 0);
+        }
+      } catch (_) {
+        // /reports usará fallback de orden
       }
-      
-      const dj = report.datosJsonb || {};
-      const u: ReporteUsuarioMerged = (dj.user ?? {}) as ReporteUsuarioMerged;
-      const reportSelection = {
-        user: {
-          id: u.id || report.usuario_id,
-          username: u.username || u.nombre || report.usuario,
-          email: u.email || "",
-          puesto: u.puesto || "client",
-          cliente_id: u.cliente_id || null,
+
+      const reportSelection = await loadFullReportSelection(
+        {
+          id: report.id,
+          planta_id: report.planta_id,
+          plantName: report.planta,
+          systemName: report.sistema,
+          usuario_id: report.usuario_id,
+          observaciones: report.comentarios,
+          created_at: report.fechaGeneracion,
         },
-        plant: {
-          id: report.datosJsonb?.plant?.id || report.planta_id,
-          nombre: report.datosJsonb?.plant?.nombre || report.plantName,
-          dirigido_a: report.datosJsonb?.plant?.dirigido_a,
-          mensaje_cliente: report.datosJsonb?.plant?.mensaje_cliente,
-          systemName: report.datosJsonb?.plant?.systemName || report.datosJsonb?.systemName || report.systemName
-        },
-        systemName: report.datosJsonb?.systemName || report.systemName,
-        parameters: report.datosJsonb?.parameters || {},
-        variablesTolerancia: report.datosJsonb?.variablesTolerancia || {},
-        parameterComments: report.datosJsonb?.parameterComments || {},
-        mediciones: [],
-        fecha: report.datosJsonb?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
-        comentarios: report.datosJsonb?.comentarios || report.observaciones || "",
-        generatedDate: report.datosJsonb?.generatedDate || report.created_at || new Date().toISOString(),
-        cliente_id: report.datosJsonb?.user?.cliente_id || null,
-        ...(parameterOrder?.length && { parameterOrder }),
-        ...(systemOrder?.length && { systemOrder }),
-      };
+        token,
+        { parameterOrder, systemOrder }
+      );
+
+      if (!reportSelection || Object.keys(reportSelection.parameters || {}).length === 0) {
+        alert("No se pudieron cargar los datos del reporte. Intenta de nuevo.");
+        return;
+      }
 
       localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
       localStorage.setItem("viewMode", "preview");
       router.push("/reports");
-      
     } catch (error) {
       alert("Error al preparar la vista del reporte");
     }
