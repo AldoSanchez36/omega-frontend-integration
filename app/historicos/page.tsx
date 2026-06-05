@@ -9,6 +9,8 @@ import { Navbar } from "@/components/Navbar"
 import ProtectedRoute from "@/components/ProtectedRoute"
 
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
+import { buildReportesQueryParams } from "@/lib/report-api-params"
+import { parseReportDatosJsonb } from "@/lib/report-usuario-display"
 import { authService } from "@/services/authService"
 import { useEmpresasAccess } from "@/hooks/useEmpresasAccess"
 import TabbedSelectorHistoricos from "./components/TabbedSelectorHistoricos"
@@ -320,8 +322,15 @@ export default function HistoricosPage() {
       const systemData = systems.find((s) => s.id === selectedSystem)
       if (!systemData) return
 
-      // Obtener reportes del usuario (misma API que dashboard)
-      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+      const histParams = buildReportesQueryParams({
+        userRole,
+        view: "full",
+        startDate,
+        endDate,
+        planta_id: systemData.planta_id,
+      });
+
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}?${histParams.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
@@ -358,7 +367,7 @@ export default function HistoricosPage() {
       const organizedData: HistoricalDataByDate = {}
 
       reportesFiltrados.forEach((report: any) => {
-        const datos = report.datos || report.reportSelection || {}
+        const datos = parseReportDatosJsonb(report as Record<string, unknown>)
         const fechaReporte = datos.fecha || report.fecha || report.created_at
         const fechaStr =
           typeof fechaReporte === "string"
@@ -369,8 +378,12 @@ export default function HistoricosPage() {
           organizedData[fechaStr] = {}
         }
 
-        const paramsForSystem = datos.parameters?.[systemData.nombre] || {}
-        const parameterComments = datos.parameterComments || {}
+        const parametersBySystem = (datos.parameters || {}) as Record<
+          string,
+          Record<string, { valor?: number; value?: number; unidad?: string }>
+        >
+        const paramsForSystem = parametersBySystem[systemData.nombre] || {}
+        const parameterComments = (datos.parameterComments || {}) as Record<string, string>
 
         parameters.forEach((param) => {
           const paramData = paramsForSystem[param.nombre]
@@ -410,7 +423,7 @@ export default function HistoricosPage() {
     } finally {
       setHistoricalLoading(false)
     }
-  }, [selectedSystem, startDate, endDate, parameters, systems, token])
+  }, [selectedSystem, startDate, endDate, parameters, systems, token, userRole])
 
   useEffect(() => {
     if (selectedSystem && startDate && endDate && parameters.length > 0) {
