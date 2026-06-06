@@ -167,48 +167,50 @@ export default function HistoricosPage() {
     setEndDate(endDateDefault)
   }, [])
 
-  // Load all plants if no empresa selected
+  // Plantas visibles: admin puede listar todas sin empresa; clientes solo tras elegir empresa
   useEffect(() => {
     let cancelled = false;
     async function loadPlants() {
       if (!selectedEmpresa) {
-        try {
-          const res = await fetch(`${API_BASE_URL}/api/plantas/all`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          });
-          if (cancelled) return;
-          if (res.ok) {
-            const data = await res.json();
-            if (!cancelled) {
-              setDisplayedPlants(data.plantas || data);
+        if (userRole === "admin") {
+          try {
+            const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ALL}`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            if (cancelled) return;
+            if (res.ok) {
+              const data = await res.json();
+              if (!cancelled) {
+                setDisplayedPlants(data.plantas || data);
+              }
+            } else if (res.status === 401) {
+              if (!cancelled) {
+                authService.logout();
+                localStorage.removeItem("Organomex_user");
+                router.push("/logout");
+              }
             }
-          } else if (res.status === 401) {
+          } catch (err) {
             if (!cancelled) {
-              authService.logout();
-              localStorage.removeItem('Organomex_user');
-              router.push('/logout');
+              console.error("Error al cargar plantas:", err);
+              setDisplayedPlants([]);
             }
-            return;
           }
-        } catch (err) {
-          if (!cancelled) {
-            console.error('Error al cargar todas las plantas:', err);
-            setDisplayedPlants([]);
-          }
+        } else if (!cancelled) {
+          setDisplayedPlants([]);
         }
-      } else {
-        if (!cancelled) {
-          setDisplayedPlants(plants);
-        }
+        return;
+      }
+      if (!cancelled) {
+        setDisplayedPlants(plants);
       }
     }
     loadPlants();
     return () => {
       cancelled = true;
     };
-  }, [selectedEmpresa, plants, token]);
+  }, [selectedEmpresa, plants, token, userRole, router]);
 
-  // Load empresas - siempre mostrar todas las empresas disponibles
   useEffect(() => {
     setDisplayedEmpresas(empresas);
   }, [empresas]);

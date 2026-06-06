@@ -860,6 +860,7 @@ export default function Dashboard() {
         {userRole === "client" && (
           <ClientQuickActions
             handleNewReport={getClientReports}
+            handleNavigateToHistoricos={handleNavigateToHistoricos}
           />
         )}
 

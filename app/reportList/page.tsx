@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
-import { Eye, Download, Calendar, Filter, RefreshCw, ChevronUp, ChevronDown } from "lucide-react";
+import { Eye, Calendar, Filter, RefreshCw, ChevronUp, ChevronDown } from "lucide-react";
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants";
 import {
   collectReportUserIds,
@@ -24,9 +24,6 @@ interface Reporte {
   estado: string;
   /** Habilitado para que se pueda ver el reporte (solo se listan los que tienen estatus true) */
   estatus?: boolean;
-  // Datos resumen
-  totalParametros: number;
-  totalTolerancias: number;
   comentarios: string;
   fechaGeneracion: string;
   usuario_id: string;
@@ -71,16 +68,6 @@ interface Reporte {
     comentarios?: string;
     generatedDate?: string;
   };
-}
-
-/** Usuario en datos JSONB (puede venir solo del JOIN / merge). */
-interface ReporteUsuarioMerged {
-  id?: string;
-  username?: string;
-  nombre?: string;
-  email?: string;
-  puesto?: string;
-  cliente_id?: string | null;
 }
 
 export default function ReportList() {
@@ -166,8 +153,6 @@ export default function ReportList() {
               fecha: (row.datos as { fecha?: string })?.fecha || reporte.fecha || new Date().toISOString().split("T")[0],
               estado: reporte.estado || "Completado",
               estatus: row.estatus,
-              totalParametros: 0,
-              totalTolerancias: 0,
               comentarios: row.observaciones,
               fechaGeneracion: row.created_at,
               usuario_id: row.usuario_id,
@@ -230,9 +215,6 @@ export default function ReportList() {
       if (sortField === "fecha") {
         aValue = new Date(a.fecha).getTime();
         bValue = new Date(b.fecha).getTime();
-      } else if (sortField === "totalParametros" || sortField === "totalTolerancias") {
-        aValue = Number(aValue) || 0;
-        bValue = Number(bValue) || 0;
       } else {
         aValue = String(aValue || "").toLowerCase();
         bValue = String(bValue || "").toLowerCase();
@@ -363,52 +345,6 @@ export default function ReportList() {
       router.push("/reports");
     } catch (error) {
       alert("Error al preparar la vista del reporte");
-    }
-  };
-
-  // Función para manejar la descarga del PDF
-  const handleDownloadPDF = async (reporte: Reporte) => {
-    try {
-      // Validar que tenemos los datos mínimos necesarios
-      if (!reporte.planta_id) {
-        alert("Error: No se pueden descargar reportes sin datos de planta completos");
-        return;
-      }
-      
-      // Reconstruir reportSelection desde los datos JSONB completos (igual que reportmanager)
-      const dj = reporte.datosJsonb || {};
-      const u: ReporteUsuarioMerged = (dj.user ?? {}) as ReporteUsuarioMerged;
-      const reportSelection = {
-        user: {
-          id: u.id || reporte.usuario_id,
-          username: u.username || u.nombre || reporte.usuario,
-          email: u.email || "",
-          puesto: u.puesto || "client",
-          cliente_id: u.cliente_id || null,
-        },
-        plant: {
-          id: reporte.datosJsonb?.plant?.id || reporte.planta_id,
-          nombre: reporte.datosJsonb?.plant?.nombre || reporte.planta,
-          dirigido_a: (reporte.datosJsonb?.plant as any)?.dirigido_a,
-          mensaje_cliente: (reporte.datosJsonb?.plant as any)?.mensaje_cliente,
-          systemName: (reporte.datosJsonb?.plant as any)?.systemName || reporte.datosJsonb?.systemName || reporte.sistema
-        },
-        systemName: reporte.datosJsonb?.systemName || reporte.sistema,
-        parameters: reporte.datosJsonb?.parameters || {},
-        variablesTolerancia: reporte.datosJsonb?.variablesTolerancia || {},
-        parameterComments: reporte.datosJsonb?.parameterComments || {}, // Comentarios por parámetro
-        mediciones: [],
-        fecha: reporte.datosJsonb?.fecha || reporte.fecha,
-        comentarios: reporte.datosJsonb?.comentarios || reporte.comentarios,
-        generatedDate: reporte.datosJsonb?.generatedDate || reporte.fechaGeneracion,
-        cliente_id: reporte.datosJsonb?.user?.cliente_id || null
-      };
-
-      localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
-      router.push("/reports?download=true");
-      
-    } catch (error) {
-      alert("Error al preparar la descarga del PDF");
     }
   };
 
@@ -578,15 +514,6 @@ export default function ReportList() {
                     </button>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    <button
-                      onClick={() => handleSort("totalParametros")}
-                      className="flex items-center gap-1 hover:text-blue-600 transition-colors"
-                    >
-                      Resumen
-                      {getSortIcon("totalParametros")}
-                    </button>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
                     Acciones
                   </th>
                 </tr>
@@ -594,7 +521,7 @@ export default function ReportList() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
+                    <td colSpan={5} className="px-6 py-12 text-center">
                       <div className="flex items-center justify-center">
                         <RefreshCw className="w-6 h-6 animate-spin text-blue-600 mr-2" />
                         <span className="text-gray-600">Cargando reportes...</span>
@@ -603,7 +530,7 @@ export default function ReportList() {
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
+                    <td colSpan={5} className="px-6 py-12 text-center">
                       <div className="text-red-600">
                         <p className="font-medium">Error al cargar reportes</p>
                         <p className="text-sm mt-1">{error}</p>
@@ -621,24 +548,6 @@ export default function ReportList() {
                     <tr key={reporte.id} className="border-b hover:bg-gray-50 transition">
                       <td className="px-6 py-4">
                         <div className="font-medium text-gray-900">{reporte.titulo}</div>
-                        {/* Mostrar datos resumen */}
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {reporte.totalParametros > 0 && (
-                            <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
-                              {reporte.totalParametros} parámetros
-                            </span>
-                          )}
-                          {reporte.totalTolerancias > 0 && (
-                            <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
-                              {reporte.totalTolerancias} tolerancias
-                            </span>
-                          )}
-                          {reporte.comentarios && (
-                            <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full font-medium">
-                              {reporte.comentarios.length > 30 ? `${reporte.comentarios.substring(0, 30)}...` : reporte.comentarios}
-                            </span>
-                          )}
-                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
@@ -654,36 +563,21 @@ export default function ReportList() {
                         {formatDate(reporte.fecha)}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
-                            {reporte.totalParametros} param.
-                          </span>
-                          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
-                            {reporte.totalTolerancias} tol.
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 flex gap-2">
                         <button
+                          type="button"
                           onClick={() => handleViewReport(reporte)}
                           className="border border-gray-300 p-2 rounded hover:bg-gray-100"
                           title="Ver reporte"
+                          aria-label="Ver reporte"
                         >
                           <Eye className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDownloadPDF(reporte)}
-                          className="border border-gray-300 p-2 rounded hover:bg-gray-100"
-                          title="Descargar PDF"
-                        >
-                          <Download className="w-5 h-5" />
                         </button>
                       </td>
                 </tr>
               ))
                 ) : (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
+                    <td colSpan={5} className="px-6 py-12 text-center">
                       <div className="text-gray-500">
                         <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                         <p className="text-lg font-medium">No hay reportes disponibles</p>

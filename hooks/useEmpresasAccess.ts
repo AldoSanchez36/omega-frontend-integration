@@ -1,11 +1,37 @@
 import { useState, useEffect, useCallback } from "react"
-import { API_BASE_URL } from "@/config/constants"
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
+import { getUserIdFromToken } from "@/lib/auth-token"
 import { useAuthErrorHandler } from "./useAuthErrorHandler"
 
 interface Empresa {
   id: string
   nombre: string
   descripcion?: string
+}
+
+function mapEmpresasFromAccessRows(rows: unknown[]): Empresa[] {
+  return rows
+    .map((row) => {
+      if (!row || typeof row !== "object") return null
+      const r = row as Record<string, unknown>
+      const nested = r.empresas as Record<string, unknown> | null | undefined
+      const id = String(r.empresa_id ?? nested?.id ?? r.id ?? "").trim()
+      const nombre = String(
+        r.empresa_nombre ?? nested?.nombre ?? r.nombre ?? ""
+      ).trim()
+      if (!id || !nombre) return null
+      return {
+        id,
+        nombre,
+        descripcion:
+          typeof nested?.descripcion === "string" ? nested.descripcion : undefined,
+      }
+    })
+    .filter((e): e is Empresa => e !== null)
+}
+
+function isAdminRole(puesto: string | undefined): boolean {
+  return (puesto || "").toLowerCase() === "admin"
 }
 
 interface Plant {
@@ -83,34 +109,61 @@ export function useEmpresasAccess(token: string | null, options: UseEmpresasAcce
       }
     }
 
-    // Fetch all empresas
-    (async () => {
+    const puesto = userData?.puesto || "user"
+
+    ;(async () => {
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch(`${API_BASE_URL}/api/empresas/all`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        
-        // Check if response is JSON
-        const contentType = res.headers.get("content-type")
-        if (!contentType || !contentType.includes("application/json")) {
-          // If not JSON, likely a 404 or HTML error page
-          if (res.status === 404) {
-            throw new Error("El endpoint de empresas no está disponible. Por favor, verifica que el backend tenga implementado el endpoint /api/empresas/all")
+        if (isAdminRole(puesto)) {
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ALL}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+
+          const contentType = res.headers.get("content-type")
+          if (!contentType || !contentType.includes("application/json")) {
+            if (res.status === 404) {
+              throw new Error(
+                "El endpoint de empresas no está disponible. Verifica /api/empresas/all en el backend."
+              )
+            }
+            throw new Error(
+              `El servidor devolvió una respuesta no válida (${res.status}) al cargar empresas.`
+            )
           }
-          const text = await res.text()
-          throw new Error(`El servidor devolvió una respuesta no válida (${res.status}). El endpoint /api/empresas/all puede no estar implementado.`)
+
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}))
+            throw new Error(errorData.message || `Error ${res.status}: Failed to fetch empresas`)
+          }
+          const data = await res.json()
+          setEmpresas(data.empresas || data || [])
+          return
         }
-        
+
+        const userId = getUserIdFromToken(token)
+        if (!userId) {
+          throw new Error("No se pudo identificar al usuario. Vuelve a iniciar sesión.")
+        }
+
+        const res = await fetch(
+          `${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ACCESS_BY_USER(userId)}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}))
-          throw new Error(errorData.message || `Error ${res.status}: Failed to fetch empresas`)
+          throw new Error(
+            errorData.msg || errorData.message || `Error ${res.status} al cargar empresas asignadas`
+          )
         }
+
         const data = await res.json()
-        setEmpresas(data.empresas || data || [])
+        const rows = Array.isArray(data.empresas) ? data.empresas : []
+        setEmpresas(mapEmpresasFromAccessRows(rows))
       } catch (e: any) {
         setError(`Error al cargar empresas: ${e.message}`)
+        setEmpresas([])
       } finally {
         setLoading(false)
       }
