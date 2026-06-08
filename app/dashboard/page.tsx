@@ -7,14 +7,12 @@ import { httpService } from "@/services/httpService"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import {
   collectReportUserIds,
-  enrichResolvedUsuarioWithUsersMap,
   enrichUsersMapWithReportIds,
   fetchUsersByIdMap,
-  mergeDatosJsonbWithUsuario,
-  parseReportDatosJsonb,
-  resolveAndEnrichReportUsuario,
-  resolveReportUsuarioDisplay,
 } from "@/lib/report-usuario-display"
+import { buildReportesQueryParams } from "@/lib/report-api-params"
+import { formatDashboardReportRow } from "@/lib/format-report-from-api"
+import { loadFullReportSelection } from "@/lib/load-report-detail"
 
 import Navbar from "@/components/Navbar"
 import { QuickActions as AdminQuickActions } from "@/app/dashboard/buttons/admin"
@@ -88,6 +86,7 @@ export default function Dashboard() {
   const router = useRouter()
   const [plants, setPlants] = useState<Plant[]>([])
   const [reports, setReports] = useState<Report[]>([])
+  const [reportsForCharts, setReportsForCharts] = useState<Report[]>([])
   const [usersByIdMap, setUsersByIdMap] = useState<Map<string, { username: string; puesto: string; email?: string }>>(new Map())
   const [dataLoading, setDataLoading] = useState(false)
   const [debugInfo, setDebugInfo] = useState<string[]>([])
@@ -389,12 +388,17 @@ export default function Dashboard() {
         return;
       }
 
-      const plantId = report.datos?.plant?.id || report.planta_id;
       const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null;
+      if (!token) {
+        alert("No hay sesión activa");
+        return;
+      }
+
+      const plantId = (report.datos as { plant?: { id?: string } })?.plant?.id || report.planta_id;
       let parameterOrder: string[] | undefined;
       let systemOrder: string[] | undefined;
 
-      if (token) {
+      if (plantId) {
         try {
           const [ordenRes, sistemasRes] = await Promise.all([
             fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ORDEN_VARIABLES(plantId)}`, {
@@ -417,69 +421,20 @@ export default function Dashboard() {
             systemOrder = sorted.map((s: { nombre?: string }) => s.nombre || "").filter(Boolean) as string[];
           }
         } catch (_) {
-          // Si falla (ej. cliente sin permiso en backend antiguo), seguimos sin orden; /reports usará fallback
+          // /reports usará fallback de orden
         }
       }
-      
-      const empresaId =
-        report?.empresa_id ??
-        report?.datos?.empresa_id ??
-        report?.datos?.user?.empresa_id ??
-        null;
 
-      const datosForUser = parseReportDatosJsonb(report as Record<string, unknown>);
-      const datosUser = (datosForUser.user || {}) as {
-        id?: string;
-        username?: string;
-        email?: string;
-        puesto?: string;
-        cliente_id?: string | null;
-      };
-      let resolvedUser = resolveReportUsuarioDisplay(report as Record<string, unknown>, datosForUser, reportUsuarioPlaceholder);
-      if (usersByIdMap.size) {
-        resolvedUser = enrichResolvedUsuarioWithUsersMap(resolvedUser, usersByIdMap, reportUsuarioPlaceholder);
+      const reportSelection = await loadFullReportSelection(
+        report as Record<string, unknown>,
+        token,
+        { parameterOrder, systemOrder }
+      );
+
+      if (!reportSelection || Object.keys(reportSelection.parameters || {}).length === 0) {
+        alert("No se pudieron cargar los datos del reporte. Intenta de nuevo.");
+        return;
       }
-
-      const usuarioStringFallback =
-        typeof report.usuario === "string" && report.usuario.trim() !== "" ? report.usuario.trim() : "";
-      const puestoStringFallback =
-        typeof report.puesto === "string" && report.puesto.trim() !== "" ? report.puesto.trim() : "";
-
-      const reportSelection = {
-        user: {
-          id: resolvedUser.usuario_id || datosUser.id || report.usuario_id,
-          username:
-            resolvedUser.usuario !== "Default"
-              ? resolvedUser.usuario
-              : datosUser.username || usuarioStringFallback || "Default",
-          email: resolvedUser.email || datosUser.email || "",
-          puesto:
-            resolvedUser.puesto !== "Default"
-              ? resolvedUser.puesto
-              : datosUser.puesto || puestoStringFallback || "client",
-          cliente_id: datosUser.cliente_id || null,
-          empresa_id: empresaId
-        },
-        plant: {
-          id: report.datos?.plant?.id || report.planta_id,
-          nombre: report.datos?.plant?.nombre || report.plantName,
-          dirigido_a: report.datos?.plant?.dirigido_a,
-          mensaje_cliente: report.datos?.plant?.mensaje_cliente,
-          systemName: report.datos?.plant?.systemName || report.datos?.systemName || report.systemName
-        },
-        systemName: report.datos?.systemName || report.systemName,
-        parameters: report.datos?.parameters || {},
-        variablesTolerancia: report.datos?.variablesTolerancia || {},
-        mediciones: [],
-        fecha: report.datos?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
-        comentarios: report.datos?.comentarios || report.observaciones || "",
-        generatedDate: report.datos?.generatedDate || report.created_at || new Date().toISOString(),
-        cliente_id: report.datos?.user?.cliente_id || null,
-        empresa_id: empresaId,
-        report_id: report.id || null,
-        ...(parameterOrder?.length && { parameterOrder }),
-        ...(systemOrder?.length && { systemOrder }),
-      };
 
       localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
       router.push("/reports");
@@ -613,65 +568,57 @@ export default function Dashboard() {
           } catch (error) {}
         }
 
-        // Pedir todos los reportes del año para la sección de reportes gráficos (rango startDate–endDate).
-        const reportesLimit = 500
-        const params = new URLSearchParams()
-        params.set("limit", String(reportesLimit))
-        params.set("startDate", startDate)
-        params.set("endDate", endDate)
-        const response = await fetch(
-          `${API_BASE_URL}${API_ENDPOINTS.REPORTS}?${params.toString()}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        )
-        
-        let reportesData: any[] = []
-        
-        if (response.ok) {
-          const data = await response.json()
-          reportesData = Array.isArray(data.reportes) ? data.reportes : []
+        const summaryParams = buildReportesQueryParams({
+          userRole,
+          view: "summary",
+          startDate,
+          endDate,
+        });
+        const chartsParams = buildReportesQueryParams({
+          userRole,
+          view: "full",
+          startDate,
+          endDate,
+        });
+
+        const [summaryRes, chartsRes] = await Promise.all([
+          fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}?${summaryParams.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}?${chartsParams.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        let reportesSummary: any[] = [];
+        let reportesCharts: any[] = [];
+
+        if (summaryRes.ok) {
+          const data = await summaryRes.json();
+          reportesSummary = Array.isArray(data.reportes) ? data.reportes : [];
+        }
+        if (chartsRes.ok) {
+          const data = await chartsRes.json();
+          reportesCharts = Array.isArray(data.reportes) ? data.reportes : [];
         }
 
-        let usersMap = await fetchUsersByIdMap(API_BASE_URL, API_ENDPOINTS.USERS, token)
+        const allForUsers = [...reportesSummary, ...reportesCharts] as Record<string, unknown>[];
+        let usersMap = await fetchUsersByIdMap(API_BASE_URL, API_ENDPOINTS.USERS, token);
         usersMap = await enrichUsersMapWithReportIds(
           API_BASE_URL,
           API_ENDPOINTS.USER_BY_ID,
           token,
-          collectReportUserIds(reportesData as Record<string, unknown>[]),
+          collectReportUserIds(allForUsers),
           usersMap
-        )
-        setUsersByIdMap(usersMap)
-        
-        // Convertir formato de reportes para el dashboard (extraer datos del JSONB)
-        let formattedReports = reportesData.map((report: any) => {
-          const { resolved, datosJsonb: datosParsed } = resolveAndEnrichReportUsuario(
-            report as Record<string, unknown>,
-            { ...reportUsuarioPlaceholder, usersById: usersMap }
-          );
-          const datosMerged = mergeDatosJsonbWithUsuario(
-            {
-              ...(report.reportSelection || datosParsed || {}),
-              fecha: datosParsed.fecha || report.fecha || (report.reportSelection?.fecha),
-            },
-            resolved
-          );
-          const plantFromDatos = (datosParsed.plant || {}) as { nombre?: string; id?: string };
-          return {
-            id: report.id?.toString() || report.id,
-            title: report.titulo || report.nombre || `Reporte ${report.id}`,
-            plantName: plantFromDatos.nombre || report.planta || report.plantName || "Planta no especificada",
-            systemName: datosParsed.systemName || report.sistema || report.systemName || "Sistema no especificado",
-            status: report.estado || report.status || "completed",
-            created_at: datosParsed.generatedDate || report.fechaGeneracion || report.fecha_creacion || report.created_at || new Date().toISOString(),
-            usuario_id: resolved.usuario_id,
-            planta_id: report.planta_id || plantFromDatos.id || "planta-unknown",
-            proceso_id: report.proceso_id || "sistema-unknown",
-            estatus: typeof report.estatus === "boolean" ? report.estatus : false,
-            datos: datosMerged,
-            observaciones: datosParsed.comentarios || report.comentarios || report.observaciones || "",
-            usuario: resolved.usuario,
-            puesto: resolved.puesto
-          };
-        })
+        );
+        setUsersByIdMap(usersMap);
+
+        let formattedReports = reportesSummary.map((report: any) =>
+          formatDashboardReportRow(report as Record<string, unknown>, usersMap)
+        );
+        const formattedCharts = reportesCharts.map((report: any) =>
+          formatDashboardReportRow(report as Record<string, unknown>, usersMap)
+        );
         
         // Filtrar reportes por permisos si el usuario no es admin
         if ((userRole === "client" || userRole === "user" || userRole === "analista") && plantasAccesiblesIds.length > 0) {
@@ -683,10 +630,19 @@ export default function Dashboard() {
         } else if ((userRole === "client" || userRole === "user" || userRole === "analista" || userRole === "guest") && plantasAccesiblesIds.length === 0) {
           formattedReports = []
         }
+
+        let formattedChartsFiltered = formattedCharts
+        if ((userRole === "client" || userRole === "user" || userRole === "analista") && plantasAccesiblesIds.length > 0) {
+          formattedChartsFiltered = formattedCharts.filter((report: any) =>
+            plantasAccesiblesIds.includes(report.planta_id)
+          )
+        } else if ((userRole === "client" || userRole === "user" || userRole === "analista" || userRole === "guest") && plantasAccesiblesIds.length === 0) {
+          formattedChartsFiltered = []
+        }
         
         // Ordenar por fecha del reporte (columna fecha de la tabla reportes), no por fecha de subida
         const getReportDate = (r: any) => {
-          const raw = r.datos?.fecha ?? r.fecha
+          const raw = r.datos?.fecha ?? r.fecha ?? r.created_at
           if (!raw) return 0
           const s = typeof raw === "string" ? raw.split("T")[0] : ""
           return /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s).getTime() : new Date(raw).getTime()
@@ -697,9 +653,17 @@ export default function Dashboard() {
           return dateB - dateA // Orden descendente (más reciente primero)
         })
         
-        setReports(sortedReports)
+        setReports(sortedReports);
+
+        const sortedCharts = [...formattedChartsFiltered].sort((a, b) => {
+          const dateA = getReportDate(a);
+          const dateB = getReportDate(b);
+          return dateB - dateA;
+        });
+        setReportsForCharts(sortedCharts);
       } catch (error) {
-        setReports([])
+        setReports([]);
+        setReportsForCharts([]);
       }
     }
 
@@ -737,7 +701,7 @@ export default function Dashboard() {
       // Todos los roles: usar solo los últimos 10 reportes por planta (por fecha del reporte) en gráficos
       const REPORTS_PER_PLANT_LIMIT = 10;
       const byPlant = new Map<string, any[]>();
-      for (const r of reports) {
+      for (const r of reportsForCharts) {
         const plantId = r.planta_id || r.datos?.plant?.id;
         if (!plantId || !plantIds.has(plantId)) continue;
         if (!byPlant.has(plantId)) byPlant.set(plantId, []);
@@ -843,7 +807,7 @@ export default function Dashboard() {
     };
 
     buildHistoricalDataFromReportes();
-  }, [plants, startDate, endDate, reports, userRole]);
+  }, [plants, startDate, endDate, reportsForCharts, userRole]);
 
   // Don't render if user is not loaded
   if (!user) {
@@ -896,6 +860,7 @@ export default function Dashboard() {
         {userRole === "client" && (
           <ClientQuickActions
             handleNewReport={getClientReports}
+            handleNavigateToHistoricos={handleNavigateToHistoricos}
           />
         )}
 

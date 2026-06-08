@@ -9,6 +9,8 @@ import { Navbar } from "@/components/Navbar"
 import ProtectedRoute from "@/components/ProtectedRoute"
 
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
+import { buildReportesQueryParams } from "@/lib/report-api-params"
+import { parseReportDatosJsonb } from "@/lib/report-usuario-display"
 import { authService } from "@/services/authService"
 import { useEmpresasAccess } from "@/hooks/useEmpresasAccess"
 import TabbedSelectorHistoricos from "./components/TabbedSelectorHistoricos"
@@ -165,48 +167,50 @@ export default function HistoricosPage() {
     setEndDate(endDateDefault)
   }, [])
 
-  // Load all plants if no empresa selected
+  // Plantas visibles: admin puede listar todas sin empresa; clientes solo tras elegir empresa
   useEffect(() => {
     let cancelled = false;
     async function loadPlants() {
       if (!selectedEmpresa) {
-        try {
-          const res = await fetch(`${API_BASE_URL}/api/plantas/all`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          });
-          if (cancelled) return;
-          if (res.ok) {
-            const data = await res.json();
-            if (!cancelled) {
-              setDisplayedPlants(data.plantas || data);
+        if (userRole === "admin") {
+          try {
+            const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ALL}`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            if (cancelled) return;
+            if (res.ok) {
+              const data = await res.json();
+              if (!cancelled) {
+                setDisplayedPlants(data.plantas || data);
+              }
+            } else if (res.status === 401) {
+              if (!cancelled) {
+                authService.logout();
+                localStorage.removeItem("Organomex_user");
+                router.push("/logout");
+              }
             }
-          } else if (res.status === 401) {
+          } catch (err) {
             if (!cancelled) {
-              authService.logout();
-              localStorage.removeItem('Organomex_user');
-              router.push('/logout');
+              console.error("Error al cargar plantas:", err);
+              setDisplayedPlants([]);
             }
-            return;
           }
-        } catch (err) {
-          if (!cancelled) {
-            console.error('Error al cargar todas las plantas:', err);
-            setDisplayedPlants([]);
-          }
+        } else if (!cancelled) {
+          setDisplayedPlants([]);
         }
-      } else {
-        if (!cancelled) {
-          setDisplayedPlants(plants);
-        }
+        return;
+      }
+      if (!cancelled) {
+        setDisplayedPlants(plants);
       }
     }
     loadPlants();
     return () => {
       cancelled = true;
     };
-  }, [selectedEmpresa, plants, token]);
+  }, [selectedEmpresa, plants, token, userRole, router]);
 
-  // Load empresas - siempre mostrar todas las empresas disponibles
   useEffect(() => {
     setDisplayedEmpresas(empresas);
   }, [empresas]);
@@ -320,8 +324,15 @@ export default function HistoricosPage() {
       const systemData = systems.find((s) => s.id === selectedSystem)
       if (!systemData) return
 
-      // Obtener reportes del usuario (misma API que dashboard)
-      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}`, {
+      const histParams = buildReportesQueryParams({
+        userRole,
+        view: "full",
+        startDate,
+        endDate,
+        planta_id: systemData.planta_id,
+      });
+
+      const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}?${histParams.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
@@ -358,7 +369,7 @@ export default function HistoricosPage() {
       const organizedData: HistoricalDataByDate = {}
 
       reportesFiltrados.forEach((report: any) => {
-        const datos = report.datos || report.reportSelection || {}
+        const datos = parseReportDatosJsonb(report as Record<string, unknown>)
         const fechaReporte = datos.fecha || report.fecha || report.created_at
         const fechaStr =
           typeof fechaReporte === "string"
@@ -369,8 +380,12 @@ export default function HistoricosPage() {
           organizedData[fechaStr] = {}
         }
 
-        const paramsForSystem = datos.parameters?.[systemData.nombre] || {}
-        const parameterComments = datos.parameterComments || {}
+        const parametersBySystem = (datos.parameters || {}) as Record<
+          string,
+          Record<string, { valor?: number; value?: number; unidad?: string }>
+        >
+        const paramsForSystem = parametersBySystem[systemData.nombre] || {}
+        const parameterComments = (datos.parameterComments || {}) as Record<string, string>
 
         parameters.forEach((param) => {
           const paramData = paramsForSystem[param.nombre]
@@ -410,7 +425,7 @@ export default function HistoricosPage() {
     } finally {
       setHistoricalLoading(false)
     }
-  }, [selectedSystem, startDate, endDate, parameters, systems, token])
+  }, [selectedSystem, startDate, endDate, parameters, systems, token, userRole])
 
   useEffect(() => {
     if (selectedSystem && startDate && endDate && parameters.length > 0) {

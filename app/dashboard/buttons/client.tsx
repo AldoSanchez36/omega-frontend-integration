@@ -3,9 +3,13 @@ import "./buttons-cards.css"
 
 interface QuickActionsProps {
   handleNewReport?: () => void
+  handleNavigateToHistoricos?: () => void
 }
 
-const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport }) => (
+const QuickActions: React.FC<QuickActionsProps> = ({
+  handleNewReport,
+  handleNavigateToHistoricos,
+}) => (
   <div className="row mb-4">
     <div className="col-12">
       <div className="card shadow-sm border-0">
@@ -17,7 +21,6 @@ const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport }) => (
         </div>
         <div className="card-body p-4">
           <div className="row g-3">
-            {/* Tabla de Reportes */}
             <div className="col-lg-3 col-md-6 mb-3">
               <div className="action-card h-100" onClick={handleNewReport}>
                 <div className="action-card-body">
@@ -29,8 +32,20 @@ const QuickActions: React.FC<QuickActionsProps> = ({ handleNewReport }) => (
                 </div>
               </div>
             </div>
+
+            <div className="col-lg-3 col-md-6 mb-3">
+              <div className="action-card h-100" onClick={handleNavigateToHistoricos}>
+                <div className="action-card-body">
+                  <div className="action-icon bg-info">
+                    <i className="material-icons">timeline</i>
+                  </div>
+                  <h6 className="action-title">Históricos</h6>
+                  <p className="action-description">Ver datos históricos por planta y sistema</p>
+                </div>
+              </div>
             </div>
           </div>
+        </div>
       </div>
     </div>
   </div>

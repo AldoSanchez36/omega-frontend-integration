@@ -3,15 +3,16 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
-import { Eye, Download, Calendar, Filter, RefreshCw, ChevronUp, ChevronDown } from "lucide-react";
+import { Eye, Calendar, Filter, RefreshCw, ChevronUp, ChevronDown } from "lucide-react";
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants";
 import {
   collectReportUserIds,
   enrichUsersMapWithReportIds,
   fetchUsersByIdMap,
-  mergeDatosJsonbWithUsuario,
-  resolveAndEnrichReportUsuario,
 } from "@/lib/report-usuario-display";
+import { buildReportesQueryParams } from "@/lib/report-api-params";
+import { formatDashboardReportRow } from "@/lib/format-report-from-api";
+import { loadFullReportSelection } from "@/lib/load-report-detail";
 
 interface Reporte {
   id: string;
@@ -23,9 +24,6 @@ interface Reporte {
   estado: string;
   /** Habilitado para que se pueda ver el reporte (solo se listan los que tienen estatus true) */
   estatus?: boolean;
-  // Datos resumen
-  totalParametros: number;
-  totalTolerancias: number;
   comentarios: string;
   fechaGeneracion: string;
   usuario_id: string;
@@ -70,16 +68,6 @@ interface Reporte {
     comentarios?: string;
     generatedDate?: string;
   };
-}
-
-/** Usuario en datos JSONB (puede venir solo del JOIN / merge). */
-interface ReporteUsuarioMerged {
-  id?: string;
-  username?: string;
-  nombre?: string;
-  email?: string;
-  puesto?: string;
-  cliente_id?: string | null;
 }
 
 export default function ReportList() {
@@ -128,8 +116,11 @@ export default function ReportList() {
         return;
       }
 
-      const params = new URLSearchParams();
-      params.set("limit", "5000");
+      const params = buildReportesQueryParams({
+        userRole: user?.puesto || "user",
+        view: "summary",
+        offset: 0,
+      });
       const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -152,38 +143,21 @@ export default function ReportList() {
 
         const reportesFormateados = data.reportes
           .map((reporte: any) => {
-            const { resolved, datosJsonb } = resolveAndEnrichReportUsuario(
-              reporte as Record<string, unknown>,
-              { usersById: usersMap }
-            );
-            const datosJsonbMerged = mergeDatosJsonbWithUsuario(datosJsonb, resolved);
-            const titulo = reporte.titulo || reporte.nombre || `Reporte ${reporte.id}`;
-            const planta = (datosJsonb.plant as { nombre?: string })?.nombre || reporte.planta || reporte.plantName || "Planta no especificada";
-            const sistema = datosJsonb.systemName || reporte.sistema || reporte.systemName || "Sistema no especificado";
-            const usuario = resolved.usuario;
-            const fecha = datosJsonb.fecha || reporte.fecha || new Date().toISOString().split('T')[0];
-            const estado = reporte.estado || "Completado";
-            const estatus = typeof reporte.estatus === "boolean" ? reporte.estatus : false;
-            const totalParametros = datosJsonb.parameters
-              ? Object.values(datosJsonb.parameters).reduce((acc: number, s: any) => acc + Object.keys(s).length, 0)
-              : 0;
-            const totalTolerancias = datosJsonb.variablesTolerancia ? Object.keys(datosJsonb.variablesTolerancia).length : 0;
+            const row = formatDashboardReportRow(reporte as Record<string, unknown>, usersMap);
             return {
               id: reporte.id,
-              titulo,
-              planta,
-              sistema,
-              usuario,
-              fecha,
-              estado,
-              estatus,
-              totalParametros,
-              totalTolerancias,
-              comentarios: reporte.comentarios || reporte.observaciones || "",
-              fechaGeneracion: reporte.fechaGeneracion || reporte.fecha_creacion || reporte.created_at || new Date().toISOString(),
-              usuario_id: resolved.usuario_id,
-              planta_id: reporte.planta_id || "",
-              datosJsonb: datosJsonbMerged as Reporte["datosJsonb"]
+              titulo: row.title,
+              planta: row.plantName,
+              sistema: row.systemName,
+              usuario: row.usuario,
+              fecha: (row.datos as { fecha?: string })?.fecha || reporte.fecha || new Date().toISOString().split("T")[0],
+              estado: reporte.estado || "Completado",
+              estatus: row.estatus,
+              comentarios: row.observaciones,
+              fechaGeneracion: row.created_at,
+              usuario_id: row.usuario_id,
+              planta_id: row.planta_id || "",
+              datosJsonb: row.datos as Reporte["datosJsonb"],
             };
           })
           .filter((r: Reporte) => r.estatus === true);
@@ -241,9 +215,6 @@ export default function ReportList() {
       if (sortField === "fecha") {
         aValue = new Date(a.fecha).getTime();
         bValue = new Date(b.fecha).getTime();
-      } else if (sortField === "totalParametros" || sortField === "totalTolerancias") {
-        aValue = Number(aValue) || 0;
-        bValue = Number(bValue) || 0;
       } else {
         aValue = String(aValue || "").toLowerCase();
         bValue = String(bValue || "").toLowerCase();
@@ -315,120 +286,65 @@ export default function ReportList() {
 
       const plantId = report.datosJsonb?.plant?.id || report.planta_id;
       const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null;
+      if (!token) {
+        alert("No hay sesión activa");
+        return;
+      }
+
       let parameterOrder: string[] | undefined;
       let systemOrder: string[] | undefined;
 
-      if (token) {
-        try {
-          const [ordenRes, sistemasRes] = await Promise.all([
-            fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ORDEN_VARIABLES(plantId)}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            }),
-            fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(plantId)}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            }),
-          ]);
-          if (ordenRes.ok) {
-            const ordenData = await ordenRes.json();
-            if (ordenData.ok && Array.isArray(ordenData.variables)) {
-              parameterOrder = ordenData.variables.map((v: { nombre?: string }) => v.nombre).filter(Boolean);
-            }
+      try {
+        const [ordenRes, sistemasRes] = await Promise.all([
+          fetch(`${API_BASE_URL}${API_ENDPOINTS.PLANTS_ORDEN_VARIABLES(plantId)}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API_BASE_URL}${API_ENDPOINTS.SYSTEMS_BY_PLANT(plantId)}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+        if (ordenRes.ok) {
+          const ordenData = await ordenRes.json();
+          if (ordenData.ok && Array.isArray(ordenData.variables)) {
+            parameterOrder = ordenData.variables.map((v: { nombre?: string }) => v.nombre).filter(Boolean);
           }
-          if (sistemasRes.ok) {
-            const sistemasData = await sistemasRes.json();
-            const procesos = sistemasData.procesos || sistemasData || [];
-            const sorted = [...procesos].sort((a: { orden?: number }, b: { orden?: number }) => (a.orden ?? 999999) - (b.orden ?? 999999));
-            systemOrder = sorted
-              .map((s: { nombre?: string }) => s.nombre)
-              .filter((n): n is string => typeof n === "string" && n.length > 0);
-          }
-        } catch (_) {
-          // Si falla, /reports usará fallback
         }
+        if (sistemasRes.ok) {
+          const sistemasData = await sistemasRes.json();
+          const procesos = sistemasData.procesos || sistemasData || [];
+          const sorted = [...procesos].sort((a: { orden?: number }, b: { orden?: number }) => (a.orden ?? 999999) - (b.orden ?? 999999));
+          systemOrder = sorted
+            .map((s: { nombre?: string }) => s.nombre)
+            .filter((n): n is string => typeof n === "string" && n.length > 0);
+        }
+      } catch (_) {
+        // /reports usará fallback de orden
       }
-      
-      const dj = report.datosJsonb || {};
-      const u: ReporteUsuarioMerged = (dj.user ?? {}) as ReporteUsuarioMerged;
-      const reportSelection = {
-        user: {
-          id: u.id || report.usuario_id,
-          username: u.username || u.nombre || report.usuario,
-          email: u.email || "",
-          puesto: u.puesto || "client",
-          cliente_id: u.cliente_id || null,
+
+      const reportSelection = await loadFullReportSelection(
+        {
+          id: report.id,
+          planta_id: report.planta_id,
+          plantName: report.planta,
+          systemName: report.sistema,
+          usuario_id: report.usuario_id,
+          observaciones: report.comentarios,
+          created_at: report.fechaGeneracion,
         },
-        plant: {
-          id: report.datosJsonb?.plant?.id || report.planta_id,
-          nombre: report.datosJsonb?.plant?.nombre || report.plantName,
-          dirigido_a: report.datosJsonb?.plant?.dirigido_a,
-          mensaje_cliente: report.datosJsonb?.plant?.mensaje_cliente,
-          systemName: report.datosJsonb?.plant?.systemName || report.datosJsonb?.systemName || report.systemName
-        },
-        systemName: report.datosJsonb?.systemName || report.systemName,
-        parameters: report.datosJsonb?.parameters || {},
-        variablesTolerancia: report.datosJsonb?.variablesTolerancia || {},
-        parameterComments: report.datosJsonb?.parameterComments || {},
-        mediciones: [],
-        fecha: report.datosJsonb?.fecha || (report.created_at ? new Date(report.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
-        comentarios: report.datosJsonb?.comentarios || report.observaciones || "",
-        generatedDate: report.datosJsonb?.generatedDate || report.created_at || new Date().toISOString(),
-        cliente_id: report.datosJsonb?.user?.cliente_id || null,
-        ...(parameterOrder?.length && { parameterOrder }),
-        ...(systemOrder?.length && { systemOrder }),
-      };
+        token,
+        { parameterOrder, systemOrder }
+      );
+
+      if (!reportSelection || Object.keys(reportSelection.parameters || {}).length === 0) {
+        alert("No se pudieron cargar los datos del reporte. Intenta de nuevo.");
+        return;
+      }
 
       localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
       localStorage.setItem("viewMode", "preview");
       router.push("/reports");
-      
     } catch (error) {
       alert("Error al preparar la vista del reporte");
-    }
-  };
-
-  // Función para manejar la descarga del PDF
-  const handleDownloadPDF = async (reporte: Reporte) => {
-    try {
-      // Validar que tenemos los datos mínimos necesarios
-      if (!reporte.planta_id) {
-        alert("Error: No se pueden descargar reportes sin datos de planta completos");
-        return;
-      }
-      
-      // Reconstruir reportSelection desde los datos JSONB completos (igual que reportmanager)
-      const dj = reporte.datosJsonb || {};
-      const u: ReporteUsuarioMerged = (dj.user ?? {}) as ReporteUsuarioMerged;
-      const reportSelection = {
-        user: {
-          id: u.id || reporte.usuario_id,
-          username: u.username || u.nombre || reporte.usuario,
-          email: u.email || "",
-          puesto: u.puesto || "client",
-          cliente_id: u.cliente_id || null,
-        },
-        plant: {
-          id: reporte.datosJsonb?.plant?.id || reporte.planta_id,
-          nombre: reporte.datosJsonb?.plant?.nombre || reporte.planta,
-          dirigido_a: (reporte.datosJsonb?.plant as any)?.dirigido_a,
-          mensaje_cliente: (reporte.datosJsonb?.plant as any)?.mensaje_cliente,
-          systemName: (reporte.datosJsonb?.plant as any)?.systemName || reporte.datosJsonb?.systemName || reporte.sistema
-        },
-        systemName: reporte.datosJsonb?.systemName || reporte.sistema,
-        parameters: reporte.datosJsonb?.parameters || {},
-        variablesTolerancia: reporte.datosJsonb?.variablesTolerancia || {},
-        parameterComments: reporte.datosJsonb?.parameterComments || {}, // Comentarios por parámetro
-        mediciones: [],
-        fecha: reporte.datosJsonb?.fecha || reporte.fecha,
-        comentarios: reporte.datosJsonb?.comentarios || reporte.comentarios,
-        generatedDate: reporte.datosJsonb?.generatedDate || reporte.fechaGeneracion,
-        cliente_id: reporte.datosJsonb?.user?.cliente_id || null
-      };
-
-      localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
-      router.push("/reports?download=true");
-      
-    } catch (error) {
-      alert("Error al preparar la descarga del PDF");
     }
   };
 
@@ -598,15 +514,6 @@ export default function ReportList() {
                     </button>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
-                    <button
-                      onClick={() => handleSort("totalParametros")}
-                      className="flex items-center gap-1 hover:text-blue-600 transition-colors"
-                    >
-                      Resumen
-                      {getSortIcon("totalParametros")}
-                    </button>
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 tracking-wider">
                     Acciones
                   </th>
                 </tr>
@@ -614,7 +521,7 @@ export default function ReportList() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
+                    <td colSpan={5} className="px-6 py-12 text-center">
                       <div className="flex items-center justify-center">
                         <RefreshCw className="w-6 h-6 animate-spin text-blue-600 mr-2" />
                         <span className="text-gray-600">Cargando reportes...</span>
@@ -623,7 +530,7 @@ export default function ReportList() {
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
+                    <td colSpan={5} className="px-6 py-12 text-center">
                       <div className="text-red-600">
                         <p className="font-medium">Error al cargar reportes</p>
                         <p className="text-sm mt-1">{error}</p>
@@ -641,24 +548,6 @@ export default function ReportList() {
                     <tr key={reporte.id} className="border-b hover:bg-gray-50 transition">
                       <td className="px-6 py-4">
                         <div className="font-medium text-gray-900">{reporte.titulo}</div>
-                        {/* Mostrar datos resumen */}
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {reporte.totalParametros > 0 && (
-                            <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
-                              {reporte.totalParametros} parámetros
-                            </span>
-                          )}
-                          {reporte.totalTolerancias > 0 && (
-                            <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
-                              {reporte.totalTolerancias} tolerancias
-                            </span>
-                          )}
-                          {reporte.comentarios && (
-                            <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full font-medium">
-                              {reporte.comentarios.length > 30 ? `${reporte.comentarios.substring(0, 30)}...` : reporte.comentarios}
-                            </span>
-                          )}
-                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
@@ -674,36 +563,21 @@ export default function ReportList() {
                         {formatDate(reporte.fecha)}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
-                            {reporte.totalParametros} param.
-                          </span>
-                          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
-                            {reporte.totalTolerancias} tol.
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 flex gap-2">
                         <button
+                          type="button"
                           onClick={() => handleViewReport(reporte)}
                           className="border border-gray-300 p-2 rounded hover:bg-gray-100"
                           title="Ver reporte"
+                          aria-label="Ver reporte"
                         >
                           <Eye className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDownloadPDF(reporte)}
-                          className="border border-gray-300 p-2 rounded hover:bg-gray-100"
-                          title="Descargar PDF"
-                        >
-                          <Download className="w-5 h-5" />
                         </button>
                       </td>
                 </tr>
               ))
                 ) : (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
+                    <td colSpan={5} className="px-6 py-12 text-center">
                       <div className="text-gray-500">
                         <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                         <p className="text-lg font-medium">No hay reportes disponibles</p>
