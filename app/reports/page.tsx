@@ -11,7 +11,7 @@ import Navbar from "@/components/Navbar"
 import { SensorTimeSeriesChart, type ChartExportRef } from "@/components/SensorTimeSeriesChart"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import ScrollArrow from "@/app/reportmanager/components/ScrollArrow"
-import { formatCalendarDate, normalizeToYmd } from "@/lib/date"
+import { formatCalendarDate, getReportChartDateRange } from "@/lib/date"
 import { buildReportesQueryParams } from "@/lib/report-api-params"
 import {
   hydrateReportSelectionFromApi,
@@ -1772,14 +1772,15 @@ export default function Reporte() {
         });
       })();
       
-      // Usar las fechas del estado o calcular si no están disponibles
-      const pdfChartStartDate = chartStartDate || (() => {
-        const today = new Date();
-        const startDateObj = new Date(today);
-        startDateObj.setMonth(today.getMonth() - 12);
-        return normalizeToYmd(startDateObj.toISOString()) || "";
-      })();
-      const pdfChartEndDate = chartEndDate || normalizeToYmd(new Date().toISOString()) || "";
+      // Usar las fechas del estado o calcular acotadas a la fecha del reporte
+      const pdfChartRange = getReportChartDateRange({
+        fecha: reportSelection?.fecha,
+        generatedDate: reportSelection?.generatedDate,
+        chartStartDate: chartStartDate || reportSelection?.chartStartDate,
+        chartEndDate: chartEndDate || reportSelection?.chartEndDate,
+      });
+      const pdfChartStartDate = pdfChartRange.startDate;
+      const pdfChartEndDate = pdfChartRange.endDate;
       
       // Agregar título de sección de gráficos
       const hasCharts = variablesDisponibles.length > 0;
@@ -2600,29 +2601,17 @@ export default function Reporte() {
   const [chartEndDate, setChartEndDate] = useState<string>("")
   
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    // Intentar cargar fechas desde reportSelection primero
-    if (reportSelection?.chartStartDate && reportSelection?.chartEndDate) {
-      setChartStartDate(reportSelection.chartStartDate);
-      setChartEndDate(reportSelection.chartEndDate);
-    } else {
-      // Si no hay fechas en reportSelection, calcular desde hoy (últimos 12 meses)
-      const today = new Date()
-      // Evitar desfases por UTC: construir YYYY-MM-DD desde calendario local
-      const toLocalYmd = (d: Date) => {
-        const y = d.getFullYear()
-        const m = String(d.getMonth() + 1).padStart(2, "0")
-        const day = String(d.getDate()).padStart(2, "0")
-        return `${y}-${m}-${day}`
-      }
-      const endDate = toLocalYmd(today)
-      const startDateObj = new Date(today)
-      startDateObj.setMonth(today.getMonth() - 12)
-      const startDate = toLocalYmd(startDateObj)
-      setChartStartDate(startDate)
-      setChartEndDate(endDate)
-    }
+    if (typeof window === 'undefined' || !reportSelection) return;
+
+    const { startDate, endDate } = getReportChartDateRange({
+      fecha: reportSelection.fecha,
+      generatedDate: reportSelection.generatedDate,
+      chartStartDate: reportSelection.chartStartDate,
+      chartEndDate: reportSelection.chartEndDate,
+    });
+
+    setChartStartDate(startDate);
+    setChartEndDate(endDate);
   }, [reportSelection])
 
   // Construir datos para gráficos desde reportes.datos (solo tabla reportes, no mediciones)
