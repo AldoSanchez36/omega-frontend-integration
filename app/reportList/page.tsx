@@ -13,6 +13,7 @@ import {
 import { buildReportesQueryParams } from "@/lib/report-api-params";
 import { formatDashboardReportRow } from "@/lib/format-report-from-api";
 import { loadFullReportSelection } from "@/lib/load-report-detail";
+import { formatCalendarDate, normalizeToYmd } from "@/lib/date";
 
 interface Reporte {
   id: string;
@@ -186,20 +187,11 @@ export default function ReportList() {
   // Aplicar filtros y ordenamiento
   const reportesFiltrados = reportes
     .filter(reporte => {
-      // Filtro por rango de fechas
       let cumpleFecha = true;
       if (fechaInicio || fechaFin) {
-        const fechaReporte = new Date(reporte.fecha);
-        if (fechaInicio) {
-          const fechaInicioDate = new Date(fechaInicio);
-          cumpleFecha = cumpleFecha && fechaReporte >= fechaInicioDate;
-        }
-        if (fechaFin) {
-          const fechaFinDate = new Date(fechaFin);
-          // Agregar un día para incluir la fecha fin
-          fechaFinDate.setDate(fechaFinDate.getDate() + 1);
-          cumpleFecha = cumpleFecha && fechaReporte < fechaFinDate;
-        }
+        const fechaReporte = normalizeToYmd(reporte.fecha) ?? reporte.fecha;
+        if (fechaInicio && fechaReporte < fechaInicio) cumpleFecha = false;
+        if (fechaFin && fechaReporte > fechaFin) cumpleFecha = false;
       }
       
       const cumplePlanta = !plantaFiltro || reporte.planta === plantaFiltro;
@@ -213,8 +205,8 @@ export default function ReportList() {
       
       // Manejar casos especiales
       if (sortField === "fecha") {
-        aValue = new Date(a.fecha).getTime();
-        bValue = new Date(b.fecha).getTime();
+        aValue = normalizeToYmd(a.fecha) ?? a.fecha;
+        bValue = normalizeToYmd(b.fecha) ?? b.fecha;
       } else {
         aValue = String(aValue || "").toLowerCase();
         bValue = String(bValue || "").toLowerCase();
@@ -264,17 +256,12 @@ export default function ReportList() {
       <ChevronDown className="w-4 h-4 text-blue-600" />;
   };
 
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString('es-ES', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
-    } catch {
-      return dateString;
-    }
-  };
+  const formatDate = (dateString: string) =>
+    formatCalendarDate(dateString, {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
 
   // Función para manejar la vista del reporte (obtiene orden de parámetros y sistemas para que /reports muestre la tabla en el orden correcto también para cliente)
   const handleViewReport = async (report: any) => {

@@ -10,6 +10,11 @@ import ProtectedRoute from "@/components/ProtectedRoute"
 
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import { buildReportesQueryParams } from "@/lib/report-api-params"
+import {
+  buildToleranceDataFromRaw,
+  formatToleranceRangeDisplay,
+  getCellColorFromTolerance,
+} from "@/lib/tolerance-colors"
 import { parseReportDatosJsonb } from "@/lib/report-usuario-display"
 import { authService } from "@/services/authService"
 import { useEmpresasAccess } from "@/hooks/useEmpresasAccess"
@@ -464,94 +469,15 @@ export default function HistoricosPage() {
     return tolerances.find((tol) => String(tol.variables_proceso_id ?? "") === targetId)
   }
 
-  const getMinMaxForParameter = (parameter: Parameter): { min: number | undefined, max: number | undefined } => {
-    const tolerance = getToleranceForParameter(parameter)
-    return {
-      min: tolerance?.limite_min,
-      max: tolerance?.limite_max
-    }
-  }
-
-  // Función pura: devuelve el color hex según bien/limite y banderas `usar_limite_*`
-  // (misma paleta que `/reports`).
-  function getCellColor(valor: number, param: {
-    bien_min: number | null | undefined
-    bien_max: number | null | undefined
-    limite_min: number | null | undefined
-    limite_max: number | null | undefined
-    usar_limite_min: boolean
-    usar_limite_max: boolean
-  }): string {
-    if (!Number.isFinite(valor)) return ""
-
-    const bien_min = param.bien_min
-    const bien_max = param.bien_max
-    const limite_min = param.limite_min
-    const limite_max = param.limite_max
-    const usar_limite_min = param.usar_limite_min
-    const usar_limite_max = param.usar_limite_max
-
-    // Caso 1: límites críticos (rojo)
-    if (usar_limite_min && limite_min !== null && limite_min !== undefined) {
-      if (valor < limite_min) return "#FFC6CE"
-    }
-    if (usar_limite_max && limite_max !== null && limite_max !== undefined) {
-      if (valor > limite_max) return "#FFC6CE"
-    }
-
-    // Caso 2: sólo bien_max => rojo si excede, verde si no
-    if ((bien_min === null || bien_min === undefined) && bien_max !== null && bien_max !== undefined) {
-      if (valor > bien_max) return "#FFC6CE"
-      return "#C6EFCE"
-    }
-
-    // Caso 3: sólo bien_min => rojo si queda abajo, verde si no
-    if ((bien_max === null || bien_max === undefined) && bien_min !== null && bien_min !== undefined) {
-      if (valor < bien_min) return "#FFC6CE"
-      return "#C6EFCE"
-    }
-
-    // Caso 4: ambos bien_min y bien_max, sin limite => rojo fuera del rango bien
-    if (!usar_limite_min && !usar_limite_max && bien_min !== null && bien_min !== undefined && bien_max !== null && bien_max !== undefined) {
-      if (valor < bien_min || valor > bien_max) return "#FFC6CE"
-      return "#C6EFCE"
-    }
-
-    // Caso 5: amarillo (rango de advertencia)
-    if (usar_limite_min && limite_min !== null && limite_min !== undefined) {
-      if (valor >= limite_min && bien_min !== null && bien_min !== undefined && valor < bien_min) return "#FFEB9C"
-    }
-    if (usar_limite_max && limite_max !== null && limite_max !== undefined) {
-      if (valor <= limite_max && bien_max !== null && bien_max !== undefined && valor > bien_max) return "#FFEB9C"
-    }
-
-    // Caso 6: dentro de rango bien => verde
-    if (bien_min !== null && bien_min !== undefined && bien_max !== null && bien_max !== undefined) {
-      if (valor >= bien_min && valor <= bien_max) return "#C6EFCE"
-    }
-
-    // Caso 7: default => verde
-    return "#C6EFCE"
-  }
-
   const getHistoricalCellColor = (parameter: Parameter, value: unknown): string => {
-    if (value === undefined || value === null) return ""
-    const valorNum = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN
-    if (!Number.isFinite(valorNum)) return ""
-
     const tol = getToleranceForParameter(parameter)
     if (!tol) return ""
-
-    const toleranceParam = {
-      bien_min: tol.bien_min ?? null,
-      bien_max: tol.bien_max ?? null,
-      limite_min: tol.limite_min ?? null,
-      limite_max: tol.limite_max ?? null,
-      usar_limite_min: (tol.usar_limite_min ?? tol.usar_limite_bajo ?? false) === true,
-      usar_limite_max: (tol.usar_limite_max ?? tol.usar_limite_alto ?? false) === true,
-    }
-
-    return getCellColor(valorNum, toleranceParam)
+    const toleranceData = buildToleranceDataFromRaw(
+      tol as unknown as Record<string, unknown>,
+      parameter.nombre,
+      { variables_proceso_id: getTargetVariablesProcesoId(parameter) }
+    )
+    return getCellColorFromTolerance(value, toleranceData)
   }
 
   // Calcular valores ALTO y BAJO para cada parámetro
@@ -606,17 +532,15 @@ export default function HistoricosPage() {
 
   const averageValues = getAverageValues()
 
-  // Obtener rango aceptable para un parámetro
   const getAcceptableRange = (parameter: Parameter): string => {
-    const { min, max } = getMinMaxForParameter(parameter)
-    if (min !== undefined && max !== undefined) {
-      return `${min} - ${max}`
-    } else if (min !== undefined) {
-      return `Min ${min}`
-    } else if (max !== undefined) {
-      return `Max ${max}`
-    }
-    return "—"
+    const tol = getToleranceForParameter(parameter)
+    if (!tol) return "—"
+    const toleranceData = buildToleranceDataFromRaw(
+      tol as unknown as Record<string, unknown>,
+      parameter.nombre,
+      { variables_proceso_id: getTargetVariablesProcesoId(parameter) }
+    )
+    return formatToleranceRangeDisplay(toleranceData)
   }
 
   // Ordenar fechas

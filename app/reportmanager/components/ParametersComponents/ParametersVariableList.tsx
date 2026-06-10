@@ -4,6 +4,7 @@ import React from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { buildToleranceDataFromRaw, getCellColorFromTolerance } from "@/lib/tolerance-colors";
 
 interface Parameter {
   id: string;
@@ -77,93 +78,25 @@ const ParametersVariableList: React.FC<Props> = ({
     }
   };
   
-  // Función para determinar el color del input basado en el valor y límites
   const getInputColor = (parameterId: string, value: number | undefined): string => {
-    if (value === undefined || value === null) return '#FFC6CE';
-    
+    if (value === undefined || value === null) return "#FFC6CE";
+
     const tolerancia = tolerancias[parameterId];
-    if (!tolerancia) return '';
-    
-    const numValue = Number(value);
-    if (isNaN(numValue)) return '';
-    
-    const usarLimiteMin = !!tolerancia.usar_limite_min;
-    const usarLimiteMax = !!tolerancia.usar_limite_max;
-    const bienMin = tolerancia.bien_min;
-    const bienMax = tolerancia.bien_max;
-    
-    // CASO 1: Verificar primero los límites críticos (limite_min/limite_max) - ROJO
-    if (usarLimiteMin && tolerancia.limite_min !== null && tolerancia.limite_min !== undefined) {
-      if (numValue < tolerancia.limite_min) {
-        return '#FFC6CE'; // Rojo - fuera del límite crítico mínimo
+    if (!tolerancia) return "";
+
+    const param = parameters.find((p) => p.id === parameterId);
+    const toleranceData = buildToleranceDataFromRaw(
+      tolerancia as Record<string, unknown>,
+      param?.nombre ?? parameterId,
+      {
+        limitsState: {
+          limite_min: !!tolerancia.usar_limite_min,
+          limite_max: !!tolerancia.usar_limite_max,
+        },
       }
-    }
-    
-    if (usarLimiteMax && tolerancia.limite_max !== null && tolerancia.limite_max !== undefined) {
-      if (numValue > tolerancia.limite_max) {
-        return '#FFC6CE'; // Rojo - fuera del límite crítico máximo
-      }
-    }
-    
-    // CASO 2: Verificar si excede bien_max (sin bien_min) - ROJO
-    // Si no hay bien_min pero sí hay bien_max, solo es rojo si excede bien_max
-    if ((bienMin === null || bienMin === undefined) && 
-        bienMax !== null && bienMax !== undefined) {
-      if (numValue > bienMax) {
-        return '#FFC6CE'; // Rojo - excede el máximo
-      }
-      // Si no excede bien_max, es verde
-      return '#C6EFCE'; // Verde - dentro del rango aceptable
-    }
-    
-    // CASO 3: Verificar si está por debajo de bien_min (sin bien_max) - ROJO
-    // Si no hay bien_max pero sí hay bien_min, solo es rojo si está por debajo de bien_min
-    if ((bienMax === null || bienMax === undefined) && 
-        bienMin !== null && bienMin !== undefined) {
-      if (numValue < bienMin) {
-        return '#FFC6CE'; // Rojo - por debajo del mínimo
-      }
-      // Si no está por debajo de bien_min, es verde
-      return '#C6EFCE'; // Verde - dentro del rango aceptable
-    }
-    
-    // CASO 4: Si existen ambos bienMin y bienMax (sin limite_min/limite_max)
-    if (!usarLimiteMin && !usarLimiteMax && 
-        bienMin !== null && bienMin !== undefined && 
-        bienMax !== null && bienMax !== undefined) {
-      
-      if (numValue < bienMin || numValue > bienMax) {
-        return '#FFC6CE'; // Rojo - fuera del rango bien
-      } else {
-        return '#C6EFCE'; // Verde - dentro del rango bien
-      }
-    }
-    
-    // CASO 5: Verificar rango de advertencia (amarillo)
-    // Si está por debajo del rango bien_min pero por encima del límite_min
-    if (usarLimiteMin && tolerancia.limite_min !== null && tolerancia.limite_min !== undefined) {
-      if (numValue >= tolerancia.limite_min && bienMin !== null && bienMin !== undefined && numValue < bienMin) {
-        return '#FFEB9C'; // Amarillo
-      }
-    }
-    
-    // Si está por encima del rango bien_max pero por debajo del límite_max
-    if (usarLimiteMax && tolerancia.limite_max !== null && tolerancia.limite_max !== undefined) {
-      if (numValue <= tolerancia.limite_max && bienMax !== null && bienMax !== undefined && numValue > bienMax) {
-        return '#FFEB9C'; // Amarillo
-      }
-    }
-    
-    // CASO 6: Si está dentro del rango bien_min y bien_max (verde)
-    if (bienMin !== null && bienMin !== undefined && bienMax !== null && bienMax !== undefined) {
-      if (numValue >= bienMin && numValue <= bienMax) {
-        return '#C6EFCE'; // Verde
-      }
-    }
-    
-    // CASO 7: Si no hay límites definidos o solo hay bien_max sin bien_min y no excede
-    // Por defecto, mostrar verde (no rojo) cuando no hay límites o cuando no se excede el máximo
-    return '#C6EFCE'; // Verde por defecto si no hay límites o no se excede el máximo
+    );
+
+    return getCellColorFromTolerance(value, toleranceData);
   };
   return (
     <div className="space-y-1.5">
