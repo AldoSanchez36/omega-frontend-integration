@@ -2,6 +2,12 @@
 
 import { useState, useCallback } from 'react';
 import { API_BASE_URL, API_ENDPOINTS } from '@/config/constants';
+import {
+  buildToleranceDataFromRaw,
+  getVariablesProcesoIdFromParam,
+  indexTolerancesByVariablesProcesoId,
+  type ToleranceData,
+} from '@/lib/tolerance-colors';
 import { useFormulas } from './useFormulas';
 
 interface Measurement {
@@ -43,20 +49,12 @@ interface ReportData {
         valorOriginal?: number;
         formulaAplicada?: string;
         calculado?: boolean;
+        variables_proceso_id?: string | null;
       };
     };
   };
-  variablesTolerancia: {
-    [parameterId: string]: {
-      nombre: string;
-      limite_min: number | null;
-      limite_max: number | null;
-      bien_min: number | null;
-      bien_max: number | null;
-      usar_limite_min: boolean;
-      usar_limite_max: boolean;
-    };
-  };
+  /** Por sistema → variables_proceso_id → tolerancia */
+  variablesTolerancia: Record<string, Record<string, ToleranceData>>;
   fecha: string;
   comentarios: string;
   generatedDate: string;
@@ -71,6 +69,8 @@ interface Parameter {
   id: string;
   nombre: string;
   unidad: string;
+  variables_proceso_id?: string | null;
+  variable_proceso_id?: string | null;
 }
 
 interface ParameterValue {
@@ -205,23 +205,26 @@ export function useMeasurements(
                 // Buscar si hay una fórmula aplicada para este parámetro
                 const calculation = formulaCalculations.find(calc => calc.parameterId === param.id);
                 
+                const vpId = getVariablesProcesoIdFromParam(param);
+                const paramBase = {
+                  unidad: unidadSeleccionada,
+                  ...(vpId ? { variables_proceso_id: vpId } : {}),
+                };
+
                 if (calculation && calculation.applied) {
-                  // Usar el valor calculado por la fórmula
                   reportData.parameters[system.nombre][param.nombre] = {
                     valor: calculation.calculatedValue,
-                    unidad: unidadSeleccionada,
+                    ...paramBase,
                     valorOriginal: calculation.originalValue,
                     formulaAplicada: calculation.formula.nombre,
-                    calculado: true
+                    calculado: true,
                   };
-                  
                 } else {
-                  // Usar el valor original
                   reportData.parameters[system.nombre][param.nombre] = {
                     valor: paramValue.value,
-                    unidad: unidadSeleccionada,
+                    ...paramBase,
                     valorOriginal: paramValue.value,
-                    calculado: false
+                    calculado: false,
                   };
                 }
               }
@@ -244,88 +247,64 @@ export function useMeasurements(
               ? tolerancesData 
               : (tolerancesData.tolerancias || tolerancesData.tolerancia || []);
             
-            console.log(`📊 Obtenidas ${allTolerances.length} tolerancias de la base de datos`);
-            
-            // Para cada sistema, obtener sus parámetros y sus tolerancias
-            allSystems.forEach(system => {
+            const tolerancesByVpId = indexTolerancesByVariablesProcesoId(allTolerances);
+
+            allSystems.forEach((system) => {
               const systemParameters = allParameters[system.id];
-              if (!systemParameters || systemParameters.length === 0) return;
-              
-              systemParameters.forEach(param => {
-                // Buscar tolerancia para este parámetro y sistema
-                const tolerance = allTolerances.find((tol: any) => 
-                  tol.variable_id === param.id && tol.proceso_id === system.id
-                );
-                
-                if (tolerance) {
-                  // Usar el estado actual de los límites si está disponible (solo para el sistema actual)
-                  const isCurrentSystem = selectedSystem === system.id;
-                  const currentLimitsState = isCurrentSystem ? limitsState?.[param.id] : undefined;
-                  const usarLimiteMin = currentLimitsState?.limite_min ?? !!tolerance.usar_limite_min;
-                  const usarLimiteMax = currentLimitsState?.limite_max ?? !!tolerance.usar_limite_max;
-                  
-                  // Guardar tolerancia usando el nombre del parámetro como key para facilitar búsqueda
-                  const toleranceData = {
-                    nombre: param.nombre,
-                    limite_min: usarLimiteMin ? (tolerance.limite_min ?? null) : null,
-                    limite_max: usarLimiteMax ? (tolerance.limite_max ?? null) : null,
-                    bien_min: tolerance.bien_min ?? null,
-                    bien_max: tolerance.bien_max ?? null,
-                    usar_limite_min: usarLimiteMin,
-                    usar_limite_max: usarLimiteMax,
-                  };
-                  
-                  // Guardar tanto por ID como por nombre para facilitar búsqueda en reports
-                  reportData.variablesTolerancia[param.id] = toleranceData;
-                  reportData.variablesTolerancia[param.nombre] = toleranceData;
-                  
-                  console.log(`💾 [useMeasurements] Tolerancia guardada para ${param.nombre}:`, {
-                    id: param.id,
-                    nombre: param.nombre,
-                    toleranceData
-                  });
-                }
+              if (!systemParameters?.length) return;
+
+              if (!reportData.variablesTolerancia[system.nombre]) {
+                reportData.variablesTolerancia[system.nombre] = {};
+              }
+
+              systemParameters.forEach((param) => {
+                const vpId = getVariablesProcesoIdFromParam(param);
+                if (!vpId) return;
+
+                const tolerance = tolerancesByVpId.get(vpId);
+                if (!tolerance) return;
+
+                const isCurrentSystem = selectedSystem === system.id;
+                const currentLimitsState = isCurrentSystem ? limitsState?.[param.id] : undefined;
+
+                const toleranceData = buildToleranceDataFromRaw(tolerance, param.nombre, {
+                  variables_proceso_id: vpId,
+                  limitsState: currentLimitsState,
+                });
+
+                reportData.variablesTolerancia[system.nombre][vpId] = toleranceData;
               });
             });
-            
-            console.log(`✅ Tolerancias guardadas para ${Object.keys(reportData.variablesTolerancia).length} parámetros`);
           }
         } catch (error) {
           console.error("Error obteniendo tolerancias de todos los sistemas:", error);
         }
       }
       
-      // Fallback: Agregar tolerancias del sistema actual si no se obtuvieron de todos los sistemas
-      if (parameters && tolerancias && Object.keys(reportData.variablesTolerancia).length === 0) {
-        parameters.forEach(param => {
-          if (tolerancias[param.id]) {
-            // Usar el estado actual de los límites si está disponible, sino usar los valores de la base de datos
-            const currentLimitsState = limitsState?.[param.id];
-            const usarLimiteMin = currentLimitsState?.limite_min ?? !!tolerancias[param.id].usar_limite_min;
-            const usarLimiteMax = currentLimitsState?.limite_max ?? !!tolerancias[param.id].usar_limite_max;
-            
-            const toleranceData = {
-              nombre: param.nombre,
-              // Si el límite está desactivado, establecer como null, sino usar el valor de la base de datos
-              limite_min: usarLimiteMin ? (tolerancias[param.id].limite_min ?? null) : null,
-              limite_max: usarLimiteMax ? (tolerancias[param.id].limite_max ?? null) : null,
-              bien_min: tolerancias[param.id].bien_min ?? null,
-              bien_max: tolerancias[param.id].bien_max ?? null,
-              usar_limite_min: usarLimiteMin,
-              usar_limite_max: usarLimiteMax,
-            };
-            
-            // Guardar tanto por ID como por nombre para facilitar búsqueda
-            reportData.variablesTolerancia[param.id] = toleranceData;
-            reportData.variablesTolerancia[param.nombre] = toleranceData;
-            
-            console.log(`💾 [useMeasurements] Tolerancia guardada (fallback) para ${param.nombre}:`, {
-              id: param.id,
-              nombre: param.nombre,
-              toleranceData
-            });
+      const hasNestedTolerances = Object.values(reportData.variablesTolerancia).some(
+        (bucket) => bucket && Object.keys(bucket).length > 0
+      );
+
+      if (!hasNestedTolerances && parameters && tolerancias && selectedSystem) {
+        const systemName =
+          allSystems?.find((s) => s.id === selectedSystem)?.nombre ?? selectedSystemData?.nombre;
+        if (systemName) {
+          if (!reportData.variablesTolerancia[systemName]) {
+            reportData.variablesTolerancia[systemName] = {};
           }
-        });
+          parameters.forEach((param) => {
+            const raw = tolerancias[param.id];
+            if (!raw) return;
+            const vpId = getVariablesProcesoIdFromParam(param);
+            if (!vpId) return;
+
+            const toleranceData = buildToleranceDataFromRaw(raw, param.nombre, {
+              variables_proceso_id: vpId,
+              limitsState: limitsState?.[param.id],
+            });
+            reportData.variablesTolerancia[systemName][vpId] = toleranceData;
+          });
+        }
       }
 
       // Guardar en localStorage (como antes)

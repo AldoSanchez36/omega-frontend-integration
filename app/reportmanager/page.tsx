@@ -67,6 +67,8 @@ interface Parameter {
   nombre: string
   unidad: string
   proceso_id: string
+  variables_proceso_id?: string | null
+  variable_proceso_id?: string | null
   value?: number
   minValue?: number
   maxValue?: number
@@ -525,10 +527,17 @@ export default function ReportManager() {
           const systemTolerancesMap: Record<string, any> = {};
           
           // Filtrar tolerancias solo para el sistema actual
-          parameters.forEach(param => {
-            const tolerance = toleranceData.find((tol: any) => 
-              tol.variable_id === param.id && tol.proceso_id === selectedSystem
-            );
+          parameters.forEach((param) => {
+            const vpId = param.variables_proceso_id ?? param.variable_proceso_id;
+            const tolerance = vpId
+              ? toleranceData.find(
+                  (tol: { variables_proceso_id?: string }) =>
+                    String(tol.variables_proceso_id ?? "") === String(vpId)
+                )
+              : toleranceData.find(
+                  (tol: { variable_id?: string; proceso_id?: string }) =>
+                    tol.variable_id === param.id && tol.proceso_id === selectedSystem
+                );
             if (tolerance) {
               systemTolerancesMap[param.id] = tolerance;
             }

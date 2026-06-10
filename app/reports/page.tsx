@@ -17,6 +17,15 @@ import {
   hydrateReportSelectionFromApi,
   reportSelectionNeedsFullLoad,
 } from "@/lib/load-report-detail"
+import {
+  buildToleranceDataFromRaw,
+  formatToleranceRangeDisplay,
+  getCellColorFromTolerance,
+  getVariablesProcesoIdFromParam,
+  isNestedToleranciaStore,
+  resolveReportTolerance,
+  type ToleranceData,
+} from "@/lib/tolerance-colors"
 
 
 /**
@@ -118,20 +127,11 @@ interface ReportSelection {
         valorOriginal?: number;
         formulaAplicada?: string;
         calculado?: boolean;
+        variables_proceso_id?: string | null;
       };
     };
   };
-  variablesTolerancia: {
-    [parameterId: string]: {
-      nombre: string;
-      limite_min: number | null;
-      limite_max: number | null;
-      bien_min: number | null;
-      bien_max: number | null;
-      usar_limite_min: boolean;
-      usar_limite_max: boolean;
-    };
-  };
+  variablesTolerancia: Record<string, Record<string, ToleranceData>>;
   parameterComments?: {
     [variableName: string]: string;
   };
@@ -278,7 +278,15 @@ export default function Reporte() {
   const [historicalDataBySystem, setHistoricalDataBySystem] = useState<{ [systemName: string]: HistoricalDataByDate }>({})
   const [historicalLoading, setHistoricalLoading] = useState<{ [systemName: string]: boolean }>({})
   const [historicalError, setHistoricalError] = useState<{ [systemName: string]: string | null }>({})
-  const [systemParameters, setSystemParameters] = useState<{ [systemName: string]: Array<{ id: string; nombre: string; unidad: string }> }>({})
+  const [systemParameters, setSystemParameters] = useState<{
+    [systemName: string]: Array<{
+      id: string
+      nombre: string
+      unidad: string
+      variables_proceso_id?: string | null
+      variable_proceso_id?: string | null
+    }>
+  }>({})
   
   // Datos para gráficos desde columna datos de reportes (no tabla mediciones)
   const [chartDataFromReportes, setChartDataFromReportes] = useState<Record<string, Array<{ fecha: string; sistema: string; valor: number }>>>({})
@@ -445,8 +453,14 @@ export default function Reporte() {
       }
     }
     
-    // FALLBACK: Si no hay tolerancias en localStorage, obtenerlas del backend usando variable_proceso_id
-    if (parsedReportSelection && (!parsedReportSelection.variablesTolerancia || Object.keys(parsedReportSelection.variablesTolerancia).length === 0)) {
+    const toleranciaStore = parsedReportSelection?.variablesTolerancia
+    const needsToleranceHydration =
+      parsedReportSelection &&
+      (!toleranciaStore ||
+        Object.keys(toleranciaStore).length === 0 ||
+        !isNestedToleranciaStore(toleranciaStore as Record<string, unknown>))
+
+    if (needsToleranceHydration) {
       // Función async para obtener tolerancias
       const fetchTolerancesFromBackend = async () => {
         const token = typeof window !== 'undefined' ? localStorage.getItem('Organomex_token') : null;
@@ -470,74 +484,67 @@ export default function Reporte() {
           const systemsData = await systemsResponse.json();
           const systemsList = systemsData.procesos || systemsData || [];
           
-          const fetchedTolerances: any = {};
-          
-          // Para cada sistema en los parámetros
+          const fetchedTolerances: Record<string, Record<string, ToleranceData>> = {};
+
           for (const systemName of Object.keys(parsedReportSelection.parameters)) {
-            const systemInfo = systemsList.find((sys: any) => sys.nombre === systemName);
+            const systemInfo = systemsList.find((sys: { nombre: string }) => sys.nombre === systemName);
             if (!systemInfo) continue;
-            
-            // Obtener variables del sistema (incluye variable_proceso_id)
+
             const varsResponse = await fetch(
               `${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(systemInfo.id)}`,
               { headers: { Authorization: `Bearer ${token}` } }
             );
-            
-            if (!varsResponse.ok) {
-              continue;
-            }
-            
+            if (!varsResponse.ok) continue;
+
             const varsData = await varsResponse.json();
             const variablesList = varsData.variables || varsData || [];
-            
-            // Para cada variable en los parámetros, obtener su tolerancia usando TOLERANCES_FILTERS
+            if (!fetchedTolerances[systemName]) fetchedTolerances[systemName] = {};
+
             for (const variableName of Object.keys(parsedReportSelection.parameters[systemName])) {
-              const variable = variablesList.find((v: any) => v.nombre === variableName);
-              if (!variable || !variable.id) continue;
-              
-              // Usar TOLERANCES_FILTERS con variable_id y proceso_id
-              const queryParams = new URLSearchParams({
-                variable_id: variable.id,
-                proceso_id: systemInfo.id,
-              });
-              
+              const variable = variablesList.find((v: { nombre: string }) => v.nombre === variableName);
+              if (!variable) continue;
+
+              const vpId = getVariablesProcesoIdFromParam(variable);
+              if (!vpId) continue;
+
+              const queryParams = new URLSearchParams({ variables_proceso_id: vpId });
+
               try {
                 const toleranceResponse = await fetch(
                   `${API_BASE_URL}${API_ENDPOINTS.TOLERANCES_FILTERS}?${queryParams}`,
                   { headers: { Authorization: `Bearer ${token}` } }
                 );
-                
-                if (toleranceResponse.ok) {
-                  const toleranceData = await toleranceResponse.json();
-                  // El endpoint puede devolver { tolerancias: [...] } o el objeto directo
-                  const tolerance = Array.isArray(toleranceData.tolerancias) 
-                    ? toleranceData.tolerancias[0] 
-                    : (toleranceData.tolerancia || toleranceData);
-                  
-                  if (tolerance) {
-                    const toleranceDataFormatted = {
-                      nombre: variableName,
-                      limite_min: tolerance.limite_min ?? null,
-                      limite_max: tolerance.limite_max ?? null,
-                      bien_min: tolerance.bien_min ?? null,
-                      bien_max: tolerance.bien_max ?? null,
-                      usar_limite_min: !!tolerance.usar_limite_min,
-                      usar_limite_max: !!tolerance.usar_limite_max,
-                    };
-                    
-                    fetchedTolerances[variable.id] = toleranceDataFormatted;
-                    fetchedTolerances[variableName] = toleranceDataFormatted;
+
+                if (!toleranceResponse.ok) continue;
+
+                const toleranceData = await toleranceResponse.json();
+                const tolerance = Array.isArray(toleranceData.tolerancias)
+                  ? toleranceData.tolerancias[0]
+                  : toleranceData.tolerancia || toleranceData;
+
+                if (tolerance) {
+                  fetchedTolerances[systemName][vpId] = buildToleranceDataFromRaw(
+                    tolerance,
+                    variableName,
+                    { variables_proceso_id: vpId }
+                  );
+                  const paramSlot = parsedReportSelection.parameters[systemName]?.[variableName];
+                  if (paramSlot && typeof paramSlot === "object") {
+                    paramSlot.variables_proceso_id = vpId;
                   }
-                } else if (toleranceResponse.status === 404 || toleranceResponse.status === 204) {
-                  // No hay tolerancia para esta variable, continuar
                 }
-              } catch (error) {
-                // Continuar con la siguiente variable
+              } catch {
+                // continuar con la siguiente variable
               }
             }
           }
-          
-          if (Object.keys(fetchedTolerances).length > 0) {
+
+          const totalFetched = Object.values(fetchedTolerances).reduce(
+            (acc, bucket) => acc + Object.keys(bucket).length,
+            0
+          );
+
+          if (totalFetched > 0) {
             const updatedReportSelection = {
               ...parsedReportSelection,
               variablesTolerancia: fetchedTolerances
@@ -1635,49 +1642,10 @@ export default function Reporte() {
               const systemData = reportSelection.parameters[systemName];
               const paramData = systemData?.[variableNameClean];
               
-              // Misma búsqueda de tolerancia que la vista HTML (objeto plano por nombre/parameterId)
-              interface TolShape {
-                bien_min?: number | null;
-                bien_max?: number | null;
-                limite_min?: number | null;
-                limite_max?: number | null;
-                usar_limite_min?: boolean;
-                usar_limite_max?: boolean;
-              }
-              const tolerances = reportSelection?.variablesTolerancia || {};
-              const tolerancesRecord = tolerances as Record<string, unknown>;
-              let tolerance: TolShape | null = null;
-              const direct = tolerancesRecord[variableNameClean];
-              if (direct && typeof direct === 'object') {
-                tolerance = direct as TolShape;
-              } else {
-                const byNombre = Object.values(tolerancesRecord).find((tol: unknown) => 
-                  tol && typeof tol === 'object' && (tol as { nombre?: string }).nombre === variableNameClean
-                );
-                if (byNombre && typeof byNombre === 'object') tolerance = byNombre as TolShape;
-              }
-              if (!tolerance) {
-                const byCase = Object.values(tolerancesRecord).find((tol: unknown) => {
-                  const t = tol as { nombre?: string };
-                  return t && typeof t === 'object' && t.nombre && 
-                    t.nombre.trim().toLowerCase() === variableNameClean.toLowerCase();
-                });
-                if (byCase && typeof byCase === 'object') tolerance = byCase as TolShape;
-              }
-              
-              // Calcular el color si tenemos datos y tolerancia
+              const tolerance = lookupCellTolerance(systemName, variableNameClean, paramData);
+
               if (paramData && paramData.valor !== undefined && paramData.valor !== null && tolerance) {
-                const valorStr = String(paramData.valor);
-                const toleranceParam: TolShape = {
-                  bien_min: tolerance.bien_min ?? null,
-                  bien_max: tolerance.bien_max ?? null,
-                  limite_min: tolerance.limite_min ?? null,
-                  limite_max: tolerance.limite_max ?? null,
-                  usar_limite_min: tolerance.usar_limite_min ?? false,
-                  usar_limite_max: tolerance.usar_limite_max ?? false
-                };
-                
-                const cellColorHex = getCellColor(valorStr, toleranceParam);
+                const cellColorHex = getCellColorFromTolerance(paramData.valor, tolerance);
                 if (cellColorHex) {
                   const rgbColor = hexToRgb(cellColorHex);
                   if (rgbColor) {
@@ -2070,26 +2038,16 @@ export default function Reporte() {
           
           // Fila FECHA/RANGO (salto explícito en PDF para igualar la vista web)
           const rangosRow = ["FECHA/\nRANGO", ...parameters.map((p) => {
-            const tolerances = (reportSelection?.variablesTolerancia?.[systemName] || {}) as unknown as Record<string, { limite_min?: number | null; limite_max?: number | null }>;
-            let tolerance = tolerances[p.id];
-            
-            if (!tolerance) {
-              tolerance = Object.values(tolerances).find((tol: any) => tol && typeof tol === 'object') as any;
-            }
-            
-            if (!tolerance) return "—";
-            
-            const min = tolerance.limite_min;
-            const max = tolerance.limite_max;
-            
-            if (min !== undefined && min !== null && max !== undefined && max !== null) {
-              return `${min} - ${max}`;
-            } else if (min !== undefined && min !== null) {
-              return `Min ${min}`;
-            } else if (max !== undefined && max !== null) {
-              return `Max ${max}`;
-            }
-            return "—";
+            const vpId = getVariablesProcesoIdFromParam(
+              systemParameters[systemName]?.find((sp) => sp.id === p.id) ?? {
+                variables_proceso_id: null,
+              }
+            );
+            const tolerance = resolveReportTolerance(reportSelection?.variablesTolerancia, systemName, {
+              variableName: p.nombre,
+              variablesProcesoId: vpId,
+            });
+            return formatToleranceRangeDisplay(tolerance);
           })];
           
           // Filas de datos históricos
@@ -2128,17 +2086,16 @@ export default function Reporte() {
           
           const tableData = [altoRow, bajoRow, promedioRow, rangosRow, ...dataRows];
 
-          // Helpers para colorear por límites en el PDF (verde/amarillo/rojo)
-          const tolerancesRecord = reportSelection?.variablesTolerancia || {};
-          const getToleranceForParameterPDF = (param: { id: string; nombre: string }) => {
-            const direct = (tolerancesRecord as any)[param.id] as any | undefined;
-            if (direct) return direct;
-            return Object.values(tolerancesRecord as any).find((tol: any) => {
-              if (!tol || typeof tol !== "object") return false;
-              if (typeof tol.nombre !== "string") return false;
-              return tol.nombre.trim().toLowerCase() === param.nombre.trim().toLowerCase();
-            }) as any | undefined;
-          };
+          const getToleranceForParameterPDF = (param: {
+            id: string
+            nombre: string
+            variables_proceso_id?: string | null
+            variable_proceso_id?: string | null
+          }) =>
+            resolveReportTolerance(reportSelection?.variablesTolerancia, systemName, {
+              variableName: param.nombre,
+              variablesProcesoId: getVariablesProcesoIdFromParam(param),
+            });
           const hexToRgb = (hex: string): [number, number, number] | null => {
             if (!hex || hex === "") return null;
             const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -2199,15 +2156,7 @@ export default function Reporte() {
                       const rawVal = data.cell.raw ?? (data.cell.text?.[0] ?? "");
                       const valorStr = String(rawVal);
                       const tol = getToleranceForParameterPDF(param);
-                      const toleranceParam = {
-                        bien_min: tol?.bien_min ?? null,
-                        bien_max: tol?.bien_max ?? null,
-                        limite_min: tol?.limite_min ?? null,
-                        limite_max: tol?.limite_max ?? null,
-                        usar_limite_min: tol?.usar_limite_min ?? false,
-                        usar_limite_max: tol?.usar_limite_max ?? false,
-                      };
-                      const cellColorHex = getCellColor(valorStr, toleranceParam);
+                      const cellColorHex = getCellColorFromTolerance(valorStr, tol);
                       if (cellColorHex) {
                         const rgb = hexToRgb(cellColorHex);
                         if (rgb) {
@@ -2256,18 +2205,17 @@ export default function Reporte() {
               ]
             : Array.from(limitsAllVars);
         const limitsSystemNames = orderedSystemNames.length > 0 ? orderedSystemNames : Object.keys(reportSelection.parameters);
-        const limitsTolerances = reportSelection?.variablesTolerancia || {};
-        const getLimitsTolerance = (variable: string) => {
-          const t = limitsTolerances as Record<string, { nombre?: string; bien_min?: number | null; bien_max?: number | null }>;
-          if (t[variable]) return t[variable];
-          const byName = Object.values(t).find((tol) => tol && typeof tol === "object" && tol.nombre === variable);
-          if (byName) return byName;
-          return Object.values(t).find(
-            (tol) =>
-              tol &&
-              typeof tol === "object" &&
-              tol.nombre?.trim().toLowerCase() === variable.trim().toLowerCase()
-          );
+        const getLimitsToleranceForSystem = (systemName: string, variable: string) => {
+          const paramEntry = reportSelection.parameters[systemName]?.[variable];
+          const fromList = systemParameters[systemName]?.find((p) => p.nombre === variable);
+          return resolveReportTolerance(reportSelection?.variablesTolerancia, systemName, {
+            variableName: variable,
+            variablesProcesoId:
+              paramEntry?.variables_proceso_id ??
+              fromList?.variables_proceso_id ??
+              fromList?.variable_proceso_id ??
+              null,
+          });
         };
         /** Máx. 8 columnas por tabla: Parámetro + Unidad + 6 dinámicas (3 sistemas × Bajo/Alto). */
         const LIMITS_MAX_SYSTEMS_PER_TABLE = 3;
@@ -2290,13 +2238,15 @@ export default function Reporte() {
                 break;
               }
             }
-            const tol = getLimitsTolerance(variable);
-            const bajo = tol?.bien_min != null ? Number(tol.bien_min).toFixed(2) : "—";
-            const alto = tol?.bien_max != null ? Number(tol.bien_max).toFixed(2) : "—";
             return [
               variable,
               unidad || "—",
-              ...systemChunk.flatMap(() => [bajo, alto]),
+              ...systemChunk.flatMap((sysName) => {
+                const tol = getLimitsToleranceForSystem(sysName, variable);
+                const bajo = tol?.bien_min != null ? Number(tol.bien_min).toFixed(2) : "—";
+                const alto = tol?.bien_max != null ? Number(tol.bien_max).toFixed(2) : "—";
+                return [bajo, alto];
+              }),
             ];
           });
 
@@ -2442,95 +2392,23 @@ export default function Reporte() {
     }
   }
   
-  // Función para obtener el color de celda según los límites
-  // Usa la misma lógica que getInputColor en reportmanager
-  function getCellColor(valorStr: string, param: any) {
-    if (valorStr === undefined || valorStr === null || valorStr === "") return "";
-    const valor = parseFloat(valorStr);
-    if (isNaN(valor)) return "";
-    
-    const {
-      bien_min,
-      bien_max,
-      limite_min,
-      limite_max,
-      usar_limite_min,
-      usar_limite_max,
-    } = param;
-    
-    // CASO 1: Verificar primero los límites críticos (limite_min/limite_max) - ROJO
-    if (usar_limite_min && limite_min !== null && limite_min !== undefined) {
-      if (valor < limite_min) {
-        return "#FFC6CE"; // Rojo - fuera del límite crítico mínimo
-      }
-    }
-    
-    if (usar_limite_max && limite_max !== null && limite_max !== undefined) {
-      if (valor > limite_max) {
-        return "#FFC6CE"; // Rojo - fuera del límite crítico máximo
-      }
-    }
-    
-    // CASO 2: Verificar si excede bien_max (sin bien_min) - ROJO
-    // Si no hay bien_min pero sí hay bien_max, solo es rojo si excede bien_max
-    if ((bien_min === null || bien_min === undefined) && 
-        bien_max !== null && bien_max !== undefined) {
-      if (valor > bien_max) {
-        return "#FFC6CE"; // Rojo - excede el máximo
-      }
-      // Si no excede bien_max, es verde
-      return "#C6EFCE"; // Verde - dentro del rango aceptable
-    }
-    
-    // CASO 3: Verificar si está por debajo de bien_min (sin bien_max) - ROJO
-    // Si no hay bien_max pero sí hay bien_min, solo es rojo si está por debajo de bien_min
-    if ((bien_max === null || bien_max === undefined) && 
-        bien_min !== null && bien_min !== undefined) {
-      if (valor < bien_min) {
-        return "#FFC6CE"; // Rojo - por debajo del mínimo
-      }
-      // Si no está por debajo de bien_min, es verde
-      return "#C6EFCE"; // Verde - dentro del rango aceptable
-    }
-    
-    // CASO 4: Si existen ambos bienMin y bienMax (sin limite_min/limite_max)
-    if (!usar_limite_min && !usar_limite_max && 
-        bien_min !== null && bien_min !== undefined && 
-        bien_max !== null && bien_max !== undefined) {
-      
-      if (valor < bien_min || valor > bien_max) {
-        return "#FFC6CE"; // Rojo - fuera del rango bien
-      } else {
-        return "#C6EFCE"; // Verde - dentro del rango bien
-      }
-    }
-    
-    // CASO 5: Verificar rango de advertencia (amarillo)
-    // Si está por debajo del rango bien_min pero por encima del límite_min
-    if (usar_limite_min && limite_min !== null && limite_min !== undefined) {
-      if (valor >= limite_min && bien_min !== null && bien_min !== undefined && valor < bien_min) {
-        return "#FFEB9C"; // Amarillo
-      }
-    }
-    
-    // Si está por encima del rango bien_max pero por debajo del límite_max
-    if (usar_limite_max && limite_max !== null && limite_max !== undefined) {
-      if (valor <= limite_max && bien_max !== null && bien_max !== undefined && valor > bien_max) {
-        return "#FFEB9C"; // Amarillo
-      }
-    }
-    
-    // CASO 6: Si está dentro del rango bien_min y bien_max (verde)
-    if (bien_min !== null && bien_min !== undefined && bien_max !== null && bien_max !== undefined) {
-      if (valor >= bien_min && valor <= bien_max) {
-        return "#C6EFCE"; // Verde
-      }
-    }
-    
-    // CASO 7: Si no hay límites definidos o solo hay bien_max sin bien_min y no excede
-    // Por defecto, mostrar verde (no rojo) cuando no hay límites o cuando no se excede el máximo
-    return "#C6EFCE"; // Verde por defecto si no hay límites o no se excede el máximo
-  }
+  const lookupCellTolerance = (
+    systemName: string,
+    variableName: string,
+    paramData?: { variables_proceso_id?: string | null } | null
+  ): ToleranceData | null => {
+    const fromParamList = systemParameters[systemName]?.find((p) => p.nombre === variableName);
+    const vpId =
+      paramData?.variables_proceso_id ??
+      fromParamList?.variables_proceso_id ??
+      fromParamList?.variable_proceso_id ??
+      null;
+
+    return resolveReportTolerance(reportSelection?.variablesTolerancia, systemName, {
+      variableName,
+      variablesProcesoId: vpId,
+    });
+  };
 
   // Obtener variables disponibles para gráficos desde parameters con sus unidades y sistemas
   // Ordenar según el mismo orden que la tabla (plantOrderVariables o parameterOrder)
@@ -2737,10 +2615,12 @@ export default function Reporte() {
       const variablesList = varsData.variables || varsData || []
       
       // Mapear a formato esperado (igual que historicos)
-      return variablesList.map((v: any) => ({
+      return variablesList.map((v: { id: string; nombre: string; unidad?: string; variables_proceso_id?: string; variable_proceso_id?: string }) => ({
         id: v.id,
         nombre: v.nombre,
-        unidad: v.unidad || ""
+        unidad: v.unidad || "",
+        variables_proceso_id: v.variables_proceso_id ?? v.variable_proceso_id ?? null,
+        variable_proceso_id: v.variable_proceso_id ?? v.variables_proceso_id ?? null,
       }))
     } catch (error) {
       console.error(`Error obteniendo parámetros del sistema ${systemName}:`, error)
@@ -2879,35 +2759,16 @@ export default function Reporte() {
     return highLow
   }
   
-  const getAcceptableRange = (systemName: string, parameterId: string): string => {
-    // La estructura es plana: { [parameterId]: {...}, [parameterName]: {...} }
-    const tolerances = reportSelection?.variablesTolerancia || {}
-    // Buscar la tolerancia - el key puede ser el ID o el nombre
-    // Intentar primero por ID, luego por nombre
-    let tolerance = tolerances[parameterId] as any
-    
-    if (!tolerance) {
-      // Si no se encuentra por ID, buscar en todos los valores por nombre
-      tolerance = Object.values(tolerances).find((tol: any) => 
-        tol && typeof tol === 'object' && tol.nombre === parameterId
-      ) as any
-    }
-    
-    if (!tolerance) return "—"
-    
-    // Usar limite_min y limite_max (igual que historicos)
-    const min = tolerance.limite_min
-    const max = tolerance.limite_max
-    
-    if (min !== undefined && min !== null && max !== undefined && max !== null) {
-      return `${min} - ${max}`
-    } else if (min !== undefined && min !== null) {
-      return `Min ${min}`
-    } else if (max !== undefined && max !== null) {
-      return `Max ${max}`
-    }
-    return "—"
-  }
+  const getAcceptableRange = (
+    systemName: string,
+    param: { id: string; nombre: string; variables_proceso_id?: string | null; variable_proceso_id?: string | null }
+  ): string => {
+    const tolerance = resolveReportTolerance(reportSelection?.variablesTolerancia, systemName, {
+      variableName: param.nombre,
+      variablesProcesoId: getVariablesProcesoIdFromParam(param),
+    });
+    return formatToleranceRangeDisplay(tolerance);
+  };
   
   const isValueOutOfRange = (systemName: string, parameterId: string, value: number): boolean => {
     const tolerances = (reportSelection?.variablesTolerancia?.[systemName] ?? {}) as Record<string, { limite_min?: number | null; limite_max?: number | null }>
@@ -2928,37 +2789,17 @@ export default function Reporte() {
     return false
   }
 
-  const getHistoricalCellColor = (parameterId: string, parameterName: string, value: unknown): string => {
-    const valorNum = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN
-    if (!Number.isFinite(valorNum)) return ""
-
-    const tolerances = reportSelection?.variablesTolerancia || {}
-
-    // Intentar por ID directo
-    let tolerance: any = (tolerances as any)[parameterId]
-
-    // Fallback: buscar por nombre (tol.nombre)
-    if (!tolerance) {
-      tolerance = Object.values(tolerances).find((tol: any) => {
-        if (!tol || typeof tol !== "object") return false
-        if (typeof tol.nombre !== "string") return false
-        return tol.nombre.trim().toLowerCase() === parameterName.trim().toLowerCase()
-      })
-    }
-
-    if (!tolerance || typeof tolerance !== "object") return ""
-
-    const toleranceParam = {
-      bien_min: tolerance.bien_min ?? null,
-      bien_max: tolerance.bien_max ?? null,
-      limite_min: tolerance.limite_min ?? null,
-      limite_max: tolerance.limite_max ?? null,
-      usar_limite_min: tolerance.usar_limite_min ?? false,
-      usar_limite_max: tolerance.usar_limite_max ?? false,
-    }
-
-    return getCellColor(String(valorNum), toleranceParam)
-  }
+  const getHistoricalCellColor = (
+    systemName: string,
+    param: { id: string; nombre: string; variables_proceso_id?: string | null; variable_proceso_id?: string | null },
+    value: unknown
+  ): string => {
+    const tolerance = resolveReportTolerance(reportSelection?.variablesTolerancia, systemName, {
+      variableName: param.nombre,
+      variablesProcesoId: getVariablesProcesoIdFromParam(param),
+    });
+    return getCellColorFromTolerance(value, tolerance);
+  };
   
   const formatDate = (dateStr: string): string => {
     // Si es formato YYYY-MM-DD, parsear manualmente para evitar zona horaria
@@ -3273,45 +3114,11 @@ export default function Reporte() {
                                   const systemData = reportSelection.parameters[systemName];
                                   const paramData = systemData?.[variable];
                                   
-                                  // Buscar tolerancia para esta variable
-                                  // La estructura guardada es: { [parameterId]: { nombre, ... }, [parameterName]: { nombre, ... } }
-                                  const tolerances = reportSelection?.variablesTolerancia || {};
-                                  let tolerance: any = null;
-                                  
-                                  // Estrategia de búsqueda múltiple:
-                                  // 1. Buscar por nombre de variable (key directo) - más común
-                                  if (tolerances[variable]) {
-                                    tolerance = tolerances[variable];
-                                  } 
-                                  // 2. Buscar en todos los valores por nombre
-                                  else {
-                                    tolerance = Object.values(tolerances).find((tol: any) => 
-                                      tol && typeof tol === 'object' && tol.nombre === variable
-                                    ) as any;
-                                  }
-                                  
-                                  // 3. Si aún no se encuentra, intentar búsqueda parcial (por si hay espacios o diferencias)
-                                  if (!tolerance) {
-                                    tolerance = Object.values(tolerances).find((tol: any) => 
-                                      tol && typeof tol === 'object' && 
-                                      tol.nombre && 
-                                      tol.nombre.trim().toLowerCase() === variable.trim().toLowerCase()
-                                    ) as any;
-                                  }
+                                  const tolerance = lookupCellTolerance(systemName, variable, paramData);
 
-                                  // Aplicar color según los límites
                                   let cellColor = "";
-                                  if (paramData && paramData.valor !== undefined && paramData.valor !== null && tolerance) {
-                                    const valorStr = String(paramData.valor);
-                                    const toleranceParam = {
-                                      bien_min: tolerance.bien_min ?? null,
-                                      bien_max: tolerance.bien_max ?? null,
-                                      limite_min: tolerance.limite_min ?? null,
-                                      limite_max: tolerance.limite_max ?? null,
-                                      usar_limite_min: tolerance.usar_limite_min ?? false,
-                                      usar_limite_max: tolerance.usar_limite_max ?? false
-                                    };
-                                    cellColor = getCellColor(valorStr, toleranceParam);
+                                  if (paramData?.valor != null && tolerance) {
+                                    cellColor = getCellColorFromTolerance(paramData.valor, tolerance);
                                   }
                                   
                                   // Crear objeto de estilo con backgroundColor
@@ -3698,7 +3505,7 @@ export default function Reporte() {
                                   </td>
                                   {parameters.map((param) => (
                                     <td key={param.id} className="border px-1 py-2 text-center text-xs">
-                                      {getAcceptableRange(systemName, param.id)}
+                                      {getAcceptableRange(systemName, param)}
                                     </td>
                                   ))}
                                 </tr>
@@ -3720,7 +3527,7 @@ export default function Reporte() {
                                         // Usar param.id para buscar valores (igual que historicos)
                                         const value = dateData[param.id]
                                         const valor = value && typeof value === 'object' && 'valor' in value ? value.valor : undefined
-                                        const cellColor = getHistoricalCellColor(param.id, param.nombre, valor)
+                                        const cellColor = getHistoricalCellColor(systemName, param, valor)
                                         const textColor =
                                           cellColor === "#FFC6CE" || cellColor === "#FFEB9C" ? "#000000" : undefined
                                         
@@ -3814,20 +3621,6 @@ export default function Reporte() {
                           } else {
                             orderedVariableList = Array.from(allVariables);
                           }
-                          const tolerances = reportSelection?.variablesTolerancia || {};
-                          const getTolerance = (variable: string) => {
-                            if (tolerances[variable]) return tolerances[variable] as { bien_min?: number | null; bien_max?: number | null };
-                            const byName = Object.values(tolerances).find(
-                              (tol: unknown) => tol && typeof tol === "object" && (tol as { nombre?: string }).nombre === variable
-                            ) as { bien_min?: number | null; bien_max?: number | null } | undefined;
-                            if (byName) return byName;
-                            return Object.values(tolerances).find(
-                              (tol: unknown) =>
-                                tol &&
-                                typeof tol === "object" &&
-                                (tol as { nombre?: string }).nombre?.trim().toLowerCase() === variable.trim().toLowerCase()
-                            ) as { bien_min?: number | null; bien_max?: number | null } | undefined;
-                          };
                           return orderedVariableList.map((variable) => {
                             let unidad = "";
                             for (const systemName of orderedSystemNames) {
@@ -3837,21 +3630,36 @@ export default function Reporte() {
                                 break;
                               }
                             }
-                            const tol = getTolerance(variable);
-                            const bajo = tol?.bien_min != null ? Number(tol.bien_min).toFixed(2) : "—";
-                            const alto = tol?.bien_max != null ? Number(tol.bien_max).toFixed(2) : "—";
                             return (
                               <tr key={variable} className="hover:bg-gray-50">
                                 <td className="border px-3 py-2 font-medium">{variable}</td>
                                 <td className="border px-2 py-1 text-center text-gray-600">{unidad || "—"}</td>
-                                {orderedSystemNames.flatMap((systemName) => [
-                                  <td key={`${variable}-${systemName}-bajo`} className="border px-2 py-1 text-center">
-                                    {bajo}
-                                  </td>,
-                                  <td key={`${variable}-${systemName}-alto`} className="border px-2 py-1 text-center">
-                                    {alto}
-                                  </td>,
-                                ])}
+                                {orderedSystemNames.flatMap((systemName) => {
+                                  const paramEntry = reportSelection.parameters[systemName]?.[variable];
+                                  const fromList = systemParameters[systemName]?.find((p) => p.nombre === variable);
+                                  const tol = resolveReportTolerance(
+                                    reportSelection?.variablesTolerancia,
+                                    systemName,
+                                    {
+                                      variableName: variable,
+                                      variablesProcesoId:
+                                        paramEntry?.variables_proceso_id ??
+                                        fromList?.variables_proceso_id ??
+                                        fromList?.variable_proceso_id ??
+                                        null,
+                                    }
+                                  );
+                                  const bajo = tol?.bien_min != null ? Number(tol.bien_min).toFixed(2) : "—";
+                                  const alto = tol?.bien_max != null ? Number(tol.bien_max).toFixed(2) : "—";
+                                  return [
+                                    <td key={`${variable}-${systemName}-bajo`} className="border px-2 py-1 text-center">
+                                      {bajo}
+                                    </td>,
+                                    <td key={`${variable}-${systemName}-alto`} className="border px-2 py-1 text-center">
+                                      {alto}
+                                    </td>,
+                                  ];
+                                })}
                               </tr>
                             );
                           });
