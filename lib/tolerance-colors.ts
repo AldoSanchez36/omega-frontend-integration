@@ -187,6 +187,61 @@ export function getCellColorFromTolerance(
   return ""
 }
 
+export interface ChartLimitLine {
+  value: number
+  label: string
+  color: string
+  strokeDasharray: string
+  kind: "bien" | "critical"
+}
+
+export interface ChartToleranceBand {
+  min: number
+  max: number
+}
+
+/** Líneas horizontales de referencia para gráficos históricos (bien + límites críticos activos). */
+export function getChartLimitLines(
+  tolerance: ToleranceData | null | undefined
+): ChartLimitLine[] {
+  if (!tolerance) return []
+
+  const lines: ChartLimitLine[] = []
+  const add = (
+    value: number | null | undefined,
+    label: string,
+    color: string,
+    strokeDasharray: string,
+    kind: ChartLimitLine["kind"]
+  ) => {
+    if (value == null || !Number.isFinite(Number(value))) return
+    lines.push({ value: Number(value), label, color, strokeDasharray, kind })
+  }
+
+  add(tolerance.bien_min, "Bien mín.", "#15803d", "8,5", "bien")
+  add(tolerance.bien_max, "Bien máx.", "#15803d", "8,5", "bien")
+
+  if (tolerance.usar_limite_min) {
+    add(tolerance.limite_min, "Crít. mín.", "#dc2626", "5,4", "critical")
+  }
+  if (tolerance.usar_limite_max) {
+    add(tolerance.limite_max, "Crít. máx.", "#dc2626", "5,4", "critical")
+  }
+
+  return lines
+}
+
+/** Banda verde entre bien_min y bien_max para sombrear el rango aceptable. */
+export function getChartToleranceBand(
+  tolerance: ToleranceData | null | undefined
+): ChartToleranceBand | null {
+  if (!tolerance) return null
+  const { bien_min, bien_max } = tolerance
+  if (bien_min == null || bien_max == null) return null
+  if (!Number.isFinite(bien_min) || !Number.isFinite(bien_max)) return null
+  return { min: Math.min(bien_min, bien_max), max: Math.max(bien_min, bien_max) }
+}
+
 export function formatToleranceRangeDisplay(tolerance: ToleranceData | null): string {
   if (!tolerance) return "—"
 

@@ -14,12 +14,15 @@ import {
   buildToleranceDataFromRaw,
   formatToleranceRangeDisplay,
   getCellColorFromTolerance,
+  getChartLimitLines,
+  getChartToleranceBand,
 } from "@/lib/tolerance-colors"
 import { parseReportDatosJsonb } from "@/lib/report-usuario-display"
 import { authService } from "@/services/authService"
 import { useEmpresasAccess } from "@/hooks/useEmpresasAccess"
 import TabbedSelectorHistoricos from "./components/TabbedSelectorHistoricos"
 import { ParameterChartCard } from "./components/ParameterChartCard"
+import { HistoricalDataTable } from "./components/HistoricalDataTable"
 import ScrollArrow from "../reportmanager/components/ScrollArrow"
 
 // Interfaces
@@ -657,21 +660,34 @@ export default function HistoricosPage() {
 
           {/* Gráficos por parámetro del sistema seleccionado (entre filtros y tabla) */}
           {selectedSystem && parameters.length > 0 && !historicalLoading && !historicalError && sortedDates.length > 0 && (
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>
-                  Gráficos por parámetro - {selectedSystemData?.nombre}
+            <Card className="mb-6 border border-border/60 overflow-hidden shadow-sm">
+              <CardHeader className="border-b border-border/40 bg-muted/30 py-3">
+                <CardTitle className="text-base font-semibold">
+                  Gráficos por parámetro — {selectedSystemData?.nombre}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="px-2 sm:px-4">
+              <CardContent className="px-2 sm:px-4 py-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {sortedParameters.map((param) => (
-                    <ParameterChartCard
-                      key={param.id}
-                      param={{ id: param.id, nombre: param.nombre, unidad: param.unidad }}
-                      data={chartSeriesByParam[param.id] ?? []}
-                    />
-                  ))}
+                  {sortedParameters.map((param) => {
+                    const tol = getToleranceForParameter(param)
+                    const toleranceData = tol
+                      ? buildToleranceDataFromRaw(
+                          tol as unknown as Record<string, unknown>,
+                          param.nombre,
+                          { variables_proceso_id: getTargetVariablesProcesoId(param) }
+                        )
+                      : null
+
+                    return (
+                      <ParameterChartCard
+                        key={param.id}
+                        param={{ id: param.id, nombre: param.nombre, unidad: param.unidad }}
+                        data={chartSeriesByParam[param.id] ?? []}
+                        limitLines={getChartLimitLines(toleranceData)}
+                        toleranceBand={getChartToleranceBand(toleranceData)}
+                      />
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -679,142 +695,38 @@ export default function HistoricosPage() {
 
           {/* Tabla Histórica */}
           {selectedSystem && parameters.length > 0 && (
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>
-                  Historial de Reportes - {selectedSystemData?.nombre}
+            <Card className="mb-6 border border-border/60 overflow-hidden shadow-sm">
+              <CardHeader className="border-b border-border/40 bg-muted/30 py-3">
+                <CardTitle className="text-base font-semibold">
+                  Historial de Reportes — {selectedSystemData?.nombre}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="px-2 sm:px-4">
+              <CardContent className="px-2 sm:px-4 py-4">
                 {historicalLoading ? (
-                  <div className="flex items-center justify-center py-10">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
                   </div>
                 ) : historicalError ? (
-                  <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                    <p className="text-sm text-red-700">{historicalError}</p>
+                  <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3">
+                    <p className="text-sm text-rose-700">{historicalError}</p>
                   </div>
                 ) : sortedDates.length === 0 ? (
-                  <div className="text-center py-10 text-gray-500">
+                  <div className="text-center py-12 text-muted-foreground text-sm">
                     No se encontraron datos históricos para el rango de fechas seleccionado.
                   </div>
                 ) : (
-                  <div className="w-full">
-                    <table className="w-full border border-gray-300 bg-white text-xs table-fixed">
-                      <thead>
-                        <tr className="bg-blue-800 text-white">
-                          <th className="border px-2 py-2 text-left font-semibold w-24">
-                            PARAMETROS
-                          </th>
-                          {sortedParameters.map((param) => (
-                            <th key={param.id} className="border px-1 py-2 text-center font-semibold">
-                              <div className="text-xs">{param.nombre}</div>
-                              {param.unidad != null && String(param.unidad).trim() !== "" && (
-                                <div className="text-xs font-normal">({param.unidad})</div>
-                              )}
-                            </th>
-                          ))}
-                          <th className="border px-2 py-2 text-left font-semibold w-32">COMENTARIOS</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {/* Fila ALTO */}
-                        <tr className="bg-green-100">
-                          <td className="border px-2 py-2 font-semibold bg-green-100">
-                            ALTO
-                          </td>
-                          {sortedParameters.map((param) => {
-                            return (
-                              <td key={param.id} className="border px-1 py-2 text-center text-xs">
-                                {highLowValues[param.id]?.alto.toFixed(2) || "—"}
-                              </td>
-                            )
-                          })}
-                          <td className="border px-2 py-2 text-xs">—</td>
-                        </tr>
-                        {/* Fila BAJO */}
-                        <tr className="bg-green-100">
-                          <td className="border px-2 py-2 font-semibold bg-green-100">
-                            BAJO
-                          </td>
-                          {sortedParameters.map((param) => {
-                            return (
-                              <td key={param.id} className="border px-1 py-2 text-center text-xs">
-                                {highLowValues[param.id]?.bajo.toFixed(2) || "—"}
-                              </td>
-                            )
-                          })}
-                          <td className="border px-2 py-2 text-xs">—</td>
-                        </tr>
-                        {/* Fila PROMEDIO */}
-                        <tr className="bg-green-100">
-                          <td className="border px-2 py-2 font-semibold bg-green-100">
-                            PROMEDIO
-                          </td>
-                          {sortedParameters.map((param) => {
-                            return (
-                              <td key={param.id} className="border px-1 py-2 text-center text-xs">
-                                {averageValues[param.id] && averageValues[param.id] > 0
-                                  ? averageValues[param.id].toFixed(2)
-                                  : "—"}
-                              </td>
-                            )
-                          })}
-                          <td className="border px-2 py-2 text-xs">—</td>
-                        </tr>
-                        {/* Fila RANGOS */}
-                        <tr className="bg-blue-800 text-white">
-                          <td className="border px-2 py-2 font-semibold bg-blue-800">
-                            FECHA/RANGOS
-                          </td>
-                          {sortedParameters.map((param) => (
-                            <td key={param.id} className="border px-1 py-2 text-center text-xs">
-                              {getAcceptableRange(param)}
-                            </td>
-                          ))}
-                          <td className="border px-2 py-2 text-xs">—</td>
-                        </tr>
-                        {/* Filas de datos por fecha */}
-                        {sortedDates.map((fecha, index) => {
-                          const dateData = historicalData[fecha]
-                          const isEven = index % 2 === 0
-                          return (
-                            <tr
-                              key={fecha}
-                              className={isEven ? "bg-green-50" : "bg-pink-50"}
-                            >
-                              <td className={`border px-2 py-2 font-medium text-xs ${
-                                isEven ? "bg-green-50" : "bg-pink-50"
-                              }`}>
-                                {formatDate(fecha)}
-                              </td>
-                              {sortedParameters.map((param) => {
-                                const value = dateData[param.id]
-                                const valor = value && typeof value === 'object' && 'valor' in value ? value.valor : undefined
-                                const cellColor = getHistoricalCellColor(param, valor)
-                                const textColor = cellColor === "#FFC6CE" || cellColor === "#FFEB9C" ? "#000000" : undefined
-                                
-                                return (
-                                  <td
-                                    key={param.id}
-                                    className="border px-1 py-2 text-center text-xs"
-                                    style={cellColor ? { backgroundColor: cellColor, color: textColor } : undefined}
-                                  >
-                                    {formatNumber(valor)}
-                                  </td>
-                                )
-                              })}
-                              <td className={`border px-2 py-2 text-xs ${
-                                isEven ? "bg-green-50" : "bg-pink-50"
-                              }`}>
-                                {parseCommentDisplay(dateData.comentarios_globales)}
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <HistoricalDataTable
+                    parameters={sortedParameters}
+                    dates={sortedDates}
+                    dataByDate={historicalData}
+                    highLowValues={highLowValues}
+                    averageValues={averageValues}
+                    getAcceptableRange={getAcceptableRange}
+                    getCellColor={getHistoricalCellColor}
+                    formatDate={formatDate}
+                    formatNumber={formatNumber}
+                    parseCommentDisplay={parseCommentDisplay}
+                  />
                 )}
               </CardContent>
             </Card>
