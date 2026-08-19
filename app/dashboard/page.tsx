@@ -18,6 +18,7 @@ import Navbar from "@/components/Navbar"
 import { QuickActions as AdminQuickActions } from "@/app/dashboard/buttons/admin"
 import { QuickActions as UserQuickActions } from "@/app/dashboard/buttons/user"
 import { QuickActions as ClientQuickActions } from "@/app/dashboard/buttons/client"
+import { QuickActions as AnalistaQuickActions } from "@/app/dashboard/buttons/analista"
 import axios from "axios"
 import StatsCards from "./StatsCards";
 import ChartsDashboard from "@/components/chartsDashboard";
@@ -124,7 +125,13 @@ export default function Dashboard() {
       if (storedUser) {
         const userData = JSON.parse(storedUser)
         setUser(userData)
-        setUserRole(userData.puesto || "user")
+        const puesto = String(userData.puesto || "user").toLowerCase() as
+          | "admin"
+          | "user"
+          | "client"
+          | "guest"
+          | "analista"
+        setUserRole(puesto)
         /* addDebugLog(`Usuario cargado: ${userData.username}`) */
       } else {
         router.push("/login")
@@ -855,6 +862,12 @@ export default function Dashboard() {
           <UserQuickActions
             handleNewReport={handleNewReport}
             handleNewSystem={handleNewSystem}
+          />
+        )}
+        {userRole === "analista" && (
+          <AnalistaQuickActions
+            handleNewReport={handleNewReport}
+            handleNavigateToHistoricos={handleNavigateToHistoricos}
           />
         )}
         {userRole === "client" && (

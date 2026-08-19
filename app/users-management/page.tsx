@@ -92,6 +92,10 @@ export default function UsersManagement() {
   const [permisosError, setPermisosError] = useState<string | null>(null);
   const [permisosSuccess, setPermisosSuccess] = useState<string | null>(null);
 
+  // Empresas disponibles para los modales de crear/editar usuario
+  const [empresasOptions, setEmpresasOptions] = useState<{ id: string; nombre: string }[]>([])
+  const [empresasOptionsLoading, setEmpresasOptionsLoading] = useState(false)
+
   // Estados para filtros
   const [filtroUsuario, setFiltroUsuario] = useState("")
   const [filtroEmail, setFiltroEmail] = useState("")
@@ -217,6 +221,70 @@ export default function UsersManagement() {
         setEmpresasModal([]);
       });
   }, [showPermissionModal, selectedUserForPermissions, isAdmin]);
+
+  // Cargar empresas disponibles al abrir modal de editar o crear usuario
+  useEffect(() => {
+    if (!showEditModal && !showCreateModal) return
+
+    const token = typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null
+    if (!token) return
+
+    let cancelled = false
+    setEmpresasOptionsLoading(true)
+
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.EMPRESAS_ALL}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        const raw = data.empresas || data || []
+        const mapped = (Array.isArray(raw) ? raw : [])
+          .map((e: { id?: string; _id?: string; nombre?: string }) => ({
+            id: String(e.id ?? e._id ?? ""),
+            nombre: String(e.nombre ?? "").trim(),
+          }))
+          .filter((e: { id: string; nombre: string }) => e.id && e.nombre)
+          .sort((a: { nombre: string }, b: { nombre: string }) =>
+            a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" })
+          )
+
+        // Si el usuario tiene una empresa que ya no está en la lista, incluirla para no perder el valor
+        if (showEditModal && selectedUserForEdit?.empresa) {
+          const currentEmpresa = selectedUserForEdit.empresa.trim()
+          const exists = mapped.some(
+            (e: { nombre: string }) =>
+              e.nombre.toLowerCase() === currentEmpresa.toLowerCase()
+          )
+          if (!exists && currentEmpresa) {
+            mapped.unshift({ id: `__current__${currentEmpresa}`, nombre: currentEmpresa })
+          }
+        }
+
+        setEmpresasOptions(mapped)
+
+        // Normalizar empresa del usuario editado al nombre exacto de la lista
+        if (showEditModal && selectedUserForEdit?.empresa) {
+          const currentEmpresa = selectedUserForEdit.empresa
+          const match = mapped.find(
+            (e: { nombre: string }) =>
+              e.nombre.toLowerCase() === currentEmpresa.toLowerCase()
+          )
+          if (match) setEditEmpresa(match.nombre)
+        }
+      })
+      .catch((error) => {
+        console.error("⚠️ Error fetching empresas para modal de usuario:", error)
+        if (!cancelled) setEmpresasOptions([])
+      })
+      .finally(() => {
+        if (!cancelled) setEmpresasOptionsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [showEditModal, showCreateModal, selectedUserForEdit]);
 
   // Fetch plantas cuando se selecciona una empresa
   useEffect(() => {
@@ -396,7 +464,7 @@ export default function UsersManagement() {
   // Función para validar contraseña en tiempo real
   const validatePassword = (password: string, confirmPassword?: string) => {
     const hasLength = password.length >= 8
-    const hasSpecial = /[.!\"#$%&/()=?|´+{},.\-;:_]/.test(password)
+    const hasSpecial = /[.@!\"#$%&/()=?|´+{},.\-;:_]/.test(password)
     const matches = password === (confirmPassword || createConfirmPassword) && password !== ""
     
     setPasswordValidation({
@@ -510,7 +578,7 @@ export default function UsersManagement() {
   }
 
   // Modal handlers crear usuario
-  const openCreateModal = () => {
+  const resetCreateForm = () => {
     setCreateUsername("")
     setCreateEmail("")
     setCreatePassword("")
@@ -522,16 +590,19 @@ export default function UsersManagement() {
     setPasswordValidation({
       length: false,
       specialChar: false,
-      match: false
+      match: false,
     })
     setShowCreatePassword(false)
+  }
+
+  const openCreateModal = () => {
+    resetCreateForm()
     setShowCreateModal(true)
   }
 
   const closeCreateModal = () => {
     setShowCreateModal(false)
-    setCreateError(null)
-    setCreateSuccess(null)
+    resetCreateForm()
   }
 
   // Modal handlers eliminar usuario
@@ -568,7 +639,7 @@ export default function UsersManagement() {
       return
     }
 
-    const hasSpecial = /[.!\"#$%&/()=?|´+{},.\-;:_]/.test(createPassword)
+    const hasSpecial = /[.@!\"#$%&/()=?|´+{},.\-;:_]/.test(createPassword)
     if (!hasSpecial) {
       setCreateError("La contraseña debe contener al menos un carácter especial")
       return
@@ -613,12 +684,24 @@ export default function UsersManagement() {
         return
       }
   
-      const data = await res.json()
+      await res.json()
       setCreateSuccess("Usuario creado exitosamente")
-      
+
       // Recargar lista de usuarios
-      // ... código existente para recargar usuarios
-      
+      try {
+        const usersRes = await axios.get(`${API_BASE_URL}${API_ENDPOINTS.USERS}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const usersData = (
+          Array.isArray(usersRes.data)
+            ? usersRes.data
+            : usersRes.data.users || usersRes.data.usuarios || []
+        ).map((u: { id?: string; _id?: string }) => ({ ...u, id: u.id || u._id }))
+        setUsers(usersData)
+      } catch (reloadError) {
+        console.error("Error al recargar usuarios:", reloadError)
+      }
+
       setTimeout(() => {
         closeCreateModal()
       }, 1500)
@@ -1058,7 +1141,7 @@ export default function UsersManagement() {
               <div className="flex gap-2">
                 <button 
                   className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition flex items-center"
-                  onClick={() => setShowCreateModal(true)}
+                  onClick={openCreateModal}
                 >
                   <span className="material-icons align-middle mr-1">person_add</span>
                   Agregar Usuario
@@ -1414,12 +1497,34 @@ export default function UsersManagement() {
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
-                            <Input
-                              value={editEmpresa}
-                              onChange={e => setEditEmpresa(e.target.value)}
-                              placeholder="Nombre de la empresa"
-                              className="w-full"
-                            />
+                            <Select
+                              value={editEmpresa || undefined}
+                              onValueChange={setEditEmpresa}
+                              disabled={empresasOptionsLoading}
+                            >
+                              <SelectTrigger className="w-full" aria-label="Seleccionar empresa">
+                                <SelectValue
+                                  placeholder={
+                                    empresasOptionsLoading
+                                      ? "Cargando empresas..."
+                                      : "Seleccione una empresa"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent className="bg-[#f6f6f6] text-gray-900 max-h-60">
+                                {empresasOptions.length === 0 && !empresasOptionsLoading ? (
+                                  <SelectItem value="__empty__" disabled>
+                                    No hay empresas disponibles
+                                  </SelectItem>
+                                ) : (
+                                  empresasOptions.map((empresa) => (
+                                    <SelectItem key={empresa.id} value={empresa.nombre}>
+                                      {empresa.nombre}
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
                           </div>
                           {editError && <div className="text-red-600 text-sm">{editError}</div>}
                           {editSuccess && <div className="text-green-600 text-sm">{editSuccess}</div>}
@@ -1562,12 +1667,34 @@ export default function UsersManagement() {
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
-                            <Input
-                              value={createEmpresa}
-                              onChange={e => setCreateEmpresa(e.target.value)}
-                              placeholder="Nombre de la empresa"
-                              className="w-full"
-                            />
+                            <Select
+                              value={createEmpresa || undefined}
+                              onValueChange={setCreateEmpresa}
+                              disabled={empresasOptionsLoading}
+                            >
+                              <SelectTrigger className="w-full" aria-label="Seleccionar empresa">
+                                <SelectValue
+                                  placeholder={
+                                    empresasOptionsLoading
+                                      ? "Cargando empresas..."
+                                      : "Seleccione una empresa"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent className="bg-[#f6f6f6] text-gray-900 max-h-60">
+                                {empresasOptions.length === 0 && !empresasOptionsLoading ? (
+                                  <SelectItem value="__empty__" disabled>
+                                    No hay empresas disponibles
+                                  </SelectItem>
+                                ) : (
+                                  empresasOptions.map((empresa) => (
+                                    <SelectItem key={empresa.id} value={empresa.nombre}>
+                                      {empresa.nombre}
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
                           </div>
                           {createError && <div className="text-red-600 text-sm">{createError}</div>}
                           {createSuccess && <div className="text-green-600 text-sm">{createSuccess}</div>}

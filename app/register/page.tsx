@@ -55,9 +55,9 @@ export default function RegisterScreen() {
         return
       }
       // Validate new password contains at least one special character from the set .!"#$%&/()=?|´+{},.-;:_
-      const hasSpecial = /[.!\"#$%&/()=?|´+{},.\-;:_]/.test(formData.newPassword)
+      const hasSpecial = /[.@!\"#$%&/()=?|´+{},.\-;:_]/.test(formData.newPassword)
       if (!hasSpecial) {
-        setError(language === "es" ? "La nueva contraseña debe contener al menos un carácter especial como .!\"#$%&/()=?|´+{},.-;:_" : "New password must contain at least one special character like .!\"#$%&/()=?|´+{},.-;:_")
+        setError(language === "es" ? "La nueva contraseña debe contener al menos un carácter especial como @.!\"#$%&/()=?|´+{},.-;:_" : "New password must contain at least one special character like @.!\"#$%&/()=?|´+{},.-;:_")
         return
       }
       // Validate new password and confirmNewPassword match
@@ -213,11 +213,11 @@ export default function RegisterScreen() {
             <span>La contraseña tiene al menos 8 caracteres</span>
           </div>
           <div className={`condition has-all-characters ${
-            /[.!\"#$%&/()=?|´+{},.\-;:_]/.test(formData.password) ? 'valid' : 'invalid'}`}>
+            /[.@!\"#$%&/()=?|´+{},.\-;:_]/.test(formData.password) ? 'valid' : 'invalid'}`}>
             <span className="icon">{
-              /[.!\"#$%&/()=?|´+{},.\-;:_]/.test(formData.password) ? "✅" : "❌"
+              /[.@!\"#$%&/()=?|´+{},.\-;:_]/.test(formData.password) ? "✅" : "❌"
             }</span>
-            <span>La contraseña contiene al menos un carácter especial como .!"#$%&/()=?|´+{},.-;:_</span>
+            <span>La contraseña contiene al menos un carácter especial como @.!"#$%&/()=?|´+{},.-;:_</span>
           </div>
           <div className={`condition passwords-match ${formData.password === formData.confirmPassword && formData.password !== "" ? 'valid' : 'invalid'}`}>
             <span className="icon">{formData.password === formData.confirmPassword && formData.password !== "" ? "✅" : "❌"}</span>
@@ -258,11 +258,11 @@ export default function RegisterScreen() {
                 <span>La contraseña tiene al menos 8 caracteres</span>
               </div>
               <div className={`condition has-all-characters ${
-                /[.!\"#$%&/()=?|´+{},.\-;:_]/.test(formData.newPassword) ? 'valid' : 'invalid'}`}>
+                /[.@!\"#$%&/()=?|´+{},.\-;:_]/.test(formData.newPassword) ? 'valid' : 'invalid'}`}>
                 <span className="icon">{
-                  /[.!\"#$%&/()=?|´+{},.\-;:_]/.test(formData.newPassword) ? "✅" : "❌"
+                  /[.@!\"#$%&/()=?|´+{},.\-;:_]/.test(formData.newPassword) ? "✅" : "❌"
                 }</span>
-                <span>La contraseña contiene al menos un carácter especial como .!"#$%&/()=?|´+{},.-;:_</span>
+                <span>La contraseña contiene al menos un carácter especial como @.!"#$%&/()=?|´+{},.-;:_</span>
               </div>
               <div className={`condition passwords-match ${formData.newPassword === formData.confirmNewPassword && formData.newPassword !== "" ? 'valid' : 'invalid'}`}>
                 <span className="icon">{formData.newPassword === formData.confirmNewPassword && formData.newPassword !== "" ? "✅" : "❌"}</span>
