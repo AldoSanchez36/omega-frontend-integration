@@ -98,3 +98,28 @@ export function formatCalendarDate(dateStr: string, options: FormatCalendarDateO
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString(locale, fmt)
 }
 
+/** Máximo de puntos (fechas con dato) en gráficos de un reporte guardado. */
+export const REPORT_CHART_MAX_POINTS = 15
+
+/**
+ * Conserva solo las últimas `n` fechas con dato, sin superar `endDateYmd`.
+ * Sirve para gráficos de reportes: no mostrar mediciones posteriores y limitar a 15 puntos.
+ */
+export function takeLastNUniqueDates<T extends { fecha: string }>(
+  rows: T[],
+  endDateYmd: string | null,
+  n: number = REPORT_CHART_MAX_POINTS
+): T[] {
+  const end = endDateYmd || "9999-12-31"
+  const withYmd = rows
+    .map((row) => ({ row, ymd: normalizeToYmd(row.fecha) }))
+    .filter((item): item is { row: T; ymd: string } => Boolean(item.ymd) && item.ymd <= end)
+
+  const uniqueDates = [...new Set(withYmd.map((item) => item.ymd))].sort()
+  const allowed = new Set(uniqueDates.slice(-n))
+
+  return withYmd
+    .filter((item) => allowed.has(item.ymd))
+    .map((item) => ({ ...item.row, fecha: item.ymd }))
+}
+
