@@ -5,6 +5,7 @@ import {
   resolveReportUsuarioDisplay,
   type UserLookupEntry,
 } from "@/lib/report-usuario-display";
+import { resolveReportPublicationStatus } from "@/lib/report-status";
 
 const reportUsuarioPlaceholder = { missingDisplayName: "Default", missingPuesto: "Default" } as const;
 
@@ -42,13 +43,29 @@ export function formatDashboardReportRow(
     (report.fecha as string | undefined) ||
     (report.created_at as string | undefined);
 
+  const plantaId = (report.planta_id || plantFromDatos.id || "planta-unknown") as string
+  const estatus = resolveReportPublicationStatus({
+    id: report.id != null ? String(report.id) : null,
+    planta_id: plantaId,
+    fecha: fechaReporte,
+    estatus: report.estatus,
+    estado: report.estado,
+    status: report.status,
+    datos: datosMerged as {
+      estatus?: unknown
+      estado?: unknown
+      status?: unknown
+      fecha?: string | null
+    },
+  })
+
   return {
     id: String(report.id ?? ""),
     fecha: fechaReporte,
     title: (report.titulo || report.nombre || `Reporte ${report.id}`) as string,
     plantName: (plantFromDatos.nombre || report.plantName || report.planta || "Planta no especificada") as string,
     systemName: (datosMerged.systemName || report.systemName || report.sistema || "Sistema no especificado") as string,
-    status: (report.estado || report.status || "completed") as string,
+    status: estatus,
     created_at: (datosMerged.generatedDate ||
       report.fechaGeneracion ||
       report.generada_en ||
@@ -56,9 +73,9 @@ export function formatDashboardReportRow(
       report.created_at ||
       new Date().toISOString()) as string,
     usuario_id: resolved.usuario_id,
-    planta_id: (report.planta_id || plantFromDatos.id || "planta-unknown") as string,
+    planta_id: plantaId,
     proceso_id: (report.proceso_id || "sistema-unknown") as string,
-    estatus: typeof report.estatus === "boolean" ? report.estatus : false,
+    estatus,
     datos: datosMerged,
     observaciones: (datosMerged.comentarios || report.comentarios || report.observaciones || "") as string,
     usuario: resolved.usuario,

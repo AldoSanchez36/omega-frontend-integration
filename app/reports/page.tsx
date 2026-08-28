@@ -26,6 +26,7 @@ import {
   resolveReportTolerance,
   type ToleranceData,
 } from "@/lib/tolerance-colors"
+import { normalizeReportStatus } from "@/lib/report-status"
 
 
 /**
@@ -141,6 +142,8 @@ interface ReportSelection {
   parameterOrder?: string[];
   /** Orden de sistemas/columnas (mismo propósito) */
   systemOrder?: string[];
+  /** 0 pendiente, 1 listo, 2 completado */
+  estatus?: number;
 }
 
 /** Texto display del nombre de empresa según distintas formas de respuesta del backend */
@@ -1071,6 +1074,7 @@ export default function Reporte() {
         // Campos requeridos por el backend
         planta_id: reportSelection.plant?.id,
         usuario_id: reportSelection.user?.id,
+        estatus: normalizeReportStatus(reportSelection.estatus),
         // Mantener parameterComments para compatibilidad (pero el backend usará comentarios)
         parameterComments: parameterComments || {}
       }

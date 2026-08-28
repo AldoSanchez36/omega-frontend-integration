@@ -23,6 +23,7 @@ import axios from "axios"
 import StatsCards from "./StatsCards";
 import ChartsDashboard from "@/components/chartsDashboard";
 import RecentReportsTable from "@/components/RecentReportsTable";
+import type { ReportStatusCode } from "@/lib/report-status";
 
 // Add type declaration for window.bootstrap
 declare global {
@@ -80,7 +81,8 @@ interface Report {
   title?: string
   plantName?: string
   systemName?: string
-  status?: string
+  status?: ReportStatusCode
+  estatus?: ReportStatusCode
 }
 
 export default function Dashboard() {
@@ -453,11 +455,13 @@ export default function Dashboard() {
 
 
   const getStatusColor = (status: string) => {
+    // Compatibilidad: chartsDashboard / plantas aún pueden usar active/maintenance
     switch (status) {
       case "active":
       case "online":
       case "completed":
         return "bg-success"
+      case "ready_to_publish":
       case "maintenance":
       case "pending":
         return "bg-warning"

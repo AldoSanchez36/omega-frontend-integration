@@ -9,6 +9,12 @@ import {
   type ToleranceData,
 } from '@/lib/tolerance-colors';
 import { useFormulas } from './useFormulas';
+import {
+  normalizeReportStatus,
+  REPORT_STATUS_DEFAULT,
+  setLocalReportStatus,
+  type ReportPublicationStatus,
+} from '@/lib/report-status';
 
 interface Measurement {
   fecha: string;
@@ -63,6 +69,8 @@ interface ReportData {
   };
   chartStartDate?: string; // Fecha inicio para gráficos
   chartEndDate?: string; // Fecha fin para gráficos
+  /** Estatus de publicación: 0 pendiente, 1 listo, 2 completado */
+  estatus?: ReportPublicationStatus;
 }
 
 interface Parameter {
@@ -101,6 +109,7 @@ export function useMeasurements(
   parameterComments?: Record<string, string>, // Comentarios por parámetro
   chartStartDate?: string, // Fecha inicio para gráficos
   chartEndDate?: string, // Fecha fin para gráficos
+  reportPublicationStatus?: ReportPublicationStatus,
   onSaveSuccess?: (reportData: ReportData) => void
 ) {
   const [medicionesPreview, setMedicionesPreview] = useState<Measurement[]>([]);
@@ -161,6 +170,7 @@ export function useMeasurements(
         parameterComments: parameterComments || {},
         chartStartDate: chartStartDate || "", // Incluir fecha inicio de gráficos
         chartEndDate: chartEndDate || "", // Incluir fecha fin de gráficos
+        estatus: normalizeReportStatus(reportPublicationStatus ?? REPORT_STATUS_DEFAULT),
       };
 
       // Agregar parámetros de TODOS los sistemas de la planta
@@ -309,6 +319,14 @@ export function useMeasurements(
 
       // Guardar en localStorage (como antes)
       localStorage.setItem("reportSelection", JSON.stringify(reportData));
+
+      setLocalReportStatus(
+        {
+          planta_id: selectedPlant?.id ?? null,
+          fecha: reportData.fecha,
+        },
+        normalizeReportStatus(reportData.estatus)
+      );
       
       // Contar parámetros totales de todos los sistemas
       let totalParameters = 0;
@@ -328,7 +346,7 @@ export function useMeasurements(
     } finally {
       setIsSaving(false);
     }
-  }, [token, selectedUserId, selectedUser, selectedPlant, selectedSystemData, parameters, medicionesPreview, tolerancias, globalFecha, globalComentarios, limitsState, allSystems, allParameters, parameterValuesBySystem, chartStartDate, chartEndDate, onSaveSuccess]);
+  }, [token, selectedUserId, selectedUser, selectedPlant, selectedSystemData, parameters, medicionesPreview, tolerancias, globalFecha, globalComentarios, limitsState, allSystems, allParameters, parameterValuesBySystem, chartStartDate, chartEndDate, reportPublicationStatus, onSaveSuccess]);
 
   return {
     medicionesPreview,

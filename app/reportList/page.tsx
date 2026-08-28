@@ -14,6 +14,12 @@ import { buildReportesQueryParams } from "@/lib/report-api-params";
 import { formatDashboardReportRow } from "@/lib/format-report-from-api";
 import { loadFullReportSelection } from "@/lib/load-report-detail";
 import { formatCalendarDate, normalizeToYmd } from "@/lib/date";
+import {
+  getReportStatusLabel,
+  isReportVisibleToClient,
+  normalizeReportStatus,
+} from "@/lib/report-status";
+import type { ReportStatusCode } from "@/lib/report-status";
 
 interface Reporte {
   id: string;
@@ -23,8 +29,8 @@ interface Reporte {
   usuario: string;
   fecha: string;
   estado: string;
-  /** Habilitado para que se pueda ver el reporte (solo se listan los que tienen estatus true) */
-  estatus?: boolean;
+  /** 0 pendiente, 1 listo, 2 completado (clientes solo ven estatus 2) */
+  estatus?: ReportStatusCode;
   comentarios: string;
   fechaGeneracion: string;
   usuario_id: string;
@@ -152,8 +158,8 @@ export default function ReportList() {
               sistema: row.systemName,
               usuario: row.usuario,
               fecha: (row.datos as { fecha?: string })?.fecha || reporte.fecha || new Date().toISOString().split("T")[0],
-              estado: reporte.estado || "Completado",
-              estatus: row.estatus,
+              estado: getReportStatusLabel(row.estatus ?? row.status),
+              estatus: normalizeReportStatus(row.estatus ?? row.status),
               comentarios: row.observaciones,
               fechaGeneracion: row.created_at,
               usuario_id: row.usuario_id,
@@ -161,7 +167,7 @@ export default function ReportList() {
               datosJsonb: row.datos as Reporte["datosJsonb"],
             };
           })
-          .filter((r: Reporte) => r.estatus === true);
+          .filter((r: Reporte) => isReportVisibleToClient(r.estatus));
 
         setReportes(reportesFormateados);
       } else {
@@ -222,6 +228,8 @@ export default function ReportList() {
       case "completado":
       case "completed":
         return "bg-gradient-to-r from-green-500 to-emerald-500";
+      case "listo para publicar":
+        return "bg-gradient-to-r from-amber-400 to-orange-400";
       case "pendiente":
       case "pending":
         return "bg-gradient-to-r from-yellow-500 to-orange-500";

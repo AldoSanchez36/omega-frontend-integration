@@ -22,6 +22,14 @@ import ParametersList from "./components/ParametersList"
 import Charts from "./components/Charts"
 import ScrollArrow from "./components/ScrollArrow"
 import { parseComentariosForDisplay } from "./utils"
+import {
+  REPORT_STATUS_COMPLETED,
+  REPORT_STATUS_DEFAULT,
+  REPORT_STATUS_OPTIONS,
+  REPORT_STATUS_READY,
+  setLocalReportStatus,
+  type ReportPublicationStatus,
+} from "@/lib/report-status"
 
 // Interfaces
 interface User {
@@ -268,6 +276,7 @@ export default function ReportManager() {
   // Estado para controlar la previsualización de datos guardados
   const [savedReportData, setSavedReportData] = useState<any>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [reportPublicationStatus, setReportPublicationStatus] = useState<ReportPublicationStatus>(REPORT_STATUS_DEFAULT);
 
     // Estado para sistemas por parámetro
   const [sistemasPorParametro, setSistemasPorParametro] = useState<Record<string, string[]>>({});
@@ -584,6 +593,7 @@ export default function ReportManager() {
     {}, // parameterComments - comentarios eliminados
     chartStartDate, // Pasar fecha inicio de gráficos
     chartEndDate, // Pasar fecha fin de gráficos
+    reportPublicationStatus,
     (reportData) => {
       // Callback cuando se guardan exitosamente los datos
       setSavedReportData(reportData);
@@ -797,6 +807,14 @@ export default function ReportManager() {
       if (!reportData.chartEndDate) {
         reportData.chartEndDate = chartEndDate;
       }
+      reportData.estatus = reportPublicationStatus;
+      setLocalReportStatus(
+        {
+          planta_id: selectedPlant?.id ?? reportData.plant?.id ?? null,
+          fecha: reportData.fecha,
+        },
+        reportPublicationStatus
+      );
       
       localStorage.setItem("reportSelection", JSON.stringify(reportData));
       router.push("/reports");
@@ -827,6 +845,7 @@ export default function ReportManager() {
       empresa_id: selectedEmpresa?.id || null,
       chartStartDate: chartStartDate, // Incluir fecha inicio de gráficos
       chartEndDate: chartEndDate, // Incluir fecha fin de gráficos
+      estatus: reportPublicationStatus,
     };
     
     localStorage.setItem("reportSelection", JSON.stringify(reportSelection));
@@ -939,6 +958,37 @@ export default function ReportManager() {
                   <label className="text-sm text-gray-500">Seleccione una fecha para guardar los datos</label>
                 )}
                 <hr className="my-2 invisible" ></hr>
+                <div className="mb-4 flex flex-wrap items-center gap-3">
+                  <label htmlFor="report-publication-status" className="text-sm font-medium text-gray-700">
+                    Estado del reporte
+                  </label>
+                  <select
+                    id="report-publication-status"
+                    className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    value={reportPublicationStatus}
+                    onChange={(e) =>
+                      setReportPublicationStatus(Number(e.target.value) as ReportPublicationStatus)
+                    }
+                    aria-label="Seleccionar estado del reporte"
+                  >
+                    {REPORT_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span
+                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold text-white ${
+                      reportPublicationStatus === REPORT_STATUS_COMPLETED
+                        ? "bg-green-600"
+                        : reportPublicationStatus === REPORT_STATUS_READY
+                          ? "bg-amber-400 text-gray-900"
+                          : "bg-slate-500"
+                    }`}
+                  >
+                    {REPORT_STATUS_OPTIONS.find((o) => o.value === reportPublicationStatus)?.label}
+                  </span>
+                </div>
                 <div className="flex space-x-4">
                   {!globalFecha ? (
                     <TooltipProvider>

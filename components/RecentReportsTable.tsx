@@ -1,4 +1,10 @@
 import React from "react";
+import {
+  getReportStatusBadgeClass,
+  getReportStatusLabel,
+  resolveReportPublicationStatus,
+  type ReportStatusCode,
+} from "@/lib/report-status";
 
 interface Report {
   id: string;
@@ -11,16 +17,17 @@ interface Report {
   title?: string;
   plantName?: string;
   systemName?: string;
-  status?: string;
+  status?: ReportStatusCode;
+  fecha?: string;
   usuario?: string;
   puesto?: string;
-  estatus?: boolean;
+  estatus?: ReportStatusCode;
 }
 
 interface RecentReportsTableProps {
   reports: Report[];
   dataLoading: boolean;
-  getStatusColor: (status: string) => string;
+  getStatusColor?: (status: string) => string;
   onTableClick: () => void;
   onDebugLog: (msg: string) => void;
   onViewReport: (report: Report) => void;
@@ -30,9 +37,7 @@ interface RecentReportsTableProps {
 const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
   reports,
   dataLoading,
-  getStatusColor,
   onTableClick,
-  onDebugLog,
   onViewReport,
   userRole,
 }) => {
@@ -72,7 +77,16 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {reports.map((report) => (
+                    {reports.map((report) => {
+                      const status = resolveReportPublicationStatus({
+                        id: report.id,
+                        planta_id: report.planta_id,
+                        fecha: report.fecha || report.datos?.fecha,
+                        estatus: report.estatus ?? report.status,
+                        status: report.status,
+                        datos: report.datos,
+                      })
+                      return (
                       <tr key={report.id}>
                         <td>
                           <strong>{report.title || `Reporte ${report.id}`}</strong>
@@ -81,8 +95,8 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                           <span className="badge bg-primary">{report.plantName || report.planta_id}</span>
                         </td>
                         <td>
-                          <span className={`badge ${getStatusColor(report.status || "completed")}`}>
-                            {report.status === "completed" ? "✅ Completado" : report.status || "Completado"}
+                          <span className={`badge ${getReportStatusBadgeClass(status)}`}>
+                            {getReportStatusLabel(status)}
                           </span>
                         </td>
                         <td>
@@ -98,56 +112,42 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                         </td>
                         <td>
                           {(() => {
-                            // Función helper para parsear fecha sin problemas de zona horaria
                             const parseDateWithoutTimezone = (dateString: string): Date | null => {
                               if (!dateString) return null;
-                              
-                              // Si la fecha está en formato YYYY-MM-DD, parsearla manualmente
                               const dateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
                               if (dateMatch) {
                                 const [, year, month, day] = dateMatch;
-                                // Crear fecha en zona horaria local para evitar problemas de UTC
                                 return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
                               }
-                              
-                              // Si tiene formato ISO con hora, usar new Date normalmente
                               return new Date(dateString);
                             };
-                            
-                            // Función helper para formatear fecha
+
                             const formatDate = (date: Date | null): string => {
                               if (!date || isNaN(date.getTime())) return "";
-                              
                               return date.toLocaleDateString('es-ES', {
                                 day: '2-digit',
                                 month: '2-digit',
                                 year: 'numeric'
                               });
                             };
-                            
-                            // Priorizar la fecha registrada en el reporte (fecha de los datos)
-                            const fechaReporte = report.datos?.fecha || 
-                                                 (report.datos && typeof report.datos === 'object' && 'fecha' in report.datos ? report.datos.fecha : null);
-                            
+
+                            const fechaReporte = report.datos?.fecha ||
+                              (report.datos && typeof report.datos === 'object' && 'fecha' in report.datos ? report.datos.fecha : null);
+
                             if (fechaReporte) {
                               try {
                                 const parsedDate = parseDateWithoutTimezone(fechaReporte);
-                                if (parsedDate) {
-                                  return formatDate(parsedDate);
-                                }
+                                if (parsedDate) return formatDate(parsedDate);
                               } catch (e) {
                                 console.error("❌ Error formateando fecha del reporte:", e, fechaReporte);
                               }
                             }
-                            
-                            // Fallback a created_at si no hay fecha del reporte
+
                             if (report.created_at) {
                               const parsedDate = parseDateWithoutTimezone(report.created_at);
-                              if (parsedDate) {
-                                return formatDate(parsedDate);
-                              }
+                              if (parsedDate) return formatDate(parsedDate);
                             }
-                            
+
                             return "";
                           })()}
                         </td>
@@ -162,30 +162,11 @@ const RecentReportsTable: React.FC<RecentReportsTableProps> = ({
                                 visibility
                               </i>
                             </button>
-                            {userRole !== "client" && (
-                              <button
-                                className={report.estatus ? "btn btn-outline-success border-success" : "btn btn-warning"}
-                                disabled
-                                title={
-                                  report.estatus
-                                    ? "Visible para clientes"
-                                    : "Oculto para clientes"
-                                }
-                                style={{ cursor: "not-allowed" }}
-                              >
-                                <i
-                                  className={`material-icons ${report.estatus ? "text-success" : ""}`}
-                                  style={{ fontSize: report.estatus ? "1.15rem" : "1rem" }}
-                                  aria-hidden
-                                >
-                                  {report.estatus ? "lock_open" : "lock"}
-                                </i>
-                              </button>
-                            )}
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

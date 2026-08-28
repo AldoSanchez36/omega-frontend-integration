@@ -1,5 +1,6 @@
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants";
 import { parseReportDatosJsonb } from "@/lib/report-usuario-display";
+import { normalizeReportStatus } from "@/lib/report-status";
 
 export interface ReportSelectionPayload {
   fecha: string;
@@ -30,6 +31,8 @@ export interface ReportSelectionPayload {
   mediciones?: unknown[];
   parameterOrder?: string[];
   systemOrder?: string[];
+  /** 0 pendiente, 1 listo, 2 completado */
+  estatus?: number;
 }
 
 export function reportSelectionNeedsFullLoad(
@@ -82,6 +85,7 @@ export function buildReportSelectionFromDatos(
     created_at?: string;
     parameterOrder?: string[];
     systemOrder?: string[];
+    estatus?: unknown;
   }
 ): ReportSelectionPayload {
   const d = datos as {
@@ -95,6 +99,7 @@ export function buildReportSelectionFromDatos(
     systemName?: string;
     generatedDate?: string;
     empresa_id?: string | null;
+    estatus?: unknown;
   };
 
   const plant = d.plant || {};
@@ -131,6 +136,7 @@ export function buildReportSelectionFromDatos(
     cliente_id: user.cliente_id ?? null,
     empresa_id: options?.empresa_id ?? d.empresa_id ?? plant.empresa_id ?? null,
     report_id: options?.reportId || null,
+    estatus: normalizeReportStatus(options?.estatus ?? d.estatus),
     ...(options?.parameterOrder?.length ? { parameterOrder: options.parameterOrder } : {}),
     ...(options?.systemOrder?.length ? { systemOrder: options.systemOrder } : {}),
   };
@@ -164,6 +170,7 @@ export async function loadFullReportSelection(
     created_at: (reportMeta.created_at || reportMeta.fechaGeneracion) as string | undefined,
     parameterOrder: orders?.parameterOrder,
     systemOrder: orders?.systemOrder,
+    estatus: reportMeta.estatus,
   });
 }
 

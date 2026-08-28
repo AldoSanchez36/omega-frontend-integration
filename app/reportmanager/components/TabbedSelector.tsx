@@ -15,6 +15,16 @@ import {
 } from "@/lib/report-usuario-display";
 import { buildReportesQueryParams } from "@/lib/report-api-params";
 import { formatDashboardReportRow } from "@/lib/format-report-from-api";
+import {
+  REPORT_STATUS_OPTIONS,
+  getReportStatusBadgeClass,
+  getReportStatusLabel,
+  normalizeReportStatus,
+  resolveReportPublicationStatus,
+  setLocalReportStatus,
+  type ReportPublicationStatus,
+  type ReportStatusCode,
+} from "@/lib/report-status";
 import CargaReportesTab from "./CargaReportesTab";
 import { parseComentariosForDisplay } from "../utils";
 
@@ -48,10 +58,10 @@ interface Report {
   title?: string;
   plantName?: string;
   systemName?: string;
-  status?: string;
+  status?: ReportStatusCode;
   usuario?: string;
   puesto?: string;
-  estatus?: boolean;
+  estatus?: ReportStatusCode;
 }
 
 interface CurrentUser {
@@ -175,21 +185,63 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
   };
 
   // Función para obtener el color del estado
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-      case "online":
-      case "completed":
-        return "bg-success";
-      case "maintenance":
-      case "pending":
-        return "bg-warning";
-      case "inactive":
-      case "offline":
-      case "error":
-        return "bg-danger";
-      default:
-        return "bg-secondary";
+  const getStatusColor = (status: unknown) => getReportStatusBadgeClass(status);
+
+  const handleChangePublicationStatus = async (
+    report: Report,
+    nextStatus: ReportPublicationStatus
+  ) => {
+    const normalizedStatus = normalizeReportStatus(nextStatus);
+
+    setLocalReportStatus(
+      {
+        id: report.id,
+        planta_id: report.planta_id,
+        fecha: report.datos?.fecha || report.created_at,
+      },
+      normalizedStatus
+    );
+
+    setPendingReports((prev) =>
+      prev.map((r) =>
+        r.id === report.id ? { ...r, status: normalizedStatus, estatus: normalizedStatus } : r
+      )
+    );
+
+    if (!token) return;
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}${API_ENDPOINTS.REPORT_STATUS(report.id)}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ estatus: normalizedStatus }),
+        }
+      );
+
+      if (!response.ok) {
+        console.error("Error actualizando estatus del reporte:", response.status, response.statusText);
+        alert("Error al actualizar el estatus del reporte");
+        setPendingReports((prev) =>
+          prev.map((r) =>
+            r.id === report.id
+              ? { ...r, status: report.status, estatus: report.estatus }
+              : r
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error actualizando estatus del reporte:", error);
+      alert("Error al actualizar el estatus del reporte");
+      setPendingReports((prev) =>
+        prev.map((r) =>
+          r.id === report.id ? { ...r, status: report.status, estatus: report.estatus } : r
+        )
+      );
     }
   };
 
@@ -284,50 +336,6 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
 
     fetchPendingReports();
   }, [selectedPlant, token, activeTab]);
-
-  const handleToggleReportStatus = async (report: Report) => {
-    if (!token) {
-      alert("No hay token de autenticación");
-      return;
-    }
-
-    const newStatus = !report.estatus;
-
-    // Optimistic update
-    setPendingReports(prev =>
-      prev.map(r => (r.id === report.id ? { ...r, estatus: newStatus } : r))
-    );
-
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}${API_ENDPOINTS.REPORT_STATUS(report.id)}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ estatus: newStatus }),
-        }
-      );
-
-      if (!response.ok) {
-        console.error("Error actualizando estatus del reporte:", response.status, response.statusText);
-        alert("Error al actualizar el estatus del reporte");
-        // revertir cambio
-        setPendingReports(prev =>
-          prev.map(r => (r.id === report.id ? { ...r, estatus: report.estatus } : r))
-        );
-      }
-    } catch (error) {
-      console.error("Error actualizando estatus del reporte:", error);
-      alert("Error al actualizar el estatus del reporte");
-      // revertir cambio
-      setPendingReports(prev =>
-        prev.map(r => (r.id === report.id ? { ...r, estatus: report.estatus } : r))
-      );
-    }
-  };
 
   return (
     <Card className="mb-6 border-0 shadow-lg">
@@ -703,9 +711,41 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                               <span className="badge bg-primary">{report.plantName || report.planta_id}</span>
                             </td>
                             <td>
-                              <span className={`badge ${getStatusColor(report.status || "completed")}`}>
-                                {report.status === "completed" ? "✅ Completado" : report.status || "Completado"}
-                              </span>
+                              {(() => {
+                                const status = resolveReportPublicationStatus({
+                                  id: report.id,
+                                  planta_id: report.planta_id,
+                                  fecha: report.datos?.fecha || report.created_at,
+                                  estatus: report.estatus ?? report.status,
+                                  status: report.status,
+                                  datos: report.datos,
+                                });
+                                return (
+                                  <div className="d-flex flex-column gap-1">
+                                    <span className={`badge ${getStatusColor(status)}`}>
+                                      {getReportStatusLabel(status)}
+                                    </span>
+                                    <select
+                                      className="form-select form-select-sm"
+                                      value={status}
+                                      onChange={(e) =>
+                                        handleChangePublicationStatus(
+                                          report,
+                                          Number(e.target.value) as ReportPublicationStatus
+                                        )
+                                      }
+                                      aria-label={`Cambiar estado de ${report.title || report.id}`}
+                                      style={{ minWidth: "10rem" }}
+                                    >
+                                      {REPORT_STATUS_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                          {option.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                );
+                              })()}
                             </td>
                             <td>
                               <div>
@@ -743,25 +783,6 @@ const TabbedSelector: React.FC<TabbedSelectorProps> = ({
                                 >
                                   <i className="material-icons" style={{ fontSize: "1rem" }}>
                                     visibility
-                                  </i>
-                                </button>
-                                <button
-                                  className={`btn ${
-                                    report.estatus ? "btn-outline-success border-success" : "btn-warning"
-                                  }`}
-                                  onClick={() => handleToggleReportStatus(report)}
-                                  title={
-                                    report.estatus
-                                      ? "Visible para clientes (click para ocultar)"
-                                      : "Oculto para clientes (click para publicar)"
-                                  }
-                                >
-                                  <i
-                                    className={`material-icons ${report.estatus ? "text-success" : ""}`}
-                                    style={{ fontSize: report.estatus ? "1.15rem" : "1rem" }}
-                                    aria-hidden
-                                  >
-                                    {report.estatus ? "lock_open" : "lock"}
                                   </i>
                                 </button>
                               </div>
