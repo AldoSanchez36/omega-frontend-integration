@@ -64,7 +64,7 @@ interface UseEmpresasAccessReturn {
   selectedEmpresa: Empresa | null
   selectedPlant: Plant | null
   selectedSystem: string
-  userRole: "admin" | "user" | "client" | "guest"
+  userRole: "admin" | "user" | "client" | "guest" | "analista"
   loading: boolean
   error: string | null
   setSelectedEmpresa: (empresa: Empresa | null) => void
@@ -89,7 +89,7 @@ export function useEmpresasAccess(token: string | null, options: UseEmpresasAcce
   const [selectedEmpresa, setSelectedEmpresa] = useState<Empresa | null>(null)
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null)
   const [selectedSystem, setSelectedSystem] = useState<string>("")
-  const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
+  const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest" | "analista">("guest")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -105,11 +105,17 @@ export function useEmpresasAccess(token: string | null, options: UseEmpresasAcce
       const storedUser = localStorage.getItem('Organomex_user')
       if (storedUser) {
         userData = JSON.parse(storedUser)
-        setUserRole(userData.puesto || "user")
+        const puestoNorm = String(userData.puesto || "user").toLowerCase() as
+          | "admin"
+          | "user"
+          | "client"
+          | "guest"
+          | "analista"
+        setUserRole(puestoNorm)
       }
     }
 
-    const puesto = userData?.puesto || "user"
+    const puesto = String(userData?.puesto || "user").toLowerCase()
 
     ;(async () => {
       setLoading(true)

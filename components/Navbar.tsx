@@ -17,14 +17,15 @@ const NAV_LINKS = [
   { path: "/agregarsistema",  label: "Agregar plantas o Sistema", icon: "factory", roles: ["admin"] },
   // Para admin y user
   { path: "/users-management",      label: "Gestión de usuarios", icon: "people", roles: ["admin", "user"] },
-  { path: "/reportmanager",  label: "Reportes", icon: "article", roles: ["admin", "user"] },
+  { path: "/reportmanager",  label: "Reportes", icon: "article", roles: ["admin", "user", "analista"] },
   { path: "/agregarvariables",  label: "Gestor de parámetros", icon: "tune", roles: ["admin", "user"] },
   //{ path: "/reports", label: "Reporte", icon: "assessment", roles: ["admin", "user"/* , "client" */] },
   // Para admin, user y client
 
   // Para cualquier usuario autenticado
-  { path: "/dashboard",             label: "Dashboard", icon: "home", roles: ["admin", "user", "client"] },
-  { path: "/profile",   label: "Perfil de usuario", icon: "account_circle", roles: ["admin", "user", "client"] },
+  { path: "/dashboard",             label: "Dashboard", icon: "home", roles: ["admin", "user", "client", "analista"] },
+  { path: "/historicos",            label: "Históricos", icon: "timeline", roles: ["admin", "user", "client", "analista"] },
+  { path: "/profile",   label: "Perfil de usuario", icon: "account_circle", roles: ["admin", "user", "client", "analista"] },
   
 ]
 

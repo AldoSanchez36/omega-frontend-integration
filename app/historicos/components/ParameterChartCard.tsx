@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useCallback, useMemo } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Switch } from "@/components/ui/switch"
 import type { ChartLimitLine, ChartToleranceBand } from "@/lib/tolerance-colors"
 
 export interface ParameterChartDataPoint {
@@ -57,8 +58,10 @@ export function ParameterChartCard({
 }: ParameterChartCardProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
+  const [showLimits, setShowLimits] = useState(true)
 
-  const limitValues = limitLines.map((line) => line.value)
+  const hasLimits = limitLines.length > 0 || Boolean(toleranceBand)
+  const limitValues = showLimits ? limitLines.map((line) => line.value) : []
   const dataValues = data.map((d) => d.value)
   const allValues = [...dataValues, ...limitValues]
   const dataMax = dataValues.length > 0 ? Math.max(...dataValues) : 0
@@ -81,6 +84,10 @@ export function ParameterChartCard({
 
     return { yMin: min, yMax: max, yTicks: ticks, plotLeft: left, plotTop: top, plotWidth: width, plotHeight: height }
   }, [allValues])
+
+  const handleToggleLimits = useCallback((checked: boolean) => {
+    setShowLimits(checked)
+  }, [])
 
   const chartPoints = useMemo(
     () =>
@@ -137,13 +144,49 @@ export function ParameterChartCard({
   const activePoint = activeIndex != null ? chartPoints[activeIndex] : null
   const activeData = activeIndex != null ? data[activeIndex] : null
 
+  const headerControls = (
+    <div className="flex items-center gap-2 shrink-0">
+      {param.unidad?.trim() && (
+        <span className="text-xs text-muted-foreground">{param.unidad}</span>
+      )}
+      {hasLimits && (
+        <label
+          className="inline-flex items-center gap-1.5 cursor-pointer select-none"
+          title={showLimits ? "Ocultar límites" : "Mostrar límites"}
+        >
+          <span
+            className={`text-[10px] font-semibold tracking-wide ${
+              showLimits ? "text-emerald-700" : "text-slate-400"
+            }`}
+          >
+            Límites
+          </span>
+          <Switch
+            checked={showLimits}
+            onCheckedChange={handleToggleLimits}
+            className={[
+              "h-5 w-9 border shadow-sm transition-colors",
+              "[&>span]:h-4 [&>span]:w-4 [&>span]:shadow-md",
+              "data-[state=checked]:[&>span]:translate-x-4",
+              "data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-700",
+              "data-[state=unchecked]:bg-slate-300 data-[state=unchecked]:border-slate-400",
+              "data-[state=unchecked]:[&>span]:bg-white",
+              "data-[state=checked]:[&>span]:bg-white",
+            ].join(" ")}
+            aria-label={showLimits ? "Ocultar límites del gráfico" : "Mostrar límites del gráfico"}
+          />
+        </label>
+      )}
+    </div>
+  )
+
   if (data.length === 0) {
     return (
       <Card className="h-full shadow-sm border border-border/60">
         <CardHeader className="py-2.5 px-3 border-b border-border/40 bg-muted/30">
           <div className="flex justify-between items-center gap-2">
             <h6 className="mb-0 text-sm font-semibold text-foreground truncate">{param.nombre}</h6>
-            <span className="text-xs text-muted-foreground shrink-0">{param.unidad}</span>
+            {headerControls}
           </div>
         </CardHeader>
         <CardContent className="py-6 px-3">
@@ -160,7 +203,7 @@ export function ParameterChartCard({
       <CardHeader className="py-2.5 px-3 border-b border-border/40 bg-muted/30">
         <div className="flex justify-between items-center gap-2">
           <h6 className="mb-0 text-sm font-semibold text-foreground truncate">{param.nombre}</h6>
-          <span className="text-xs text-muted-foreground shrink-0">{param.unidad}</span>
+          {headerControls}
         </div>
       </CardHeader>
       <CardContent className="py-3 px-2 sm:px-3">
@@ -244,7 +287,7 @@ export function ParameterChartCard({
             })}
 
             {/* Banda de rango aceptable */}
-            {toleranceBand && (
+            {showLimits && toleranceBand && (
               <rect
                 x={plotLeft}
                 y={valueToPlotY(toleranceBand.max, yMin, yMax, plotTop, plotHeight)}
@@ -260,36 +303,37 @@ export function ParameterChartCard({
             )}
 
             {/* Líneas de límite */}
-            {limitLines.map((line) => {
-              const y = valueToPlotY(line.value, yMin, yMax, plotTop, plotHeight)
-              const strokeWidth = line.kind === "critical" ? 2 : 1.75
-              return (
-                <g key={`limit-${line.label}-${line.value}`}>
-                  <line
-                    x1={plotLeft}
-                    y1={y}
-                    x2={plotLeft + plotWidth}
-                    y2={y}
-                    stroke={line.color}
-                    strokeWidth={strokeWidth}
-                    strokeDasharray={line.strokeDasharray}
-                    opacity={line.kind === "critical" ? 0.95 : 0.9}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  <text
-                    x={plotLeft + plotWidth + 6}
-                    y={y + 3.5}
-                    fontSize={9}
-                    fill={line.color}
-                    fontWeight={600}
-                    textAnchor="start"
-                  >
-                    {formatAxisValue(line.value)}
-                  </text>
-                  <title>{`${line.label}: ${line.value.toFixed(2)} ${param.unidad}`}</title>
-                </g>
-              )
-            })}
+            {showLimits &&
+              limitLines.map((line) => {
+                const y = valueToPlotY(line.value, yMin, yMax, plotTop, plotHeight)
+                const strokeWidth = line.kind === "critical" ? 2 : 1.75
+                return (
+                  <g key={`limit-${line.label}-${line.value}`}>
+                    <line
+                      x1={plotLeft}
+                      y1={y}
+                      x2={plotLeft + plotWidth}
+                      y2={y}
+                      stroke={line.color}
+                      strokeWidth={strokeWidth}
+                      strokeDasharray={line.strokeDasharray}
+                      opacity={line.kind === "critical" ? 0.95 : 0.9}
+                      vectorEffect="non-scaling-stroke"
+                    />
+                    <text
+                      x={plotLeft + plotWidth + 6}
+                      y={y + 3.5}
+                      fontSize={9}
+                      fill={line.color}
+                      fontWeight={600}
+                      textAnchor="start"
+                    >
+                      {formatAxisValue(line.value)}
+                    </text>
+                    <title>{`${line.label}: ${line.value.toFixed(2)} ${param.unidad}`}</title>
+                  </g>
+                )
+              })}
 
             {/* Área bajo la curva */}
             {areaPath && <path d={areaPath} fill={`url(#${gradientId})`} />}
@@ -429,7 +473,7 @@ export function ParameterChartCard({
           </div>
         </div>
 
-        {limitLines.length > 0 && (
+        {showLimits && limitLines.length > 0 && (
           <div className="flex flex-wrap gap-1.5 justify-center mt-2">
             {toleranceBand && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800">

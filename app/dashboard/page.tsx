@@ -18,10 +18,12 @@ import Navbar from "@/components/Navbar"
 import { QuickActions as AdminQuickActions } from "@/app/dashboard/buttons/admin"
 import { QuickActions as UserQuickActions } from "@/app/dashboard/buttons/user"
 import { QuickActions as ClientQuickActions } from "@/app/dashboard/buttons/client"
+import { QuickActions as AnalistaQuickActions } from "@/app/dashboard/buttons/analista"
 import axios from "axios"
 import StatsCards from "./StatsCards";
 import ChartsDashboard from "@/components/chartsDashboard";
 import RecentReportsTable from "@/components/RecentReportsTable";
+import type { ReportStatusCode } from "@/lib/report-status";
 
 // Add type declaration for window.bootstrap
 declare global {
@@ -79,7 +81,8 @@ interface Report {
   title?: string
   plantName?: string
   systemName?: string
-  status?: string
+  status?: ReportStatusCode
+  estatus?: ReportStatusCode
 }
 
 export default function Dashboard() {
@@ -124,7 +127,13 @@ export default function Dashboard() {
       if (storedUser) {
         const userData = JSON.parse(storedUser)
         setUser(userData)
-        setUserRole(userData.puesto || "user")
+        const puesto = String(userData.puesto || "user").toLowerCase() as
+          | "admin"
+          | "user"
+          | "client"
+          | "guest"
+          | "analista"
+        setUserRole(puesto)
         /* addDebugLog(`Usuario cargado: ${userData.username}`) */
       } else {
         router.push("/login")
@@ -446,11 +455,13 @@ export default function Dashboard() {
 
 
   const getStatusColor = (status: string) => {
+    // Compatibilidad: chartsDashboard / plantas aún pueden usar active/maintenance
     switch (status) {
       case "active":
       case "online":
       case "completed":
         return "bg-success"
+      case "ready_to_publish":
       case "maintenance":
       case "pending":
         return "bg-warning"
@@ -855,6 +866,12 @@ export default function Dashboard() {
           <UserQuickActions
             handleNewReport={handleNewReport}
             handleNewSystem={handleNewSystem}
+          />
+        )}
+        {userRole === "analista" && (
+          <AnalistaQuickActions
+            handleNewReport={handleNewReport}
+            handleNavigateToHistoricos={handleNavigateToHistoricos}
           />
         )}
         {userRole === "client" && (

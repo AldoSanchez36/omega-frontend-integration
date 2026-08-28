@@ -11,7 +11,7 @@ import Navbar from "@/components/Navbar"
 import { SensorTimeSeriesChart, type ChartExportRef } from "@/components/SensorTimeSeriesChart"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import ScrollArrow from "@/app/reportmanager/components/ScrollArrow"
-import { formatCalendarDate, getReportChartDateRange } from "@/lib/date"
+import { formatCalendarDate, getReportChartDateRange, normalizeToYmd, takeLastNUniqueDates, REPORT_CHART_MAX_POINTS } from "@/lib/date"
 import { buildReportesQueryParams } from "@/lib/report-api-params"
 import {
   hydrateReportSelectionFromApi,
@@ -26,6 +26,7 @@ import {
   resolveReportTolerance,
   type ToleranceData,
 } from "@/lib/tolerance-colors"
+import { normalizeReportStatus } from "@/lib/report-status"
 
 
 /**
@@ -141,6 +142,8 @@ interface ReportSelection {
   parameterOrder?: string[];
   /** Orden de sistemas/columnas (mismo propósito) */
   systemOrder?: string[];
+  /** 0 pendiente, 1 listo, 2 completado */
+  estatus?: number;
 }
 
 /** Texto display del nombre de empresa según distintas formas de respuesta del backend */
@@ -834,7 +837,7 @@ export default function Reporte() {
 
       doc.setFontSize(12)
       doc.text(`Fecha: ${currentDate}`, 20, 35)
-      doc.text(`Empresa: ${empresaNombre ?? "—"}`, 20, 42)
+      doc.text(`Empresa: ${empresaNombre ? `Servicio ${empresaNombre}` : "—"}`, 20, 42)
       doc.text(`Dirigido a: ${reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING. "}`, 20, 49)
       doc.text(`Asunto: ${reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente || "REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS"}`, 20, 59)
       doc.text(`Sistema Evaluado: ${reportNotes["sistema"] || (reportSelection ? reportSelection.systemName : "Todos los sistemas") || "Todos los sistemas"}`, 20, 69)
@@ -1071,6 +1074,7 @@ export default function Reporte() {
         // Campos requeridos por el backend
         planta_id: reportSelection.plant?.id,
         usuario_id: reportSelection.user?.id,
+        estatus: normalizeReportStatus(reportSelection.estatus),
         // Mantener parameterComments para compatibilidad (pero el backend usará comentarios)
         parameterComments: parameterComments || {}
       }
@@ -1356,7 +1360,7 @@ export default function Reporte() {
       // Información del reporte
       pdf.setFontSize(10);
       const reportInfo = [
-        `Empresa: ${empresaNombre ?? "—"}`,
+        `Empresa: ${empresaNombre ? `Servicio ${empresaNombre}` : "—"}`,
         `Dirigido a: ${reportNotes["dirigido"] || reportSelection?.plant?.dirigido_a || "ING."}`,
         `Asunto: ${reportNotes["asunto"] || reportSelection?.plant?.mensaje_cliente || `REPORTE DE ANÁLISIS PARA TODOS LOS SISTEMAS EN LA PLANTA DE ${reportSelection?.plant?.nombre || "NOMBRE DE LA PLANTA"}`}`,
         `Planta Evaluada: ${reportSelection?.plant?.nombre || "Planta no especificada"}`,
@@ -1760,7 +1764,7 @@ export default function Reporte() {
         
         // Agregar período
         pdf.setFontSize(10);
-        const periodText = `Período: ${formatCalendarDate(pdfChartStartDate, { day: "2-digit", month: "short", year: "numeric" })} - ${formatCalendarDate(pdfChartEndDate, { day: "2-digit", month: "short", year: "numeric" })}`;
+        const periodText = `Últimos ${REPORT_CHART_MAX_POINTS} datos hasta ${formatCalendarDate(pdfChartEndDate, { day: "2-digit", month: "short", year: "numeric" })}`;
         pdf.text(periodText, marginLeft, currentY);
         currentY += spacingMM;
       }
@@ -2259,11 +2263,16 @@ export default function Reporte() {
         currentY += 8;
 
         limitsSystemChunks.forEach((systemChunk, chunkIndex) => {
-          const limitsHeaders = [
-            "Parámetro",
-            "Unidad",
-            ...systemChunk.flatMap((name) => [`${name} Bajo`, `${name} Alto`]),
-          ];
+          const limitsHeadRow1: Array<string | { content: string; rowSpan?: number; colSpan?: number; styles?: Record<string, unknown> }> = [
+            { content: "Parámetro", rowSpan: 2, styles: { halign: "left", valign: "middle" } },
+            { content: "Unidad", rowSpan: 2, styles: { halign: "center", valign: "middle" } },
+            ...systemChunk.map((name) => ({
+              content: name,
+              colSpan: 2,
+              styles: { halign: "center", valign: "middle" },
+            })),
+          ]
+          const limitsHeadRow2 = systemChunk.flatMap(() => ["Bajo", "Alto"])
           const limitsBody = buildLimitsBodyForSystems(systemChunk);
 
           if (chunkIndex > 0) {
@@ -2280,7 +2289,7 @@ export default function Reporte() {
           }
 
           autoTable(pdf, {
-            head: [limitsHeaders],
+            head: [limitsHeadRow1, limitsHeadRow2],
             body: limitsBody,
             startY: currentY,
             theme: "grid",
@@ -2299,6 +2308,8 @@ export default function Reporte() {
               fontSize: 8,
               font: pdfFontName,
               cellPadding: 2,
+              halign: "center",
+              valign: "middle",
             },
             columnStyles: {
               0: { cellWidth: 35, halign: "left", font: pdfFontName },
@@ -2505,14 +2516,18 @@ export default function Reporte() {
       return;
     }
     
-    const startNorm = chartStartDate.includes("T") ? chartStartDate.split("T")[0] : chartStartDate;
     const endNorm = chartEndDate.includes("T") ? chartEndDate.split("T")[0] : chartEndDate;
+
+    const reportDate =
+      normalizeToYmd(reportSelection.fecha ?? "") ||
+      normalizeToYmd(reportSelection.generatedDate ?? "") ||
+      endNorm
 
     const chartParams = buildReportesQueryParams({
       view: "full",
-      startDate: startNorm,
-      endDate: endNorm,
+      endDate: reportDate,
       planta_id: reportSelection.plant.id,
+      limit: 600,
     });
 
     fetch(`${API_BASE_URL}${API_ENDPOINTS.REPORTS}?${chartParams.toString()}`, {
@@ -2535,7 +2550,7 @@ export default function Reporte() {
           const fechaRaw = datos.fecha || report.fecha || report.created_at;
           if (!fechaRaw) return;
           const fecha = toFechaYMD(fechaRaw);
-          if (!fecha || fecha < startNorm || fecha > endNorm) return;
+          if (!fecha || fecha > reportDate) return;
           const plantaId = report.planta_id || datos.plant?.id;
           if (plantaId !== reportSelection.plant.id) return;
 
@@ -2566,7 +2581,7 @@ export default function Reporte() {
       })
       .catch(() => { if (!cancelled) setChartDataFromReportes({}); });
     return () => { cancelled = true; };
-  }, [reportSelection?.plant?.id, chartStartDate, chartEndDate])
+  }, [reportSelection?.plant?.id, reportSelection?.fecha, reportSelection?.generatedDate, chartStartDate, chartEndDate])
   
   // Función para obtener parámetros de un sistema desde la API (igual que historicos)
   const getSystemParameters = async (systemName: string): Promise<Array<{ id: string; nombre: string; unidad: string }>> => {
@@ -3196,12 +3211,16 @@ export default function Reporte() {
                   <h5>Gráficos de Series Temporales</h5>
                   {chartStartDate && chartEndDate && (
                     <p className="text-sm text-muted mb-3">
-                      Período: {formatCalendarDate(chartStartDate, { day: "2-digit", month: "short", year: "numeric" })} - {formatCalendarDate(chartEndDate, { day: "2-digit", month: "short", year: "numeric" })}
+                      Últimos {REPORT_CHART_MAX_POINTS} datos hasta{" "}
+                      {formatCalendarDate(
+                        reportSelection?.fecha || reportSelection?.generatedDate || chartEndDate,
+                        { day: "2-digit", month: "short", year: "numeric" }
+                      )}
                     </p>
                   )}
                   {chartStartDate && chartEndDate && (
                     <p className="text-xs text-muted mb-3">
-                      El eje X muestra únicamente días con datos dentro del período seleccionado.
+                      El eje X muestra únicamente días con dato, sin incluir reportes posteriores a esta fecha.
                     </p>
                   )}
                   
@@ -3271,11 +3290,28 @@ export default function Reporte() {
                         medicionesHistorico,
                         medicionesPreview
                       )
-                      
-                      // Asegurar que siempre sea un array válido (nunca undefined/null) para evitar llamadas a API
+
                       if (!Array.isArray(medicionesData)) {
-                        medicionesData = [];
+                        medicionesData = []
                       }
+
+                      const reportDateYmd =
+                        normalizeToYmd(reportSelection?.fecha ?? "") ||
+                        normalizeToYmd(reportSelection?.generatedDate ?? "") ||
+                        (chartEndDate ? normalizeToYmd(chartEndDate) : null)
+
+                      medicionesData = takeLastNUniqueDates(
+                        medicionesData,
+                        reportDateYmd,
+                        REPORT_CHART_MAX_POINTS
+                      )
+
+                      const seriesDates = medicionesData
+                        .map((row) => normalizeToYmd(row.fecha))
+                        .filter((ymd): ymd is string => Boolean(ymd))
+                        .sort()
+                      const seriesStartDate = seriesDates[0] || reportDateYmd || chartStartDate
+                      const seriesEndDate = reportDateYmd || seriesDates[seriesDates.length - 1] || chartEndDate
                       
                       return (
                         <div key={variable.id} className="border rounded-lg p-4 bg-white">
@@ -3289,8 +3325,8 @@ export default function Reporte() {
                                   }
                                 }}
                                 variable={variable.nombre}
-                                startDate={chartStartDate}
-                                endDate={chartEndDate}
+                                startDate={seriesStartDate}
+                                endDate={seriesEndDate}
                                 apiBase={API_BASE_URL}
                                 unidades={variable.unidad}
                                 clientName={reportSelection?.plant?.nombre}
@@ -3303,25 +3339,6 @@ export default function Reporte() {
                             </div>
                           )}
                         </div>
-                        
-                        {/* Sección de comentarios por parámetro - Solo mostrar si hay contenido o si no es cliente */}
-                        {(userRole !== "client" || (parameterComments[variable.nombre] && parameterComments[variable.nombre].trim() !== "")) && (
-                          <div className="mt-4 pt-4 border-t">
-                            <label htmlFor={`comment-${variable.id}`} className="block text-sm font-medium text-gray-700 mb-2">
-                              Comentarios para {variable.nombre}:
-                            </label>
-                            <textarea
-                              id={`comment-${variable.id}`}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              rows={3}
-                              placeholder="Agregar comentarios sobre este parámetro..."
-                              value={parameterComments[variable.nombre] || ""}
-                              onChange={(e) => userRole !== "client" && handleParameterCommentChange(variable.nombre, e.target.value)}
-                              disabled={userRole === "client"}
-                              readOnly={userRole === "client"}
-                            />
-                          </div>
-                        )}
                         </div>
                       );
                     })}
