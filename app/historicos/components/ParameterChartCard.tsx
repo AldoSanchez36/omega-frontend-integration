@@ -58,10 +58,26 @@ export function ParameterChartCard({
 }: ParameterChartCardProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
-  const [showLimits, setShowLimits] = useState(true)
+  const [showInternalLimits, setShowInternalLimits] = useState(true)
 
-  const hasLimits = limitLines.length > 0 || Boolean(toleranceBand)
-  const limitValues = showLimits ? limitLines.map((line) => line.value) : []
+  const criticalLimitLines = useMemo(
+    () => limitLines.filter((line) => line.kind === "critical"),
+    [limitLines]
+  )
+  const internalLimitLines = useMemo(
+    () => limitLines.filter((line) => line.kind === "bien"),
+    [limitLines]
+  )
+  const hasInternalLimits = internalLimitLines.length > 0 || Boolean(toleranceBand)
+
+  // Escala Y: datos + críticos siempre; internos solo si el toggle está activo
+  const limitValues = [
+    ...criticalLimitLines.map((line) => line.value),
+    ...(showInternalLimits ? internalLimitLines.map((line) => line.value) : []),
+    ...(showInternalLimits && toleranceBand
+      ? [toleranceBand.min, toleranceBand.max]
+      : []),
+  ]
   const dataValues = data.map((d) => d.value)
   const allValues = [...dataValues, ...limitValues]
   const dataMax = dataValues.length > 0 ? Math.max(...dataValues) : 0
@@ -85,8 +101,8 @@ export function ParameterChartCard({
     return { yMin: min, yMax: max, yTicks: ticks, plotLeft: left, plotTop: top, plotWidth: width, plotHeight: height }
   }, [allValues])
 
-  const handleToggleLimits = useCallback((checked: boolean) => {
-    setShowLimits(checked)
+  const handleToggleInternalLimits = useCallback((checked: boolean) => {
+    setShowInternalLimits(checked)
   }, [])
 
   const chartPoints = useMemo(
@@ -149,21 +165,25 @@ export function ParameterChartCard({
       {param.unidad?.trim() && (
         <span className="text-xs text-muted-foreground">{param.unidad}</span>
       )}
-      {hasLimits && (
+      {hasInternalLimits && (
         <label
           className="inline-flex items-center gap-1.5 cursor-pointer select-none"
-          title={showLimits ? "Ocultar límites" : "Mostrar límites"}
+          title={
+            showInternalLimits
+              ? "Ocultar límites internos (rango bien)"
+              : "Mostrar límites internos (rango bien)"
+          }
         >
           <span
             className={`text-[10px] font-semibold tracking-wide ${
-              showLimits ? "text-emerald-700" : "text-slate-400"
+              showInternalLimits ? "text-emerald-700" : "text-slate-400"
             }`}
           >
             Límites
           </span>
           <Switch
-            checked={showLimits}
-            onCheckedChange={handleToggleLimits}
+            checked={showInternalLimits}
+            onCheckedChange={handleToggleInternalLimits}
             className={[
               "h-5 w-9 border shadow-sm transition-colors",
               "[&>span]:h-4 [&>span]:w-4 [&>span]:shadow-md",
@@ -173,7 +193,11 @@ export function ParameterChartCard({
               "data-[state=unchecked]:[&>span]:bg-white",
               "data-[state=checked]:[&>span]:bg-white",
             ].join(" ")}
-            aria-label={showLimits ? "Ocultar límites del gráfico" : "Mostrar límites del gráfico"}
+            aria-label={
+              showInternalLimits
+                ? "Ocultar límites internos del gráfico"
+                : "Mostrar límites internos del gráfico"
+            }
           />
         </label>
       )}
@@ -286,8 +310,8 @@ export function ParameterChartCard({
               )
             })}
 
-            {/* Banda de rango aceptable */}
-            {showLimits && toleranceBand && (
+            {/* Banda de rango aceptable (límites internos) */}
+            {showInternalLimits && toleranceBand && (
               <rect
                 x={plotLeft}
                 y={valueToPlotY(toleranceBand.max, yMin, yMax, plotTop, plotHeight)}
@@ -302,22 +326,52 @@ export function ParameterChartCard({
               />
             )}
 
-            {/* Líneas de límite */}
-            {showLimits &&
-              limitLines.map((line) => {
+            {/* Límites críticos exteriores: siempre visibles */}
+            {criticalLimitLines.map((line) => {
+              const y = valueToPlotY(line.value, yMin, yMax, plotTop, plotHeight)
+              return (
+                <g key={`limit-critical-${line.label}-${line.value}`}>
+                  <line
+                    x1={plotLeft}
+                    y1={y}
+                    x2={plotLeft + plotWidth}
+                    y2={y}
+                    stroke={line.color}
+                    strokeWidth={2}
+                    strokeDasharray={line.strokeDasharray}
+                    opacity={0.95}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <text
+                    x={plotLeft + plotWidth + 6}
+                    y={y + 3.5}
+                    fontSize={9}
+                    fill={line.color}
+                    fontWeight={600}
+                    textAnchor="start"
+                  >
+                    {formatAxisValue(line.value)}
+                  </text>
+                  <title>{`${line.label}: ${line.value.toFixed(2)} ${param.unidad}`}</title>
+                </g>
+              )
+            })}
+
+            {/* Límites internos (rango bien): controlados por el toggle */}
+            {showInternalLimits &&
+              internalLimitLines.map((line) => {
                 const y = valueToPlotY(line.value, yMin, yMax, plotTop, plotHeight)
-                const strokeWidth = line.kind === "critical" ? 2 : 1.75
                 return (
-                  <g key={`limit-${line.label}-${line.value}`}>
+                  <g key={`limit-bien-${line.label}-${line.value}`}>
                     <line
                       x1={plotLeft}
                       y1={y}
                       x2={plotLeft + plotWidth}
                       y2={y}
                       stroke={line.color}
-                      strokeWidth={strokeWidth}
+                      strokeWidth={1.75}
                       strokeDasharray={line.strokeDasharray}
-                      opacity={line.kind === "critical" ? 0.95 : 0.9}
+                      opacity={0.9}
                       vectorEffect="non-scaling-stroke"
                     />
                     <text
@@ -473,29 +527,27 @@ export function ParameterChartCard({
           </div>
         </div>
 
-        {showLimits && limitLines.length > 0 && (
+        {(criticalLimitLines.length > 0 || (showInternalLimits && (toleranceBand || internalLimitLines.length > 0))) && (
           <div className="flex flex-wrap gap-1.5 justify-center mt-2">
-            {toleranceBand && (
+            {showInternalLimits && toleranceBand && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
                 <span className="h-2 w-3 rounded-sm bg-emerald-400/50 border border-emerald-500/40" aria-hidden />
                 Rango bien: {formatAxisValue(toleranceBand.min)} – {formatAxisValue(toleranceBand.max)}
               </span>
             )}
-            {limitLines
-              .filter((line) => line.kind === "critical")
-              .map((line) => (
+            {criticalLimitLines.map((line) => (
+              <span
+                key={`legend-${line.label}-${line.value}`}
+                className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-800"
+              >
                 <span
-                  key={`legend-${line.label}-${line.value}`}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-800"
-                >
-                  <span
-                    className="inline-block w-3 border-t-2 border-dashed"
-                    style={{ borderColor: line.color }}
-                    aria-hidden
-                  />
-                  {line.label}: {formatAxisValue(line.value)}
-                </span>
-              ))}
+                  className="inline-block w-3 border-t-2 border-dashed"
+                  style={{ borderColor: line.color }}
+                  aria-hidden
+                />
+                {line.label}: {formatAxisValue(line.value)}
+              </span>
+            ))}
           </div>
         )}
       </CardContent>

@@ -1798,9 +1798,12 @@ export default function Reporte() {
                 pdf.text(chartTitle, marginLeft, currentY);
                 currentY += 8;
                 
-                // Agregar el gráfico
+                // Agregar el gráfico con contorno sólido
                 currentY = checkSpaceAndAddPage(chartHeightMM + spacingMM, currentY);
                 pdf.addImage(chartData, "JPEG", marginLeft, currentY, contentWidthMM, chartHeightMM);
+                pdf.setDrawColor(31, 41, 55); // gray-800
+                pdf.setLineWidth(0.4);
+                pdf.rect(marginLeft, currentY, contentWidthMM, chartHeightMM);
                 currentY += chartHeightMM + spacingMM;
                 
                 // Buscar y agregar comentarios del gráfico si existen

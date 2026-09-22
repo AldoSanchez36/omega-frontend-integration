@@ -7,8 +7,29 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  Customized,
   Legend,
 } from "recharts"
+
+/** Contorno sólido del área de plot (web + captura PDF). */
+function PlotAreaBorder(props: {
+  offset?: { top: number; left: number; width: number; height: number }
+}) {
+  const { offset } = props
+  if (!offset) return null
+  return (
+    <rect
+      x={offset.left}
+      y={offset.top}
+      width={offset.width}
+      height={offset.height}
+      fill="none"
+      stroke="#1f2937"
+      strokeWidth={1.75}
+      pointerEvents="none"
+    />
+  )
+}
 import {
   Card,
   CardContent,
@@ -427,11 +448,15 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div ref={chartContainerRef} className="w-full" style={{ height: '384px' }}>
+        <div
+          ref={chartContainerRef}
+          className="w-full rounded-md border border-gray-800 bg-white p-1"
+          style={{ height: '384px' }}
+        >
           <ChartContainer config={chartConfig} className="h-full w-full">
             <LineChart
               data={data}
-              margin={{ left: 12, right: 12 }}
+              margin={{ top: 8, left: 12, right: 12, bottom: 4 }}
             >
               <CartesianGrid
                 horizontal
@@ -443,7 +468,7 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
               />
               <YAxis
                 tickLine={false}
-                axisLine={false}
+                axisLine={{ stroke: "#1f2937", strokeWidth: 1.5 }}
                 label={unidades ? {
                   value: unidades,
                   angle: -90,
@@ -466,7 +491,7 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
                 dataKey="fechaEtiqueta"
                 interval={hideXAxisLabels ? undefined : xAxisInterval}
                 tickLine={false}
-                axisLine={false}
+                axisLine={{ stroke: "#1f2937", strokeWidth: 1.5 }}
                 tickMargin={8}
                 tick={hideXAxisLabels ? false : {
                   fill: '#000000', // Negro sólido para las fechas del eje X
@@ -491,6 +516,8 @@ export const SensorTimeSeriesChart = forwardRef<ChartExportRef, Props>(({
                   connectNulls
                 />
               ))}
+              {/* Contorno sólido del área de datos (también visible en PDF vía exportAsImage) */}
+              <Customized component={PlotAreaBorder as never} />
               <Legend
                 verticalAlign="bottom"
                 align="center"
