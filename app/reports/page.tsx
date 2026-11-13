@@ -11,6 +11,7 @@ import Navbar from "@/components/Navbar"
 import { SensorTimeSeriesChart, type ChartExportRef } from "@/components/SensorTimeSeriesChart"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import ScrollArrow from "@/app/reportmanager/components/ScrollArrow"
+import { ReportsHistoricosPanel } from "@/app/reports/components/ReportsHistoricosPanel"
 import { formatCalendarDate, getReportChartDateRange, normalizeToYmd, takeLastNUniqueDates, REPORT_CHART_MAX_POINTS } from "@/lib/date"
 import { buildReportesQueryParams } from "@/lib/report-api-params"
 import {
@@ -1798,9 +1799,12 @@ export default function Reporte() {
                 pdf.text(chartTitle, marginLeft, currentY);
                 currentY += 8;
                 
-                // Agregar el gráfico
+                // Agregar el gráfico con contorno sólido
                 currentY = checkSpaceAndAddPage(chartHeightMM + spacingMM, currentY);
                 pdf.addImage(chartData, "JPEG", marginLeft, currentY, contentWidthMM, chartHeightMM);
+                pdf.setDrawColor(31, 41, 55); // gray-800
+                pdf.setLineWidth(0.4);
+                pdf.rect(marginLeft, currentY, contentWidthMM, chartHeightMM);
                 currentY += chartHeightMM + spacingMM;
                 
                 // Buscar y agregar comentarios del gráfico si existen
@@ -2868,13 +2872,15 @@ export default function Reporte() {
                   <strong>Empresa:</strong> {empresaNombre ?? "—"} |{" "}
                   <strong>Planta:</strong> {headerPlantaDisplay} |{" "}
                   <strong>Fecha:</strong>{" "}
-                  {reportSelection.generatedDate
-                    ? new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                      })
-                    : currentDate}
+                  {reportSelection.fecha
+                    ? formatFechaLocal(reportSelection.fecha)
+                    : reportSelection.generatedDate
+                      ? new Date(reportSelection.generatedDate).toLocaleDateString("es-ES", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })
+                      : currentDate}
                 </small>
               </div>
             )}
@@ -3205,46 +3211,32 @@ export default function Reporte() {
                 </div>
               )}
 
-              {/* Gráficos de Series Temporales */}
+              {/* Gráficos PDF (ocultos): mismos datos; captura via refs para jsPDF */}
               {variablesDisponibles.length > 0 && (
-                <div className="mb-4 ml-10 mr-10">
-                  <h5>Gráficos de Series Temporales</h5>
-                  {chartStartDate && chartEndDate && (
-                    <p className="text-sm text-muted mb-3">
-                      Últimos {REPORT_CHART_MAX_POINTS} datos hasta{" "}
-                      {formatCalendarDate(
-                        reportSelection?.fecha || reportSelection?.generatedDate || chartEndDate,
-                        { day: "2-digit", month: "short", year: "numeric" }
-                      )}
-                    </p>
-                  )}
-                  {chartStartDate && chartEndDate && (
-                    <p className="text-xs text-muted mb-3">
-                      El eje X muestra únicamente días con dato, sin incluir reportes posteriores a esta fecha.
-                    </p>
-                  )}
-                  
-                  {/* Mostrar todos los gráficos */}
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: "fixed",
+                    left: "-10000px",
+                    top: 0,
+                    width: "800px",
+                    pointerEvents: "none",
+                    opacity: 0,
+                  }}
+                >
                   <div className="space-y-6">
                     {variablesDisponibles.map((variable) => {
-                      // Crear ref para este gráfico si no existe
                       if (!chartRefs.current.has(variable.nombre)) {
                         chartRefs.current.set(variable.nombre, null as any)
                       }
-                      
-                      // Usar el primer sistema donde aparece la variable, o intentar todos si hay múltiples
-                      // El componente SensorTimeSeriesChart buscará datos por cliente primero, luego por proceso
-                      const primarySystemName = variable.sistemas && variable.sistemas.length > 0 
-                        ? variable.sistemas[0] 
-                        : undefined;
 
-                      // Buscar datos normalizando el nombre (por si hay diferencias de espacios)
-                      // IMPORTANTE: Siempre pasar un array (incluso vacío) para que SensorTimeSeriesChart NO haga llamadas a API de mediciones
-                      // Los datos vienen SOLO de reportes.datos (tabla reportes), NO de tabla mediciones
+                      const primarySystemName = variable.sistemas && variable.sistemas.length > 0
+                        ? variable.sistemas[0]
+                        : undefined
+
                       const nombreNormalizado = variable.nombre.trim()
                       let medicionesHistorico: MedicionParaGrafico[] = []
 
-                      // Histórico: reportes guardados en API (chartDataFromReportes)
                       if (chartDataFromReportes && typeof chartDataFromReportes === "object") {
                         medicionesHistorico = chartDataFromReportes[nombreNormalizado] ?? []
                         if (medicionesHistorico.length === 0) {
@@ -3312,269 +3304,70 @@ export default function Reporte() {
                         .sort()
                       const seriesStartDate = seriesDates[0] || reportDateYmd || chartStartDate
                       const seriesEndDate = reportDateYmd || seriesDates[seriesDates.length - 1] || chartEndDate
-                      
+
                       return (
-                        <div key={variable.id} className="border rounded-lg p-4 bg-white">
-                        <div>
+                        <div key={variable.id}>
                           {chartStartDate && chartEndDate && (
-                            <div className="w-full">
-                              <SensorTimeSeriesChart
-                                ref={(ref) => {
-                                  if (ref) {
-                                    chartRefs.current.set(variable.nombre, ref)
-                                  }
-                                }}
-                                variable={variable.nombre}
-                                startDate={seriesStartDate}
-                                endDate={seriesEndDate}
-                                apiBase={API_BASE_URL}
-                                unidades={variable.unidad}
-                                clientName={reportSelection?.plant?.nombre}
-                                processName={primarySystemName}
-                                userId={reportSelection?.user?.id}
-                                medicionesFromReportes={medicionesData}
-                                // IMPORTANTE: medicionesData siempre es un array (incluso vacío) para que SensorTimeSeriesChart
-                                // NO haga llamadas a API de mediciones. Los datos vienen SOLO de reportes.datos
-                              />
-                            </div>
+                            <SensorTimeSeriesChart
+                              ref={(ref) => {
+                                if (ref) {
+                                  chartRefs.current.set(variable.nombre, ref)
+                                }
+                              }}
+                              variable={variable.nombre}
+                              startDate={seriesStartDate}
+                              endDate={seriesEndDate}
+                              apiBase={API_BASE_URL}
+                              unidades={variable.unidad}
+                              clientName={reportSelection?.plant?.nombre}
+                              processName={primarySystemName}
+                              userId={reportSelection?.user?.id}
+                              medicionesFromReportes={medicionesData}
+                            />
                           )}
                         </div>
-                        </div>
-                      );
+                      )
                     })}
                   </div>
                 </div>
               )}
 
-              {/* Tablas Históricas por Sistema */}
-              {reportSelection?.parameters && Object.keys(reportSelection.parameters).length > 0 && (
+              {/* UI unificada: mismos datos históricos, con límites (sustituye charts + tablas viejas) */}
+              {reportSelection?.plant?.id && (
                 <div className="mb-4 ml-10 mr-10">
-                  <div className="flex items-center justify-between mb-3">
-                    <h5 className="mb-0">Historial de Reportes por Sistema</h5>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="includeTableInPDF"
-                        checked={includeTableInPDF}
-                        onChange={(e) => userRole !== "client" && setIncludeTableInPDF(e.target.checked)}
-                        disabled={userRole === "client"}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <label htmlFor="includeTableInPDF" className="text-sm text-gray-700 cursor-pointer">
+                  <ReportsHistoricosPanel
+                    embedded
+                    plantId={reportSelection.plant.id}
+                    plantName={reportSelection.plant?.nombre ?? headerPlantaDisplay}
+                    empresaId={
+                      reportSelection.empresa_id ??
+                      reportSelection.user?.empresa_id ??
+                      reportSelection.plant?.empresa_id ??
+                      null
+                    }
+                    empresaNombre={empresaNombre}
+                    reportFecha={
+                      reportSelection.fecha
+                        ? String(reportSelection.fecha).split("T")[0]
+                        : null
+                    }
+                    preferredSystemName={orderedSystemNames[0] ?? null}
+                    userRole={userRole}
+                    token={typeof window !== "undefined" ? localStorage.getItem("Organomex_token") : null}
+                    headerExtra={
+                      <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700">
+                        <input
+                          type="checkbox"
+                          id="includeTableInPDF"
+                          checked={includeTableInPDF}
+                          onChange={(e) => userRole !== "client" && setIncludeTableInPDF(e.target.checked)}
+                          disabled={userRole === "client"}
+                          className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
                         Incluir tabla en PDF
                       </label>
-                    </div>
-                  </div>
-                  {chartStartDate && chartEndDate && (
-                    <p className="text-sm text-muted mb-3">
-                      Período: {formatCalendarDate(chartStartDate, { day: "2-digit", month: "short", year: "numeric" })} - {formatCalendarDate(chartEndDate, { day: "2-digit", month: "short", year: "numeric" })}{" "}
-                    </p>
-                  )}
-                  
-                  {orderedSystemNames.map((systemName) => {
-                    const parametersRaw = systemParameters[systemName] || []
-                    // Ordenar parámetros igual que el resto del reporte: plantOrderVariables, luego parameterOrder
-                    const parameters = (() => {
-                      if (parametersRaw.length === 0) return []
-                      const paramNames = parametersRaw.map(p => p.nombre)
-                      let orderedNames: string[]
-                      if (plantOrderVariables.length > 0) {
-                        orderedNames = [
-                          ...plantOrderVariables.map(v => v.nombre).filter(n => paramNames.includes(n)),
-                          ...paramNames.filter(n => !plantOrderVariables.some(v => v.nombre === n))
-                        ]
-                      } else if (reportSelection?.parameterOrder?.length) {
-                        orderedNames = [
-                          ...reportSelection.parameterOrder.filter(n => paramNames.includes(n)),
-                          ...paramNames.filter(n => !reportSelection.parameterOrder!.includes(n))
-                        ]
-                      } else {
-                        return parametersRaw
-                      }
-                      return orderedNames
-                        .map(nombre => parametersRaw.find(p => p.nombre === nombre))
-                        .filter((p): p is { id: string; nombre: string; unidad: string } => p != null)
-                    })()
-                    const historicalData = historicalDataBySystem[systemName] || {}
-                    const isLoading = historicalLoading[systemName] || false
-                    const error = historicalError[systemName]
-                    const sortedDates = Object.keys(historicalData).sort((a, b) => 
-                      new Date(a).getTime() - new Date(b).getTime()
-                    )
-                    const highLowValues = getHighLowValues(systemName, parameters)
-
-                    // PROMEDIO calculado dinámicamente sobre los valores actuales mostrados en el historial
-                    // (promedio de todos los registros por fecha cargados en el rango seleccionado).
-                    const promedioValues: Record<string, number | null> = {}
-                    parameters.forEach((param) => {
-                      let sum = 0
-                      let count = 0
-                      sortedDates.forEach((fecha) => {
-                        const dateData = historicalData[fecha]
-                        const value = dateData?.[param.id]
-                        const valor =
-                          value && typeof value === "object" && "valor" in value
-                            ? (value as { valor: unknown }).valor
-                            : undefined
-                        if (typeof valor === "number" && !Number.isNaN(valor)) {
-                          sum += valor
-                          count += 1
-                        }
-                      })
-                      promedioValues[param.id] = count > 0 ? sum / count : null
-                    })
-                    
-                    // Si no hay parámetros y no está cargando, intentar cargarlos
-                    if (parameters.length === 0 && !isLoading) {
-                      if (reportSelection && chartStartDate && chartEndDate) {
-                        fetchHistoricalDataForSystem(systemName)
-                      }
-                      return (
-                        <div key={systemName} className="mb-6">
-                          <h6 className="mb-3 font-semibold">Sistema: {systemName}</h6>
-                          <div className="flex items-center justify-center py-10">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                          </div>
-                        </div>
-                      )
                     }
-                    
-                    if (parameters.length === 0) return null
-                    
-                    return (
-                      <div key={systemName} className="mb-6">
-                        <h6 className="mb-3 font-semibold">Sistema: {systemName}</h6>
-                        {isLoading ? (
-                          <div className="flex items-center justify-center py-10">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                          </div>
-                        ) : error ? (
-                          <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                            <p className="text-sm text-red-700">{error}</p>
-                          </div>
-                        ) : sortedDates.length === 0 ? (
-                          <div className="text-center py-10 text-gray-500">
-                            No se encontraron datos históricos para el rango de fechas seleccionado.
-                          </div>
-                        ) : (
-                          <div className="w-full max-w-none overflow-x-auto">
-                            <table className="w-full border-collapse border border-gray-300 bg-white text-[11px] leading-tight table-auto">
-                              <thead>
-                                <tr className="bg-blue-800 text-white">
-                                  <th className="border px-2 py-2 text-left font-semibold whitespace-nowrap text-xs min-w-[6.5rem]">
-                                    PARÁMETROS
-                                  </th>
-                                  {parameters.map((param) => {
-                                    const u = param.unidad && String(param.unidad).trim();
-                                    return (
-                                      <th
-                                        key={param.id}
-                                        className="border px-1.5 py-2 text-center font-semibold text-xs leading-snug max-w-none"
-                                      >
-                                        <div className="whitespace-nowrap">{param.nombre}</div>
-                                        {u ? (
-                                          <div className="whitespace-nowrap font-normal">({u})</div>
-                                        ) : null}
-                                      </th>
-                                    );
-                                  })}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {/* Fila ALTO */}
-                                <tr className="bg-green-100">
-                                  <td className="border px-2 py-2 font-semibold bg-green-100">
-                                    ALTO
-                                  </td>
-                                  {parameters.map((param) => (
-                                    <td key={param.id} className="border px-1 py-2 text-center text-xs">
-                                      {highLowValues[param.id]?.alto.toFixed(2) || "—"}
-                                    </td>
-                                  ))}
-                                </tr>
-                                {/* Fila BAJO */}
-                                <tr className="bg-green-100">
-                                  <td className="border px-2 py-2 font-semibold bg-green-100">
-                                    BAJO
-                                  </td>
-                                  {parameters.map((param) => (
-                                    <td key={param.id} className="border px-1 py-2 text-center text-xs">
-                                      {highLowValues[param.id]?.bajo.toFixed(2) || "—"}
-                                    </td>
-                                  ))}
-                                </tr>
-                                {/* Fila PROMEDIO */}
-                                <tr className="bg-green-100">
-                                  <td className="border px-2 py-2 font-semibold bg-green-100">
-                                    PROMEDIO
-                                  </td>
-                                  {parameters.map((param) => (
-                                    <td key={param.id} className="border px-1 py-2 text-center text-xs">
-                                      {promedioValues[param.id] != null ? promedioValues[param.id]!.toFixed(2) : "—"}
-                                    </td>
-                                  ))}
-                                </tr>
-                                {/* Fila RANGOS — salto explícito para no cortar la palabra */}
-                                <tr className="bg-blue-800 text-white">
-                                  <td className="border px-2 py-2 font-semibold bg-blue-800 text-center align-middle leading-tight whitespace-normal">
-                                    <span className="block">FECHA/</span>
-                                    <span className="block">RANGO</span>
-                                  </td>
-                                  {parameters.map((param) => (
-                                    <td key={param.id} className="border px-1 py-2 text-center text-xs">
-                                      {getAcceptableRange(systemName, param)}
-                                    </td>
-                                  ))}
-                                </tr>
-                                {/* Filas de datos por fecha */}
-                                {sortedDates.map((fecha, index) => {
-                                  const dateData = historicalData[fecha]
-                                  const isEven = index % 2 === 0
-                                  return (
-                                    <tr
-                                      key={fecha}
-                                      className={isEven ? "bg-green-50" : "bg-pink-50"}
-                                    >
-                                      <td className={`border px-2 py-2 font-medium text-xs ${
-                                        isEven ? "bg-green-50" : "bg-pink-50"
-                                      }`}>
-                                        {formatDate(fecha)}
-                                      </td>
-                                      {parameters.map((param) => {
-                                        // Usar param.id para buscar valores (igual que historicos)
-                                        const value = dateData[param.id]
-                                        const valor = value && typeof value === 'object' && 'valor' in value ? value.valor : undefined
-                                        const cellColor = getHistoricalCellColor(systemName, param, valor)
-                                        const textColor =
-                                          cellColor === "#FFC6CE" || cellColor === "#FFEB9C" ? "#000000" : undefined
-                                        
-                                        return (
-                                          <td
-                                            key={param.id}
-                                            className="border px-1 py-2 text-center text-xs"
-                                            style={
-                                              cellColor
-                                                ? {
-                                                    backgroundColor: cellColor,
-                                                    color: textColor,
-                                                  }
-                                                : undefined
-                                            }
-                                          >
-                                            {formatNumber(valor)}
-                                          </td>
-                                        )
-                                      })}
-                                    </tr>
-                                  )
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
+                  />
                 </div>
               )}
 

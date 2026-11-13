@@ -221,13 +221,16 @@ export function useMeasurements(
                   ...(vpId ? { variables_proceso_id: vpId } : {}),
                 };
 
+                // El valor en UI (autofill o edición manual) manda; la fórmula solo metadatos
                 if (calculation && calculation.applied) {
                   reportData.parameters[system.nombre][param.nombre] = {
-                    valor: calculation.calculatedValue,
+                    valor: paramValue.value,
                     ...paramBase,
-                    valorOriginal: calculation.originalValue,
+                    valorOriginal: paramValue.value,
+                    valorFormula: calculation.calculatedValue,
                     formulaAplicada: calculation.formula.nombre,
-                    calculado: true,
+                    calculado:
+                      Number(paramValue.value) === Number(calculation.calculatedValue),
                   };
                 } else {
                   reportData.parameters[system.nombre][param.nombre] = {

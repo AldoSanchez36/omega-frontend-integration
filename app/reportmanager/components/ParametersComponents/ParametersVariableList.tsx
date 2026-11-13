@@ -26,6 +26,8 @@ interface ParameterValue {
   checked: boolean;
   value?: number;
   unidadSeleccionada?: string;
+  formulaSuggested?: boolean;
+  formulaName?: string;
 }
 
 interface Props {
@@ -126,17 +128,29 @@ const ParametersVariableList: React.FC<Props> = ({
               />
               <span className="font-medium text-sm">{parameter.nombre}</span>
               {checked && (
-                <Input
-                  type="number"
-                  placeholder="Valor"
-                  className="w-[80px] text-sm h-7 ml-1.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  style={{
-                    backgroundColor: getInputColor(parameter.id, parameterValues[parameter.id]?.value),
-                    borderColor: getInputColor(parameter.id, parameterValues[parameter.id]?.value) ? getInputColor(parameter.id, parameterValues[parameter.id]?.value) : undefined
-                  }}
-                  value={parameterValues[parameter.id]?.value ?? ''}
-                  onChange={e => handleParameterChange(parameter.id, 'value', Number(e.target.value))}
-                />
+                <div className="ml-1.5 flex flex-col items-start gap-0.5">
+                  <Input
+                    type="number"
+                    placeholder="Valor"
+                    className="w-[80px] text-sm h-7 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    style={{
+                      backgroundColor: getInputColor(parameter.id, parameterValues[parameter.id]?.value),
+                      borderColor: getInputColor(parameter.id, parameterValues[parameter.id]?.value) ? getInputColor(parameter.id, parameterValues[parameter.id]?.value) : undefined
+                    }}
+                    value={parameterValues[parameter.id]?.value ?? ''}
+                    onChange={e => handleParameterChange(parameter.id, 'value', Number(e.target.value))}
+                    title={
+                      parameterValues[parameter.id]?.formulaName
+                        ? `Sugerido por fórmula: ${parameterValues[parameter.id]?.formulaName} (editable)`
+                        : undefined
+                    }
+                  />
+                  {parameterValues[parameter.id]?.formulaSuggested && parameterValues[parameter.id]?.formulaName ? (
+                    <span className="max-w-[140px] truncate text-[10px] font-medium text-sky-700">
+                      f(x) {parameterValues[parameter.id]?.formulaName}
+                    </span>
+                  ) : null}
+                </div>
               )}
             </div>
             

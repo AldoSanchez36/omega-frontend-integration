@@ -1,19 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useState, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
 import ProtectedRoute from "@/components/ProtectedRoute"
 import { Navbar } from "@/components/Navbar"
 import { API_BASE_URL, API_ENDPOINTS } from "@/config/constants"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { X } from "lucide-react"
-import { authService } from "@/services/authService"
-import { Variable, Proceso } from "@/types"
 
 // Utilidad para extraer proceso_id de cualquier estructura
 function extractProcesoId(obj: any): string | undefined {
@@ -35,12 +31,73 @@ function extractProcesoId(obj: any): string | undefined {
   return undefined
 }
 
-type VarDef = { nombre: string; prueba: string }
+type VarDef = { id: string; nombre: string; prueba: string }
 // VariableOption incluye proceso_id para poder INFERIRLO al guardar
 type VariableOption = { id: string; nombre: string; unidad?: string; proceso_id?: string }
 
+type ExprPart =
+  | { kind: "var"; id: string; nombre: string }
+  | { kind: "op"; value: "+" | "-" | "*" | "/" | "(" | ")" }
+  | { kind: "num"; value: string }
+
+const OPERATORS: Array<ExprPart & { kind: "op" }> = [
+  { kind: "op", value: "+" },
+  { kind: "op", value: "-" },
+  { kind: "op", value: "*" },
+  { kind: "op", value: "/" },
+  { kind: "op", value: "(" },
+  { kind: "op", value: ")" },
+]
+
+function partsToExpression(parts: ExprPart[]): string {
+  if (parts.length === 0) return ""
+  return parts
+    .map((p) => {
+      if (p.kind === "var") return p.nombre
+      if (p.kind === "num") return p.value
+      return p.value
+    })
+    .join(" ")
+    .replace(/\(\s+/g, "(")
+    .replace(/\s+\)/g, ")")
+}
+
+/** Evalúa expresión sustituyendo nombres reales (pueden tener espacios/°/()) por tokens seguros. */
+function evaluateNamedExpression(
+  expression: string,
+  bindings: Array<{ nombre: string; value: number }>
+): number {
+  const sorted = [...bindings]
+    .filter((b) => b.nombre.trim())
+    .sort((a, b) => b.nombre.length - a.nombre.length)
+
+  let expr = expression.trim()
+  const params: string[] = []
+  const values: number[] = []
+
+  sorted.forEach((b, i) => {
+    const token = `__v${i}`
+    if (expr.includes(b.nombre)) {
+      expr = expr.split(b.nombre).join(token)
+    }
+    params.push(token)
+    values.push(b.value)
+  })
+
+  if (!/^[a-zA-Z0-9_\s+\-*/().]+$/.test(expr)) {
+    throw new Error("La expresión contiene caracteres no permitidos (usa solo +, -, *, /, paréntesis y las variables seleccionadas)")
+  }
+
+  // eslint-disable-next-line no-new-func
+  const fn = new Function(...params, `return (${expr});`)
+  const result = fn(...values)
+  if (typeof result !== "number" || Number.isNaN(result) || !Number.isFinite(result)) {
+    throw new Error("El resultado no es un número válido")
+  }
+  return result
+}
+
 export default function AgregarFormula() {
-  const router = useRouter()
   const [userRole, setUserRole] = useState<"admin" | "user" | "client" | "guest">("guest")
 
   // Helper function to get token
@@ -49,7 +106,6 @@ export default function AgregarFormula() {
   }
   useEffect(() => {
     if (typeof window !== "undefined") {
-      // setToken(localStorage.getItem("Organomex_token"))
       const u = localStorage.getItem("Organomex_user")
       if (u) setUserRole(JSON.parse(u)?.puesto || "user")
     }
@@ -58,10 +114,11 @@ export default function AgregarFormula() {
   // --- estado principal ---
   const [numVars, setNumVars] = useState<number>(2)
   const [vars, setVars] = useState<VarDef[]>([
-    { nombre: "x", prueba: "2" },
-    { nombre: "y", prueba: "3" },
+    { id: "", nombre: "", prueba: "2" },
+    { id: "", nombre: "", prueba: "3" },
   ])
-  const [expresion, setExpresion] = useState<string>("x + y * 2")
+  const [exprParts, setExprParts] = useState<ExprPart[]>([])
+  const [numeroInsertar, setNumeroInsertar] = useState<string>("")
   const [nombre, setNombre] = useState<string>("")
   const [guardando, setGuardando] = useState<boolean>(false)
   const [preview, setPreview] = useState<string | number>("")
@@ -70,55 +127,131 @@ export default function AgregarFormula() {
   const [variablesOptions, setVariablesOptions] = useState<VariableOption[]>([])
   const [variableResultadoId, setVariableResultadoId] = useState<string>("")
 
-  // nombres de variables a persistir
-  const variablesUsadas = useMemo(
-    () => vars.map(v => v.nombre.trim()).filter(Boolean),
-    [vars]
-  )
+  const expresion = useMemo(() => partsToExpression(exprParts), [exprParts])
+
+  // nombres de variables a persistir (solo las que realmente están en la expresión)
+  const variablesUsadas = useMemo(() => {
+    const namesInExpr = exprParts
+      .filter((p): p is Extract<ExprPart, { kind: "var" }> => p.kind === "var")
+      .map((p) => p.nombre)
+    const unique = Array.from(new Set(namesInExpr))
+    if (unique.length > 0) return unique
+    return vars.map((v) => v.nombre.trim()).filter(Boolean)
+  }, [exprParts, vars])
 
   // generar / ajustar cantidad de variables
   const handleGenerarCampos = () => {
     const n = Math.max(1, Number(numVars || 1))
     const copia = [...vars]
     if (n > copia.length) {
+      const usedIds = new Set(copia.map((v) => v.id).filter(Boolean))
       const faltan = n - copia.length
       for (let i = 0; i < faltan; i++) {
-        const letra = String.fromCharCode(97 + (copia.length % 26)) // a,b,c...
-        copia.push({ nombre: letra, prueba: "" })
+        const next = variablesOptions.find((opt) => !usedIds.has(opt.id))
+        if (next) {
+          usedIds.add(next.id)
+          copia.push({ id: next.id, nombre: next.nombre, prueba: "0" })
+        } else {
+          copia.push({ id: "", nombre: "", prueba: "0" })
+        }
       }
     } else if (n < copia.length) {
-      copia.length = n
+      const removed = copia.splice(n)
+      const removedIds = new Set(removed.map((r) => r.id).filter(Boolean))
+      if (removedIds.size > 0) {
+        setExprParts((prev) => prev.filter((p) => p.kind !== "var" || !removedIds.has(p.id)))
+      }
     }
     setVars(copia)
     setNumVars(n)
   }
 
-  const handleChangeVar = (i: number, field: keyof VarDef, value: string) => {
-    setVars(prev => {
+  const handleSelectVar = (index: number, variableId: string) => {
+    const opt = variablesOptions.find((v) => v.id === variableId)
+    if (!opt) return
+    setVars((prev) => {
+      const oldId = prev[index]?.id
       const cp = [...prev]
-      cp[i] = { ...cp[i], [field]: value }
+      cp[index] = { id: opt.id, nombre: opt.nombre, prueba: cp[index]?.prueba ?? "0" }
+      if (oldId && oldId !== opt.id) {
+        setExprParts((parts) =>
+          parts.map((p) =>
+            p.kind === "var" && p.id === oldId ? { kind: "var", id: opt.id, nombre: opt.nombre } : p
+          )
+        )
+      }
       return cp
     })
+  }
+
+  const handleChangePrueba = (index: number, value: string) => {
+    setVars((prev) => {
+      const cp = [...prev]
+      cp[index] = { ...cp[index], prueba: value }
+      return cp
+    })
+  }
+
+  const insertVar = (v: VarDef) => {
+    if (!v.id || !v.nombre) return
+    setExprParts((prev) => [...prev, { kind: "var", id: v.id, nombre: v.nombre }])
+  }
+
+  const insertOp = (value: ExprPart & { kind: "op" }) => {
+    setExprParts((prev) => [...prev, value])
+  }
+
+  const insertNumero = () => {
+    const raw = numeroInsertar.trim()
+    if (!raw || Number.isNaN(Number(raw))) return
+    setExprParts((prev) => [...prev, { kind: "num", value: raw }])
+    setNumeroInsertar("")
+  }
+
+  const undoLastPart = () => {
+    setExprParts((prev) => prev.slice(0, -1))
+  }
+
+  const clearExpression = () => {
+    setExprParts([])
+    setPreview("")
   }
 
   // evaluar fórmula con valores de prueba
   const evaluar = () => {
     try {
       if (!expresion.trim()) return setPreview("")
-      const nombres = variablesUsadas
-      const valores = nombres.map(n => {
-        const v = vars.find(v => v.nombre.trim() === n)
+      const namesInExpr = Array.from(
+        new Set(
+          exprParts
+            .filter((p): p is Extract<ExprPart, { kind: "var" }> => p.kind === "var")
+            .map((p) => p.nombre)
+        )
+      )
+      if (namesInExpr.length === 0) {
+        throw new Error("Inserta al menos una variable en la operación")
+      }
+      const bindings = namesInExpr.map((n) => {
+        const v = vars.find((item) => item.nombre.trim() === n)
         const num = Number(v?.prueba ?? "")
         if (Number.isNaN(num)) throw new Error(`El valor de prueba para "${n}" no es numérico`)
-        return num
+        return { nombre: n, value: num }
       })
-      // eslint-disable-next-line no-new-func
-      const fn = new Function(...nombres, `return (${expresion});`)
-      setPreview(fn(...valores))
+      setPreview(evaluateNamedExpression(expresion, bindings))
     } catch (e: any) {
       setPreview(`⚠ ${e?.message || "No se pudo evaluar"}`)
     }
   }
+
+  // Re-evaluar al cambiar expresión o valores de prueba
+  useEffect(() => {
+    if (!expresion.trim()) {
+      setPreview("")
+      return
+    }
+    evaluar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expresion, vars])
 
   // cargar TODAS las variables (con su proceso_id) para poder inferir proceso al guardar
   useEffect(() => {
@@ -149,7 +282,35 @@ export default function AgregarFormula() {
         }))
 
         setVariablesOptions(lista)
-        if (lista.length) setVariableResultadoId(lista[0].id)
+        if (lista.length) {
+          setVariableResultadoId((prev) => prev || lista[0].id)
+          setVars((prev) => {
+            if (prev.some((v) => v.id)) return prev
+            return prev.map((v, i) => {
+              const opt = lista[Math.min(i, lista.length - 1)]
+              const distinct = lista[i] ?? opt
+              return {
+                id: distinct.id,
+                nombre: distinct.nombre,
+                prueba: v.prueba || "0",
+              }
+            })
+          })
+          setExprParts((prev) => {
+            if (prev.length > 0) return prev
+            if (lista.length >= 2) {
+              return [
+                { kind: "var", id: lista[0].id, nombre: lista[0].nombre },
+                { kind: "op", value: "+" },
+                { kind: "var", id: lista[1].id, nombre: lista[1].nombre },
+              ]
+            }
+            if (lista.length === 1) {
+              return [{ kind: "var", id: lista[0].id, nombre: lista[0].nombre }]
+            }
+            return prev
+          })
+        }
       } catch {
         // noop
       }
@@ -164,6 +325,9 @@ export default function AgregarFormula() {
     if (!nombre.trim()) return alert("El nombre de la fórmula es obligatorio")
     if (!expresion.trim()) return alert("La expresión es obligatoria")
     if (!variableResultadoId) return alert("Selecciona el parámetro (variable) resultado")
+    if (vars.some((v) => !v.id || !v.nombre.trim())) {
+      return alert("Selecciona variables existentes para todos los campos de Variable 1, 2, …")
+    }
 
     // Obtener proceso_id de la variable seleccionada (requerido por BD)
     const varOpt = variablesOptions.find(v => v.id === variableResultadoId)
@@ -369,276 +533,416 @@ export default function AgregarFormula() {
     }
   }
 
-  // Elimina estados y lógica de autocomplete
+  const previewIsError = typeof preview === "string" && preview.startsWith("⚠")
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-slate-100">
         <Navbar role={userRole} />
 
-        <div className="container mx-auto py-8 px-4">
-          <div className="max-w-4xl mx-auto">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white py-6 rounded-lg shadow mb-6">
-              <div className="flex items-center gap-4">
-                <div className="bg-white/20 backdrop-blur-sm p-3 rounded-full">
-                  <span className="material-icons text-3xl">functions</span>
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold">Creador de Fórmulas</h1>
-                  <p className="opacity-90">Define, evalúa y guarda tus propias fórmulas matemáticas</p>
-                </div>
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+          {/* Header */}
+          <div className="mb-6 overflow-hidden rounded-2xl bg-gradient-to-r from-sky-700 to-blue-800 text-white shadow-md">
+            <div className="flex items-center gap-4 px-5 py-5 sm:px-7">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15">
+                <span className="material-icons text-3xl">functions</span>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">Creador de Fórmulas</h1>
+                <p className="text-sm text-sky-100">
+                  Elige variables del dataset, arma la operación con clics y guarda el resultado.
+                </p>
               </div>
             </div>
+          </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
-
-              <div className="space-y-8">
-                {/* Paso 1: Variables */}
-                <section>
-                  <div className="flex items-center mb-4">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm mr-3">
-                      1
-                    </div>
-                    <h2 className="text-xl font-semibold text-gray-800">Definir Variables</h2>
+          <div className="grid gap-5 lg:grid-cols-[1fr_1.15fr]">
+            {/* Columna izquierda: variables + destino */}
+            <div className="space-y-5">
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-600 text-sm font-bold text-white">
+                    1
                   </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900">Variables de entrada</h2>
+                    <p className="text-xs text-slate-500">Mismo catálogo que el destino del resultado</p>
+                  </div>
+                </div>
 
-                  <Card className="bg-gray-50 p-6 rounded-lg shadow border border-gray-200">
-                    <div className="flex flex-col sm:flex-row sm:items-end sm:space-x-4 space-y-4 sm:space-y-0">
-                      <div className="flex-grow">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Número de variables</label>
-                        <Input
-                          type="number"
-                          min={1}
-                          value={numVars}
-                          onChange={(e) => setNumVars(Number(e.target.value))}
-                          className="w-full"
-                        />
-                      </div>
-                      <Button onClick={handleGenerarCampos} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded w-full sm:w-auto">
-                        <span className="material-icons mr-2 text-sm">add_circle_outline</span>
-                        Generar Campos
-                      </Button>
-                    </div>
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="flex-1">
+                    <label className="mb-1 block text-sm font-medium text-slate-700">Cantidad</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={numVars}
+                      onChange={(e) => setNumVars(Number(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+                  <Button onClick={handleGenerarCampos} className="bg-sky-600 hover:bg-sky-700 text-white">
+                    Actualizar campos
+                  </Button>
+                </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3 mt-4">
-                      {vars.map((v, i) => (
-                        <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-3">
+                  {vars.map((v, i) => {
+                    const selectedElsewhere = new Set(
+                      vars.filter((_, idx) => idx !== i).map((item) => item.id).filter(Boolean)
+                    )
+                    return (
+                      <div
+                        key={i}
+                        className="rounded-xl border border-slate-200 bg-slate-50/80 p-3"
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Entrada {i + 1}
+                          </span>
+                          {v.id ? (
+                            <button
+                              type="button"
+                              onClick={() => insertVar(v)}
+                              className="text-xs font-medium text-sky-700 hover:text-sky-900"
+                            >
+                              + Insertar en fórmula
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_6.5rem]">
+                          {variablesOptions.length === 0 ? (
+                            <div className="rounded bg-red-50 p-2 text-sm text-red-600" role="alert">
+                              No hay variables disponibles.
+                            </div>
+                          ) : (
+                            <Select
+                              value={v.id || undefined}
+                              onValueChange={(value) => handleSelectVar(i, value)}
+                            >
+                              <SelectTrigger id={`variable-usada-${i}`} aria-label={`Variable ${i + 1}`}>
+                                <SelectValue placeholder="Selecciona variable" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white text-slate-900">
+                                {variablesOptions.map((opt) => (
+                                  <SelectItem
+                                    key={opt.id}
+                                    value={opt.id}
+                                    disabled={selectedElsewhere.has(opt.id) && opt.id !== v.id}
+                                  >
+                                    {opt.nombre}{opt.unidad ? ` (${opt.unidad})` : ""}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Variable {i + 1}</label>
-                            <Input
-                              placeholder={`v${i + 1}`}
-                              value={v.nombre}
-                              onChange={(e) => handleChangeVar(i, "nombre", e.target.value)}
-                              className="w-full"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Valor de prueba</label>
                             <Input
                               type="number"
-                              placeholder="0"
+                              placeholder="Prueba"
                               value={v.prueba}
-                              onChange={(e) => handleChangeVar(i, "prueba", e.target.value)}
-                              className="w-full"
+                              onChange={(e) => handleChangePrueba(i, e.target.value)}
+                              aria-label={`Valor de prueba variable ${i + 1}`}
                             />
                           </div>
                         </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-600 text-sm font-bold text-white">
+                    3
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900">Destino y nombre</h2>
+                    <p className="text-xs text-slate-500">Dónde se aplica y cómo se identifica</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="nombre-formula" className="mb-1 block text-sm font-medium text-slate-700">
+                      Nombre de la fórmula
+                    </label>
+                    <Input
+                      id="nombre-formula"
+                      value={nombre}
+                      onChange={(e) => setNombre(e.target.value)}
+                      placeholder="Ej. Cálculo de ΔT"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="variable-resultado" className="mb-1 block text-sm font-medium text-slate-700">
+                      Variable que recibirá el resultado
+                    </label>
+                    {variablesOptions.length === 0 ? (
+                      <div className="rounded bg-red-50 p-2 text-sm text-red-600" role="alert">
+                        No hay variables disponibles para seleccionar.
+                      </div>
+                    ) : (
+                      <Select
+                        value={variableResultadoId}
+                        onValueChange={setVariableResultadoId}
+                        disabled={variablesOptions.length === 0}
+                      >
+                        <SelectTrigger id="variable-resultado" aria-label="Variable resultado">
+                          <SelectValue placeholder="Selecciona la variable destino" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white text-slate-900">
+                          {variablesOptions.map((v) => (
+                            <SelectItem key={v.id} value={v.id}>
+                              {v.nombre}{v.unidad ? ` (${v.unidad})` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <p className="mt-1 text-xs text-slate-500">
+                      Se aplicará automáticamente a esta variable en los procesos donde aparezca.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            {/* Columna derecha: constructor + preview */}
+            <div className="space-y-5">
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-600 text-sm font-bold text-white">
+                    2
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900">Construir operación</h2>
+                    <p className="text-xs text-slate-500">Haz clic en variables y operadores — sin escribir nombres</p>
+                  </div>
+                </div>
+
+                <div className="mb-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Insertar variable
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {vars.filter((v) => v.id && v.nombre).length === 0 ? (
+                      <span className="text-sm text-slate-400">Define variables en el paso 1</span>
+                    ) : (
+                      vars
+                        .filter((v) => v.id && v.nombre)
+                        .map((v) => (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => insertVar(v)}
+                            className="max-w-full truncate rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-left text-sm font-medium text-sky-900 transition hover:border-sky-400 hover:bg-sky-100"
+                            title={v.nombre}
+                          >
+                            {v.nombre}
+                          </button>
+                        ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="mb-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Operadores
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {OPERATORS.map((op) => (
+                      <button
+                        key={op.value}
+                        type="button"
+                        onClick={() => insertOp(op)}
+                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 font-mono text-lg font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-white"
+                        aria-label={`Insertar ${op.value}`}
+                      >
+                        {op.value}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Número constante
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      value={numeroInsertar}
+                      onChange={(e) => setNumeroInsertar(e.target.value)}
+                      placeholder="Ej. 2"
+                      className="max-w-[8rem]"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          insertNumero()
+                        }
+                      }}
+                    />
+                    <Button type="button" variant="outline" onClick={insertNumero}>
+                      Insertar número
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mb-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 min-h-[5.5rem]">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Expresión
+                    </p>
+                    <div className="flex gap-1">
+                      <Button type="button" variant="ghost" size="sm" onClick={undoLastPart} className="h-7 px-2 text-xs">
+                        Borrar último
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={clearExpression} className="h-7 px-2 text-xs text-red-600">
+                        Limpiar
+                      </Button>
+                    </div>
+                  </div>
+                  {exprParts.length === 0 ? (
+                    <p className="text-sm text-slate-400">La fórmula aparecerá aquí al seleccionar piezas…</p>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {exprParts.map((part, idx) => (
+                        <span
+                          key={`${part.kind}-${idx}-${part.kind === "var" ? part.id : part.value}`}
+                          className={
+                            part.kind === "var"
+                              ? "rounded-md bg-sky-600 px-2 py-1 text-sm font-medium text-white"
+                              : part.kind === "num"
+                                ? "rounded-md bg-amber-100 px-2 py-1 font-mono text-sm text-amber-900"
+                                : "rounded-md bg-slate-200 px-2 py-1 font-mono text-sm font-semibold text-slate-800"
+                          }
+                        >
+                          {part.kind === "var" ? part.nombre : part.value}
+                        </span>
                       ))}
                     </div>
-                  </Card>
-                </section>
+                  )}
+                </div>
 
-                {/* Paso 2: Construir operación */}
-                <section>
-                  <div className="flex items-center mb-4">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm mr-3">
-                      2
-                    </div>
-                    <h2 className="text-xl font-semibold text-gray-800">Construir Operación</h2>
-                  </div>
+                <p className="text-xs text-slate-500">
+                  Cadena guardada: <span className="font-mono text-slate-700">{expresion || "—"}</span>
+                </p>
+              </section>
 
-                  <Card className="bg-gray-50 p-6 rounded-lg shadow border border-gray-200 space-y-4">
-                    {/* Input sin ícono de lápiz */}
-                    <div className="relative">
-                      <Input
-                        value={expresion}
-                        onChange={e => setExpresion(e.target.value)}
-                        placeholder="x + y * 2"
-                        className="font-mono text-lg"
-                      />
-                    </div>
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 className="mb-3 text-lg font-semibold text-slate-900">Vista previa</h2>
+                <div
+                  className={`mb-4 flex flex-col gap-1 rounded-xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
+                    previewIsError
+                      ? "border-amber-300 bg-amber-50 text-amber-900"
+                      : "border-emerald-200 bg-emerald-50 text-emerald-900"
+                  }`}
+                >
+                  <span className="text-sm font-medium">Resultado con valores de prueba</span>
+                  <span className="text-2xl font-bold tabular-nums">
+                    {preview === "" ? "—" : String(preview)}
+                  </span>
+                </div>
 
-                    <p className="text-xs text-gray-500">
-                      Usa los nombres de las variables definidas. Operadores permitidos: +, -, *, /, (, ).
-                    </p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Nombre de la fórmula */}
-                      <div>
-                        <label htmlFor="nombre-formula" className="block text-sm font-medium text-gray-700 mb-1">Nombre de la fórmula</label>
-                        <Input
-                          id="nombre-formula"
-                          value={nombre}
-                          onChange={(e) => setNombre(e.target.value)}
-                          placeholder="Ej. Cálculo de Área"
-                          className="w-full"
-                          aria-label="Nombre de la fórmula"
-                        />
-                      </div>
-
-                      {/* Parámetro (variable) resultado */}
-                      <div>
-                        <label htmlFor="variable-resultado" className="block text-sm font-medium text-gray-700 mb-1">
-                          Variable que recibirá el resultado
-                        </label>
-                        {variablesOptions.length === 0 ? (
-                          <div className="text-sm text-red-500 bg-red-50 rounded p-2 mt-1" role="alert">
-                            No hay variables disponibles para seleccionar.
-                          </div>
-                        ) : (
-                          <Select
-                            value={variableResultadoId}
-                            onValueChange={setVariableResultadoId}
-                            disabled={variablesOptions.length === 0}
-                          >
-                            <SelectTrigger id="variable-resultado" className="w-full" aria-label="Variable resultado">
-                              <SelectValue placeholder={"Selecciona la variable que recibirá el resultado"} />
-                            </SelectTrigger>
-                            <SelectContent className="bg-[#f6f6f6] text-gray-900">
-                              {variablesOptions.map((v) => (
-                                <SelectItem key={v.id} value={v.id} aria-label={v.nombre + (v.unidad ? ` (${v.unidad})` : "")}>
-                                  {v.nombre}{v.unidad ? ` (${v.unidad})` : ""}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                        <p className="text-xs text-gray-500 mt-1">
-                          Esta fórmula se aplicará automáticamente a esta variable en cualquier proceso donde aparezca.
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
-                </section>
-
-                {/* Paso 3: Vista previa */}
-                <section>
-                  <div className="flex items-center mb-4">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-sm mr-3">
-                      3
-                    </div>
-                    <h2 className="text-xl font-semibold text-gray-800">Vista Previa y Resultados</h2>
-                  </div>
-
-                  <Card className="bg-gray-50 p-6 rounded-lg shadow border border-gray-200">
-                    <div className="mb-3">
-                      <h3 className="text-base font-medium text-gray-800">Fórmula ingresada:</h3>
-                      <p className="text-xl font-mono text-blue-600 p-3 bg-blue-50 rounded mt-1">{expresion || "—"}</p>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row items-center justify-between bg-green-100 border-l-4 border-green-500 text-green-800 p-3 rounded">
-                      <p className="text-base">Resultado con valores de prueba:</p>
-                      <p className="text-2xl font-bold">{preview === "" ? "—" : String(preview)}</p>
-                    </div>
-                  </Card>
-                </section>
-
-                {/* Acciones */}
-                <div className="flex flex-col sm:flex-row items-center justify-end space-y-3 sm:space-y-0 sm:space-x-4 pt-4 border-t border-gray-200">
-                  <Button variant="secondary" onClick={evaluar} className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded w-full sm:w-auto">
-                    <span className="material-icons mr-2 text-sm">play_circle_outline</span>
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="outline" onClick={evaluar}>
                     Evaluar de nuevo
                   </Button>
-                  <Button onClick={handleGuardar} disabled={guardando} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded w-full sm:w-auto font-semibold">
-                    <span className="material-icons mr-2 text-sm">save</span>
-                    {guardando ? "Guardando…" : "Guardar Fórmula"}
+                  <Button
+                    type="button"
+                    onClick={handleGuardar}
+                    disabled={guardando}
+                    className="bg-sky-600 hover:bg-sky-700 text-white font-semibold"
+                  >
+                    {guardando ? "Guardando…" : "Guardar fórmula"}
                   </Button>
                 </div>
-              </div>
+              </section>
             </div>
-            {/* Gestor de fórmulas al final */}
-            <section className="mt-8">
-              <div className="bg-white border border-gray-200 rounded-lg shadow p-6">
-                <h2 className="text-lg font-bold mb-4">Gestión de fórmulas</h2>
-                {loadingFormulas ? (
-                  <div className="text-gray-500">Cargando fórmulas...</div>
-                ) : errorFormulas ? (
-                  <div className="text-red-500">{errorFormulas}</div>
-                ) : formulas.length === 0 ? (
-                  <div className="text-gray-400">No hay fórmulas registradas.</div>
-                ) : (
-                  <ul className="space-y-3">
-                    {formulas.map((f) => (
-                      <li key={f.id} className="border rounded-lg p-3 flex flex-col gap-2 bg-gray-50">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-gray-800">{f.nombre}</span>
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="ghost" onClick={() => handleOpenEdit(f)} aria-label="Editar fórmula" className="h-8 w-8 p-0">
-                              <span className="material-icons text-sm">edit</span>
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => handleOpenDelete(f)} aria-label="Eliminar fórmula" className="h-8 w-8 p-0">
-                              <span className="material-icons text-sm">delete</span>
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="text-sm text-blue-700 font-mono break-all">{f.expresion}</div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {/* Modal editar fórmula */}
-                {showEditModal && (
-                  <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-                      <div className="bg-white rounded-lg shadow-lg p-4 w-full max-w-md relative">
-                        <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowEditModal(false)} aria-label="Cerrar">
-                          <X size={18} />
-                        </button>
-                        <h3 className="text-base font-bold mb-3">Editar fórmula</h3>
-                        <div className="mb-3">
-                          <Label className="text-sm">Nombre</Label>
-                          <Input value={editNombre} onChange={e => setEditNombre(e.target.value)} className="mt-1" />
-                        </div>
-                        <div className="mb-3">
-                          <Label className="text-sm">Operación</Label>
-                          <Input value={editExpresion} onChange={e => setEditExpresion(e.target.value)} className="mt-1 font-mono" />
-                        </div>
-                        <div className="flex justify-end gap-2 mt-4">
-                          <Button variant="outline" onClick={() => setShowEditModal(false)} disabled={savingEdit} className="px-3 py-1 text-sm">Cancelar</Button>
-                          <Button onClick={handleSaveEdit} disabled={savingEdit} className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 text-sm font-semibold">
-                            {savingEdit ? "Guardando..." : "Guardar"}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </Dialog>
-                )}
-
-                {/* Modal eliminar fórmula */}
-                {showDeleteModal && (
-                  <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-                      <div className="bg-white rounded-lg shadow-lg p-4 w-full max-w-md relative">
-                        <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowDeleteModal(false)} aria-label="Cerrar">
-                          <X size={18} />
-                        </button>
-                        <h3 className="text-base font-bold mb-3">Eliminar fórmula</h3>
-                        <p className="mb-4 text-sm">¿Seguro que deseas eliminar la fórmula <span className="font-semibold">{deleteFormula?.nombre}</span>? Esta acción no se puede deshacer.</p>
-                        <div className="flex justify-end gap-2">
-                          <Button variant="outline" onClick={() => setShowDeleteModal(false)} disabled={deleting} className="px-3 py-1 text-sm">Cancelar</Button>
-                          <Button onClick={handleConfirmDelete} disabled={deleting} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 text-sm font-semibold">
-                            {deleting ? "Eliminando..." : "Eliminar"}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </Dialog>
-                )}
-              </div>
-            </section>
           </div>
+
+          {/* Gestor de fórmulas */}
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="mb-4 text-lg font-bold text-slate-900">Gestión de fórmulas</h2>
+            {loadingFormulas ? (
+              <div className="text-slate-500">Cargando fórmulas...</div>
+            ) : errorFormulas ? (
+              <div className="text-red-500">{errorFormulas}</div>
+            ) : formulas.length === 0 ? (
+              <div className="text-slate-400">No hay fórmulas registradas.</div>
+            ) : (
+              <ul className="space-y-3">
+                {formulas.map((f) => (
+                  <li key={f.id} className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-800">{f.nombre}</span>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => handleOpenEdit(f)} aria-label="Editar fórmula" className="h-8 w-8 p-0">
+                          <span className="material-icons text-sm">edit</span>
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleOpenDelete(f)} aria-label="Eliminar fórmula" className="h-8 w-8 p-0">
+                          <span className="material-icons text-sm">delete</span>
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="break-all font-mono text-sm text-sky-700">{f.expresion}</div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {showEditModal && (
+              <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+                  <div className="relative w-full max-w-md rounded-lg bg-white p-4 shadow-lg">
+                    <button className="absolute right-2 top-2 text-gray-400 hover:text-gray-600" onClick={() => setShowEditModal(false)} aria-label="Cerrar">
+                      <X size={18} />
+                    </button>
+                    <h3 className="mb-3 text-base font-bold">Editar fórmula</h3>
+                    <div className="mb-3">
+                      <Label className="text-sm">Nombre</Label>
+                      <Input value={editNombre} onChange={(e) => setEditNombre(e.target.value)} className="mt-1" />
+                    </div>
+                    <div className="mb-3">
+                      <Label className="text-sm">Operación</Label>
+                      <Input value={editExpresion} onChange={(e) => setEditExpresion(e.target.value)} className="mt-1 font-mono" />
+                    </div>
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setShowEditModal(false)} disabled={savingEdit} className="px-3 py-1 text-sm">Cancelar</Button>
+                      <Button onClick={handleSaveEdit} disabled={savingEdit} className="bg-sky-600 hover:bg-sky-700 px-3 py-1 text-sm font-semibold text-white">
+                        {savingEdit ? "Guardando..." : "Guardar"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </Dialog>
+            )}
+
+            {showDeleteModal && (
+              <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+                  <div className="relative w-full max-w-md rounded-lg bg-white p-4 shadow-lg">
+                    <button className="absolute right-2 top-2 text-gray-400 hover:text-gray-600" onClick={() => setShowDeleteModal(false)} aria-label="Cerrar">
+                      <X size={18} />
+                    </button>
+                    <h3 className="mb-3 text-base font-bold">Eliminar fórmula</h3>
+                    <p className="mb-4 text-sm">
+                      ¿Seguro que deseas eliminar la fórmula <span className="font-semibold">{deleteFormula?.nombre}</span>? Esta acción no se puede deshacer.
+                    </p>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setShowDeleteModal(false)} disabled={deleting} className="px-3 py-1 text-sm">Cancelar</Button>
+                      <Button onClick={handleConfirmDelete} disabled={deleting} className="bg-red-600 hover:bg-red-700 px-3 py-1 text-sm font-semibold text-white">
+                        {deleting ? "Eliminando..." : "Eliminar"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </Dialog>
+            )}
+          </section>
         </div>
       </div>
     </ProtectedRoute>

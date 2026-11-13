@@ -16,6 +16,7 @@ import { httpService } from "@/services/httpService"
 import { useEmpresasAccess } from "@/hooks/useEmpresasAccess"
 import { useMeasurements } from "@/hooks/useMeasurements";
 import { useTolerances } from "@/hooks/useTolerances"
+import { useFormulas } from "@/hooks/useFormulas"
 
 import TabbedSelector from "./components/TabbedSelector"
 import ParametersList from "./components/ParametersList"
@@ -223,14 +224,21 @@ export default function ReportManager() {
     fecha?: string;
     comentarios?: string;
     unidadSeleccionada?: string;
+    formulaSuggested?: boolean;
+    formulaName?: string;
   };
 
   type SystemParameterValues = Record<string, Record<string, ParameterValue>>;
   type SystemLimitsState = Record<string, Record<string, { limite_min: boolean; limite_max: boolean }>>;
+  type SystemFormulaOverrides = Record<string, Record<string, boolean>>;
 
   // 2. Estados reestructurados por sistema
   const [parameterValuesBySystem, setParameterValuesBySystem] = useState<SystemParameterValues>({});
   const [limitsStateBySystem, setLimitsStateBySystem] = useState<SystemLimitsState>({});
+  /** Si el usuario editó a mano un campo con fórmula, no volver a pisarlo con autofill */
+  const [formulaOverridesBySystem, setFormulaOverridesBySystem] = useState<SystemFormulaOverrides>({});
+
+  const { suggestFormulaValues, isFormulaTarget, formulas } = useFormulas(token);
 
   // 3. Helper functions para obtener datos del sistema actual
   const getCurrentSystemValues = (systemId: string) => parameterValuesBySystem[systemId] || {};
@@ -296,6 +304,7 @@ export default function ReportManager() {
     setParameters([])
     setParameterValuesBySystem({})
     setLimitsStateBySystem({})
+    setFormulaOverridesBySystem({})
     await handleSelectEmpresa(empresaId)
   }, [handleSelectEmpresa])
 
@@ -303,6 +312,7 @@ export default function ReportManager() {
     setParameters([])
     setParameterValuesBySystem({})
     setLimitsStateBySystem({})
+    setFormulaOverridesBySystem({})
     await handleSelectPlant(plantId)
   }, [handleSelectPlant])
 
@@ -693,6 +703,35 @@ export default function ReportManager() {
   // 3. Handler actualizado para ser específico por sistema
   const handleParameterChange = (parameterId: string, field: "checked" | "value", value: boolean | number) => {
     if (!selectedSystem) return;
+
+    // Edición manual del destino de una fórmula → respetar override
+    if (field === "value" && isFormulaTarget(parameterId)) {
+      setFormulaOverridesBySystem((prev) => ({
+        ...prev,
+        [selectedSystem]: {
+          ...(prev[selectedSystem] || {}),
+          [parameterId]: true,
+        },
+      }));
+    }
+
+    // Al desmarcar, limpiar override para permitir autofill si se vuelve a marcar
+    if (field === "checked" && value === false) {
+      setFormulaOverridesBySystem((prev) => {
+        const systemOverrides = { ...(prev[selectedSystem] || {}) };
+        delete systemOverrides[parameterId];
+        return { ...prev, [selectedSystem]: systemOverrides };
+      });
+    }
+
+    // Si el usuario "re-acepta" sugerencia: checked true sin valor aún no marca override
+    if (field === "checked" && value === true) {
+      setFormulaOverridesBySystem((prev) => {
+        const systemOverrides = { ...(prev[selectedSystem] || {}) };
+        delete systemOverrides[parameterId];
+        return { ...prev, [selectedSystem]: systemOverrides };
+      });
+    }
     
     setParameterValuesBySystem(prev => ({
       ...prev,
@@ -701,6 +740,9 @@ export default function ReportManager() {
         [parameterId]: {
           ...prev[selectedSystem]?.[parameterId],
           [field]: value,
+          ...(field === "value"
+            ? { formulaSuggested: false }
+            : {}),
         },
       },
     }));
@@ -710,6 +752,78 @@ export default function ReportManager() {
       if (param) fetchSistemasForParametro(param)
     }
   }
+
+  // Autofill por fórmulas existentes (sugerencia editable)
+  useEffect(() => {
+    if (!selectedSystem || parameters.length === 0 || formulas.length === 0) return;
+
+    const current = parameterValuesBySystem[selectedSystem] || {};
+    const overrides = formulaOverridesBySystem[selectedSystem] || {};
+
+    const suggestions = suggestFormulaValues(
+      parameters.map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        value: current[p.id]?.value,
+      }))
+    );
+
+    if (suggestions.length === 0) return;
+
+    let changed = false;
+    const next = { ...current };
+
+    suggestions.forEach((sug) => {
+      if (overrides[sug.parameterId]) return;
+
+      const existing = next[sug.parameterId];
+      const sameValue =
+        existing?.value !== undefined &&
+        existing?.value !== null &&
+        Number(existing.value) === Number(sug.value);
+      const alreadySuggested =
+        sameValue &&
+        existing?.formulaSuggested === true &&
+        existing?.formulaName === sug.formulaName;
+
+      if (alreadySuggested) return;
+      if (sameValue && existing?.checked) {
+        // Valor ya coincide; solo asegurar metadata de sugerencia
+        if (!existing.formulaSuggested || existing.formulaName !== sug.formulaName) {
+          next[sug.parameterId] = {
+            ...existing,
+            formulaSuggested: true,
+            formulaName: sug.formulaName,
+          };
+          changed = true;
+        }
+        return;
+      }
+
+      next[sug.parameterId] = {
+        ...existing,
+        checked: true,
+        value: sug.value,
+        formulaSuggested: true,
+        formulaName: sug.formulaName,
+      };
+      changed = true;
+    });
+
+    if (!changed) return;
+
+    setParameterValuesBySystem((prev) => ({
+      ...prev,
+      [selectedSystem]: next,
+    }));
+  }, [
+    selectedSystem,
+    parameters,
+    formulas,
+    parameterValuesBySystem,
+    formulaOverridesBySystem,
+    suggestFormulaValues,
+  ]);
 
   const handleMeasurementDataChange = useCallback((parameterId: string, data: { fecha: string; comentarios: string; valores: { [sistema: string]: string } }) => {
     if (!selectedSystem) return;
