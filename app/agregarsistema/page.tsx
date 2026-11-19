@@ -138,6 +138,14 @@ export default function ParameterManager() {
   const [showImportFromSystem, setShowImportFromSystem] = useState(false);
   const [selectedSourceSystemId, setSelectedSourceSystemId] = useState<string>("");
   const [sourceSystemParameters, setSourceSystemParameters] = useState<Parameter[]>([]);
+  const [importToAllSystems, setImportToAllSystems] = useState(false);
+  const [showImportConfirm, setShowImportConfirm] = useState(false);
+  const [importPreviewLoading, setImportPreviewLoading] = useState(false);
+  const [importingAll, setImportingAll] = useState(false);
+  const [importPreview, setImportPreview] = useState<{
+    sourceName: string;
+    systems: Array<{ id: string; nombre: string; params: Array<{ nombre: string; unidad: string }> }>;
+  } | null>(null);
 
   // Orden de parámetros por planta (sección "Orden de parámetros de la planta")
   const [plantOrderVariables, setPlantOrderVariables] = useState<{ id: string; nombre: string; unidad: string; orden?: number }[]>([])
@@ -1651,7 +1659,7 @@ export default function ParameterManager() {
     }
   }, [selectedSourceSystemId, token]);
 
-  // Función para importar todos los parámetros y tolerancias de otro sistema
+  // Importar parámetros solo al sistema seleccionado (pendientes de Guardar Cambios)
   const handleImportFromSystem = () => {
     if (!selectedSourceSystemId || sourceSystemParameters.length === 0) {
       alert("Por favor, selecciona un sistema fuente con parámetros.");
@@ -1703,8 +1711,160 @@ export default function ParameterManager() {
     setShowImportFromSystem(false);
     setSelectedSourceSystemId("");
     setSourceSystemParameters([]);
+    setImportToAllSystems(false);
     
-    alert(`✅ Se importaron ${newParameters.length} parámetros del sistema fuente.`);
+    alert(`✅ Se importaron ${newParameters.length} parámetros del sistema fuente. Recuerda Guardar Cambios.`);
+  };
+
+  /** Arma vista previa: a qué sistemas y con qué parámetros se importará */
+  const prepareImportPreview = async () => {
+    if (!selectedSourceSystemId || sourceSystemParameters.length === 0) {
+      alert("Por favor, selecciona un sistema fuente con parámetros.");
+      return;
+    }
+    if (!token) {
+      alert("No hay sesión activa.");
+      return;
+    }
+
+    const sourceName = systems.find((s) => s.id === selectedSourceSystemId)?.nombre || "Sistema fuente";
+
+    if (!importToAllSystems) {
+      if (!selectedSystemId) {
+        alert("No hay sistema destino seleccionado.");
+        return;
+      }
+      const existingParameterNames = parameters.map((p) => p.nombre.toLowerCase());
+      const params = sourceSystemParameters
+        .filter((param) => !existingParameterNames.includes(param.nombre.toLowerCase()))
+        .map((p) => ({ nombre: p.nombre, unidad: p.unidad || "" }));
+      if (params.length === 0) {
+        alert("Todos los parámetros del sistema fuente ya están en el sistema actual.");
+        return;
+      }
+      const destName = systems.find((s) => s.id === selectedSystemId)?.nombre || "Sistema actual";
+      setImportPreview({
+        sourceName,
+        systems: [{ id: selectedSystemId, nombre: destName, params }],
+      });
+      setShowImportConfirm(true);
+      return;
+    }
+
+    const targets = systems.filter((s) => s.id !== selectedSourceSystemId);
+    if (targets.length === 0) {
+      alert("No hay otros sistemas en esta planta para importar.");
+      return;
+    }
+
+    setImportPreviewLoading(true);
+    try {
+      const previewSystems: Array<{ id: string; nombre: string; params: Array<{ nombre: string; unidad: string }> }> = [];
+
+      for (const target of targets) {
+        let existingNames = new Set<string>();
+        if (target.id === selectedSystemId) {
+          existingNames = new Set(parameters.map((p) => p.nombre.toLowerCase()));
+        } else {
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLES_BY_SYSTEM(target.id)}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const vars = data.variables || [];
+            existingNames = new Set(vars.map((v: Parameter) => String(v.nombre || "").toLowerCase()));
+          }
+        }
+
+        const params = sourceSystemParameters
+          .filter((p) => !existingNames.has(p.nombre.toLowerCase()))
+          .map((p) => ({ nombre: p.nombre, unidad: p.unidad || "" }));
+
+        if (params.length > 0) {
+          previewSystems.push({ id: target.id, nombre: target.nombre, params });
+        }
+      }
+
+      if (previewSystems.length === 0) {
+        alert("Todos los parámetros del sistema fuente ya existen en los demás sistemas de la planta.");
+        return;
+      }
+
+      setImportPreview({ sourceName, systems: previewSystems });
+      setShowImportConfirm(true);
+    } catch (e: any) {
+      alert(e?.message || "No se pudo preparar la vista previa de importación.");
+    } finally {
+      setImportPreviewLoading(false);
+    }
+  };
+
+  /** Confirma e importa según la vista previa (1 sistema local o todos vía API) */
+  const confirmImportFromPreview = async () => {
+    if (!importPreview || !selectedSourceSystemId) return;
+
+    // Un solo sistema = flujo local (pendiente de Guardar Cambios)
+    if (!importToAllSystems) {
+      setShowImportConfirm(false);
+      setImportPreview(null);
+      handleImportFromSystem();
+      return;
+    }
+
+    if (!token) {
+      alert("No hay sesión activa.");
+      return;
+    }
+
+    setImportingAll(true);
+    try {
+      let created = 0;
+      for (const target of importPreview.systems) {
+        for (let i = 0; i < target.params.length; i++) {
+          const param = target.params[i];
+          const sourceParam = sourceSystemParameters.find(
+            (p) => p.nombre.toLowerCase() === param.nombre.toLowerCase()
+          );
+          const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VARIABLE_CREATE}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              nombre: param.nombre,
+              unidad: param.unidad || sourceParam?.unidad || "",
+              proceso_id: target.id,
+              orden: i,
+            }),
+          });
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(
+              errorData.message || `Error guardando ${param.nombre} en ${target.nombre}`
+            );
+          }
+          created += 1;
+        }
+      }
+
+      // Refrescar parámetros del sistema actual si fue destino
+      if (selectedSystemId && importPreview.systems.some((s) => s.id === selectedSystemId)) {
+        await fetchParameters();
+      }
+
+      setShowImportConfirm(false);
+      setImportPreview(null);
+      setShowImportFromSystem(false);
+      setSelectedSourceSystemId("");
+      setSourceSystemParameters([]);
+      setImportToAllSystems(false);
+
+      alert(
+        `✅ Importación completada: ${created} parámetro(s) en ${importPreview.systems.length} sistema(s).`
+      );
+    } catch (e: any) {
+      alert(e?.message || "Error al importar parámetros a todos los sistemas.");
+    } finally {
+      setImportingAll(false);
+    }
   };
 
   const handleSaveParameters = async (e: React.FormEvent) => {
@@ -2008,9 +2168,9 @@ export default function ParameterManager() {
                                 <p className="text-sm text-slate-500">No hay parámetros en los sistemas de esta planta. Añade parámetros a algún sistema para configurar el orden.</p>
                               ) : (
                                 <>
-                                  <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                                  <div className="max-h-64 overflow-y-auto overscroll-contain rounded-lg border border-slate-200 bg-white">
                                     <Table>
-                                      <TableHeader>
+                                      <TableHeader className="sticky top-0 z-10">
                                         <TableRow className="bg-slate-100">
                                           <TableHead className="w-12">#</TableHead>
                                           <TableHead>Nombre</TableHead>
@@ -2074,10 +2234,50 @@ export default function ParameterManager() {
                       <div>
                         <div className="grid grid-cols-[150px_1fr] items-start gap-4">
                           <Label className="pt-2 text-sm font-medium text-gray-700">Sistema</Label>
-                           <div className="flex items-center justify-between">
-                             <Button type="button" onClick={() => setShowCreateSystem(true)} className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all">
+                           <div className="flex flex-col items-stretch gap-3 sm:items-start">
+                             <Button
+                               type="button"
+                               onClick={() => setShowCreateSystem((v) => !v)}
+                               className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all w-fit"
+                             >
                                <Plus className="mr-2 h-4 w-4" /> Crear Sistema
                              </Button>
+                             {showCreateSystem && (
+                               <div className="w-full grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto_auto] gap-3 rounded-xl border-2 border-purple-200 p-4 bg-gradient-to-r from-purple-50 to-blue-50">
+                                 <Input
+                                   placeholder="Nombre del sistema"
+                                   value={newSystemName}
+                                   onChange={(e) => setNewSystemName(e.target.value)}
+                                   className="border-purple-200 focus:border-purple-400"
+                                 />
+                                 <Input
+                                   placeholder="Descripción"
+                                   value={newSystemDescription}
+                                   onChange={(e) => setNewSystemDescription(e.target.value)}
+                                   className="border-purple-200 focus:border-purple-400"
+                                 />
+                                 <Button
+                                   type="button"
+                                   onClick={handleCreateSystem}
+                                   disabled={loading || !newSystemName.trim()}
+                                   className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                                 >
+                                   Guardar
+                                 </Button>
+                                 <Button
+                                   type="button"
+                                   variant="outline"
+                                   onClick={() => {
+                                     setShowCreateSystem(false);
+                                     setNewSystemName("");
+                                     setNewSystemDescription("");
+                                   }}
+                                   className="rounded-lg"
+                                 >
+                                   Cancelar
+                                 </Button>
+                               </div>
+                             )}
                            </div>
                         </div>
                       </div>
@@ -2100,96 +2300,151 @@ export default function ParameterManager() {
                             </button>
                           ))}
                         </div>*/}
-                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                           {systems.map((system) => (
-                             <div key={system.id} className="flex flex-col h-full">
-                               <div
-                                 onClick={() => setSelectedSystemId(system.id)}
-                                 className={`flex flex-col h-full justify-between px-4 py-4 text-sm font-medium rounded-xl border-2 cursor-pointer transition-all duration-200 shadow-sm hover:shadow-lg ${
-                                   selectedSystemId === system.id
-                                     ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white border-blue-500 shadow-lg transform scale-105'
-                                     : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                                 }`}
-                               >
-                                 <div className="flex-grow flex items-center justify-center text-center font-semibold">{system.nombre}</div>
-                                 <div className="flex justify-center items-center gap-1 mt-3 pt-3 border-t border-gray-300 border-opacity-30">
-                                   {/* Botones de orden */}
-                                   <div className="flex flex-col gap-1">
+                         <div className="max-h-[22rem] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-slate-50/60 p-3 pr-2">
+                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                             {systems.map((system) => (
+                               <div key={system.id} className="flex min-w-0 flex-col h-full">
+                                 <div
+                                   onClick={() => setSelectedSystemId(system.id)}
+                                   className={`flex min-w-0 flex-col h-full justify-between overflow-hidden px-2.5 py-3 text-sm font-medium rounded-xl border-2 cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md ${
+                                     selectedSystemId === system.id
+                                       ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white border-blue-500 shadow-md'
+                                       : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                                   }`}
+                                 >
+                                   <div className="flex min-h-[2.5rem] flex-grow items-center justify-center px-1 text-center text-xs font-semibold leading-snug sm:text-sm break-words">
+                                     {system.nombre}
+                                   </div>
+                                   <div className="mt-2 flex w-full min-w-0 items-center justify-center gap-1.5 border-t border-gray-300/30 pt-2.5">
+                                     <div className="flex shrink-0 flex-col gap-1">
+                                       <button
+                                         type="button"
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           handleMoveSystemUp(system);
+                                         }}
+                                         disabled={systems.findIndex(s => s.id === system.id) === 0 || loading}
+                                         className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200/80 bg-white/90 text-slate-600 shadow-sm transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+                                         aria-label={`Mover ${system.nombre} hacia arriba`}
+                                         title="Mover hacia arriba"
+                                       >
+                                         <ChevronUp className="h-3 w-3" />
+                                       </button>
+                                       <button
+                                         type="button"
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           handleMoveSystemDown(system);
+                                         }}
+                                         disabled={systems.findIndex(s => s.id === system.id) === systems.length - 1 || loading}
+                                         className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200/80 bg-white/90 text-slate-600 shadow-sm transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+                                         aria-label={`Mover ${system.nombre} hacia abajo`}
+                                         title="Mover hacia abajo"
+                                       >
+                                         <ChevronDown className="h-3 w-3" />
+                                       </button>
+                                     </div>
                                      <button
+                                       type="button"
                                        onClick={(e) => {
                                          e.stopPropagation();
-                                         handleMoveSystemUp(system);
+                                         handleOpenEditSystem(system);
                                        }}
-                                       disabled={systems.findIndex(s => s.id === system.id) === 0 || loading}
-                                       className="px-2 py-1 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                                       aria-label={`Mover ${system.nombre} hacia arriba`}
-                                       title="Mover hacia arriba"
+                                       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-700 shadow-sm transition hover:bg-sky-100 hover:text-sky-900"
+                                       aria-label={`Editar nombre de ${system.nombre}`}
+                                       title="Editar"
                                      >
-                                       <ChevronUp className="h-3 w-3" />
+                                       <Edit className="h-3.5 w-3.5" />
                                      </button>
                                      <button
+                                       type="button"
                                        onClick={(e) => {
                                          e.stopPropagation();
-                                         handleMoveSystemDown(system);
+                                         handleDeleteSystem(system);
                                        }}
-                                       disabled={systems.findIndex(s => s.id === system.id) === systems.length - 1 || loading}
-                                       className="px-2 py-1 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                                       aria-label={`Mover ${system.nombre} hacia abajo`}
-                                       title="Mover hacia abajo"
+                                       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-700 shadow-sm transition hover:bg-rose-100 hover:text-rose-900"
+                                       aria-label={`Eliminar ${system.nombre}`}
+                                       title="Eliminar"
                                      >
-                                       <ChevronDown className="h-3 w-3" />
+                                       <Trash2 className="h-3.5 w-3.5" />
                                      </button>
                                    </div>
-                                   <div className="w-2"></div>
-                                   <button
-                                     onClick={(e) => {
-                                       e.stopPropagation();
-                                       handleOpenEditSystem(system);
-                                     }}
-                                     className="px-3 py-2 text-xs font-medium rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 flex items-center transition-colors"
-                                     aria-label={`Editar nombre de ${system.nombre}`}
-                                   >
-                                     <Edit className="h-3 w-3 mr-1" />
-                                   </button>
-                                   <div className="w-2"></div>
-                                   <button
-                                     onClick={(e) => {
-                                       e.stopPropagation();
-                                       handleDeleteSystem(system);
-                                     }}
-                                     className="px-3 py-2 text-xs font-medium rounded-lg bg-red-100 text-red-700 hover:bg-red-200 flex items-center transition-colors"
-                                     aria-label={`Eliminar ${system.nombre}`}
-                                   >
-                                     <Trash2 className="h-3 w-3 mr-1" />
-                                   </button>
-                                 </div>
+                                </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                           </div>
+                         </div>
 
                       </div>
                     )}
 
-                     {showCreateSystem && (
-                       <div className="mt-4 grid w-full grid-cols-[1fr_1fr_auto] gap-3 rounded-xl border-2 border-purple-200 p-4 bg-gradient-to-r from-purple-50 to-blue-50">
-                         <Input
-                           placeholder="Nombre del sistema"
-                           value={newSystemName}
-                           onChange={(e) => setNewSystemName(e.target.value)}
-                           className="border-purple-200 focus:border-purple-400"
-                         />
-                         <Input
-                           placeholder="Descripción"
-                           value={newSystemDescription}
-                           onChange={(e) => setNewSystemDescription(e.target.value)}
-                           className="border-purple-200 focus:border-purple-400"
-                         />
-                         <Button type="button" onClick={handleCreateSystem} disabled={loading || !newSystemName.trim()} className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all">
-                           Guardar
-                         </Button>
-                       </div>
-                     )}
+                    {/* Confirmación importar parámetros */}
+                    <Dialog
+                      open={showImportConfirm}
+                      onOpenChange={(open) => {
+                        if (!importingAll) {
+                          setShowImportConfirm(open);
+                          if (!open) setImportPreview(null);
+                        }
+                      }}
+                    >
+                      <DialogContent className="bg-white text-gray-900 max-w-lg max-h-[85vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>Confirmar importación de parámetros</DialogTitle>
+                        </DialogHeader>
+                        {importPreview && (
+                          <div className="space-y-3 text-sm">
+                            <p className="text-slate-600">
+                              Fuente: <span className="font-semibold text-slate-900">{importPreview.sourceName}</span>
+                              {importToAllSystems
+                                ? ". Se guardarán ahora en los sistemas listados."
+                                : ". Se agregarán al sistema actual (pendiente de Guardar Cambios)."}
+                            </p>
+                            <div className="space-y-3">
+                              {importPreview.systems.map((sys) => (
+                                <div key={sys.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                  <p className="font-semibold text-slate-800 mb-1.5">
+                                    {sys.nombre}
+                                    <span className="ml-2 text-xs font-normal text-slate-500">
+                                      ({sys.params.length} parámetro{sys.params.length === 1 ? "" : "s"})
+                                    </span>
+                                  </p>
+                                  <ul className="space-y-1 max-h-32 overflow-y-auto">
+                                    {sys.params.map((p) => (
+                                      <li key={`${sys.id}-${p.nombre}`} className="flex items-center gap-2 text-slate-600">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-green-500 shrink-0" />
+                                        {p.nombre}{p.unidad ? ` (${p.unidad})` : ""}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <DialogFooter className="gap-2 sm:gap-0">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={importingAll}
+                            onClick={() => {
+                              setShowImportConfirm(false);
+                              setImportPreview(null);
+                            }}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button
+                            type="button"
+                            className="bg-green-600 hover:bg-green-700 text-white rounded-lg"
+                            disabled={importingAll || !importPreview}
+                            onClick={confirmImportFromPreview}
+                          >
+                            {importingAll ? "Importando…" : "Confirmar e importar"}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
 
                     {/* Edit System Dialog */}
                     <Dialog open={showEditSystemDialog} onOpenChange={setShowEditSystemDialog}>
@@ -2398,7 +2653,7 @@ export default function ParameterManager() {
                               <h4 className="font-medium text-gray-700 mb-2">
                                 Parámetros disponibles en {systems.find(s => s.id === selectedSourceSystemId)?.nombre}:
                               </h4>
-                              <div className="space-y-2">
+                              <div className="space-y-2 max-h-40 overflow-y-auto">
                                 {sourceSystemParameters.map((param, index) => {
                                   return (
                                     <div key={index} className="text-sm text-gray-600 flex items-center justify-between">
@@ -2410,13 +2665,30 @@ export default function ParameterManager() {
                                   );
                                 })}
                               </div>
+                              <label className="mt-3 flex items-start gap-2 rounded-lg border border-purple-100 bg-purple-50/70 px-3 py-2 text-sm text-slate-700 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                                  checked={importToAllSystems}
+                                  onChange={(e) => setImportToAllSystems(e.target.checked)}
+                                />
+                                <span>
+                                  <span className="font-semibold text-purple-800">Aplicar a todos los sistemas</span>
+                                  {" "}de esta planta (excepto el sistema fuente). Se guardarán directamente en cada sistema.
+                                </span>
+                              </label>
                               <div className="mt-3 pt-3 border-t">
                                 <Button
                                   type="button"
-                                  onClick={handleImportFromSystem}
-                                  className="w-full bg-green-500 hover:bg-green-600 text-white"
+                                  onClick={prepareImportPreview}
+                                  disabled={importPreviewLoading}
+                                  className="w-full bg-green-500 hover:bg-green-600 text-white rounded-lg"
                                 >
-                                  📥 Importar Parámetros
+                                  {importPreviewLoading
+                                    ? "Preparando vista previa…"
+                                    : importToAllSystems
+                                      ? "Revisar e importar a todos"
+                                      : "Revisar e importar parámetros"}
                                 </Button>
                               </div>
                             </div>
@@ -2512,10 +2784,10 @@ export default function ParameterManager() {
                       Parámetros para el sistema seleccionado:{" "}
                       <span className="font-semibold">{systems.find((s) => s.id === selectedSystemId)?.nombre || "N/A"}</span>
                     </p>
-                    <div className="mt-6">
+                    <div className="mt-6 max-h-[28rem] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white">
                       {parameters.length > 0 ? (
                         <Table>
-                          <TableHeader>
+                          <TableHeader className="sticky top-0 z-10 bg-white shadow-sm">
                             <TableRow>
                               <TableHead>Nombre</TableHead>
                               <TableHead>Unidad</TableHead>

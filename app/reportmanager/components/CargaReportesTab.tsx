@@ -84,6 +84,10 @@ function splitCSVRows(text: string): string[] {
     }
   }
   if (current) rows.push(current);
+  // Quitar filas vacías al final (CSV suele terminar en \n)
+  while (rows.length > 0 && !rows[rows.length - 1].trim()) {
+    rows.pop();
+  }
   return rows;
 }
 
@@ -92,20 +96,44 @@ const MESES_ES: Record<string, string> = {
   jul: "07", ago: "08", sep: "09", oct: "10", nov: "11", dic: "12",
 };
 
-function parseFechaSpanish(s: string): string {
+/** Devuelve YYYY-MM-DD o null si no es una fecha reconocible (no inventa "hoy"). */
+function parseFechaSpanish(s: string): string | null {
   const raw = String(s).trim();
-  if (!raw) return new Date().toISOString().split("T")[0];
+  if (!raw) return null;
+
+  // Ya viene en ISO: 2025-07-28 (o con hora)
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  // DD/MM/YYYY o DD-MM-YYYY o DD.MM.YYYY (ej. 28/07/2025)
+  const numeric = raw.match(/^(\d{1,2})[-./](\d{1,2})[-./](\d{2,4})$/);
+  if (numeric) {
+    const [, d, m, y] = numeric;
+    const day = d.padStart(2, "0");
+    const month = m.padStart(2, "0");
+    let year = parseInt(y, 10);
+    if (year < 100) year += year < 50 ? 2000 : 1900;
+    const monthNum = parseInt(month, 10);
+    const dayNum = parseInt(day, 10);
+    if (monthNum >= 1 && monthNum <= 12 && dayNum >= 1 && dayNum <= 31) {
+      return `${year}-${month}-${day}`;
+    }
+  }
+
+  // DD/mes/YYYY con mes en texto (ej. 28/jul/2025)
   const m = raw.match(/^(\d{1,2})[-./](\w{3})[-./](\d{2,4})$/i);
   if (m) {
     const [, d, mes, y] = m;
     const mesLow = mes.toLowerCase();
-    const mesNum = MESES_ES[mesLow] ?? "01";
+    const mesNum = MESES_ES[mesLow];
+    if (!mesNum) return null;
     const day = d.padStart(2, "0");
     let year = parseInt(y, 10);
     if (year < 100) year += year < 50 ? 2000 : 1900;
     return `${year}-${mesNum}-${day}`;
   }
-  return new Date().toISOString().split("T")[0];
+
+  return null;
 }
 
 function cleanParam(name: string): string {
@@ -205,11 +233,14 @@ export default function CargaReportesTab({
         let text = (reader.result as string) || "";
         text = text.replace(/^\uFEFF/, "");
         const rows = splitCSVRows(text);
+        // Fila 0: cabecera (se omite como reporte)
+        // Fila 1+: reportes
         if (rows.length < 2) {
-          setParseError("El archivo no tiene filas de datos (debe tener cabecera y al menos una fila).");
+          setParseError(
+            "El archivo no tiene filas de datos (cabecera en fila 0; reportes a partir de la fila 1)."
+          );
           return;
         }
-        // La primera fila (row 0) es siempre la cabecera; los reportes empiezan en la fila 1
         const headerRow = rows[0];
         const dataStartIdx = 1;
         const headerFields = parseCSVLine(headerRow);
@@ -248,10 +279,15 @@ export default function CargaReportesTab({
 
         const reportes: Record<string, unknown>[] = [];
         for (let r = dataStartIdx; r < rows.length; r++) {
+          if (!rows[r].trim()) continue;
+
           let fields = parseCSVLine(rows[r]);
           fields = alignRowToHeader(fields, headers.length);
           const fechaRaw = fields[fechaCol];
           const fechaIso = parseFechaSpanish(fechaRaw ?? "");
+          // Sin fecha válida no es reporte (evita filas vacías / basura)
+          if (!fechaIso) continue;
+
           const comentariosRaw = comentariosColIdx >= 0 ? (fields[comentariosColIdx] ?? "").trim() : "";
           const comentariosTexto = typeof comentariosRaw === "string" ? comentariosRaw : String(comentariosRaw);
 
@@ -358,7 +394,9 @@ export default function CargaReportesTab({
         </div>
       )}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Archivo CSV (formato Cryoinfra: Fecha + sistemas por columnas)</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Archivo CSV (formato Cryoinfra: Fecha + sistemas por columnas). Cabecera = fila 0; reportes desde la fila 1.
+        </label>
         <input
           type="file"
           accept=".csv"
